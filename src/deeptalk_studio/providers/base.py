@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Protocol
+from typing import Any, Dict, Optional, Protocol
 
 from ..provenance import ProviderProvenance
 
@@ -11,7 +11,12 @@ class ProviderResult:
 
 
 class ResearchProvider(Protocol):
-    def research(self, topic: str, schema: Dict[str, Any]) -> ProviderResult:
+    def discover(self, query: str, schema: Dict[str, Any]) -> ProviderResult:
+        ...
+
+    def research(
+        self, topic: str, schema: Dict[str, Any], research_handoff: Optional[Dict[str, Any]] = None
+    ) -> ProviderResult:
         ...
 
     def fact_check(self, report: Dict[str, Any], schema: Dict[str, Any]) -> ProviderResult:

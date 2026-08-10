@@ -38,6 +38,10 @@ V0.2 不用“格式合法”代替“研究可靠”。每个正式版本至少
 
 去内容化的详细分数和 Gate 指标见 `evaluations/v0.2-summary.json`。
 
+## V0.3 选题发现评测
+
+V0.3 新增的真实选题发现评测不替代上面的 Research / Fact Check 评测。它检查近期性、Source Seed、风险降级、事件去重、类别多样性、评分解释、首选排序与“只回复编号进入 Research”。方法和记录见 [TOPIC_DISCOVERY_EVALS.md](TOPIC_DISCOVERY_EVALS.md)，去内容化汇总见 `evaluations/v0.3.0-summary.json`。
+
 ## V0.2.1 复测记录
 
 执行日期：2026-08-10。沿用同三类题材、同评分维度和同质量阈值，使用 hardened quality 规则重新生成 r1、应用独立 FactCheck Artifact 并生成 r2。

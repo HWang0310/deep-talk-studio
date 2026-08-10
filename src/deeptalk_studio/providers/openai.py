@@ -4,8 +4,10 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from ..prompt import (
+    DISCOVERY_SYSTEM_PROMPT,
     FACT_CHECK_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
+    build_discovery_prompt,
     build_fact_check_prompt,
     build_user_prompt,
 )
@@ -68,12 +70,22 @@ class OpenAIResponsesProvider:
         self.timeout = timeout
         self.transport = transport or _default_transport
 
-    def research(self, topic: str, schema: Dict[str, Any]) -> ProviderResult:
+    def research(
+        self, topic: str, schema: Dict[str, Any], research_handoff: Optional[Dict[str, Any]] = None
+    ) -> ProviderResult:
         return self._run_structured_search(
             SYSTEM_PROMPT,
-            build_user_prompt(topic),
+            build_user_prompt(topic, research_handoff),
             schema,
             "deep_talk_research_report",
+        )
+
+    def discover(self, query: str, schema: Dict[str, Any]) -> ProviderResult:
+        return self._run_structured_search(
+            DISCOVERY_SYSTEM_PROMPT,
+            build_discovery_prompt(query),
+            schema,
+            "deep_talk_topic_discovery",
         )
 
     def fact_check(self, report: Dict[str, Any], schema: Dict[str, Any]) -> ProviderResult:

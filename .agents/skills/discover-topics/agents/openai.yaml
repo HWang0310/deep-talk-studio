@@ -1,0 +1,4 @@
+interface:
+  display_name: "DeepTalk 选题发现"
+  short_description: "寻找近期、可研究的深度口播候选题"
+  default_prompt: "Use $discover-topics to find five recent, source-seeded DeepTalk Studio topics."

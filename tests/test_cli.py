@@ -7,7 +7,12 @@ import unittest
 from pathlib import Path
 
 from deeptalk_studio.quality import calculate_quality_summary
-from tests.fixtures import valid_codex_draft_input, valid_fact_check_data, valid_report_data
+from tests.fixtures import (
+    valid_codex_draft_input,
+    valid_discovery_input,
+    valid_fact_check_data,
+    valid_report_data,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +44,43 @@ class CliTests(unittest.TestCase):
         self.assertIn("migrate", result.stdout)
         self.assertIn("review-report", result.stdout)
         self.assertIn("prepare-draft", result.stdout)
+        self.assertIn("discover", result.stdout)
+        self.assertIn("select-topic", result.stdout)
+
+    def test_prepare_discovery_and_select_topic_need_no_json_for_normal_user(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "discovery-input.json"
+            discovery_root = Path(temp_dir) / "discoveries"
+            input_path.write_text(
+                json.dumps(valid_discovery_input(), ensure_ascii=False), encoding="utf-8"
+            )
+            prepared = run_cli(
+                "prepare-discovery", str(input_path), "--output", str(discovery_root)
+            )
+            selected = run_cli("select-topic", "1", "--output", str(discovery_root))
+
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+        self.assertIn("候选选题已生成", prepared.stdout)
+        self.assertIn("首选", prepared.stdout)
+        self.assertEqual(selected.returncode, 0, selected.stderr)
+        self.assertIn("已选择", selected.stdout)
+        self.assertIn("research_question", selected.stdout)
+
+    def test_discovery_without_api_key_gives_simple_codex_guidance(self):
+        result = run_cli("discover", "今天讲什么？", env={"OPENAI_API_KEY": ""})
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("没有检测到 OPENAI_API_KEY", result.stderr)
+        self.assertIn("今天讲什么", result.stderr)
+
+    def test_selecting_without_latest_discovery_is_a_clean_cli_error(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_cli("select-topic", "1", "--output", temp_dir)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("无法生成报告", result.stderr)
+        self.assertIn("没有可供选择", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_sample_writes_a_readable_report(self):
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -28,7 +28,7 @@
 - 收紧 context-only、未匹配 attribution、重复转载对质量指标的影响；
 - 保持 Research Report 0.2 契约和原质量阈值不变。
 
-## V0.3：Topic Discovery
+## V0.3：Topic Discovery（已完成）
 
 - 支持“我不知道今天讲什么”的入口；
 - 聚合近期社会、商业、科技、网络和公共事件；
@@ -36,6 +36,9 @@
 - 输出候选选题卡，由用户简单确认后进入 Research Workflow；
 - 参考创作者关注方向，但不抓取或模仿其稿件。
 - 保持人工选题确认，确认后才进入 V0.2 Research Workflow。
+- 新增 Channel Profile、Topic Candidate Set 0.3、Source Seed Preflight、透明五维评分、资格 Gate、事件去重、类别多样性和不可覆盖的 discovery 历史；
+- 新增 `discover-topics` Skill，支持用户回复编号后直接交给 `research-topic`，不重复要求标题；
+- 三类真实 Discovery 评测和去内容化汇总。
 
 ## V0.4：原创 Script Agent
 

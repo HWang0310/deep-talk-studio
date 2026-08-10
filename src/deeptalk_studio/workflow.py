@@ -5,13 +5,15 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from .fact_check import (
     apply_fact_check,
     normalize_fact_check_sources,
     validate_fact_check_artifact,
 )
+from .discovery import load_channel_profile, prepare_discovery
+from .discovery_storage import DiscoveryPaths, save_discovery
 from .models import ResearchReport
 from .provenance import ProviderProvenance, reconcile_provenance, reconcile_source_records
 from .providers.base import ProviderResult, ResearchProvider
@@ -20,6 +22,7 @@ from .revisions import create_revision
 from .schema import (
     API_RESEARCH_DRAFT_JSON_SCHEMA,
     CODEX_DRAFT_JSON_SCHEMA,
+    DISCOVERY_RAW_JSON_SCHEMA,
     FACT_CHECK_JSON_SCHEMA,
 )
 from .sources import normalize_report_sources
@@ -41,6 +44,12 @@ class ReviewResult:
     fact_check: Path
     reviewed: ReportPaths
     final_status: str
+
+
+@dataclass(frozen=True)
+class TopicDiscoveryResult:
+    candidate_set: object
+    paths: DiscoveryPaths
 
 
 def _default_clock() -> datetime:
@@ -221,12 +230,18 @@ def run_research(
     output_root: Path,
     clock: Callable[[], datetime] = _default_clock,
     id_factory: Callable[[str], str] = _default_id_factory,
+    research_handoff: Optional[dict] = None,
 ) -> WorkflowResult:
     clean_topic = topic.strip()
     if not clean_topic:
         raise ValueError("主题不能为空")
 
-    research_result = provider.research(clean_topic, API_RESEARCH_DRAFT_JSON_SCHEMA)
+    if research_handoff is None:
+        research_result = provider.research(clean_topic, API_RESEARCH_DRAFT_JSON_SCHEMA)
+    else:
+        research_result = provider.research(
+            clean_topic, API_RESEARCH_DRAFT_JSON_SCHEMA, research_handoff
+        )
     draft = _prepare_draft(
         clean_topic,
         research_result,
@@ -249,6 +264,41 @@ def run_research(
         reviewed=review_result.reviewed,
         report_id=draft.report_id,
         final_status=review_result.final_status,
+    )
+
+
+def run_topic_discovery(
+    query: str,
+    provider: ResearchProvider,
+    output_root: Path,
+    clock: Callable[[], datetime] = _default_clock,
+    id_factory: Callable[[str], str] = _default_id_factory,
+    category_filter: tuple = (),
+) -> TopicDiscoveryResult:
+    """Run a light Discovery pass and persist candidates before user selection."""
+
+    clean_query = query.strip()
+    if not clean_query:
+        raise ValueError("选题请求不能为空")
+    result = provider.discover(clean_query, DISCOVERY_RAW_JSON_SCHEMA)
+    raw = deepcopy(result.data)
+    raw["query"] = clean_query
+    provenance_urls = []
+    for call in result.provenance.search_calls:
+        provenance_urls.extend(call.source_urls)
+    provenance_urls.extend(citation.url for citation in result.provenance.citations)
+    candidate_set = prepare_discovery(
+        raw,
+        load_channel_profile(),
+        now=clock(),
+        discovery_id=id_factory("DISC"),
+        provenance_urls=provenance_urls,
+        discovery_mode="openai_api",
+        category_filter=category_filter,
+    )
+    return TopicDiscoveryResult(
+        candidate_set=candidate_set,
+        paths=save_discovery(candidate_set, output_root),
     )
 
 

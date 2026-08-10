@@ -12,4 +12,5 @@ htmlcov/
 .mypy_cache/
 reports/**
 !reports/.gitkeep
-
+discoveries/**
+!discoveries/.gitkeep

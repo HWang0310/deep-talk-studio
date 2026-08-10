@@ -2,7 +2,7 @@
 
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
-当前版本是 **V0.2.1**。输入一个主题后，系统先生成 Research Draft，再单独进行一次新的事实核查，最后由透明的质量 Gate 决定报告只能停在草稿，还是可以进入人工确认。V0.2.1 不增加新功能，专门修正独立来源计数、API 机器字段和 Fact Check 新来源归组。
+当前版本是 **V0.3.0**。现在有两个简单入口：直接给主题，或直接问“今天讲什么？”。后者会先给出最多 5 个有公开资料基础的候选题和一个首选；你只需回复编号，系统就会直接进入原有的深度研究、独立事实核查和质量 Gate。
 
 ## 现在最简单的用法
 
@@ -10,7 +10,25 @@ DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目�
 
 > 请用 DeepTalk Studio 研究“你想研究的话题”，生成 Research Report。
 
-仓库里的 `research-topic` Skill 会被 Codex 自动识别。它会联网搜索、打开来源、整理证据，再用新的检索完成独立 Fact Check。你不需要理解代码，也不需要自己拼命令。
+或者直接说：
+
+> 今天讲什么？
+
+> 帮我找几个科技选题。
+
+> 最近社会热点有什么值得讲？
+
+仓库里的 `discover-topics` 和 `research-topic` Skill 会被 Codex 自动识别。前者只做轻量资料预检、去重和排序；后者才联网搜索、整理证据并完成独立 Fact Check。你不需要理解代码，也不需要自己拼命令。
+
+选题结果会保存在本机：
+
+```text
+discoveries/YYYY/MM/DD/选题批次ID.md
+discoveries/YYYY/MM/DD/选题批次ID.json
+discoveries/latest.json
+```
+
+每次都是独立历史记录；`latest.json` 只用于让你下一句回复“1”时能知道你选的是哪一题。真实选题列表默认不会上传 GitHub。
 
 报告默认保存到：
 
@@ -26,6 +44,10 @@ reports/YYYY/MM/DD/主题/报告ID/research-report-r0002.json
 ## 项目现在能做什么
 
 - 接受社会、时事、商业、科技、网络热点或公共事件主题；
+- 当你没有选题时，寻找最近 72 小时、或最近 14 天持续事件的新进展；默认只给最多 5 个候选，并明确一个“首选”；
+- 对候选执行轻量资料预检：来源入口、风险、时效、重复事件和分类多样性；高风险但资料薄弱的事件只列为观察，不进入推荐；
+- 用可解释的五项评分计算总分：可核查性 30%、深度冲突 25%、新鲜度 20%、频道匹配 15%、公开关注信号 10%；总分由程序计算；
+- 让你只回复“1”或“研究 1”就把候选的研究问题、核心冲突、风险提示和资料入口交给 Research Workflow；
 - 搜集并登记可点击的公开来源；
 - 记录来源是否真的出现在本次搜索或引用工具结果中；
 - 整理事件时间线；
@@ -44,7 +66,7 @@ reports/YYYY/MM/DD/主题/报告ID/research-report-r0002.json
 
 ## 还不能做什么
 
-V0.2.1 仍不包含自动选题、成品口播稿、素材下载、图片或视频生成、剪辑方案、B 站发布和其他平台分发。即使报告通过机器 Gate，也不会自动写稿；未来 Script Agent 前还保留一次用户明确确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
+V0.3 仍不包含成品口播稿、素材下载、图片或视频生成、剪辑方案、B 站发布和其他平台分发。即使报告通过机器 Gate，也不会自动写稿；未来 Script Agent 前还保留一次用户明确确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
 
 ## 不依赖联网的检查方式
 
@@ -56,7 +78,7 @@ V0.2.1 仍不包含自动选题、成品口播稿、素材下载、图片或视�
 ./scripts/deeptalk sample
 ```
 
-校验当前 V0.2.1 示例报告：
+校验当前 Research Report 示例：
 
 ```bash
 ./scripts/deeptalk validate examples/sample-research-report.json
@@ -77,6 +99,16 @@ Codex Skill 模式还可以把研究内容整理为带机器字段的草稿，�
 
 普通用户不需要自己执行这两条命令，Codex 会代为完成。
 
+开发或自动化时也可以使用：
+
+```bash
+./scripts/deeptalk discover "今天有什么值得讲？"
+./scripts/deeptalk discover "最近科技商业有什么值得讲？" --category tech
+./scripts/deeptalk select-topic "1"
+```
+
+没有 API 密钥时，这些联网命令会提示回到 Codex 自然语言入口；不会假装完成搜索。
+
 ## 可选的 API 自动化入口
 
 未来需要脱离 Codex 批量运行时，可以配置 `OPENAI_API_KEY`，再执行：
@@ -92,7 +124,9 @@ Codex Skill 模式还可以把研究内容整理为带机器字段的草稿，�
 ## 项目结构
 
 ```text
+.agents/skills/discover-topics/ Codex 可自动发现的选题发现工作流
 .agents/skills/research-topic/  Codex 可自动发现的研究工作流
+config/channel-profile.json     V0.3 默认频道定位
 src/deeptalk_studio/            报告模型、校验、渲染、保存与 API 适配
 scripts/deeptalk                无需安装的统一入口
 examples/                       V0.2.1 虚构报告与 Codex Draft 输入示例

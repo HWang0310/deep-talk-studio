@@ -2,6 +2,31 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [0.3.0] - 2026-08-10
+
+### Added
+
+- 新增模式 B Topic Discovery：用户可直接说“今天讲什么？”“帮我找几个选题”或指定科技、商业、社会等方向；默认展示最多 5 个候选和一个首选。
+- 新增版本化 `config/channel-profile.json`、独立 `Topic Candidate Set 0.3`、`Research Handoff Brief 0.3`、Discovery 历史和 latest 指针；不改变 Research Report / FactCheck Artifact `0.2`。
+- 新增轻量 Source Seed Preflight、72 小时与持续事件时间规则、五维透明评分、机器总分、Eligibility Gate、事件聚类、类别多样性、watch/reject 状态和简短 Markdown 选题卡。
+- 新增 `discover-topics` Codex Skill；用户只回复 `1` 或 `研究 1` 就能把候选的研究问题、核心张力、风险和 Seeds 交给已有 `research-topic` Skill。
+- 新增 OpenAI Discovery API 调用、`discover` / `prepare-discovery` / `select-topic` / `research-selected` CLI 入口，以及 Topic Discovery 契约和三类真实评测方法。
+
+### Changed
+
+- `research-topic` 支持接收结构化 Research Handoff，不再要求用户把已选标题复制一遍。
+- README、PRD、ROADMAP、AGENTS、架构、评测、CHANGELOG 和 HANDOFF 同步 V0.3；V0.4 Script Agent 仍未开始。
+
+### Validation
+
+- 自动测试由 85 项增加至 101 项，覆盖 Candidate Schema、评分权重与总分所有权、Eligibility Gate、72 小时/持续事件、陈旧事件、Seed URL、去重、多样性、watch、历史、编号交接、Codex/API、CLI 和模式 A 回归。
+- 三类真实公开 Discovery 场景完成并只提交去内容化汇总；快速高风险且资料薄弱的线索保持 `watch` / `rejected`，没有为增加候选数量而降低门槛。
+
+### Security
+
+- Creator signal 为可选辅助信号，不能作为事实证据；不抓取稿件、字幕或独特表达，也不伪造播放量或热度。
+- 真实 Candidate Set 继续保存在 gitignored `discoveries/`；API 模式无法匹配真实 Web Search provenance 的 Seed 不会装作已打开。
+
 ## [0.2.1] - 2026-08-10
 
 ### Fixed

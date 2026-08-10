@@ -416,3 +416,131 @@ FACT_CHECK_JSON_SCHEMA = _object(
         "overall_notes": _string(),
     }
 )
+
+
+# Topic Discovery is intentionally a separate upstream artifact.  The raw schema
+# is the limited judgment surface allowed to an API model or the Codex Skill;
+# identity, preflight result, label, total score and ordering are code-owned.
+DISCOVERY_SCORE_SCHEMA = _object({"score": _integer(), "reason": _string()})
+
+DISCOVERY_SOURCE_SEED_RAW_SCHEMA = _object(
+    {
+        "url": _string(),
+        "publisher": _string(),
+        "published_at": _string(allow_empty=True),
+        "source_type": SOURCE_SCHEMA["properties"]["source_type"],
+        "why_useful": _string(),
+    }
+)
+
+DISCOVERY_SOURCE_SEED_SCHEMA = _object(
+    {
+        **DISCOVERY_SOURCE_SEED_RAW_SCHEMA["properties"],
+        "provenance_status": _enum(["matched", "unmatched", "manual_open"]),
+    }
+)
+
+DISCOVERY_SCORE_BREAKDOWN_RAW_SCHEMA = _object(
+    {
+        "researchability": DISCOVERY_SCORE_SCHEMA,
+        "depth_conflict": DISCOVERY_SCORE_SCHEMA,
+        "freshness": DISCOVERY_SCORE_SCHEMA,
+        "channel_fit": DISCOVERY_SCORE_SCHEMA,
+        "attention_signal": DISCOVERY_SCORE_SCHEMA,
+    }
+)
+
+DISCOVERY_ELIGIBILITY_SIGNALS_SCHEMA = _object(
+    {
+        "anonymous_rumor_only": {"type": "boolean"},
+        "public_evidence_available": {"type": "boolean"},
+        "material_unverified_allegation": {"type": "boolean"},
+        "emotion_only": {"type": "boolean"},
+        "creator_imitation_dependency": {"type": "boolean"},
+        "major_fast_event": {"type": "boolean"},
+        "research_directions": _integer(),
+    }
+)
+
+DISCOVERY_CANDIDATE_RAW_SCHEMA = _object(
+    {
+        "title": _string(),
+        "category": _enum(
+            ["social", "business", "technology", "internet_culture", "public_affairs"]
+        ),
+        "topic_summary": _string(),
+        "why_now": _string(),
+        "core_tension": _string(),
+        "research_question": _string(),
+        "event_started_at": _string(),
+        "latest_update_at": _string(),
+        "shelf_life": _enum(["urgent", "short", "medium", "evergreen"]),
+        "risk_level": _enum(["low", "medium", "high", "critical"]),
+        "risk_notes": _string(),
+        "event_cluster_key": _string(),
+        "eligibility_signals": DISCOVERY_ELIGIBILITY_SIGNALS_SCHEMA,
+        "score_assessments": DISCOVERY_SCORE_BREAKDOWN_RAW_SCHEMA,
+        "source_seeds": _array(DISCOVERY_SOURCE_SEED_RAW_SCHEMA),
+        "warnings": _string_array(),
+        "creator_attention_signal": _object(
+            {"available": {"type": "boolean"}, "summary": _string(allow_empty=True)}
+        ),
+    }
+)
+
+DISCOVERY_RAW_JSON_SCHEMA = _object(
+    {
+        "query": _string(),
+        "time_window_hours": _integer(1),
+        "candidates": _array(DISCOVERY_CANDIDATE_RAW_SCHEMA),
+    }
+)
+
+DISCOVERY_CANDIDATE_SCHEMA = _object(
+    {
+        "candidate_id": _string(),
+        **DISCOVERY_CANDIDATE_RAW_SCHEMA["properties"],
+        "source_seeds": _array(DISCOVERY_SOURCE_SEED_SCHEMA),
+        "score_breakdown": DISCOVERY_SCORE_BREAKDOWN_RAW_SCHEMA,
+        "total_score": _integer(),
+        "eligibility_status": _enum(["eligible", "watch", "rejected"]),
+        "eligibility_reasons": _string_array(),
+        "recommendation": _enum(["recommend", "consider", "watch", "reject"]),
+        "is_primary": {"type": "boolean"},
+    }
+)
+
+TOPIC_CANDIDATE_SET_JSON_SCHEMA = _object(
+    {
+        "artifact_version": _enum(["0.3"]),
+        "discovery_id": _string(),
+        "generated_at": _string(),
+        "discovery_mode": _enum(["codex_skill", "openai_api", "fixture"]),
+        "query": _string(),
+        "time_window_hours": _integer(1),
+        "channel_profile_version": _string(),
+        "channel_profile_name": _string(),
+        "candidates": _array(DISCOVERY_CANDIDATE_SCHEMA),
+        "display_candidate_ids": _string_array(),
+        "watch_candidate_count": _integer(),
+        "rejected_candidate_count": _integer(),
+        "limitations": _string_array(),
+    }
+)
+
+RESEARCH_HANDOFF_BRIEF_JSON_SCHEMA = _object(
+    {
+        "artifact_version": _enum(["0.3"]),
+        "discovery_id": _string(),
+        "selected_position": _integer(1),
+        "candidate_id": _string(),
+        "title": _string(),
+        "research_question": _string(),
+        "core_tension": _string(),
+        "why_now": _string(),
+        "risk_level": _enum(["low", "medium", "high", "critical"]),
+        "risk_notes": _string(),
+        "warnings": _string_array(),
+        "source_seeds": _array(DISCOVERY_SOURCE_SEED_SCHEMA),
+    }
+)
