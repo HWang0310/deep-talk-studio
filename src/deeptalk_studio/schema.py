@@ -604,8 +604,41 @@ SCRIPT_DRAFT_CONTENT_JSON_SCHEMA = _object(
     }
 )
 
+# Revision input may describe continuity, but it never owns the final beat_id.
+SCRIPT_REVISION_CONTENT_BEAT_RAW_SCHEMA = _object(
+    {
+        **SCRIPT_CONTENT_BEAT_RAW_SCHEMA["properties"],
+        "origin_beat_id": _string(allow_empty=True),
+    },
+    optional=("origin_beat_id",),
+)
+
+SCRIPT_REVISION_CONTENT_JSON_SCHEMA = _object(
+    {
+        **SCRIPT_DRAFT_CONTENT_JSON_SCHEMA["properties"],
+        "beats": _array(SCRIPT_REVISION_CONTENT_BEAT_RAW_SCHEMA),
+    }
+)
+
 SCRIPT_BEAT_SCHEMA = _object(
     {"beat_id": _string(), **SCRIPT_CONTENT_BEAT_RAW_SCHEMA["properties"]}
+)
+
+SCRIPT_REVIEW_STATE_SCHEMA = _object(
+    {
+        "state": _enum(["not_reviewed", "reviewed"]),
+        "review_id": _string(allow_empty=True),
+        "reviewed_from_revision": _integer(),
+        "review_gate_status": _enum(["not_run", "pass"]),
+        "reviewed_content_digest": _string(allow_empty=True),
+    }
+)
+
+SCRIPT_BEAT_IDENTITY_SCHEMA = _object(
+    {
+        "next_beat_number": _integer(1),
+        "retired_beat_ids": _string_array(),
+    }
 )
 
 SCRIPT_DRAFT_JSON_SCHEMA = _object(
@@ -636,7 +669,10 @@ SCRIPT_DRAFT_JSON_SCHEMA = _object(
         "missing_must_keep_claim_ids": _string_array(),
         "must_keep_omission_reasons": _array(SCRIPT_MUST_KEEP_OMISSION_SCHEMA),
         "change_summary": _string(),
-    }
+        "review_state": SCRIPT_REVIEW_STATE_SCHEMA,
+        "beat_identity": SCRIPT_BEAT_IDENTITY_SCHEMA,
+    },
+    optional=("review_state", "beat_identity"),
 )
 
 SCRIPT_REVIEW_CHECK_NAMES = [
@@ -676,6 +712,7 @@ SCRIPT_REVIEW_ISSUE_TYPES = [
     "ai_report_tone",
     "originality_risk",
     "long_quote",
+    "script_usability",
 ]
 
 SCRIPT_REVIEW_CHECK_SCHEMA = _object(
@@ -727,5 +764,8 @@ SCRIPT_REVIEW_JSON_SCHEMA = _object(
         "overall_notes": _string(),
         "blocking_issue_count": _integer(),
         "gate_status": _enum(["pass", "fail"]),
-    }
+        "reviewed_content_digest": _string(),
+        "review_consistency_version": _enum(["0.4.1"]),
+    },
+    optional=("reviewed_content_digest", "review_consistency_version"),
 )

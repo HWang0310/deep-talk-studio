@@ -24,7 +24,7 @@
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- V0.4.0 已完成 Original Script Agent；V0.5 素材与视觉辅助尚未开始，不要提前实现素材、视觉、剪辑和发布。
+- V0.4.1 已完成 Script Gate Hardening，等待产品复核；V0.5 素材与视觉辅助尚未开始，不要提前实现素材、视觉、剪辑和发布。
 - 用户说“今天讲什么”“找几个选题”“换一批”或带分类偏好时，先阅读 `.agents/skills/discover-topics/SKILL.md` 和 `docs/TOPIC_DISCOVERY_CONTRACT.md`，不要把它塞进 `research-topic`。
 - 用户回复候选编号时，读取 latest Candidate Set 的结构化 Research Handoff，直接进入 `research-topic`；不要要求用户再复制标题，也不要把 Discovery Source Seeds 当成事实证据。
 - Topic Candidate Set 0.3 的总分、资格状态、资格理由、推荐标签、展示顺序、首选、统计数、身份、时间和来源 provenance 由程序计算并在读取时重新推导；模型或 Skill 只能给评分理由和轻量预检内容。
@@ -43,7 +43,9 @@
 - Fact Beat 只能引用已核查的 `confirmed_fact`；party statement / commentary 必须使用 Attribution Beat；Analysis Beat 必须保存 basis Claim。
 - `avoid_claims` 是禁止结论，不是写作建议；直接使用必须失败，语义近似越界必须由 Reviewer 检查。
 - Script Draft 的身份、revision、状态、Beat ID、时长、字数和 must-keep coverage 由程序生成和重新校验，Writer / Reviewer 不能自报。
-- Script Review 必须完成 15 个必检维度；阻断问题由 issue type 推导，任何 blocking issue 都不能进入 `reviewed`。
+- Script Review 必须完成 15 个必检维度；每个失败 check 必须有类型匹配的 issue，八项事实安全 check 还必须有 blocking issue。缺失关联时拒绝 Artifact，绝不猜测为通过。
+- `reviewed` Script 必须能在读取时找到匹配的通过 Review Artifact，并复验 review ID、来源 revision、内容指纹和 Gate；V0.4.0 旧 reviewed JSON 缺少 linkage 时必须重新审查。
+- Script 修订只接受程序校验过的 continuity hint；保留 Beat 的 ID 不变，新 ID 单调递增，退休 ID 永不复用。
 - Editor Markdown 用于追踪 Claim / Evidence / 风险；Teleprompter 只保留可朗读正文，不得包含机器 ID、URL 或编辑标签。
 - 所有 Script revision 必须不可覆盖并绑定同一份已批准 Research revision；新研究内容会重置旧 Approval，旧稿不能偷换新底稿。
 

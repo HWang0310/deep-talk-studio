@@ -30,7 +30,7 @@ Every Evidence Link must exist and point to a Claim used by the same Beat. Spoke
 
 ## Script Draft Artifact 0.4
 
-The final JSON includes code-owned identity/revision/report binding, structured Beats with `B001`-style IDs, code-owned character/duration metrics, `must_keep` coverage, status, and content. JSON is the only machine interface.
+The final JSON includes code-owned identity/revision/report binding, structured Beats with stable `B001`-style IDs, code-owned character/duration metrics, `must_keep` coverage, status, review linkage and content. JSON is the only machine interface. A new Beat gets a monotonic new ID; a deleted ID is never reused. Do not ask normal users to manage IDs.
 
 Derived human views:
 
@@ -41,7 +41,7 @@ Derived human views:
 
 Reviewer content contains `issues`, `checks`, and `overall_notes`. An issue supplies only type, affected Beat/Claim IDs, explanation, and suggested fix. The core assigns issue IDs and severity.
 
-Blocking types include `unsupported_fact`, `attribution_error`, `avoid_claim_usage`, `unverified_as_fact`, `high_risk_overclaim`, `material_uncertainty_loss`, `analysis_as_fact`, `research_gap_filled`, and `perspective_distortion`. Any blocking issue makes the review Gate fail and the resulting Script revision remain `draft`. Editorial concerns are advisory and cannot override the Grounding Gate.
+Blocking types include `unsupported_fact`, `attribution_error`, `avoid_claim_usage`, `unverified_as_fact`, `high_risk_overclaim`, `material_uncertainty_loss`, `analysis_as_fact`, `research_gap_filled`, and `perspective_distortion`. Any blocking issue makes the review Gate fail and the resulting Script revision remain `draft`. Every failed check must have its typed issue; the eight factual safety checks must have their mapped blocking issue. `not_applicable` cannot bypass safety checks. Passing review creates a r2 linkage to the exact r1 Artifact and content digest; content revisions clear it and require a new review.
 
 ## Storage and revisions
 

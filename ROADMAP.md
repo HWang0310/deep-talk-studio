@@ -60,6 +60,14 @@
 - 稿件修订不可覆盖，并支持比较两个 revision；
 - 完成稳定商业、争议公共议题和未批准输入三类真实评测。
 
+## V0.4.1：Script Gate Hardening（已完成，待产品复核）
+
+- 将 15 项 Script Review checks 与受控 issue mapping 绑定；任一失败检查必须有对应 issue，八项事实安全检查必须对应 blocking issue；
+- 仅 `counterargument_fairness` 可使用 `not_applicable`，事实安全检查不能借此绕过；
+- `reviewed` Script 绑定可复验的 Review Artifact、来源 revision 与内容指纹；旧 Review 不随内容修订继承；
+- Beat ID 采用稳定、递增、不可复用策略，版本比较能区分插入、删除、移动与实际修改；
+- 完成 V0.4.1 受控 A/B/C 评测和 synthetic fail-closed 场景；V0.5 尚未开始。
+
 ## V0.5：素材与视觉辅助（未开始）
 
 - Material Search：推荐公开文件、截图、图片、视频片段和图表；

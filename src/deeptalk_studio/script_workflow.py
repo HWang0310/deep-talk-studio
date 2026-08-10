@@ -120,7 +120,9 @@ def run_codex_script_review(
     artifact_path = save_script_review_artifact(
         result.artifact, script, output_root
     ).json
-    paths = save_script(result.script, report, selected_profile, output_root)
+    paths = save_script(
+        result.script, report, selected_profile, output_root, result.artifact
+    )
     return ReviewedScriptResult(
         artifact=result.artifact,
         review_artifact=artifact_path,
@@ -175,7 +177,7 @@ def run_script_workflow(
         review.artifact, draft, output_root
     ).json
     reviewed_paths = save_script(
-        review.script, report, selected_profile, output_root
+        review.script, report, selected_profile, output_root, review.artifact
     )
     return ScriptWorkflowResult(
         draft=draft_paths,

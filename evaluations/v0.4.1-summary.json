@@ -1,0 +1,49 @@
+{
+  "version": "0.4.1",
+  "evaluated_at": "2026-08-10",
+  "content_policy": "decontented; complete controlled scripts, reports, and review artifacts remain gitignored",
+  "evaluation_mode": "controlled local workflow; no user API key or external search used",
+  "scenarios": [
+    {
+      "scenario": "stable_tech_business",
+      "input_status": "approved_ready_for_script",
+      "writer_completed": true,
+      "required_review_checks": 15,
+      "completed_review_checks": 15,
+      "check_issue_consistency": "pass",
+      "review_linkage": "verified",
+      "final_status": "reviewed",
+      "teleprompter_generated": true
+    },
+    {
+      "scenario": "contested_public_issue",
+      "input_status": "approved_ready_for_script",
+      "writer_completed": true,
+      "required_review_checks": 15,
+      "completed_review_checks": 15,
+      "check_issue_consistency": "pass",
+      "review_linkage": "verified",
+      "final_status": "reviewed",
+      "teleprompter_generated": true
+    },
+    {
+      "scenario": "blocked_input",
+      "input_status": "reviewed_without_user_approval",
+      "writer_completed": false,
+      "final_status": "rejected_before_writer"
+    },
+    {
+      "scenario": "synthetic_failed_factual_check_without_issue",
+      "input_status": "approved_ready_for_script",
+      "reviewer_output": "factual_grounding=fail; issues=[]",
+      "artifact_accepted": false,
+      "reviewed_script_created": false,
+      "final_status": "fail_closed_rejected"
+    }
+  ],
+  "regression_suite": {
+    "tests_passed": 165,
+    "previous_release_tests_passed": 151,
+    "all_previous_tests_continue_to_pass": true
+  }
+}

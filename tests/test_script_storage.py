@@ -5,10 +5,20 @@ from pathlib import Path
 
 from deeptalk_studio.models import ResearchReport
 from deeptalk_studio.script_profile import load_script_profile
+from deeptalk_studio.script_review import prepare_script_review
 from deeptalk_studio.script_renderer import render_editor_markdown, render_teleprompter_markdown
-from deeptalk_studio.script_storage import ScriptStorageError, load_script, save_script
+from deeptalk_studio.script_storage import (
+    ScriptStorageError,
+    load_script,
+    save_script,
+    save_script_review_artifact,
+)
 from deeptalk_studio.script_validation import prepare_script_draft
-from tests.fixtures import approved_report_data, valid_script_content
+from tests.fixtures import (
+    approved_report_data,
+    valid_script_content,
+    valid_script_review_content,
+)
 
 
 class ScriptStorageTests(unittest.TestCase):
@@ -54,6 +64,34 @@ class ScriptStorageTests(unittest.TestCase):
             self.assertEqual(latest["script_id"], "SCR-storage")
             with self.assertRaisesRegex(ScriptStorageError, "不能静默覆盖"):
                 save_script(self.script, self.report, self.profile, root)
+
+    def test_reviewed_script_load_requires_its_matching_review_artifact(self):
+        reviewed = prepare_script_review(
+            valid_script_review_content(),
+            self.report,
+            self.script,
+            self.profile,
+            created_at="2026-08-10T14:00:00+08:00",
+            review_id="SRV-storage",
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            artifact_path = save_script_review_artifact(
+                reviewed.artifact, self.script, root
+            ).json
+            paths = save_script(
+                reviewed.script,
+                self.report,
+                self.profile,
+                root,
+                reviewed.artifact,
+            )
+
+            loaded = load_script(paths.json, self.report, self.profile)
+            self.assertEqual(loaded.status, "reviewed")
+            artifact_path.unlink()
+            with self.assertRaisesRegex(ScriptStorageError, "Review Artifact"):
+                load_script(paths.json, self.report, self.profile)
 
 
 if __name__ == "__main__":
