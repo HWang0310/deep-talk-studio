@@ -3,7 +3,7 @@
 更新时间：2026-08-10  
 当前版本：V0.1 / `0.1.0`  
 当前分支：`main`  
-GitHub：`https://github.com/HWang0310/deep-talk-studio`（私有仓库）
+GitHub：`https://github.com/HWang0310/deep-talk-studio`（公有仓库）
 
 ## 1. 本轮任务是什么
 
@@ -126,6 +126,6 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 
 下一步：把 GitHub 仓库链接发给 ChatGPT，并原样复制下面这段话：
 
-> 这是 Codex 完成的 DeepTalk Studio V0.1：https://github.com/HWang0310/deep-talk-studio 。这是我的私有仓库；如果你能通过 GitHub 连接访问，请作为产品经理和架构师完整 Review。先阅读 README.md、PRD.md、ROADMAP.md、AGENTS.md 和 HANDOFF.md，再检查 Research Workflow、报告结构、事实与观点分类、来源规则、测试和未来扩展方式。请重点判断 V0.1 是否达到验收标准，并决定 V0.2 的优先级。最后请直接给我一段可以原样发给 Codex 的下一轮任务，不要让我自己总结。
+> 这是 Codex 完成的 DeepTalk Studio V0.1：https://github.com/HWang0310/deep-talk-studio 。请作为产品经理和架构师完整 Review。先阅读 README.md、PRD.md、ROADMAP.md、AGENTS.md 和 HANDOFF.md，再检查 Research Workflow、报告结构、事实与观点分类、来源规则、测试和未来扩展方式。请重点判断 V0.1 是否达到验收标准，并决定 V0.2 的优先级。最后请直接给我一段可以原样发给 Codex 的下一轮任务，不要让我自己总结。
 
 如果 ChatGPT 表示无法访问仓库，你只需把本文件 `HANDOFF.md` 的全文复制给它，不需要自己解释。
