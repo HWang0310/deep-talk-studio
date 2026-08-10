@@ -92,6 +92,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 6. 研究提供器通过接口隔离；OpenAI 只是当前可选实现，不锁死未来工具。
 7. 真实报告默认忽略 Git，防止未经审查的内容意外公开。
 8. V0.1 不提前实现自动选题和写稿，控制复杂度。
+9. 每个正式版本号必须创建并核验 GitHub Release；软件包只在存在真实可安装交付物时发布。
 
 ## 9. 需要产品经理决定的问题
 
@@ -121,6 +122,10 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 - 官方 Skill Creator `quick_validate.py`：`Skill is valid!`。
 - Git diff 空白错误、占位符和常见密钥格式扫描：通过。
 - GitHub 远程 `main` 与本地最终文件树哈希比对：完全一致；`v0.1.0` 已指向远程最终版本。
+
+## 12. 版本发布规则
+
+用户已要求后续每个正式版本发布到 GitHub。项目新增 `RELEASE_POLICY.md`：每个正式版本号都必须有 GitHub Release、清晰更新说明和自动源码下载；未完成的小改动不单独发布。V0.1.0 将作为第一个正式 Release 发布。软件包暂不创建，因为当前没有需要安装的成品。
 
 ## 给用户的下一步操作
 

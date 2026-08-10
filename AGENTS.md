@@ -11,7 +11,8 @@
 3. `ROADMAP.md`：阶段划分，防止提前实现远期功能。
 4. `docs/ARCHITECTURE.md`：模块与工件接口。
 5. `CHANGELOG.md`：已经实际做过什么。
-6. 与任务直接相关的代码、测试和 Skill。
+6. `RELEASE_POLICY.md`：正式版本如何发布到 GitHub。
+7. 与任务直接相关的代码、测试和 Skill。
 
 若文件与当前代码不一致，以可运行代码和测试为事实，同时在本轮修正文档。
 
@@ -52,6 +53,6 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 4. 保证 `HANDOFF.md` 最后有 `## 给用户的下一步操作`，写出用户可原样复制给 ChatGPT 的具体文字。
 5. 检查 README、PRD、ROADMAP、架构和实际行为一致。
 6. 检查 Git diff，避免提交报告草稿、密钥、缓存或无关文件。
+7. 如果本轮形成新的正式版本号，严格执行 `RELEASE_POLICY.md`，创建并核验 GitHub Release；不要发布空软件包。
 
 不允许只在聊天中汇报而不更新 HANDOFF。
-
