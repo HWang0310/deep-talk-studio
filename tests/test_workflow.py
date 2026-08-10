@@ -4,10 +4,16 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
+from deeptalk_studio.models import ResearchReport
 from deeptalk_studio.provenance import ProviderProvenance, SearchCall, UrlCitation
 from deeptalk_studio.providers.base import ProviderResult
 from deeptalk_studio.validation import ReportValidationError
-from deeptalk_studio.workflow import _prepare_draft, prepare_codex_draft, run_research
+from deeptalk_studio.workflow import (
+    _prepare_draft,
+    prepare_codex_draft,
+    run_fact_check_review,
+    run_research,
+)
 from tests.fixtures import (
     valid_api_research_draft_input,
     valid_codex_draft_input,
@@ -164,6 +170,34 @@ class WorkflowTests(unittest.TestCase):
                     clock=lambda: next(moments),
                     id_factory=lambda prefix: f"{prefix}-test",
                 )
+
+    def test_saved_fact_check_and_reviewed_report_use_canonical_source_grouping(self):
+        report = ResearchReport.from_dict(valid_report_data())
+        artifact = valid_fact_check_data(report.data)
+        duplicate = dict(report.sources[0])
+        duplicate.update(
+            id="S9",
+            url="https://example.com/official?utm_source=second-pass",
+            normalized_url="https://forged.invalid/source",
+            publisher="重复页面标签",
+            independence_group="MODEL-GROUP",
+            independence_status="independent",
+            syndication_of="",
+        )
+        artifact["new_sources"] = [duplicate]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_fact_check_review(report, artifact, Path(temp_dir))
+            saved_artifact = json.loads(result.fact_check.read_text(encoding="utf-8"))
+            reviewed = json.loads(result.reviewed.json.read_text(encoding="utf-8"))
+
+        saved_source = saved_artifact["new_sources"][0]
+        reviewed_source = next(source for source in reviewed["sources"] if source["id"] == "S9")
+        self.assertEqual(saved_source["normalized_url"], "https://example.com/official")
+        self.assertEqual(saved_source["independence_status"], "duplicate")
+        self.assertEqual(saved_source["independence_group"], "IG1")
+        self.assertEqual(reviewed_source["independence_status"], "duplicate")
+        self.assertEqual(reviewed_source["independence_group"], "IG1")
 
     def test_empty_topic_is_rejected_before_provider_call(self):
         provider = FakeProvider()

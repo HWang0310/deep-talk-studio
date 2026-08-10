@@ -7,7 +7,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from .fact_check import apply_fact_check, validate_fact_check_artifact
+from .fact_check import (
+    apply_fact_check,
+    normalize_fact_check_sources,
+    validate_fact_check_artifact,
+)
 from .models import ResearchReport
 from .provenance import ProviderProvenance, reconcile_provenance, reconcile_source_records
 from .providers.base import ProviderResult, ResearchProvider
@@ -206,13 +210,7 @@ def _prepare_fact_check_artifact(
     artifact["new_sources"] = reconcile_source_records(
         artifact["new_sources"], result.provenance
     )
-    source_groups = {
-        source["id"]: source["independence_group"]
-        for source in draft.data["sources"] + artifact["new_sources"]
-    }
-    for link in artifact["evidence_links"]:
-        if link["source_id"] in source_groups:
-            link["independence_group"] = source_groups[link["source_id"]]
+    artifact = normalize_fact_check_sources(artifact, draft)
     validate_fact_check_artifact(artifact, draft)
     return artifact
 
@@ -259,6 +257,7 @@ def run_fact_check_review(
 ) -> ReviewResult:
     """Apply a separately produced FactCheck Artifact to one draft revision."""
 
+    artifact = normalize_fact_check_sources(artifact, draft)
     validate_fact_check_artifact(artifact, draft)
     artifact_path = save_fact_check_artifact(artifact, draft, output_root).json
     applied = apply_fact_check(draft, artifact)

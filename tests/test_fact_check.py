@@ -2,6 +2,7 @@ import unittest
 
 from deeptalk_studio.fact_check import (
     apply_fact_check,
+    normalize_fact_check_sources,
     queue_fact_checks,
     validate_fact_check_artifact,
 )
@@ -12,6 +13,26 @@ from tests.fixtures import valid_fact_check_data, valid_report_data
 
 
 class FactCheckTests(unittest.TestCase):
+    def _artifact_with_source(self, source):
+        artifact = valid_fact_check_data()
+        artifact["new_sources"] = [source]
+        artifact["tool_provenance"]["consulted_urls"].append(source["url"])
+        artifact["evidence_links"] = [
+            {
+                "id": "FE1",
+                "claim_id": "C1",
+                "source_id": source["id"],
+                "relation": "supports",
+                "evidence_summary": "用于测试来源归组。",
+                "evidence_locator": "测试定位",
+                "independence_group": "MODEL-GROUP",
+                "verification_notes": "",
+                "verified_in_review": False,
+            }
+        ]
+        artifact["checks"][0]["source_ids"].append(source["id"])
+        return artifact
+
     def test_high_risk_claims_are_automatically_queued(self):
         report = ResearchReport.from_dict(valid_report_data())
 
@@ -110,6 +131,88 @@ class FactCheckTests(unittest.TestCase):
         updated = apply_fact_check(report, artifact)
 
         self.assertEqual(updated["fact_check"]["unresolved_claim_ids"], ["C1"])
+
+    def test_fact_check_exact_old_url_is_canonicalized_as_duplicate(self):
+        report = ResearchReport.from_dict(valid_report_data())
+        source = dict(report.sources[0])
+        source.update(
+            id="S9",
+            publisher="另一个页面标签",
+            independence_group="MODEL-GROUP",
+            independence_status="independent",
+            syndication_of="",
+        )
+
+        normalized = normalize_fact_check_sources(
+            self._artifact_with_source(source), report
+        )
+
+        self.assertEqual(normalized["new_sources"][0]["independence_status"], "duplicate")
+        self.assertEqual(normalized["new_sources"][0]["independence_group"], "IG1")
+        self.assertEqual(normalized["evidence_links"][0]["independence_group"], "IG1")
+
+    def test_fact_check_tracking_url_to_old_source_is_duplicate(self):
+        report = ResearchReport.from_dict(valid_report_data())
+        source = dict(report.sources[0])
+        source.update(
+            id="S9",
+            url="https://example.com/official?utm_source=factcheck&fbclid=x",
+            normalized_url="https://forged.invalid/new",
+            publisher="追踪链接页面",
+            independence_group="MODEL-GROUP",
+            independence_status="independent",
+            syndication_of="",
+        )
+
+        normalized = normalize_fact_check_sources(
+            self._artifact_with_source(source), report
+        )
+
+        self.assertEqual(normalized["new_sources"][0]["normalized_url"], "https://example.com/official")
+        self.assertEqual(normalized["new_sources"][0]["independence_status"], "duplicate")
+        self.assertEqual(normalized["new_sources"][0]["independence_group"], "IG1")
+
+    def test_fact_check_same_title_repost_is_syndicated_not_independent(self):
+        report = ResearchReport.from_dict(valid_report_data())
+        source = dict(report.sources[0])
+        source.update(
+            id="S9",
+            url="https://mirror.example.net/repost",
+            normalized_url="https://mirror.example.net/repost",
+            publisher="转载站",
+            independence_group="MODEL-GROUP",
+            independence_status="independent",
+            syndication_of="",
+        )
+
+        normalized = normalize_fact_check_sources(
+            self._artifact_with_source(source), report
+        )
+
+        self.assertEqual(normalized["new_sources"][0]["independence_status"], "syndicated")
+        self.assertEqual(normalized["new_sources"][0]["independence_group"], "IG1")
+        self.assertEqual(normalized["new_sources"][0]["syndication_of"], "S1")
+
+    def test_fact_check_distinct_source_forms_a_new_group(self):
+        report = ResearchReport.from_dict(valid_report_data())
+        source = dict(report.sources[1])
+        source.update(
+            id="S9",
+            title="独立第三方文件",
+            url="https://independent.example.net/source",
+            normalized_url="https://forged.invalid/source",
+            publisher="独立发布者",
+            independence_group="MODEL-GROUP",
+            independence_status="independent",
+            syndication_of="",
+        )
+
+        normalized = normalize_fact_check_sources(
+            self._artifact_with_source(source), report
+        )
+
+        self.assertEqual(normalized["new_sources"][0]["independence_status"], "independent")
+        self.assertEqual(normalized["new_sources"][0]["independence_group"], "IG3")
 
 
 if __name__ == "__main__":
