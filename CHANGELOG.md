@@ -8,6 +8,7 @@
 
 - GitHub 仓库 `HWang0310/deep-talk-studio` 已改为公有，便于 ChatGPT 直接进行产品与架构 Review。
 - 新增正式版本的 GitHub Release 与未来软件包发布规则。
+- 已发布首个正式版本：[DeepTalk Studio V0.1.0](https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.1.0)。
 
 ### Added
 
