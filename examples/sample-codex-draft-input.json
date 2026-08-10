@@ -1,0 +1,147 @@
+{
+  "topic": "示例公共事件",
+  "research_question": "这个事件的事实基础和主要争议是什么？",
+  "scope_summary": "这是用于演示 V0.2 Codex Skill 输入结构的虚构案例，不代表真实新闻。",
+  "executive_summary": "现有材料确认事件发生，但当事方对原因的解释仍需独立核查。",
+  "sources": [
+    {
+      "id": "S1",
+      "title": "机构公告",
+      "url": "https://example.com/official",
+      "publisher": "示例机构",
+      "published_at": "2026-08-09",
+      "accessed_at": "2026-08-10",
+      "source_type": "official",
+      "stance_summary": "确认事件发生并给出机构解释。",
+      "credibility_notes": "一手材料，但机构对自身责任有立场。",
+      "inspection_method": "codex_web_open",
+      "provenance_method": "codex_tool_result",
+      "provenance_status": "matched",
+      "provenance_refs": ["https://example.com/official"],
+      "independence_status": "independent",
+      "syndication_of": ""
+    },
+    {
+      "id": "S2",
+      "title": "媒体核查报道",
+      "url": "https://example.org/report",
+      "publisher": "示例媒体",
+      "published_at": "2026-08-10",
+      "accessed_at": "2026-08-10",
+      "source_type": "media",
+      "stance_summary": "独立确认日期，并指出原因仍缺少外部证据。",
+      "credibility_notes": "与机构公告分属不同发布者，仍需检查报道的原始信源。",
+      "inspection_method": "codex_web_open",
+      "provenance_method": "codex_tool_result",
+      "provenance_status": "matched",
+      "provenance_refs": ["https://example.org/report"],
+      "independence_status": "independent",
+      "syndication_of": ""
+    }
+  ],
+  "claims": [
+    {
+      "id": "C1",
+      "claim": "事件在 2026 年 8 月 9 日发生。",
+      "classification": "confirmed_fact",
+      "confidence": "high",
+      "importance": "core",
+      "risk_level": "high",
+      "risk_factors": ["fast_changing"],
+      "notes": "两个不同发布者的公开页面记录了同一日期。"
+    },
+    {
+      "id": "C2",
+      "claim": "当事机构称原因是流程故障。",
+      "classification": "party_statement",
+      "confidence": "medium",
+      "importance": "key",
+      "risk_level": "medium",
+      "risk_factors": ["attribution", "responsibility"],
+      "notes": "这里只确认机构说过，不把原因解释当成事实。"
+    }
+  ],
+  "evidence_links": [
+    {
+      "id": "E1",
+      "claim_id": "C1",
+      "source_id": "S1",
+      "relation": "supports",
+      "evidence_summary": "公告记录了事件日期。",
+      "evidence_locator": "公告首段",
+      "verification_notes": "已打开原始页面。"
+    },
+    {
+      "id": "E2",
+      "claim_id": "C1",
+      "source_id": "S2",
+      "relation": "supports",
+      "evidence_summary": "媒体报道记录了同一日期。",
+      "evidence_locator": "报道时间线",
+      "verification_notes": "已打开报道页面。"
+    },
+    {
+      "id": "E3",
+      "claim_id": "C2",
+      "source_id": "S1",
+      "relation": "attributes",
+      "evidence_summary": "公告把流程故障作为机构解释。",
+      "evidence_locator": "公告第二段",
+      "verification_notes": "只证明归因来源。"
+    }
+  ],
+  "timeline": [
+    {
+      "date": "2026-08-09",
+      "event": "事件发生并发布首次说明。",
+      "claim_ids": ["C1", "C2"],
+      "evidence_link_ids": ["E1", "E2", "E3"]
+    }
+  ],
+  "perspectives": [
+    {
+      "id": "P1",
+      "actor": "当事机构",
+      "position": "事件属于流程故障。",
+      "reasoning": "机构引用内部检查。",
+      "claim_ids": ["C2"],
+      "evidence_link_ids": ["E3"],
+      "category": "party"
+    }
+  ],
+  "conflicts": [
+    {
+      "question": "公开材料能否证明原因？",
+      "side_a": "机构认为内部检查已给出解释。",
+      "side_b": "外部材料只能确认事件，无法独立确认原因。",
+      "evidence_state": "原因仍需新的独立证据。",
+      "claim_ids": ["C1", "C2"],
+      "evidence_link_ids": ["E1", "E2", "E3"]
+    }
+  ],
+  "open_questions": [
+    {
+      "question": "内部检查是否会公开原始证据？",
+      "why_it_matters": "决定原因解释能否被独立复核。",
+      "suggested_next_step": "在 Fact Check 阶段检索后续文件和反证。"
+    }
+  ],
+  "angles": [
+    {
+      "title": "从一次事件看事实、归因与证据边界",
+      "core_question": "公众如何区分发生了什么和为什么发生？",
+      "why_now": "不同叙事正在形成。",
+      "audience_value": "提供可复用的信息判断方法。",
+      "risks": "不能把当事方解释写成已确认原因。",
+      "required_claim_ids": ["C1", "C2"]
+    }
+  ],
+  "limitations": ["全部来源为虚构演示网址。"],
+  "handoff_to_script_agent": {
+    "recommended_angle": "从证据分层切入。",
+    "central_tension": "公众需要原因，但现有证据只能确认事件和机构说法。",
+    "must_keep_claim_ids": ["C1", "C2"],
+    "avoid_claims": ["不要断言流程故障已经得到独立证实。"],
+    "follow_up_research": ["执行独立 Fact Check。"]
+  }
+}

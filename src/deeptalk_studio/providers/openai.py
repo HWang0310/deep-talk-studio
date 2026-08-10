@@ -3,7 +3,14 @@ from typing import Any, Callable, Dict, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from ..prompt import SYSTEM_PROMPT, build_user_prompt
+from ..prompt import (
+    FACT_CHECK_SYSTEM_PROMPT,
+    SYSTEM_PROMPT,
+    build_fact_check_prompt,
+    build_user_prompt,
+)
+from ..provenance import extract_provenance
+from .base import ProviderResult
 
 
 Transport = Callable[[str, Dict[str, str], Dict[str, Any], int], Dict[str, Any]]
@@ -11,6 +18,24 @@ Transport = Callable[[str, Dict[str, str], Dict[str, Any], int], Dict[str, Any]]
 
 class OpenAIProviderError(RuntimeError):
     pass
+
+
+def _structured_output_schema(value: Any) -> Any:
+    """Return the OpenAI-supported subset without weakening local validation.
+
+    Structured Outputs does not support JSON Schema's ``uniqueItems`` keyword.
+    The complete project schema is still executed locally after model output.
+    """
+
+    if isinstance(value, dict):
+        return {
+            key: _structured_output_schema(item)
+            for key, item in value.items()
+            if key != "uniqueItems"
+        }
+    if isinstance(value, list):
+        return [_structured_output_schema(item) for item in value]
+    return value
 
 
 def _default_transport(
@@ -32,7 +57,7 @@ class OpenAIResponsesProvider:
     def __init__(
         self,
         api_key: str,
-        model: str = "gpt-5.5",
+        model: str = "gpt-5.6",
         timeout: int = 600,
         transport: Optional[Transport] = None,
     ) -> None:
@@ -43,21 +68,44 @@ class OpenAIResponsesProvider:
         self.timeout = timeout
         self.transport = transport or _default_transport
 
-    def research(self, topic: str, schema: Dict[str, Any]) -> Dict[str, Any]:
+    def research(self, topic: str, schema: Dict[str, Any]) -> ProviderResult:
+        return self._run_structured_search(
+            SYSTEM_PROMPT,
+            build_user_prompt(topic),
+            schema,
+            "deep_talk_research_report",
+        )
+
+    def fact_check(self, report: Dict[str, Any], schema: Dict[str, Any]) -> ProviderResult:
+        return self._run_structured_search(
+            FACT_CHECK_SYSTEM_PROMPT,
+            build_fact_check_prompt(report),
+            schema,
+            "deep_talk_fact_check_artifact",
+        )
+
+    def _run_structured_search(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        schema: Dict[str, Any],
+        schema_name: str,
+    ) -> ProviderResult:
         payload = {
             "model": self.model,
             "reasoning": {"effort": "high"},
             "tools": [{"type": "web_search"}],
+            "include": ["web_search_call.action.sources"],
             "input": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": build_user_prompt(topic)},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
             ],
             "text": {
                 "format": {
                     "type": "json_schema",
-                    "name": "deep_talk_research_report",
+                    "name": schema_name,
                     "strict": True,
-                    "schema": schema,
+                    "schema": _structured_output_schema(schema),
                 }
             },
         }
@@ -68,7 +116,10 @@ class OpenAIResponsesProvider:
         try:
             response = self.transport(self.endpoint, headers, payload, self.timeout)
             output_text = self._extract_output_text(response)
-            return json.loads(output_text)
+            return ProviderResult(
+                data=json.loads(output_text),
+                provenance=extract_provenance(response),
+            )
         except HTTPError as exc:
             raise OpenAIProviderError(f"OpenAI API 请求失败（HTTP {exc.code}）") from None
         except URLError as exc:
@@ -87,4 +138,3 @@ class OpenAIResponsesProvider:
                 if content.get("type") == "output_text" and content.get("text"):
                     return content["text"]
         raise ValueError("missing output_text")
-

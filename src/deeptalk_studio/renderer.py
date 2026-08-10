@@ -11,18 +11,18 @@ CLASSIFICATION_LABELS = {
     "commentary": "评论与观点",
     "unverified": "尚未证实",
 }
-CONFIDENCE_LABELS = {"high": "高", "medium": "中", "low": "低"}
-FACT_CHECK_LABELS = {
-    "verified": "已核实",
-    "partially_verified": "部分核实",
-    "unverified": "未核实",
-    "disputed": "存在争议",
+RELATION_LABELS = {
+    "supports": "支持",
+    "contradicts": "反驳",
+    "attributes": "归因",
+    "context": "背景",
 }
+RISK_LABELS = {"low": "低", "medium": "中", "high": "高风险", "critical": "极高风险"}
 
 
 def _refs(ids: Iterable[str]) -> str:
     values = list(ids)
-    return "、".join(f"[{item}]" for item in values) if values else "无可核验来源"
+    return "、".join(f"[{item}]" for item in values) if values else "无"
 
 
 def _bullets(values: Iterable[str], empty: str = "暂无") -> List[str]:
@@ -30,18 +30,30 @@ def _bullets(values: Iterable[str], empty: str = "暂无") -> List[str]:
     return [f"- {value}" for value in values] if values else [f"- {empty}"]
 
 
+def _percent(value: float) -> str:
+    return f"{value * 100:.1f}%"
+
+
 def render_markdown(report: ResearchReport) -> str:
     validate_report(report)
     data = report.data
-    source_map: Dict[str, dict] = {item["id"]: item for item in data["sources"]}
+    evidence_by_claim: Dict[str, List[dict]] = {}
+    for link in data["evidence_links"]:
+        evidence_by_claim.setdefault(link["claim_id"], []).append(link)
+
     lines = [
         f"# Research Report：{data['topic']}",
         "",
-        f"- 报告版本：{data['schema_version']}",
-        f"- 生成时间：{data['generated_at']}",
+        f"- Schema：{data['schema_version']}",
+        f"- 报告 ID：{data['report_id']}",
+        f"- 修订版：{data['revision']}（上一版：{data['previous_revision']}）",
+        f"- 创建时间：{data['created_at']}",
+        f"- 本版时间：{data['generated_at']}",
+        f"- 研究模式：{data['research_mode']}",
+        f"- 当前状态：{data['status']}",
         f"- 核心问题：{data['research_question']}",
         "",
-        "> 本报告是原创研究底稿，不是口播稿。分类标签表示证据状态，不代表对任何一方作最终裁决。",
+        "> 本报告是原创研究底稿，不是口播稿。事实标签、来源匹配和质量 Gate 均可机器复查。",
         "",
         "## 研究范围",
         "",
@@ -56,26 +68,37 @@ def render_markdown(report: ResearchReport) -> str:
     ]
     for item in data["timeline"]:
         lines.append(
-            f"- **{item['date']}**：{item['event']}（主张 {_refs(item['claim_ids'])}；来源 {_refs(item['source_ids'])}）"
+            f"- **{item['date']}**：{item['event']}（主张 {_refs(item['claim_ids'])}；证据 {_refs(item['evidence_link_ids'])}）"
         )
 
     lines.extend(["", "## 信息分层", ""])
     for classification, label in CLASSIFICATION_LABELS.items():
         lines.extend([f"### {label}", ""])
-        matches = [
-            item for item in data["claims"] if item["classification"] == classification
-        ]
+        matches = [claim for claim in data["claims"] if claim["classification"] == classification]
         if not matches:
             lines.append("- 暂无")
         for claim in matches:
+            links = evidence_by_claim.get(claim["id"], [])
             lines.append(
-                f"- **[{claim['id']}]** {claim['claim']}（置信度：{CONFIDENCE_LABELS[claim['confidence']]}；来源：{_refs(claim['source_ids'])}）"
+                f"- **[{claim['id']}]** {claim['claim']}（重要性：{claim['importance']}；风险：{RISK_LABELS[claim['risk_level']]}；核查：{claim['verification_status']}；证据：{_refs(link['id'] for link in links)}）"
             )
             if claim["notes"]:
                 lines.append(f"  - 说明：{claim['notes']}")
         lines.append("")
 
-    lines.extend(["## 不同立场与观点", ""])
+    lines.extend(["## Evidence Ledger", ""])
+    for link in data["evidence_links"]:
+        lines.extend(
+            [
+                f"- **[{link['id']}] {RELATION_LABELS[link['relation']]}**：[{link['source_id']}] → [{link['claim_id']}]",
+                f"  - 概述：{link['evidence_summary']}",
+                f"  - 定位：{link['evidence_locator']}",
+                f"  - 独立性组：{link['independence_group']}；复核：{'是' if link['verified_in_review'] else '否'}",
+                f"  - 核查说明：{link['verification_notes'] or '无'}",
+            ]
+        )
+
+    lines.extend(["", "## 不同立场与观点", ""])
     for item in data["perspectives"]:
         lines.extend(
             [
@@ -83,7 +106,8 @@ def render_markdown(report: ResearchReport) -> str:
                 "",
                 f"- 立场：{item['position']}",
                 f"- 理由：{item['reasoning']}",
-                f"- 来源：{_refs(item['source_ids'])}",
+                f"- 主张：{_refs(item['claim_ids'])}",
+                f"- 证据：{_refs(item['evidence_link_ids'])}",
                 "",
             ]
         )
@@ -97,7 +121,7 @@ def render_markdown(report: ResearchReport) -> str:
                 f"- 观点 A：{item['side_a']}",
                 f"- 观点 B：{item['side_b']}",
                 f"- 当前证据状态：{item['evidence_state']}",
-                f"- 来源：{_refs(item['source_ids'])}",
+                f"- 主张：{_refs(item['claim_ids'])}；证据：{_refs(item['evidence_link_ids'])}",
                 "",
             ]
         )
@@ -127,17 +151,58 @@ def render_markdown(report: ResearchReport) -> str:
             ]
         )
 
-    lines.extend(["## 事实核查记录", ""])
-    for item in data["fact_check_notes"]:
-        lines.append(
-            f"- **[{item['claim_id']}] {FACT_CHECK_LABELS[item['status']]}**：{item['explanation']}"
-        )
+    fact_check = data["fact_check"]
+    lines.extend(
+        [
+            "## 独立事实核查",
+            "",
+            f"- Review ID：{fact_check['review_id'] or '尚未运行'}",
+            f"- 状态：{fact_check['status']}",
+            f"- 已检查：{_refs(fact_check['checked_claim_ids'])}",
+            f"- 未解决：{_refs(fact_check['unresolved_claim_ids'])}",
+            "",
+            "## 研究质量 Gate",
+            "",
+        ]
+    )
+    quality = data["quality_summary"]
+    lines.extend(
+        [
+            f"- Gate：{quality['gate_status']}",
+            f"- 主张来源覆盖率：{_percent(quality['claim_source_coverage'])}",
+            f"- 高风险核查覆盖率：{_percent(quality['high_risk_fact_check_coverage'])}",
+            f"- confirmed_fact 独立来源覆盖率：{_percent(quality['confirmed_fact_independent_coverage'])}",
+            f"- 来源类型数：{quality['source_type_diversity_count']}",
+            f"- 重复 / 转载：{quality['duplicate_source_count']} / {quality['syndicated_source_count']}",
+            f"- 未解决高风险：{quality['unresolved_high_risk_count']}",
+            f"- 无来源归因：{quality['unsourced_attribution_count']}",
+            f"- Provenance 匹配率：{_percent(quality['provenance_match_rate'])}",
+            "- 未通过原因：",
+            *_bullets(quality["gate_reasons"], "无"),
+            "",
+            "## 用户审批 Gate",
+            "",
+        ]
+    )
+    approval = data["approval_gate"]
+    lines.extend(
+        [
+            f"- 状态：{approval['status']}",
+            f"- 进入未来 Script Agent 前需要用户确认：{'是' if approval['requires_user_confirmation'] else '否'}",
+            f"- 必须向用户暴露的高风险 claim：{_refs(approval['high_risk_claim_ids'])}",
+            f"- 是否已可进入 Script Agent：{'是' if approval['ready_for_script'] else '否'}",
+            "",
+            "## 局限性",
+            "",
+            *_bullets(data["limitations"]),
+            "",
+        ]
+    )
 
-    lines.extend(["", "## 局限性", "", *_bullets(data["limitations"]), ""])
     handoff = data["handoff_to_script_agent"]
     lines.extend(
         [
-            "## 给 Script Agent 的交接",
+            "## 给未来 Script Agent 的交接",
             "",
             f"- 推荐角度：{handoff['recommended_angle']}",
             f"- 中心张力：{handoff['central_tension']}",
@@ -151,20 +216,18 @@ def render_markdown(report: ResearchReport) -> str:
             "",
         ]
     )
-    for source_id in sorted(source_map):
-        source = source_map[source_id]
+    for source in data["sources"]:
         lines.extend(
             [
-                f"### [{source_id}] [{source['title']}]({source['url']})",
+                f"### [{source['id']}] [{source['title']}]({source['url']})",
                 "",
-                f"- 发布者：{source['publisher']}",
-                f"- 发布时间：{source['published_at'] or '未注明'}",
-                f"- 访问时间：{source['accessed_at']}",
-                f"- 来源类型：{source['source_type']}",
-                f"- 立场摘要：{source['stance_summary']}",
+                f"- 发布者：{source['publisher']}；类型：{source['source_type']}",
+                f"- 发布时间：{source['published_at'] or '未注明'}；访问：{source['accessed_at']}",
+                f"- 检查方式：{source['inspection_method']}；provenance：{source['provenance_status']} / {source['provenance_method']}",
+                f"- 独立性：{source['independence_group']} / {source['independence_status']}",
+                f"- 内容贡献：{source['stance_summary']}",
                 f"- 可信度说明：{source['credibility_notes']}",
                 "",
             ]
         )
     return "\n".join(lines).rstrip() + "\n"
-

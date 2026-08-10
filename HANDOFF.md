@@ -1,136 +1,151 @@
 # DeepTalk Studio 交接记录
 
-更新时间：2026-08-10  
-当前版本：V0.1 / `0.1.0`  
-当前分支：`main`  
+更新时间：2026-08-10
+当前版本：V0.2 / `0.2.0`
+当前分支：`main`
 GitHub：`https://github.com/HWang0310/deep-talk-studio`（公有仓库）
+正式发布：`https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.2.0`
 
 ## 1. 本轮任务是什么
 
-从零创建可长期维护的 DeepTalk Studio 项目。V0.1 只搭建项目基础和 Research Workflow：用户给出一个主题后，系统能搜索公开资料、区分事实与观点、整理时间线和多方立场、发现冲突、提出原创切入角度，并保存带来源的结构化 Research Report。
+根据 ChatGPT 对 V0.1 的正式 Review，实现 **V0.2 Research Quality Gate & Independent Fact Check**。本轮只提高研究证据、来源 provenance、独立核查和质量 Gate，不实现自动选题、写稿、素材、视觉、剪辑或发布。
 
 ## 2. 本轮完成了什么
 
-- 建立独立 Git 项目、V0.1 设计和实施计划。
-- 建立 Codex 可自动发现的 `research-topic` Skill。
-- 建立 Research Report 0.1 的结构化契约。
-- 实现来源、主张、时间线、观点、冲突、问题、角度、事实核查和 Script Agent 交接字段。
-- 实现跨字段 ID、HTTP(S) URL、事实来源和枚举校验。
-- 实现 Markdown/JSON 双格式输出和安全文件路径。
-- 实现离线示例、报告构建、报告校验和可选 API 联网研究命令。
-- 实现 OpenAI Responses API `web_search` + Structured Outputs 适配器。
-- 编写并运行 15 项自动测试。
-- 补齐长期协作、产品、路线、架构、变更和交接文档。
+- 将报告契约升级为 Research Report 0.2。
+- 把来源与主张的关系升级为正式 Evidence Ledger，区分支持、反驳、归属和背景。
+- 实现完整的嵌套 Schema、枚举、类型、未知字段和跨字段校验，错误统一为可理解的 `ReportValidationError`。
+- 保留 OpenAI Responses API 的搜索调用、完整来源和 URL citation provenance，并对模型自报但无法匹配的来源降级。
+- 将研究和事实核查拆成两个独立调用/步骤；Fact Check 必须记录新的检索和反证检查。
+- 给主张增加重要性、风险等级和风险因素，高风险主张自动进入二次核查队列。
+- 实现透明质量指标和质量 Gate；不达标只能保存为 `draft`。
+- 实现 URL 规范化、追踪参数清理、同 URL、同发布者和疑似转载分组。
+- 实现报告 ID、不可覆盖的修订版、更正历史和独立核查工件保存。
+- 实现 0.1 → 0.2 迁移，迁移结果不会伪装成已独立核查。
+- 更新 `research-topic` Skill 为两阶段流程，并增加 Codex Draft 的机器字段准备入口。
+- 用三类真实公开题材跑完整工作流：稳定商业信息、争议公共政策、快速突发热点。
+- 新增并通过 68 项自动测试。
 
 ## 3. 创建 / 修改了哪些重要文件
 
-- `README.md`：普通用户入口和项目总览。
-- `PRD.md`：产品目标、边界、要求和验收。
-- `ROADMAP.md`：V0.1 到发布辅助的阶段路线。
-- `AGENTS.md`：未来 Codex 的阅读顺序、工程和交付规则。
-- `CHANGELOG.md`：V0.1 实际修改记录。
-- `.agents/skills/research-topic/`：Research Workflow Skill。
-- `src/deeptalk_studio/`：模型、校验、渲染、保存、CLI 和提供器。
-- `scripts/deeptalk`：无需安装的统一命令入口。
-- `examples/sample-research-report.json`：虚构格式示例。
-- `tests/`：15 项自动测试。
-- `docs/ARCHITECTURE.md`：模块、数据流和未来接口。
-- `docs/superpowers/`：V0.1 设计说明和实施计划。
+- `src/deeptalk_studio/schema.py`、`validation.py`：0.2 契约和完整校验。
+- `src/deeptalk_studio/provenance.py`、`sources.py`：工具来源追踪、URL 规范化和独立性分组。
+- `src/deeptalk_studio/fact_check.py`、`quality.py`：独立核查、高风险队列和质量 Gate。
+- `src/deeptalk_studio/revisions.py`、`storage.py`：不可覆盖的报告历史和更正。
+- `src/deeptalk_studio/migration.py`：0.1 兼容读取与迁移。
+- `src/deeptalk_studio/providers/openai.py`、`workflow.py`：两次独立联网调用和 provenance 传递。
+- `.agents/skills/research-topic/`：V0.2 Codex Skill、报告契约和 UI 元数据。
+- `examples/sample-research-report.json`：当前 0.2 虚构报告示例。
+- `examples/sample-codex-draft-input.json`：Codex 研究内容输入示例。
+- `docs/EVALS.md`、`evaluations/v0.2-summary.json`：真实评测方法与去内容化结果。
+- `docs/releases/v0.2.0.md`：GitHub Release 说明。
+- `tests/`：完整 Schema、来源、provenance、Fact Check、质量、修订、迁移和 CLI 回归测试。
+- `README.md`、`PRD.md`、`ROADMAP.md`、`AGENTS.md`、`docs/ARCHITECTURE.md`、`CHANGELOG.md`：全部同步到 V0.2。
 
 ## 4. 当前架构是什么
 
-当前是“Research Skill + 确定性 Python 核心”的两层架构。Codex Skill 负责需要判断力的联网搜索、来源比较和观点分析；Python 核心只负责稳定的报告契约、校验、渲染和保存。
+当前正式数据流是：
 
-模块间使用版本化 JSON 工件连接。未来 Topic Discovery、Fact Check、Perspective Analysis、Script Writing、Material Search、Visual Generation、Editing Plan 和 Publishing 都应消费或产生明确工件，不共享一个巨大 Prompt。
+```text
+用户主题
+→ Research Pass + 首次来源检索
+→ Research Draft r1
+→ Independent Fact Check + 新的检索/反证
+→ FactCheck Artifact
+→ Reviewed Research Report r2
+→ Quality Gate
+→ draft，或 reviewed 并等待用户确认
+```
+
+Research Report JSON 继续是下游正式接口；FactCheck Artifact 是独立核查的版本化证据。Markdown 只供人阅读。真实报告按 `主题 / report_id / rNNNN` 保存，已有修订拒绝覆盖。
 
 ## 5. 已经可以运行什么
 
 普通用户可在仓库内直接对 Codex 说：
 
-> 请用 DeepTalk Studio 研究“某个话题”，生成 Research Report。
+> 请用 DeepTalk Studio 研究“某个话题”，完成独立事实核查并生成 V0.2 Research Report。
 
-开发或验收入口：
+Codex 会完成两阶段研究、保存草稿与核查工件，并告诉用户最终是 `reviewed` 还是被 Gate 拦在 `draft`。
+
+开发和验收入口：
 
 ```bash
 ./scripts/deeptalk sample
 ./scripts/deeptalk validate examples/sample-research-report.json
+./scripts/deeptalk prepare-draft examples/sample-codex-draft-input.json
+./scripts/deeptalk migrate 旧版报告.json
+./scripts/deeptalk review-report 草稿.json fact-check.json
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 ```
 
-配置 `OPENAI_API_KEY` 后，还可独立运行：
-
-```bash
-./scripts/deeptalk research "某个话题"
-```
+配置用户自己的 `OPENAI_API_KEY` 后，仍可用 `./scripts/deeptalk research "主题"` 运行 API 自动化的两阶段研究。
 
 ## 6. 还不能运行什么
 
-- “今天讲什么”的自动 Topic Discovery。
-- 独立二次事实核查与人工 Review 面板。
-- 原创成品口播稿生成。
-- 新闻截图、图片、视频片段和公开文件的自动素材包。
-- 图表、Remotion、HyperFrames 等视觉生成。
+- “今天讲什么”的 Topic Discovery。
+- Script Agent 和成品原创口播稿。
+- 素材搜索、新闻截图和版权使用建议。
+- Remotion、HyperFrames、图表和视频辅助素材。
 - 剪辑方案、字幕、标题、封面和 B 站发布。
 - 小红书、抖音等平台适配。
 
 ## 7. 已知问题
 
-- Codex Skill 依赖宿主提供联网搜索工具；若宿主没有联网能力，只能处理用户提供的来源。
-- 独立 `research` 命令需要用户自己的 OpenAI API 密钥，会产生 API 使用费用；V0.1 没有做费用预算界面。
-- 机器校验能保证“引用结构完整”，不能自动保证现实世界中的每个结论都正确，发布前仍需人类编辑 Review。
-- 真实研究报告默认不提交 Git；未来是否建立私有内容库需要产品经理决定。
-- 目前只有虚构示例和工程测试，尚未使用一个真实热点完成编辑质量评分。
-- 当前电脑的普通 `git push` 在 HTTPS 通道中持续挂起，因此首次发布改用已授权的 GitHub API。远程 `main` 与本地 `main` 的文件树已做哈希比对并完全一致，但两边提交历史的 SHA 不同。未来 Codex 不应盲目强推；先检查远程树，再继续用 API 发布或修复 Git 传输通道。
+- 来源转载识别是保守的第一版启发式规则；无法确定时保留未知，仍需编辑判断。
+- Codex Skill 依赖宿主联网工具；如果宿主不能联网，只能使用用户提供的来源，不能伪装为已完成核查。
+- 本轮环境没有用户 OpenAI API 密钥，因此 API 联网调用没有产生真实费用，也没有做线上调用；其请求、provenance 提取和两次独立调用由模拟 API 测试覆盖。Codex Skill 已用三类真实题材完成联网验收。
+- 真实快速热点可能正确地停在 `draft`，这表示 Gate 正常工作，不是程序故障。
+- 机器 Gate 只能验证证据结构和规则，不能代替编辑、法律意见或现实世界事实认证。
+- 本机普通 HTTPS `git push` 仍可能挂起；远程同步继续采用已授权 GitHub API，并在发布前后比对远程文件树。不得强推或重写 `main` 历史。
 
 ## 8. 重要技术决策
 
-1. 把自然语言研究放在仓库级 Skill，而不是塞进一个巨大应用 Prompt。
-2. 用 Python 标准库实现核心，V0.1 无需安装第三方依赖。
-3. Markdown 给人阅读，JSON 是未来 Agent 的正式接口。
-4. 强制区分 `confirmed_fact`、`media_report`、`party_statement`、`commentary`、`unverified`。
-5. `confirmed_fact` 必须有来源，所有跨字段 ID 必须存在。
-6. 研究提供器通过接口隔离；OpenAI 只是当前可选实现，不锁死未来工具。
-7. 真实报告默认忽略 Git，防止未经审查的内容意外公开。
-8. V0.1 不提前实现自动选题和写稿，控制复杂度。
-9. 每个正式版本号必须创建并核验 GitHub Release；软件包只在存在真实可安装交付物时发布。
+1. 继续使用 Python 3.9+ 标准库，不为 Schema 校验新增运行时依赖。
+2. 自行实现并测试项目实际使用的完整 JSON Schema 关键字；Schema 和业务交叉规则由同一个入口执行。
+3. 模型生成研究内容，报告 ID、修订、时间、质量指标和审批状态由代码确定，不能让模型自报。
+4. API 模式使用 `web_search_call.action.sources` 和 URL citation；Codex 模式使用实际工具结果 URL，两者明确标记不同 provenance 方法。
+5. 无法与真实工具来源匹配的页面降级为 `unmatched/not_inspected`，不能支撑 confirmed fact。
+6. Fact Check 是单独 Artifact 和新的工具调用，即使底层使用同一模型也不能与 Research Pass 合并。
+7. 质量 Gate 不使用神秘总分；状态只由公开底层指标计算。
+8. 高风险未解决时必须保持 `draft`；通过 Gate 后也只到 `reviewed`，等待一次用户确认。
+9. 旧报告迁移保持保守：保留内容，但把核查状态设为未完成。
+10. 完整真实评测报告继续留在被 Git 忽略的 `reports/`，公开仓库只保存方法和去内容化汇总。
+11. OpenAI Structured Outputs 请求会移除官方当前不支持的 `uniqueItems`，但模型返回后仍执行完整本地 Schema，绝不因此放松报告校验。
 
-## 9. 需要产品经理决定的问题
+## 9. 哪些问题需要产品经理决定
 
-请 ChatGPT Review 后决定：
+请 ChatGPT Review 后只决定下一阶段产品方向：
 
-1. V0.2 是否按建议优先做“研究质量 + Fact Check”，再做 Topic Discovery。
-2. 第一批真实评测选题选哪 3–5 个，以及编辑评分标准。
-3. 真实 Research Report 是仅保存在本机，还是进入单独的私有内容仓库。
-4. 高风险议题是否需要强制两个人工确认点。
-5. V0.2 是否保留当前报告字段，还是先调整契约再积累真实报告。
+1. 是否正式进入 V0.3 Topic Discovery；如果进入，第一版候选题评分最看重新鲜度、观点冲突、可核查性还是频道匹配度。
+2. Topic Discovery 每次给用户多少候选题，以及用户确认选题时最简单的交互形式。
+3. V0.2 的质量阈值是否先保持当前保守设置，等更多真实运营样本后再调整。
+4. 真实报告是否继续只放本机，还是未来建立单独私有内容库；V0.2 不改变当前本机策略。
 
 ## 10. 建议下一阶段做什么
 
-建议下一阶段是 **V0.2 Research Quality & Fact Check**，先不要立即做自动选题或写稿。
-
-最小目标：选 3–5 个真实话题跑通 V0.1；建立人工评分表；补充来源去重、转载识别、主张—来源覆盖率、争议主张二次核查和报告更正记录。只有研究底稿稳定，未来 Script Agent 才不会把不可靠信息包装成流畅口播。
+建议由 ChatGPT 完整 Review V0.2 后，再决定是否进入 **V0.3 Topic Discovery**。如果通过，V0.3 只实现“我不知道今天讲什么 → 给出少量可解释候选题 → 用户确认 → 进入现有 V0.2 Research Workflow”，仍不要提前实现 Script Agent。
 
 ## 11. 本轮验收记录
 
-2026-08-10 已完成以下最终验收：
+2026-08-10 已完成：
 
-- `PYTHONPATH=src python3 -m unittest discover -s tests -v`：15 项全部通过。
-- Python 源码编译检查：通过。
-- `./scripts/deeptalk sample`：成功生成 Markdown 和 JSON 两份报告。
-- 对刚生成的 JSON 再运行 `validate`：通过。
-- 在全新临时虚拟环境安装项目并运行 `deeptalk --help`：通过。
-- 官方 Skill Creator `quick_validate.py`：`Skill is valid!`。
-- Git diff 空白错误、占位符和常见密钥格式扫描：通过。
-- GitHub 远程 `main` 与本地最终文件树哈希比对：完全一致；`v0.1.0` 已指向远程最终版本。
+- 68 项自动测试全部通过。
+- 当前 V0.2 示例报告校验通过并能生成 Markdown/JSON。
+- `prepare-draft`、独立 `review-report`、0.1 迁移、报告修订防覆盖全部通过。
+- 三类真实公开题材完整运行；2 份 `reviewed`、1 份高风险动态热点按预期 `draft`。
+- 三份真实报告的 claim coverage、高风险核查 coverage 和 provenance match 均为 100%；突发样本因 1 个未解决高风险主张被正确拦截。
+- 官方 Skill Creator `quick_validate.py`：`Skill is valid!`，PyYAML 仅安装在临时目录。
+- Python 3.9 兼容测试、源码编译、干净虚拟环境安装、密钥扫描、Git diff 和远程文件树比对：通过。
+- GitHub Release `v0.2.0` 已创建并核验，自动提供 ZIP/TAR 源码包；没有发布无意义的空软件包。
 
 ## 12. 版本发布规则
 
-用户已要求后续每个正式版本发布到 GitHub。项目新增 `RELEASE_POLICY.md`：每个正式版本号都必须有 GitHub Release、清晰更新说明和自动源码下载；未完成的小改动不单独发布。首个正式 Release 已发布：[DeepTalk Studio V0.1.0](https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.1.0)，标签已冻结。软件包暂不创建，因为当前没有需要安装的成品。
+用户要求每个正式版本都使用 GitHub Release。V0.2.0 发布页：`https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.2.0`。GitHub 自动提供源代码 ZIP/TAR。当前仍不创建 GitHub Packages，因为项目还不是需要独立安装分发的成品软件包。
 
 ## 给用户的下一步操作
 
-下一步：把 GitHub 仓库链接发给 ChatGPT，并原样复制下面这段话：
+下一步：只把下面这段话原样发给 ChatGPT：
 
-> 这是 Codex 完成的 DeepTalk Studio V0.1：https://github.com/HWang0310/deep-talk-studio 。请作为产品经理和架构师完整 Review。先阅读 README.md、PRD.md、ROADMAP.md、AGENTS.md 和 HANDOFF.md，再检查 Research Workflow、报告结构、事实与观点分类、来源规则、测试和未来扩展方式。请重点判断 V0.1 是否达到验收标准，并决定 V0.2 的优先级。最后请直接给我一段可以原样发给 Codex 的下一轮任务，不要让我自己总结。
+> 这是 Codex 完成并正式发布的 DeepTalk Studio V0.2：https://github.com/HWang0310/deep-talk-studio ，发布页是 https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.2.0 。请先完整阅读 HANDOFF.md，再 Review Research Report 0.2、Evidence Ledger、来源 provenance、独立 Fact Check、质量 Gate、修订历史、迁移、68 项测试和三类真实评测汇总。请判断 V0.2 是否验收通过，并决定是否进入 V0.3 Topic Discovery。最后请直接给我一段可以原样发给 Codex 的下一轮任务，不要让我自己总结。
 
-如果 ChatGPT 表示无法访问仓库，你只需把本文件 `HANDOFF.md` 的全文复制给它，不需要自己解释。
+如果 ChatGPT 暂时打不开仓库，只需把本文件 `HANDOFF.md` 全文复制给它，不需要自己解释。

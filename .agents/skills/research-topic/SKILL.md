@@ -1,59 +1,55 @@
 ---
 name: research-topic
-description: Use when a user wants to research a current event, social issue, business or technology story, online controversy, public incident, or any topic that needs a source-backed Research Report before original long-form commentary or script writing.
+description: Use when a current event, social issue, business or technology story, online controversy, or public incident needs a source-backed Research Draft followed by an independent Fact Check before long-form commentary or script writing.
 ---
 
 # Research Topic
 
 ## Overview
 
-Build an original evidence ledger before offering a content angle. Treat facts, reports, statements, commentary, and rumors as different objects; never use another creator's script as source material to rewrite.
+Build an original evidence ledger, then challenge it in a separate research pass. Never use another creator's script as source material, and never let one pass certify its own claims.
 
-## Workflow
+## Required contract
 
-1. Read `references/report-contract.md` completely.
-2. Restate the research question and scope internally. Ask the user only when the topic cannot be identified safely; otherwise proceed.
-3. Search broadly, then open and inspect candidate pages. Prioritize primary documents and official records, add reliable media, then collect relevant expert, commentator, and creator perspectives. A search snippet alone cannot support a confirmed fact.
-4. Build a claim ledger with source IDs. Seek independent corroboration for consequential facts. Record what each party says without treating the statement as independently verified.
-5. Seek materially different positions, including the strongest credible challenge to the leading explanation. Describe the evidence behind each side and where the evidence stops.
-6. Separate unresolved or rapidly changing claims into `unverified`, open questions, limitations, and follow-up research. Do not fill gaps with inference.
-7. Create JSON matching the contract. Use real, opened HTTP(S) source URLs; never invent a citation. Paraphrase source material and keep any necessary quotation short.
-8. Save the draft JSON in a temporary location, then run from the repository root:
+Read `references/report-contract.md` completely before starting. Use `examples/sample-codex-draft-input.json` as the input shape; do not copy its fictional conclusions.
+
+## Phase A: Research Draft
+
+1. Identify the question and scope. Ask only when the topic itself is unsafe or genuinely ambiguous.
+2. Search broadly, then open candidate pages. A snippet cannot support a claim.
+3. Prefer primary documents and official records, add reliable media, then relevant expert, commentator, and creator perspectives.
+4. Record each opened URL with `inspection_method=codex_web_open`, `provenance_method=codex_tool_result`, a truthful `provenance_status`, and a traceable URL/tool reference. Unopened or unmatched sources stay `unmatched`.
+5. Create atomic claims and Evidence Links. Use `attributes` for what a party or commentator said, `supports` for supporting evidence, `contradicts` for counterevidence, and `context` only for background.
+6. Mark claim importance and risk. Responsibility, accusation, reputation, legal, safety, financial, disputed, and fast-changing claims require conservative risk labels.
+7. Save only the content input JSON, then run:
 
    ```bash
-   ./scripts/deeptalk build-report <draft.json> --output reports
+   ./scripts/deeptalk prepare-draft <codex-draft-input.json> --output reports
    ```
 
-9. If validation fails, fix the research data rather than weakening the validator. Re-run until both Markdown and JSON are created.
-10. Return the two report paths, a two- or three-sentence finding summary, and the most important remaining uncertainty. Do not generate a finished口播稿 in this workflow.
+8. Keep the generated r1 JSON path. Do not describe it as reviewed.
 
-## Source and Evidence Rules
+## Phase B: Independent Fact Check
 
-| Situation | Required treatment |
-|---|---|
-| Official or primary source describes its own action | Cite it, but note the source's institutional interest |
-| Reliable media reports a detail not independently available | Use `media_report`, not `confirmed_fact` |
-| A party explains motive, cause, or responsibility | Use `party_statement` |
-| Expert or creator interprets events | Use `commentary` and name the speaker |
-| Claim lacks inspectable evidence | Use `unverified`; never repeat it as a hook without the label |
-| Sources conflict | Preserve both accounts and write a conflict entry |
+1. Start a distinct verification pass after r1 exists. Run new searches for every `high` or `critical` claim, seek counterevidence, and inspect source independence. Do not merely reread or paraphrase the Draft.
+2. Check whether `party_statement` or `commentary` was mislabeled as fact and whether every `confirmed_fact` has enough independent support.
+3. Create a `FactCheck Artifact 0.2` using the contract. Record the new search IDs/queries and consulted URLs under `tool_provenance`; `searched_new_sources=true` means a real new search occurred.
+4. Save short evidence summaries and locators, not long copyrighted passages.
+5. Apply the independent artifact:
 
-## Quality Gate
+   ```bash
+   ./scripts/deeptalk review-report <r1-report.json> <fact-check.json> --output reports
+   ```
 
-Before saving, confirm:
+6. If validation fails, repair the research data. Never weaken the validator.
 
-- Every important factual sentence maps to one or more source IDs.
-- Every source URL was opened or otherwise inspected beyond a result snippet.
-- Source types and meaningful positions are diverse enough for the topic.
-- The report identifies conflicts, unanswered questions, limitations, and content risks.
-- The Script Agent handoff names facts to preserve and claims to avoid.
-- The report is a new research foundation, not an imitation or rewrite of a creator.
+## Return to the user
 
-## Common Mistakes
+Return the r1 Draft, FactCheck Artifact, and r2 report paths; the final `status`; quality Gate reasons; high-risk claim IDs; and the most important remaining uncertainty. A `reviewed` report still requires one explicit user confirmation before any future Script Agent. Do not generate a finished口播稿.
 
-- Counting repeated syndications as independent confirmation.
-- Treating an official statement as neutral proof of its disputed explanation.
-- Calling a popular post “public opinion” without evidence.
-- Hiding uncertainty in soft wording instead of using the explicit classifications.
-- Saving Markdown by hand and skipping the JSON contract or validator.
+## Failure rules
 
+- Five reposts are not five independent sources.
+- An official statement can prove what the institution said, not automatically prove its disputed explanation.
+- Missing provenance, unresolved high risk, unsourced attribution, or incomplete Fact Check keeps the report as `draft`.
+- Never invent a URL, tool reference, search call, citation, source inspection, or user approval.
