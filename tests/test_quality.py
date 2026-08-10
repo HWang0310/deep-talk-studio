@@ -158,6 +158,18 @@ class QualityTests(unittest.TestCase):
         self.assertEqual(summary["high_risk_fact_check_coverage"], 0.0)
         self.assertEqual(summary["gate_status"], "fail")
 
+    def test_partially_verified_review_still_counts_coverage_but_stays_unresolved(self):
+        data = valid_report_data()
+        data["claims"][0]["verification_status"] = "partially_verified"
+        data["fact_check"]["status"] = "needs_follow_up"
+        data["fact_check"]["unresolved_claim_ids"] = ["C1"]
+
+        summary = calculate_quality_summary(data)
+
+        self.assertEqual(summary["high_risk_fact_check_coverage"], 1.0)
+        self.assertEqual(summary["unresolved_high_risk_count"], 1)
+        self.assertEqual(summary["gate_status"], "fail")
+
     def test_party_statement_without_attribution_is_counted(self):
         data = valid_report_data()
         data["evidence_links"] = [

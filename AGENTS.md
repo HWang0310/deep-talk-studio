@@ -24,9 +24,12 @@
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- 当前 V0.2 不提前实现 Topic Discovery、Script Writing、素材、视觉、剪辑和发布。
+- 当前 V0.2.1 不提前实现 Topic Discovery、Script Writing、素材、视觉、剪辑和发布。
 - Research Draft 与 Fact Check 必须是不同步骤；Fact Check 必须有新的搜索 provenance。
 - 未通过质量 Gate 的报告只能保持 `draft`，不能手工改状态绕过。
+- `unknown`、`related`、`duplicate`、`syndicated` 来源不能计作独立确认；不得为过 Gate 自动改成 `independent`。
+- API 模型只生成研究判断，身份、revision、状态、provenance、quality 和审批字段由代码确定。
+- Fact Check 新来源必须与 Draft 来源一起重新规范化和归组后才能保存或应用。
 - 即使质量 Gate 通过，未来 Script Agent 前也必须保留用户明确确认。
 
 ## 内容与研究安全

@@ -42,8 +42,7 @@ def calculate_quality_summary(data: Dict[str, Any]) -> Dict[str, Any]:
     high_risk_checked = [
         claim
         for claim in high_risk
-        if data["fact_check"]["status"] == "completed"
-        and claim["id"] in checked_ids
+        if claim["id"] in checked_ids
         and claim["verification_status"] != "not_checked"
         and any(
             link["verified_in_review"] and usable_evidence(link)

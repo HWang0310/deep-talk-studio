@@ -20,28 +20,30 @@ Read `references/report-contract.md` completely before starting. Use `examples/s
 3. Prefer primary documents and official records, add reliable media, then relevant expert, commentator, and creator perspectives.
 4. Record each opened URL with `inspection_method=codex_web_open`, `provenance_method=codex_tool_result`, a truthful `provenance_status`, and a traceable URL/tool reference. Unopened or unmatched sources stay `unmatched`.
 5. Create atomic claims and Evidence Links. Use `attributes` for what a party or commentator said, `supports` for supporting evidence, `contradicts` for counterevidence, and `context` only for background.
-6. Mark claim importance and risk. Responsibility, accusation, reputation, legal, safety, financial, disputed, and fast-changing claims require conservative risk labels.
-7. Save only the content input JSON, then run:
+6. Treat source independence conservatively. Only use `independent` when it is established; keep uncertain cases `unknown`. A different group ID never proves independence.
+7. Mark claim importance and risk. Responsibility, accusation, reputation, legal, safety, financial, disputed, and fast-changing claims require conservative risk labels.
+8. Save only the content input JSON, then run:
 
    ```bash
    ./scripts/deeptalk prepare-draft <codex-draft-input.json> --output reports
    ```
 
-8. Keep the generated r1 JSON path. Do not describe it as reviewed.
+9. Keep the generated r1 JSON path. Do not describe it as reviewed.
 
 ## Phase B: Independent Fact Check
 
 1. Start a distinct verification pass after r1 exists. Run new searches for every `high` or `critical` claim, seek counterevidence, and inspect source independence. Do not merely reread or paraphrase the Draft.
 2. Check whether `party_statement` or `commentary` was mislabeled as fact and whether every `confirmed_fact` has enough independent support.
 3. Create a `FactCheck Artifact 0.2` using the contract. Record the new search IDs/queries and consulted URLs under `tool_provenance`; `searched_new_sources=true` means a real new search occurred.
-4. Save short evidence summaries and locators, not long copyrighted passages.
-5. Apply the independent artifact:
+4. Do not trust a Fact Check source's self-declared normalized URL or group. The core must regroup every new source together with the r1 sources before saving.
+5. Save short evidence summaries and locators, not long copyrighted passages.
+6. Apply the independent artifact:
 
    ```bash
    ./scripts/deeptalk review-report <r1-report.json> <fact-check.json> --output reports
    ```
 
-6. If validation fails, repair the research data. Never weaken the validator.
+7. If validation fails, repair the research data. Never weaken the validator.
 
 ## Return to the user
 
@@ -50,6 +52,8 @@ Return the r1 Draft, FactCheck Artifact, and r2 report paths; the final `status`
 ## Failure rules
 
 - Five reposts are not five independent sources.
+- `unknown`, `related`, `duplicate`, and `syndicated` never count as independent confirmation.
+- A `context` link provides background but does not count as sourced support for Gate coverage.
 - An official statement can prove what the institution said, not automatically prove its disputed explanation.
 - Missing provenance, unresolved high risk, unsourced attribution, or incomplete Fact Check keeps the report as `draft`.
 - Never invent a URL, tool reference, search call, citation, source inspection, or user approval.

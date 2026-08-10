@@ -20,6 +20,14 @@
 - 不可覆盖的报告修订、补充来源和更正历史；
 - 三类真实题材评测和人工 Review 表。
 
+### V0.2.1：Quality Gate Hardening（已完成）
+
+- 修正 unknown / related / duplicate / syndicated 来源的独立确认计数；
+- API Research 改为只接收研究内容，机器字段由程序确定；
+- Fact Check 新来源与原来源统一规范化和独立性归组；
+- 收紧 context-only、未匹配 attribution、重复转载对质量指标的影响；
+- 保持 Research Report 0.2 契约和原质量阈值不变。
+
 ## V0.3：Topic Discovery
 
 - 支持“我不知道今天讲什么”的入口；
