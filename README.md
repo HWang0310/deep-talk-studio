@@ -95,3 +95,4 @@ HANDOFF.md                      每轮开发交接
 
 每轮开发结束后，以 [HANDOFF.md](HANDOFF.md) 为唯一交接入口。
 
+正式版本的 GitHub 发布与未来软件包规则见 [RELEASE_POLICY.md](RELEASE_POLICY.md)。
