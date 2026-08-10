@@ -19,15 +19,36 @@ def calculate_quality_summary(data: Dict[str, Any]) -> Dict[str, Any]:
     for link in evidence:
         evidence_by_claim.setdefault(link["claim_id"], []).append(link)
 
+    def evidence_bearing(link: Dict[str, Any]) -> bool:
+        source = sources.get(link["source_id"])
+        return bool(
+            source
+            and link["relation"] != "context"
+            and source["independence_status"] not in {"duplicate", "syndicated"}
+        )
+
+    def usable_evidence(link: Dict[str, Any]) -> bool:
+        source = sources.get(link["source_id"])
+        return evidence_bearing(link) and source["provenance_status"] == "matched"
+
     claim_count = len(claims)
-    sourced_claim_count = sum(bool(evidence_by_claim.get(claim["id"])) for claim in claims)
+    sourced_claim_count = sum(
+        any(usable_evidence(link) for link in evidence_by_claim.get(claim["id"], []))
+        for claim in claims
+    )
 
     high_risk = [claim for claim in claims if claim["risk_level"] in {"high", "critical"}]
     checked_ids = set(data["fact_check"]["checked_claim_ids"])
     high_risk_checked = [
         claim
         for claim in high_risk
-        if claim["id"] in checked_ids and claim["verification_status"] != "not_checked"
+        if data["fact_check"]["status"] == "completed"
+        and claim["id"] in checked_ids
+        and claim["verification_status"] != "not_checked"
+        and any(
+            link["verified_in_review"] and usable_evidence(link)
+            for link in evidence_by_claim.get(claim["id"], [])
+        )
     ]
     unresolved_high_risk = [
         claim for claim in high_risk if claim["verification_status"] != "verified"
@@ -43,6 +64,7 @@ def calculate_quality_summary(data: Dict[str, Any]) -> Dict[str, Any]:
                 link["relation"] == "supports"
                 and source
                 and source["provenance_status"] == "matched"
+                and source["independence_status"] == "independent"
             ):
                 groups.add(source["independence_group"])
         if len(groups) >= 2:
@@ -53,7 +75,7 @@ def calculate_quality_summary(data: Dict[str, Any]) -> Dict[str, Any]:
         if claim["classification"] not in {"party_statement", "commentary"}:
             continue
         if not any(
-            link["relation"] == "attributes"
+            link["relation"] == "attributes" and usable_evidence(link)
             for link in evidence_by_claim.get(claim["id"], [])
         ):
             unsourced_attribution += 1
@@ -64,8 +86,16 @@ def calculate_quality_summary(data: Dict[str, Any]) -> Dict[str, Any]:
     syndicated_count = sum(
         source["independence_status"] == "syndicated" for source in sources.values()
     )
+    provenance_source_ids = {
+        link["source_id"] for link in evidence if evidence_bearing(link)
+    }
+    usable_source_ids = {
+        link["source_id"] for link in evidence if usable_evidence(link)
+    }
+    provenance_sources = [sources[source_id] for source_id in provenance_source_ids]
+    usable_sources = [sources[source_id] for source_id in usable_source_ids]
     provenance_matched = sum(
-        source["provenance_status"] == "matched" for source in sources.values()
+        source["provenance_status"] == "matched" for source in provenance_sources
     )
 
     summary = {
@@ -81,14 +111,14 @@ def calculate_quality_summary(data: Dict[str, Any]) -> Dict[str, Any]:
             len(confirmed_independent), len(confirmed)
         ),
         "source_type_diversity_count": len(
-            {source["source_type"] for source in sources.values()}
+            {source["source_type"] for source in usable_sources}
         ),
         "duplicate_source_count": duplicate_count,
         "syndicated_source_count": syndicated_count,
         "unresolved_high_risk_count": len(unresolved_high_risk),
         "unsourced_attribution_count": unsourced_attribution,
         "provenance_matched_source_count": provenance_matched,
-        "provenance_match_rate": _ratio(provenance_matched, len(sources)),
+        "provenance_match_rate": _ratio(provenance_matched, len(provenance_sources)),
         "gate_status": "pass",
         "gate_reasons": [],
     }

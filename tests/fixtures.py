@@ -130,7 +130,7 @@ def valid_report_data():
                 "id": "E4",
                 "claim_id": "C3",
                 "source_id": "S2",
-                "relation": "context",
+                "relation": "contradicts",
                 "evidence_summary": "报道提到网络传言但未发现原始证据。",
                 "evidence_locator": "报道核查部分",
                 "independence_group": "IG2",
@@ -367,4 +367,19 @@ def valid_codex_draft_input():
     for link in data["evidence_links"]:
         link.pop("independence_group")
         link.pop("verified_in_review")
+    return data
+
+
+def valid_api_research_draft_input():
+    """Research judgment fields accepted from the Responses API model."""
+
+    data = valid_codex_draft_input()
+    for source in data["sources"]:
+        for field in (
+            "inspection_method",
+            "provenance_method",
+            "provenance_status",
+            "provenance_refs",
+        ):
+            source.pop(field)
     return data
