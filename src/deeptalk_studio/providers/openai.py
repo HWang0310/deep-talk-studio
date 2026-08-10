@@ -12,6 +12,13 @@ from ..prompt import (
     build_user_prompt,
 )
 from ..provenance import extract_provenance
+from ..provenance import ProviderProvenance
+from ..script_prompt import (
+    SCRIPT_REVIEWER_SYSTEM_PROMPT,
+    SCRIPT_WRITER_SYSTEM_PROMPT,
+    build_script_review_prompt,
+    build_script_writer_prompt,
+)
 from .base import ProviderResult
 
 
@@ -95,6 +102,75 @@ class OpenAIResponsesProvider:
             schema,
             "deep_talk_fact_check_artifact",
         )
+
+    def write_script(
+        self,
+        report: Dict[str, Any],
+        profile: Dict[str, Any],
+        target_duration_minutes: float,
+        schema: Dict[str, Any],
+    ) -> ProviderResult:
+        return self._run_structured_generation(
+            SCRIPT_WRITER_SYSTEM_PROMPT,
+            build_script_writer_prompt(report, profile, target_duration_minutes),
+            schema,
+            "deep_talk_script_draft",
+        )
+
+    def review_script(
+        self,
+        report: Dict[str, Any],
+        script: Dict[str, Any],
+        schema: Dict[str, Any],
+    ) -> ProviderResult:
+        return self._run_structured_generation(
+            SCRIPT_REVIEWER_SYSTEM_PROMPT,
+            build_script_review_prompt(report, script),
+            schema,
+            "deep_talk_script_review",
+        )
+
+    def _run_structured_generation(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        schema: Dict[str, Any],
+        schema_name: str,
+    ) -> ProviderResult:
+        payload = {
+            "model": self.model,
+            "reasoning": {"effort": "high"},
+            "input": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": schema_name,
+                    "strict": True,
+                    "schema": _structured_output_schema(schema),
+                }
+            },
+        }
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            response = self.transport(self.endpoint, headers, payload, self.timeout)
+            return ProviderResult(
+                data=json.loads(self._extract_output_text(response)),
+                provenance=ProviderProvenance(search_calls=(), citations=()),
+            )
+        except HTTPError as exc:
+            raise OpenAIProviderError(f"OpenAI API 请求失败（HTTP {exc.code}）") from None
+        except URLError:
+            raise OpenAIProviderError("无法连接 OpenAI API，请检查网络后重试") from None
+        except json.JSONDecodeError:
+            raise OpenAIProviderError("OpenAI 返回了无法解析的结构化稿件") from None
+        except (KeyError, TypeError, ValueError):
+            raise OpenAIProviderError("OpenAI 返回结果缺少 Script 内容") from None
 
     def _run_structured_search(
         self,

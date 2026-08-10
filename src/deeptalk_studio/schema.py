@@ -28,6 +28,13 @@ def _ratio():
     return {"type": "number", "minimum": 0, "maximum": 1}
 
 
+def _number(minimum=0, maximum=None):
+    schema = {"type": "number", "minimum": minimum}
+    if maximum is not None:
+        schema["maximum"] = maximum
+    return schema
+
+
 def _object(properties, optional=()):
     return {
         "type": "object",
@@ -560,5 +567,165 @@ RESEARCH_HANDOFF_BRIEF_JSON_SCHEMA = _object(
         "risk_notes": _string(),
         "warnings": _string_array(),
         "source_seeds": _array(DISCOVERY_SOURCE_SEED_SCHEMA),
+    }
+)
+
+
+# Script models only produce the content contract. Identity, revision, status,
+# duration metrics, beat IDs and Claim coverage are owned by the Python core.
+SCRIPT_CONTENT_BEAT_RAW_SCHEMA = _object(
+    {
+        "purpose": _string(),
+        "content_kind": _enum(
+            ["fact", "attribution", "analysis", "transition", "question"]
+        ),
+        "narration": _string(),
+        "claim_ids": _string_array(),
+        "evidence_link_ids": _string_array(),
+        "analysis_basis_claim_ids": _string_array(),
+        "risk_notes": _string(allow_empty=True),
+    }
+)
+
+SCRIPT_MUST_KEEP_OMISSION_SCHEMA = _object(
+    {"claim_id": _string(), "reason": _string()}
+)
+
+SCRIPT_DRAFT_CONTENT_JSON_SCHEMA = _object(
+    {
+        "working_title": _string(),
+        "thesis": _string(),
+        "audience_promise": _string(),
+        "beats": _array(SCRIPT_CONTENT_BEAT_RAW_SCHEMA),
+        "closing": _string(),
+        "research_caveats": _string_array(),
+        "research_gaps": _string_array(),
+        "must_keep_omission_reasons": _array(SCRIPT_MUST_KEEP_OMISSION_SCHEMA),
+    }
+)
+
+SCRIPT_BEAT_SCHEMA = _object(
+    {"beat_id": _string(), **SCRIPT_CONTENT_BEAT_RAW_SCHEMA["properties"]}
+)
+
+SCRIPT_DRAFT_JSON_SCHEMA = _object(
+    {
+        "artifact_version": _enum(["0.4"]),
+        "script_id": _string(),
+        "revision": _integer(1),
+        "previous_revision": _integer(),
+        "created_at": _string(),
+        "generated_at": _string(),
+        "report_id": _string(),
+        "report_revision": _integer(1),
+        "script_mode": _enum(["codex_skill", "openai_api", "fixture"]),
+        "status": _enum(["draft", "reviewed"]),
+        "script_profile_version": _string(),
+        "target_duration_minutes": _number(3, 30),
+        "character_count": _integer(),
+        "estimated_duration_minutes": _number(),
+        "working_title": _string(),
+        "thesis": _string(),
+        "audience_promise": _string(),
+        "beats": _array(SCRIPT_BEAT_SCHEMA),
+        "closing": _string(),
+        "research_caveats": _string_array(),
+        "research_gaps": _string_array(),
+        "must_keep_claim_ids": _string_array(),
+        "covered_must_keep_claim_ids": _string_array(),
+        "missing_must_keep_claim_ids": _string_array(),
+        "must_keep_omission_reasons": _array(SCRIPT_MUST_KEEP_OMISSION_SCHEMA),
+        "change_summary": _string(),
+    }
+)
+
+SCRIPT_REVIEW_CHECK_NAMES = [
+    "factual_grounding",
+    "attribution_integrity",
+    "uncertainty_preservation",
+    "avoid_claim_compliance",
+    "must_keep_coverage",
+    "high_risk_boundary",
+    "analysis_fact_separation",
+    "perspective_fairness",
+    "research_gap_integrity",
+    "narrative_structure",
+    "oral_naturalness",
+    "information_density",
+    "original_expression",
+    "script_usability",
+    "counterargument_fairness",
+]
+
+SCRIPT_REVIEW_ISSUE_TYPES = [
+    "unsupported_fact",
+    "attribution_error",
+    "avoid_claim_usage",
+    "unverified_as_fact",
+    "high_risk_overclaim",
+    "material_uncertainty_loss",
+    "analysis_as_fact",
+    "research_gap_filled",
+    "perspective_distortion",
+    "must_keep_omission",
+    "counterargument_unfair",
+    "oral_naturalness",
+    "narrative_structure",
+    "repetition",
+    "information_density",
+    "ai_report_tone",
+    "originality_risk",
+    "long_quote",
+]
+
+SCRIPT_REVIEW_CHECK_SCHEMA = _object(
+    {
+        "check_name": _enum(SCRIPT_REVIEW_CHECK_NAMES),
+        "outcome": _enum(["pass", "fail", "not_applicable"]),
+        "reason": _string(),
+    }
+)
+
+SCRIPT_REVIEW_ISSUE_RAW_SCHEMA = _object(
+    {
+        "issue_type": _enum(SCRIPT_REVIEW_ISSUE_TYPES),
+        "beat_ids": _string_array(),
+        "claim_ids": _string_array(),
+        "explanation": _string(),
+        "suggested_fix": _string(),
+    }
+)
+
+SCRIPT_REVIEW_CONTENT_JSON_SCHEMA = _object(
+    {
+        "issues": _array(SCRIPT_REVIEW_ISSUE_RAW_SCHEMA),
+        "checks": _array(SCRIPT_REVIEW_CHECK_SCHEMA),
+        "overall_notes": _string(),
+    }
+)
+
+SCRIPT_REVIEW_ISSUE_SCHEMA = _object(
+    {
+        "issue_id": _string(),
+        **SCRIPT_REVIEW_ISSUE_RAW_SCHEMA["properties"],
+        "severity": _enum(["blocking", "advisory"]),
+    }
+)
+
+SCRIPT_REVIEW_JSON_SCHEMA = _object(
+    {
+        "artifact_version": _enum(["0.4"]),
+        "review_id": _string(),
+        "script_id": _string(),
+        "script_revision": _integer(1),
+        "report_id": _string(),
+        "report_revision": _integer(1),
+        "created_at": _string(),
+        "review_mode": _enum(["codex_skill", "openai_api", "fixture"]),
+        "issues": _array(SCRIPT_REVIEW_ISSUE_SCHEMA),
+        "checks": _array(SCRIPT_REVIEW_CHECK_SCHEMA),
+        "overall_notes": _string(),
+        "blocking_issue_count": _integer(),
+        "gate_status": _enum(["pass", "fail"]),
     }
 )

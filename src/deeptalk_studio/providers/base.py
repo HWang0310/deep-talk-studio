@@ -21,3 +21,22 @@ class ResearchProvider(Protocol):
 
     def fact_check(self, report: Dict[str, Any], schema: Dict[str, Any]) -> ProviderResult:
         ...
+
+
+class ScriptProvider(Protocol):
+    def write_script(
+        self,
+        report: Dict[str, Any],
+        profile: Dict[str, Any],
+        target_duration_minutes: float,
+        schema: Dict[str, Any],
+    ) -> ProviderResult:
+        ...
+
+    def review_script(
+        self,
+        report: Dict[str, Any],
+        script: Dict[str, Any],
+        schema: Dict[str, Any],
+    ) -> ProviderResult:
+        ...

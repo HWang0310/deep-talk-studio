@@ -11,6 +11,7 @@ from deeptalk_studio.validation import ReportValidationError
 from deeptalk_studio.workflow import (
     _prepare_draft,
     prepare_codex_draft,
+    run_report_approval,
     run_fact_check_review,
     run_research,
     run_topic_discovery,
@@ -105,6 +106,27 @@ class FakeProvider:
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_report_approval_saves_a_new_revision_without_overwriting_reviewed(self):
+        report = ResearchReport.from_dict(valid_report_data())
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            from deeptalk_studio.storage import save_report
+
+            reviewed_paths = save_report(report, root)
+            result = run_report_approval(
+                report,
+                "确认，开始写稿",
+                root,
+                clock=lambda: datetime(2026, 8, 10, 12, 0, tzinfo=timezone.utc),
+            )
+            approved = json.loads(result.json.read_text(encoding="utf-8"))
+            reviewed_still_exists = reviewed_paths.json.exists()
+
+        self.assertTrue(reviewed_still_exists)
+        self.assertTrue(result.json.name.endswith("r0002.json"))
+        self.assertEqual(approved["previous_revision"], 1)
+        self.assertEqual(approved["status"], "ready_for_script")
+
     def test_selected_handoff_is_forwarded_to_research_pass(self):
         provider = FakeProvider()
         handoff = {

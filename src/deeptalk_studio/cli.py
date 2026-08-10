@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -17,10 +18,21 @@ from .models import ResearchReport
 from .migration import load_compatible_report, migrate_v01_to_v02
 from .providers.openai import OpenAIProviderError, OpenAIResponsesProvider
 from .storage import ReportStorageError, save_report
+from .script_profile import load_script_profile, parse_target_duration
+from .script_revisions import compare_script_revisions, create_script_revision
+from .script_storage import ScriptStorageError, load_script, save_script
+from .script_validation import ScriptValidationError
+from .script_workflow import (
+    DEFAULT_SCRIPT_OUTPUT,
+    prepare_codex_script,
+    run_codex_script_review,
+    run_script_workflow,
+)
 from .validation import ReportValidationError, validate_report
 from .workflow import (
     prepare_codex_draft,
     run_fact_check_review,
+    run_report_approval,
     run_research,
     run_topic_discovery,
 )
@@ -29,6 +41,7 @@ from .workflow import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REPORTS = REPO_ROOT / "reports"
 DEFAULT_DISCOVERIES = REPO_ROOT / "discoveries"
+DEFAULT_SCRIPTS = DEFAULT_SCRIPT_OUTPUT
 SAMPLE_REPORT = REPO_ROOT / "examples" / "sample-research-report.json"
 CATEGORY_ALIASES = {
     "tech": "technology",
@@ -91,6 +104,54 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("artifact", type=Path)
     review.add_argument("--output", type=Path, default=DEFAULT_REPORTS)
 
+    approve = subparsers.add_parser(
+        "approve-report", help="把用户明确确认保存为新的 ready_for_script 修订版"
+    )
+    approve.add_argument("report", type=Path)
+    approve.add_argument("--confirmation", required=True)
+    approve.add_argument("--output", type=Path, default=DEFAULT_REPORTS)
+
+    prepare_script = subparsers.add_parser(
+        "prepare-script", help="把 Codex 稿件内容整理为 Script Draft 0.4"
+    )
+    prepare_script.add_argument("report", type=Path)
+    prepare_script.add_argument("input", type=Path)
+    prepare_script.add_argument("--duration", default="")
+    prepare_script.add_argument("--output", type=Path, default=DEFAULT_SCRIPTS)
+
+    review_script = subparsers.add_parser(
+        "review-script", help="把独立 Script Review 应用为新的稿件修订版"
+    )
+    review_script.add_argument("report", type=Path)
+    review_script.add_argument("script", type=Path)
+    review_script.add_argument("review", type=Path)
+    review_script.add_argument("--output", type=Path, default=DEFAULT_SCRIPTS)
+
+    compare_script = subparsers.add_parser(
+        "compare-script", help="比较同一稿件的两个修订版"
+    )
+    compare_script.add_argument("report", type=Path)
+    compare_script.add_argument("first", type=Path)
+    compare_script.add_argument("second", type=Path)
+
+    revise_script = subparsers.add_parser(
+        "revise-script", help="根据用户反馈创建不可覆盖的新稿件修订版"
+    )
+    revise_script.add_argument("report", type=Path)
+    revise_script.add_argument("previous", type=Path)
+    revise_script.add_argument("input", type=Path)
+    revise_script.add_argument("--duration", default="")
+    revise_script.add_argument("--summary", default="根据用户反馈修改稿件。")
+    revise_script.add_argument("--output", type=Path, default=DEFAULT_SCRIPTS)
+
+    write_script = subparsers.add_parser(
+        "write-script", help="用 API 从已批准 Research Report 写稿并独立审查"
+    )
+    write_script.add_argument("report", type=Path)
+    write_script.add_argument("--duration", default="")
+    write_script.add_argument("--output", type=Path, default=DEFAULT_SCRIPTS)
+    write_script.add_argument("--model", default="gpt-5.6")
+
     prepare = subparsers.add_parser(
         "prepare-draft", help="把 Codex 研究内容整理为带机器字段的 V0.2 Draft"
     )
@@ -152,6 +213,111 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 f"- FactCheck Artifact：{result.fact_check}\n"
                 f"- 新修订版 Markdown：{result.reviewed.markdown}\n"
                 f"- 新修订版 JSON：{result.reviewed.json}\n"
+                f"- 最终状态：{result.final_status}"
+            )
+            return 0
+        if args.command == "approve-report":
+            paths = run_report_approval(
+                _load_report(args.report), args.confirmation, args.output
+            )
+            print(
+                "用户确认已保存为新的 Research Revision：\n"
+                f"- Markdown：{paths.markdown}\n"
+                f"- JSON：{paths.json}\n"
+                "该修订版现在可以进入 Original Script Agent。"
+            )
+            return 0
+        if args.command == "prepare-script":
+            report = _load_report(args.report)
+            content = json.loads(args.input.read_text(encoding="utf-8"))
+            result = prepare_codex_script(
+                content,
+                report,
+                args.output,
+                load_script_profile(),
+                target_duration_minutes=parse_target_duration(args.duration),
+            )
+            print(
+                "Script Draft 已生成：\n"
+                f"- JSON：{result.paths.json}\n"
+                f"- Editor：{result.paths.editor}\n"
+                f"- Teleprompter：{result.paths.teleprompter}\n"
+                "下一步必须执行独立 Script Review。"
+            )
+            return 0
+        if args.command == "review-script":
+            report = _load_report(args.report)
+            profile = load_script_profile()
+            script = load_script(args.script, report, profile)
+            content = json.loads(args.review.read_text(encoding="utf-8"))
+            result = run_codex_script_review(
+                content, report, script, args.output, profile
+            )
+            print(
+                "稿件审查已完成：\n"
+                f"- Review Artifact：{result.review_artifact}\n"
+                f"- 新修订版 JSON：{result.paths.json}\n"
+                f"- Teleprompter：{result.paths.teleprompter}\n"
+                f"- 最终状态：{result.script.status}"
+            )
+            return 0
+        if args.command == "compare-script":
+            report = _load_report(args.report)
+            profile = load_script_profile()
+            first = load_script(args.first, report, profile)
+            second = load_script(args.second, report, profile)
+            print(json.dumps(compare_script_revisions(first, second), ensure_ascii=False, indent=2))
+            return 0
+        if args.command == "revise-script":
+            report = _load_report(args.report)
+            profile = load_script_profile()
+            previous = load_script(args.previous, report, profile)
+            content = json.loads(args.input.read_text(encoding="utf-8"))
+            target = (
+                parse_target_duration(args.duration)
+                if args.duration.strip()
+                else previous.target_duration_minutes
+            )
+            revised = create_script_revision(
+                content,
+                previous,
+                report,
+                profile,
+                generated_at=datetime.now().astimezone().isoformat(),
+                target_duration_minutes=target,
+                change_summary=args.summary,
+            )
+            paths = save_script(revised, report, profile, args.output)
+            print(
+                "新的 Script Revision 已生成：\n"
+                f"- JSON：{paths.json}\n"
+                f"- Editor：{paths.editor}\n"
+                f"- Teleprompter：{paths.teleprompter}\n"
+                "修改后的稿件必须重新执行独立 Script Review。"
+            )
+            return 0
+        if args.command == "write-script":
+            api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+            if not api_key:
+                print(
+                    "没有检测到 OPENAI_API_KEY。请在 Codex 中对 reviewed 报告明确说‘确认，开始写稿’，write-script Skill 会在后台保存批准并生成稿件。",
+                    file=sys.stderr,
+                )
+                return 2
+            report = _load_report(args.report)
+            result = run_script_workflow(
+                report,
+                OpenAIResponsesProvider(api_key=api_key, model=args.model),
+                args.output,
+                load_script_profile(),
+                target_duration_minutes=parse_target_duration(args.duration),
+            )
+            print(
+                "原创口播稿与独立审查已完成：\n"
+                f"- Draft：{result.draft.json}\n"
+                f"- Review Artifact：{result.review_artifact}\n"
+                f"- 最终稿：{result.reviewed.json}\n"
+                f"- Teleprompter：{result.reviewed.teleprompter}\n"
                 f"- 最终状态：{result.final_status}"
             )
             return 0
@@ -275,6 +441,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ReportValidationError,
         ValueError,
         DiscoveryStorageError,
+        ScriptStorageError,
+        ScriptValidationError,
     ) as exc:
         print(f"无法生成报告：{exc}", file=sys.stderr)
         return 2

@@ -40,7 +40,7 @@
 - 新增 `discover-topics` Skill，支持用户回复编号后直接交给 `research-topic`，不重复要求标题；
 - 三类真实 Discovery 评测和去内容化汇总。
 
-### V0.3.1：Discovery Gate Hardening（已完成，等待产品正式验收）
+### V0.3.1：Discovery Gate Hardening（已完成并验收）
 
 - 新增 Codex 实际打开页面的后台 inspection manifest，未在其中的 Seed 必须保持 `unmatched`；
 - Candidate Artifact 全部关键机器字段改为确定性重新推导和 fail-closed 校验；
@@ -48,15 +48,19 @@
 - 类别多样性升级为先多样、再补位的软约束，并移除无效的 `--count` 参数；
 - 重新执行三类真实 Discovery 评测，明确记录 `pass` / `fail` / `not_applicable`。
 
-## V0.4：原创 Script Agent（未开始，等待 V0.3.1 Review）
+## V0.4：原创 Script Agent（已完成）
 
-- 只读取通过 Review 的 Research Report；
-- 生成原创分析框架、故事线和口播稿；
-- 保留事实标签、归因和禁讲项；
-- 支持口语节奏、信息密度、时长和版本对比；
-- 增加稿件事实回链和相似表达风险检查。
+- 只读取完成 Fact Check、通过 Quality Gate、并有用户确认的新 Research Revision；
+- 新增 Script Profile 0.4、Script Draft Artifact 0.4 和独立 Script Review Artifact 0.4；
+- 生成原创分析框架、故事线、Editor Markdown 与纯口播 Teleprompter Markdown；
+- 每个 Beat 明确区分事实、归因、分析、转场和问题，并保留 Claim / Evidence 回链；
+- 硬阻止未批准 Research、直接使用禁讲结论、伪造机器字段和未核查高风险事实；
+- 计算 must-keep coverage、口播字数与时长，支持自然语言调整时长和结构；
+- Writer 与 Reviewer 分离，Reviewer 必须完成 15 个检查维度，阻断问题不能进入 `reviewed`；
+- 稿件修订不可覆盖，并支持比较两个 revision；
+- 完成稳定商业、争议公共议题和未批准输入三类真实评测。
 
-## V0.5：素材与视觉辅助
+## V0.5：素材与视觉辅助（未开始）
 
 - Material Search：推荐公开文件、截图、图片、视频片段和图表；
 - 标注来源、版权风险、建议使用位置和时长；

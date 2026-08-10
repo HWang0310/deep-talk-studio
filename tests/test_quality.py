@@ -187,6 +187,8 @@ class QualityTests(unittest.TestCase):
         ready = approve_for_script(report, "我已查看高风险主张并确认继续")
 
         self.assertEqual(ready["status"], "ready_for_script")
+        self.assertEqual(ready["revision"], 2)
+        self.assertEqual(ready["previous_revision"], 1)
         self.assertEqual(ready["approval_gate"]["status"], "approved")
         self.assertTrue(ready["approval_gate"]["ready_for_script"])
         self.assertEqual(ready["approval_gate"]["high_risk_claim_ids"], ["C1"])

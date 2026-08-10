@@ -1,4 +1,3 @@
-from .base import ResearchProvider
+from .base import ResearchProvider, ScriptProvider
 
-__all__ = ["ResearchProvider"]
-
+__all__ = ["ResearchProvider", "ScriptProvider"]

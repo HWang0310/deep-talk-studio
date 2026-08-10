@@ -8,12 +8,18 @@ from deeptalk_studio.schema import (
     DISCOVERY_RAW_JSON_SCHEMA,
     FACT_CHECK_JSON_SCHEMA,
     REPORT_JSON_SCHEMA,
+    SCRIPT_DRAFT_CONTENT_JSON_SCHEMA,
+    SCRIPT_REVIEW_CONTENT_JSON_SCHEMA,
 )
+from deeptalk_studio.script_profile import load_script_profile
 from tests.fixtures import (
     valid_api_research_draft_input,
     valid_discovery_input,
     valid_fact_check_data,
     valid_report_data,
+    approved_report_data,
+    valid_script_content,
+    valid_script_review_content,
 )
 
 
@@ -57,6 +63,79 @@ def api_response():
 
 
 class OpenAIProviderTests(unittest.TestCase):
+    def test_script_writer_uses_structured_output_without_web_search(self):
+        captured = {}
+
+        def transport(url, headers, body, timeout):
+            captured["body"] = body
+            return {
+                "output": [
+                    {
+                        "type": "message",
+                        "id": "msg_script",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(valid_script_content(), ensure_ascii=False),
+                                "annotations": [],
+                            }
+                        ],
+                    }
+                ]
+            }
+
+        provider = OpenAIResponsesProvider(api_key="secret-value", transport=transport)
+        result = provider.write_script(
+            approved_report_data(),
+            load_script_profile(),
+            12,
+            SCRIPT_DRAFT_CONTENT_JSON_SCHEMA,
+        )
+
+        payload = captured["body"]
+        self.assertNotIn("tools", payload)
+        self.assertNotIn("include", payload)
+        self.assertNotIn("web_search", json.dumps(payload))
+        self.assertEqual(payload["text"]["format"]["name"], "deep_talk_script_draft")
+        self.assertNotIn("secret-value", json.dumps(payload))
+        self.assertEqual(result.provenance.search_calls, ())
+        self.assertEqual(result.data["working_title"], valid_script_content()["working_title"])
+
+    def test_script_reviewer_is_a_separate_no_tool_structured_call(self):
+        captured = {}
+
+        def transport(url, headers, body, timeout):
+            captured["body"] = body
+            return {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps(
+                                    valid_script_review_content(), ensure_ascii=False
+                                ),
+                            }
+                        ],
+                    }
+                ]
+            }
+
+        provider = OpenAIResponsesProvider(api_key="secret-value", transport=transport)
+        result = provider.review_script(
+            approved_report_data(),
+            {"script_id": "SCR-test", "beats": []},
+            SCRIPT_REVIEW_CONTENT_JSON_SCHEMA,
+        )
+
+        payload = captured["body"]
+        self.assertNotIn("tools", payload)
+        self.assertNotIn("include", payload)
+        self.assertNotIn("web_search", json.dumps(payload))
+        self.assertEqual(payload["text"]["format"]["name"], "deep_talk_script_review")
+        self.assertEqual(result.data["issues"], [])
+
     def test_discovery_uses_its_own_schema_prompt_and_web_search_provenance(self):
         captured = {}
 

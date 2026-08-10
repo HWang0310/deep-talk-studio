@@ -24,7 +24,7 @@
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- V0.3.1 已完成 Discovery Gate Hardening，等待产品验收；当前不提前实现 Script Writing、素材、视觉、剪辑和发布。
+- V0.4.0 已完成 Original Script Agent；V0.5 素材与视觉辅助尚未开始，不要提前实现素材、视觉、剪辑和发布。
 - 用户说“今天讲什么”“找几个选题”“换一批”或带分类偏好时，先阅读 `.agents/skills/discover-topics/SKILL.md` 和 `docs/TOPIC_DISCOVERY_CONTRACT.md`，不要把它塞进 `research-topic`。
 - 用户回复候选编号时，读取 latest Candidate Set 的结构化 Research Handoff，直接进入 `research-topic`；不要要求用户再复制标题，也不要把 Discovery Source Seeds 当成事实证据。
 - Topic Candidate Set 0.3 的总分、资格状态、资格理由、推荐标签、展示顺序、首选、统计数、身份、时间和来源 provenance 由程序计算并在读取时重新推导；模型或 Skill 只能给评分理由和轻量预检内容。
@@ -36,7 +36,16 @@
 - `unknown`、`related`、`duplicate`、`syndicated` 来源不能计作独立确认；不得为过 Gate 自动改成 `independent`。
 - API 模型只生成研究判断，身份、revision、状态、provenance、quality 和审批字段由代码确定。
 - Fact Check 新来源必须与 Draft 来源一起重新规范化和归组后才能保存或应用。
-- 即使质量 Gate 通过，未来 Script Agent 前也必须保留用户明确确认。
+- 即使质量 Gate 通过，Script Agent 前也必须保留用户明确确认；确认必须通过 Approval Workflow 建立新的 Research Revision，不能只改内存状态。
+- 用户要求“根据报告写稿”“做成 8 分钟”“做长一点”或修改稿件时，先阅读 `.agents/skills/write-script/SKILL.md` 和 `docs/SCRIPT_CONTRACT.md`。
+- Writer 只能读取绑定的 `ready_for_script` Research Revision；草稿、未通过 Gate、未完成 Fact Check 或没有确认文本的报告一律拒绝。
+- Script Writer 与 Script Reviewer 必须独立执行，二者均不得自行 Web Search，也不得用网络内容补齐 Research gap。
+- Fact Beat 只能引用已核查的 `confirmed_fact`；party statement / commentary 必须使用 Attribution Beat；Analysis Beat 必须保存 basis Claim。
+- `avoid_claims` 是禁止结论，不是写作建议；直接使用必须失败，语义近似越界必须由 Reviewer 检查。
+- Script Draft 的身份、revision、状态、Beat ID、时长、字数和 must-keep coverage 由程序生成和重新校验，Writer / Reviewer 不能自报。
+- Script Review 必须完成 15 个必检维度；阻断问题由 issue type 推导，任何 blocking issue 都不能进入 `reviewed`。
+- Editor Markdown 用于追踪 Claim / Evidence / 风险；Teleprompter 只保留可朗读正文，不得包含机器 ID、URL 或编辑标签。
+- 所有 Script revision 必须不可覆盖并绑定同一份已批准 Research revision；新研究内容会重置旧 Approval，旧稿不能偷换新底稿。
 
 ## 内容与研究安全
 
@@ -56,9 +65,13 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ./scripts/deeptalk prepare-draft examples/sample-codex-draft-input.json
 ./scripts/deeptalk prepare-discovery <discovery-input.json> --output discoveries
 ./scripts/deeptalk select-topic "1" --output discoveries
+./scripts/deeptalk approve-report <reviewed-report.json> --confirmation "确认进入写稿"
+./scripts/deeptalk prepare-script <approved-report.json> <script-content.json> --duration "8 分钟"
+./scripts/deeptalk review-script <approved-report.json> <script-r1.json> <review.json>
+./scripts/deeptalk compare-script <script-r1.json> <script-r2.json>
 ```
 
-修改 `.agents/skills/research-topic` 或 `.agents/skills/discover-topics` 后，还要运行 Skill Creator 的 `quick_validate.py`。若本机脚本缺少 PyYAML，可在临时目录安装依赖运行，不能把临时依赖提交到仓库。
+修改 `.agents/skills/research-topic`、`.agents/skills/discover-topics` 或 `.agents/skills/write-script` 后，还要运行 Skill Creator 的 `quick_validate.py`。若本机脚本缺少 PyYAML，可在临时目录安装依赖运行，不能把临时依赖提交到仓库。
 
 ## 每轮结束前必须完成
 

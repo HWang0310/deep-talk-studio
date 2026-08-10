@@ -53,3 +53,29 @@ class TopicCandidateSet:
             return self.data[name]
         except KeyError as exc:
             raise AttributeError(name) from exc
+
+
+@dataclass(frozen=True)
+class ScriptDraft:
+    """Validated, versioned Script Draft value object."""
+
+    data: Dict[str, Any]
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any], report: ResearchReport, profile: Dict[str, Any]) -> "ScriptDraft":
+        from .script_validation import ScriptValidationError, validate_script_draft
+
+        if not isinstance(data, dict):
+            raise ScriptValidationError("Script Draft 必须是 JSON 对象")
+        script = cls(deepcopy(data))
+        validate_script_draft(script, report, profile)
+        return script
+
+    def to_dict(self) -> Dict[str, Any]:
+        return deepcopy(self.data)
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self.data[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc

@@ -4,7 +4,7 @@
 
 系统把需要判断力的 AI 工作与必须稳定的工程契约分开。Agent 负责搜索、比较和分析；Python 核心负责校验、保存和为下游提供一致工件。这样未来更换模型、搜索工具或视频工具时，不需要重写整个项目。
 
-## V0.3 数据流
+## V0.4 数据流
 
 ```mermaid
 flowchart LR
@@ -12,8 +12,8 @@ flowchart LR
     B["用户：今天讲什么？"] --> TD["Topic Discovery + 轻量 Preflight"]
     TD --> TC["Topic Candidate Set 0.3"]
     TC --> C["用户只回复编号"]
-    C --> H["Research Handoff Brief 0.3"]
-    H --> R
+    C --> RH["Research Handoff Brief 0.3"]
+    RH --> R
     R --> W1["首次公开来源检索"]
     W1 --> D1["Research Draft 0.2 / r1"]
     D1 --> F["Independent Fact Check"]
@@ -22,8 +22,15 @@ flowchart LR
     A --> D2["Reviewed Report / r2"]
     D2 --> Q["透明 Quality Gate"]
     Q -->|失败| X["draft：禁止进入写稿"]
-    Q -->|通过| H["reviewed：等待用户确认"]
-    H -.未来且确认后.-> S["Script Agent"]
+    Q -->|通过| P["reviewed：等待用户确认"]
+    P --> AR["Approval Revision：ready_for_script"]
+    AR --> SW["Original Script Writer"]
+    SW --> SD1["Script Draft 0.4 / r1"]
+    SD1 --> SR["Independent Script Review"]
+    SR -->|有阻断问题| SDF["Script r2：draft"]
+    SR -->|通过| SD2["Script r2：reviewed"]
+    SD2 --> E["Editor Markdown"]
+    SD2 --> T["Teleprompter Markdown"]
 ```
 
 ## 模块职责
@@ -46,7 +53,15 @@ flowchart LR
 | `provenance.py` | 提取 API 搜索调用、完整来源和 URL citation 并匹配报告来源 | 信任模型自报 URL |
 | `fact_check.py` | 高风险队列、新旧来源统一归组、独立 Artifact 校验和核查结果应用 | 在原 Research Pass 内自我确认 |
 | `quality.py` | 从证据账本计算透明指标和 Gate | 用神秘总分代替底层指标 |
-| `revisions.py` | 新修订、更正历史和审批状态重置 | 静默覆盖旧报告 |
+| `revisions.py` | 新修订、更正、Approval Revision 和审批状态重置 | 静默覆盖旧报告 |
+| `.agents/skills/write-script` | 用户确认、原创写稿、独立审稿、自然语言修改与比较 | 自行联网研究、素材、发布 |
+| `script_profile.py` | 加载口播风格、时长和原创性约束 | 生成稿件内容 |
+| `script_validation.py` | Approval Gate、Grounding、Fact / Attribution / Analysis、禁讲项和机器字段校验 | 判断现实事实或润色稿件 |
+| `script_review.py` | 规范化独立审稿问题、15 项必检和阻断 Gate | 扮演 Writer 或自动发布 |
+| `script_renderer.py` | 派生 Editor / Teleprompter Markdown | 修改 Script Artifact |
+| `script_storage.py` | 不可覆盖稿件、Review Artifact 和 latest 指针 | 云端内容库 |
+| `script_revisions.py` | 新稿件 revision 与版本比较 | 偷换 Research revision |
+| `script_workflow.py` | 串联 approved report → Writer → Reviewer → outputs | Web Search 或 Fact Check |
 | `migration.py` | 确定性迁移 0.1，并保持未核查状态 | 伪造旧报告已完成 Fact Check |
 | `providers/openai.py` | 两次 Responses API 调用、结构化输出与 tool provenance | 绑定其他模块到 OpenAI SDK |
 | `workflow.py` | 串联 draft → independent review → quality gate → revisions | 搜索细节 |
@@ -83,6 +98,16 @@ V0.3 新增上游 `Topic Candidate Set 0.3`，不改变 Research Report 0.2：
 - `display_candidate_ids` 是唯一给用户展示和按编号选择的机器接口；Markdown 仅供阅读；
 - Research Handoff Brief 从 Candidate JSON 生成，模式 B 在这里汇入原有 Research Workflow，模式 A 不经过 Discovery。
 
+V0.4 新增下游 `Script Draft Artifact 0.4` 与 `Script Review Artifact 0.4`，不改变 Research Report 0.2：
+
+- Approval 不覆盖 reviewed report，而是创建新 revision，精确保存用户原始确认；任何新研究内容修订都会重置 Approval；
+- Script Draft 精确绑定 `report_id + report_revision + script_profile_version`；Writer 只能生成内容字段，身份、状态、revision、Beat ID、字数、时长和 must-keep coverage 均由代码拥有；
+- 每个 Beat 通过 `content_kind`、`claim_ids`、`evidence_link_ids` 和 `analysis_basis_claim_ids` 保留事实、归因与分析边界；
+- Script Review 与 Writer 分离，要求 15 个唯一必检项；issue severity、blocking count 和 gate status 从 issue type 确定性推导；
+- Review 通过或失败都会创建新的 Script revision：通过为 `reviewed`，失败仍为 `draft`；历史文件不可覆盖；
+- Editor Markdown 包含机器回链和风险提示，Teleprompter Markdown 只含朗读正文；Markdown 都是 JSON 的派生物；
+- Writer 和 Reviewer 都不能启用 Web Search；API 返回任何搜索 provenance 都会失败关闭。
+
 未来模块的建议输入输出：
 
 | 模块 | 输入 | 输出 |
@@ -91,7 +116,7 @@ V0.3 新增上游 `Topic Candidate Set 0.3`，不改变 Research Report 0.2：
 | Research | Topic Candidate 或用户主题 | Research Report JSON |
 | Fact Check | Research Draft | FactCheck Artifact + 新修订 Research Report |
 | Perspective Analysis | Research Report | Perspective Map JSON |
-| Script Writing | 已 Review 的 Research Report | Script Draft JSON / Markdown |
+| Script Writing | 已批准的 `ready_for_script` Research Revision | Script Draft 0.4 + Script Review 0.4 + Editor / Teleprompter |
 | Material Search | Script Draft + Research Report | Material Manifest JSON |
 | Visual Generation | Material Manifest | Visual Assets + provenance |
 | Editing Plan | Script + Material Manifest | Timeline / Shot Plan JSON |
@@ -108,6 +133,9 @@ V0.3 新增上游 `Topic Candidate Set 0.3`，不改变 Research Report 0.2：
 - Creator metadata 只可作为可选 attention signal，绝不是事实证据；不绕过登录或限制，也不保存创作者脚本、字幕或独特表达。
 - Codex 模式记录 `codex_tool_result` 与实际打开 URL，不能把搜索摘要假装成已检查正文。
 - 每个修订路径包含 `report_id` 和 `rNNNN`，已存在文件拒绝覆盖。
+- Script 路径同时包含 `report_id`、`script_id` 和 `rNNNN`，并拒绝覆盖；Review Artifact 单独保存。
+- Script Writer / Reviewer 不具备搜索工具；它们不能把外部知识或研究空白悄悄写进稿件。
+- `avoid_claims` 的直接匹配由程序硬阻止；语义近似、长引用和原创表达风险由独立 Reviewer 检查。
 - 发布前必须有人类编辑 Review；工程校验不等于新闻事实认证。
 
 ## 扩展原则
