@@ -4,7 +4,7 @@
 当前版本：V0.3.0 / `0.3.0`
 当前正式分支：`main`
 GitHub：https://github.com/HWang0310/deep-talk-studio （公有仓库）
-正式发布：发布完成后记录为 `https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.3.0`
+正式发布：https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.3.0
 
 ## 1. 本轮任务是什么
 
@@ -20,7 +20,7 @@ GitHub：https://github.com/HWang0310/deep-talk-studio （公有仓库）
 - 新增事件聚类去重、单分类最多两项、最多 5 张短卡片和一个首选；Creator signal 是可选辅助信号，不是事实证据。
 - 新增按日期保存的 discovery 历史和 latest 指针，历史不可静默覆盖；用户只回 `1` 或 `研究 1` 就能得到正式 Research Handoff。
 - 新增 `discover-topics` Skill 和 API/CLI 自动化入口；`research-topic` 已能接收 Handoff，不再重复要求标题。
-- 新增 16 项 V0.3 测试，原有 85 项测试保持通过；最终总数以发布前完整验证记录为准。
+- 新增 16 项 V0.3 测试，原有 85 项测试保持通过；发布前完整验证共 101 项测试全部通过。
 
 ## 3. 创建 / 修改了哪些重要文件
 
@@ -74,7 +74,7 @@ Topic Discovery 只决定“是否值得研究”，不确认事实。Source See
 - API 模式需要 `OPENAI_API_KEY`；本轮没有使用用户密钥，不产生 API 费用。没有 Key 时 Codex Skill 使用宿主联网能力。
 - Creator signal 若平台公开页面无法稳定访问会直接缺失，不影响 Discovery；系统不绕过登录、风控或限制。
 - 真实 discovery artifacts 保持本机 Git ignore，目前没有云端历史库。
-- GitHub 正式发布尚待本轮最终验证、同步和 Release 创建；完成后必须把本文件首部 Release 链接确认更新。
+- GitHub `v0.3.0` 正式发布已创建并核验；Release 包含 GitHub 自动生成的 ZIP/TAR 源码包，不发布空的软件包。
 
 ## 8. 重要技术决策
 
@@ -104,15 +104,16 @@ Topic Discovery 只决定“是否值得研究”，不确认事实。Source See
 - 新增测试覆盖 Schema、未知/缺失字段、固定权重、机器总分、72 小时、14 天持续事件、陈旧事件、Source Seed URL、匿名传言、高风险弱证据 watch、Creator signal 缺失、无虚构 engagement、事件去重、类别多样性、历史不覆盖、latest 选择、编号交接、Codex/API、CLI error 和模式 A 回归。
 - 已完成 Broad、Tech / Business、Social / Public 三类真实公开 Discovery 评测：前两类各形成一个可选候选，Social / Public 因资料不足只保留 `watch`；没有为凑足候选降低 Gate。Broad 场景实际运行了编号选择并生成 Research Handoff。
 - `docs/TOPIC_DISCOVERY_EVALS.md` 记录方法，`evaluations/v0.3.0-summary.json` 只保留去内容化结果；完整 artifacts 位于 gitignored `discoveries/evaluations/`。
-- 正式发布前仍需进行 Skill 校验、完整 CLI 端到端、Python 3.9 编译、干净安装、JSON、密钥扫描、Git/远程和 Release 核验。
+- `python3 -m compileall -q src tests`、示例 Research/Draft CLI、Discovery 选题与编号交接端到端、干净环境安装 `0.3.0`、JSON 校验、密钥扫描、Git diff 检查均已通过。
+- `discover-topics` 和 `research-topic` Skills 已通过官方校验；GitHub `main` 与 `v0.3.0` Release 已核验。
 
 ## 12. 版本发布规则
 
-每个正式版本继续使用 GitHub Release。V0.3.0 发布后应提供 `v0.3.0` 标签和 GitHub 自动生成的 ZIP/TAR 源码包；项目当前仍不发布空 GitHub Package。发布过程必须不 force push、不重写 `main` 历史。
+每个正式版本继续使用 GitHub Release。V0.3.0 已提供 `v0.3.0` 标签和 GitHub 自动生成的 ZIP/TAR 源码包；项目当前仍不发布空 GitHub Package。发布过程没有 force push，也没有重写 `main` 历史。
 
 ## 给用户的下一步操作
 
-下一步：等 Codex 告诉你 v0.3.0 GitHub Release 已发布后，只把下面这段话原样发给 ChatGPT：
+下一步：只把下面这段话原样发给 ChatGPT：
 
 > 这是 Codex 完成的 DeepTalk Studio V0.3 Topic Discovery：GitHub 仓库是 https://github.com/HWang0310/deep-talk-studio ，Release 是 https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.3.0 。请完整阅读 HANDOFF.md，再 Review Candidate Artifact、评分模型、Eligibility Gate、事件去重、Source Seeds、用户选编号进入 Research 的流程、测试和真实评测。如果通过，请决定是否进入 V0.4 Script Agent，并直接给我下一轮发给 Codex 的任务。不要让我自己总结。
 
