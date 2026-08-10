@@ -1,0 +1,136 @@
+from copy import deepcopy
+
+
+def valid_report_data():
+    data = {
+        "schema_version": "0.1",
+        "topic": "示例公共事件",
+        "research_question": "这个事件的事实基础和主要争议是什么？",
+        "generated_at": "2026-08-10T10:00:00+08:00",
+        "scope_summary": "这是用于测试报告契约的虚构示例，不代表真实新闻。",
+        "executive_summary": "现有材料确认了事件发生，但对原因存在两种解释。",
+        "sources": [
+            {
+                "id": "S1",
+                "title": "机构公告",
+                "url": "https://example.com/official",
+                "publisher": "示例机构",
+                "published_at": "2026-08-09",
+                "accessed_at": "2026-08-10",
+                "source_type": "official",
+                "stance_summary": "确认事件发生并解释处置措施。",
+                "credibility_notes": "一手材料，但只代表发布机构立场。",
+            },
+            {
+                "id": "S2",
+                "title": "媒体核查报道",
+                "url": "https://example.org/report",
+                "publisher": "示例媒体",
+                "published_at": "2026-08-10",
+                "accessed_at": "2026-08-10",
+                "source_type": "media",
+                "stance_summary": "采访多方并指出仍有信息缺口。",
+                "credibility_notes": "包含多方采访，部分细节仍来自匿名信源。",
+            },
+        ],
+        "claims": [
+            {
+                "id": "C1",
+                "claim": "事件在 2026 年 8 月 9 日发生。",
+                "classification": "confirmed_fact",
+                "confidence": "high",
+                "source_ids": ["S1", "S2"],
+                "notes": "两个相互独立的公开来源一致。",
+            },
+            {
+                "id": "C2",
+                "claim": "当事机构称原因是流程故障。",
+                "classification": "party_statement",
+                "confidence": "medium",
+                "source_ids": ["S1"],
+                "notes": "这是当事方解释，不等于已独立证实。",
+            },
+            {
+                "id": "C3",
+                "claim": "网络流传事件由人为操纵造成。",
+                "classification": "unverified",
+                "confidence": "low",
+                "source_ids": [],
+                "notes": "未找到可核验的一手证据。",
+            },
+        ],
+        "timeline": [
+            {
+                "date": "2026-08-09",
+                "event": "事件发生并由机构发布首次说明。",
+                "claim_ids": ["C1", "C2"],
+                "source_ids": ["S1", "S2"],
+            }
+        ],
+        "perspectives": [
+            {
+                "id": "P1",
+                "actor": "当事机构",
+                "position": "事件属于流程故障。",
+                "reasoning": "机构引用内部检查结果。",
+                "source_ids": ["S1"],
+                "category": "party",
+            },
+            {
+                "id": "P2",
+                "actor": "受访评论者",
+                "position": "公开信息不足以排除管理责任。",
+                "reasoning": "现有公告没有解释预警为何失效。",
+                "source_ids": ["S2"],
+                "category": "expert",
+            },
+        ],
+        "conflicts": [
+            {
+                "question": "这是偶发故障还是管理问题？",
+                "side_a": "机构认为是单次流程故障。",
+                "side_b": "评论者认为仍需追问制度责任。",
+                "evidence_state": "目前只能确认事件和机构说法，责任归因证据不足。",
+                "source_ids": ["S1", "S2"],
+            }
+        ],
+        "open_questions": [
+            {
+                "question": "内部检查是否会公开完整证据？",
+                "why_it_matters": "决定原因判断能否被独立复核。",
+                "suggested_next_step": "持续查看后续公告和监管文件。",
+            }
+        ],
+        "angles": [
+            {
+                "title": "从一次事故看公开解释的证据边界",
+                "core_question": "公众应如何区分事实、解释与推测？",
+                "why_now": "事件正在形成相互冲突的网络叙事。",
+                "audience_value": "提供一套判断热点信息的方法。",
+                "risks": "不能在证据不足时归责个人。",
+                "required_claim_ids": ["C1", "C2", "C3"],
+            }
+        ],
+        "fact_check_notes": [
+            {
+                "claim_id": "C1",
+                "status": "verified",
+                "explanation": "日期由公告和媒体报道交叉确认。",
+            },
+            {
+                "claim_id": "C3",
+                "status": "unverified",
+                "explanation": "只有网络转述，没有原始证据。",
+            },
+        ],
+        "limitations": ["示例来源为虚构网址，仅用于测试格式。"],
+        "handoff_to_script_agent": {
+            "recommended_angle": "从信息分层而不是责任定性切入。",
+            "central_tension": "公众需要解释，但现有证据不足以完成归因。",
+            "must_keep_claim_ids": ["C1", "C2", "C3"],
+            "avoid_claims": ["不要断言人为操纵已经得到证实。"],
+            "follow_up_research": ["检查后续监管通报。"],
+        },
+    }
+    return deepcopy(data)
+
