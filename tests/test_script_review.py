@@ -6,7 +6,11 @@ from deeptalk_studio.script_review import (
     prepare_script_review,
     validate_script_review_artifact,
 )
-from deeptalk_studio.script_validation import ScriptValidationError, prepare_script_draft
+from deeptalk_studio.script_validation import (
+    ScriptValidationError,
+    prepare_script_draft,
+    validate_script_draft,
+)
 from tests.fixtures import (
     approved_report_data,
     valid_script_content,
@@ -40,11 +44,31 @@ class ScriptReviewTests(unittest.TestCase):
         result = self.review()
 
         self.assertEqual(result.artifact["artifact_version"], "0.4")
+        self.assertEqual(result.artifact["review_consistency_version"], "0.4.1")
         self.assertEqual(result.artifact["gate_status"], "pass")
         self.assertEqual(result.artifact["blocking_issue_count"], 0)
         self.assertEqual(result.script.revision, 2)
         self.assertEqual(result.script.previous_revision, 1)
         self.assertEqual(result.script.status, "reviewed")
+        with self.assertRaisesRegex(ScriptValidationError, "Review Artifact"):
+            validate_script_draft(result.script.to_dict(), self.report, self.profile)
+        validate_script_draft(result.script, self.report, self.profile, result.artifact)
+
+    def test_reviewed_script_rejects_forged_or_mismatched_review_linkage(self):
+        result = self.review()
+        forged = result.script.to_dict()
+        forged["review_state"] = dict(forged["review_state"])
+        forged["review_state"]["review_id"] = "SRV-forged"
+
+        with self.assertRaisesRegex(ScriptValidationError, "Review linkage"):
+            validate_script_draft(forged, self.report, self.profile, result.artifact)
+
+        changed = result.script.to_dict()
+        changed["beats"][0]["narration"] = changed["beats"][0]["narration"].replace(
+            "八月九日", "八月十日"
+        )
+        with self.assertRaisesRegex(ScriptValidationError, "content digest"):
+            validate_script_draft(changed, self.report, self.profile, result.artifact)
 
     def test_blocking_issue_keeps_script_draft_and_code_owns_severity(self):
         content = valid_script_review_content()
@@ -64,6 +88,7 @@ class ScriptReviewTests(unittest.TestCase):
         self.assertEqual(result.artifact["blocking_issue_count"], 1)
         self.assertEqual(result.artifact["issues"][0]["severity"], "blocking")
         self.assertEqual(result.script.status, "draft")
+        self.assertEqual(result.script.review_state["state"], "not_reviewed")
 
     def test_model_cannot_spoof_review_identity_gate_status_or_severity(self):
         for field, value in (
@@ -149,6 +174,105 @@ class ScriptReviewTests(unittest.TestCase):
         content["checks"] = content["checks"][:-1]
 
         with self.assertRaisesRegex(ScriptValidationError, "缺少必检项"):
+            self.review(content)
+
+    def test_duplicate_review_check_is_rejected(self):
+        content = valid_script_review_content()
+        content["checks"].append(dict(content["checks"][0]))
+
+        with self.assertRaisesRegex(ScriptValidationError, "不能重复"):
+            self.review(content)
+
+    def test_review_artifact_for_wrong_script_revision_is_rejected(self):
+        result = self.review()
+        artifact = dict(result.artifact)
+        artifact["script_revision"] = 2
+
+        with self.assertRaisesRegex(ScriptValidationError, "script_revision"):
+            validate_script_review_artifact(artifact, self.report, self.script)
+
+    def test_critical_failed_checks_without_their_blocking_issue_fail_closed(self):
+        required_issue_types = {
+            "factual_grounding": "unsupported_fact",
+            "attribution_integrity": "attribution_error",
+            "uncertainty_preservation": "material_uncertainty_loss",
+            "avoid_claim_compliance": "avoid_claim_usage",
+            "high_risk_boundary": "high_risk_overclaim",
+            "analysis_fact_separation": "analysis_as_fact",
+            "perspective_fairness": "perspective_distortion",
+            "research_gap_integrity": "research_gap_filled",
+        }
+        for check_name, issue_type in required_issue_types.items():
+            with self.subTest(check_name=check_name):
+                content = valid_script_review_content()
+                check = next(
+                    item for item in content["checks"] if item["check_name"] == check_name
+                )
+                check["outcome"] = "fail"
+                check["reason"] = "受控测试：此项未通过。"
+                with self.assertRaisesRegex(ScriptValidationError, "blocking issue"):
+                    self.review(content)
+
+                content["issues"] = [
+                    {
+                        "issue_type": issue_type,
+                        "beat_ids": ["B001"],
+                        "claim_ids": ["C1"],
+                        "explanation": "受控测试：问题已明确记录。",
+                        "suggested_fix": "收窄或改正这一处表达。",
+                    }
+                ]
+                result = self.review(content)
+                self.assertEqual(result.artifact["gate_status"], "fail")
+
+    def test_editorial_failed_check_with_matching_advisory_can_keep_gate_passing(self):
+        content = valid_script_review_content()
+        check = next(
+            item
+            for item in content["checks"]
+            if item["check_name"] == "oral_naturalness"
+        )
+        check["outcome"] = "fail"
+        check["reason"] = "句子偏书面。"
+        content["issues"] = [
+            {
+                "issue_type": "oral_naturalness",
+                "beat_ids": ["B001"],
+                "claim_ids": [],
+                "explanation": "开场句不够自然。",
+                "suggested_fix": "改成更口语的短句。",
+            }
+        ]
+
+        result = self.review(content)
+
+        self.assertEqual(result.artifact["gate_status"], "pass")
+        self.assertEqual(result.script.status, "reviewed")
+
+    def test_failed_editorial_check_without_issue_is_rejected(self):
+        content = valid_script_review_content()
+        check = next(
+            item
+            for item in content["checks"]
+            if item["check_name"] == "information_density"
+        )
+        check["outcome"] = "fail"
+        check["reason"] = "信息重复。"
+
+        with self.assertRaisesRegex(ScriptValidationError, "对应 issue"):
+            self.review(content)
+
+    def test_critical_check_cannot_be_marked_not_applicable(self):
+        content = valid_script_review_content()
+        check = next(
+            item
+            for item in content["checks"]
+            if item["check_name"] == "factual_grounding"
+        )
+        check["outcome"] = "not_applicable"
+        check["reason"] = "不应允许跳过事实核验。"
+
+        with self.assertRaisesRegex(ScriptValidationError, "not_applicable"):
             self.review(content)
 
 

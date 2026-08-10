@@ -2,7 +2,7 @@
 
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
-当前版本是 **V0.4.0**。现在有两个研究入口：直接给主题，或问“今天讲什么？”。研究完成并通过独立事实核查后，你只需确认“开始写稿”，系统就会把这次确认保存为新版本，再生成原创口播稿并做独立 Script Review。
+当前版本是 **V0.4.1**。现在有两个研究入口：直接给主题，或问“今天讲什么？”。研究完成并通过独立事实核查后，你只需确认“开始写稿”，系统就会把这次确认保存为新版本，再生成原创口播稿并做独立 Script Review。
 
 ## 现在最简单的用法
 
@@ -89,11 +89,14 @@ script_drafts/YYYY/MM/DD/报告ID/稿件ID/script-draft-r0002.json
 - Writer 完成后由独立 Reviewer 检查 15 个维度；有事实或归因阻断问题的稿件不能成为 `reviewed`；
 - 同时输出含编辑线索的 Editor 版和可直接朗读、没有机器 ID 的 Teleprompter 版；
 - 任何稿件修改都产生不可覆盖的新 revision，并可比较两个版本；
+- Review 的 15 项检查都必须和具体问题闭环；事实安全检查失败时，系统拒绝把稿件误判为通过；
+- `reviewed` 稿件会校验对应的 Review Artifact、原稿版本与内容指纹，单独改状态无效；
+- 修改、移动或插入段落时保留已有 Beat 身份，删除的 Beat ID 不再复用，因此版本比较不会把一次插入误报为整篇重写；
 - 在保存前执行完整 Schema 和跨字段校验，错误会给出中文提示。
 
 ## 还不能做什么
 
-V0.4.0 不包含素材搜索或下载、图片和视频生成、剪辑方案、B 站发布及其他平台分发。稿件成为 `reviewed` 只代表通过工程与独立编辑检查，不代表已经获准发布；发布前仍需要人类最终确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
+V0.4.1 不包含素材搜索或下载、图片和视频生成、剪辑方案、B 站发布及其他平台分发。稿件成为 `reviewed` 只代表通过工程与独立编辑检查，不代表已经获准发布；发布前仍需要人类最终确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
 
 ## 不依赖联网的检查方式
 
@@ -186,6 +189,6 @@ HANDOFF.md                      每轮开发交接
 - Codex：工程师，负责实现、测试、修复、文档和 GitHub。
 - 用户：只负责复制、粘贴和确认，不负责总结技术内容。
 
-每轮开发结束后，以 [HANDOFF.md](HANDOFF.md) 为唯一交接入口。V0.4 的稿件契约与真实评测见 [docs/SCRIPT_CONTRACT.md](docs/SCRIPT_CONTRACT.md) 和 [docs/SCRIPT_EVALS.md](docs/SCRIPT_EVALS.md)。
+每轮开发结束后，以 [HANDOFF.md](HANDOFF.md) 为唯一交接入口。V0.4.1 的稿件契约与真实评测见 [docs/SCRIPT_CONTRACT.md](docs/SCRIPT_CONTRACT.md) 和 [docs/SCRIPT_EVALS.md](docs/SCRIPT_EVALS.md)。
 
 正式版本的 GitHub 发布与未来软件包规则见 [RELEASE_POLICY.md](RELEASE_POLICY.md)。

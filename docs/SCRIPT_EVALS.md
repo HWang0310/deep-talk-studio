@@ -1,5 +1,23 @@
 # V0.4 Original Script Agent 真实评测
 
+## V0.4.1 Hardening rerun
+
+评测日期：2026-08-10。为不消耗用户 API 费用，本轮使用与正式
+`prepare-script` / `review-script` 相同的受控本地工作流；完整输入、稿件和
+Review Artifact 写入被 Git 忽略的 `script_drafts/evaluations/v0.4.1/`。公开仓库
+只保存去内容化 [`evaluations/v0.4.1-summary.json`](../evaluations/v0.4.1-summary.json)。
+
+| 场景 | 流程结果 | V0.4.1 新核验 |
+|---|---|---|
+| Stable Tech / Business | Approved Research → r1 → 15/15 Review → r2 `reviewed` → Teleprompter | check/issue consistency pass；Review linkage、来源 revision 和内容指纹均验证成功 |
+| Contested Public Issue | Approved Research → r1 → 15/15 Review → r2 `reviewed` → Teleprompter | 同上；争议输入没有绕过归因、不确定性或反方公平检查 |
+| Blocked Input | 未经用户确认的 `reviewed` Research | Writer 前拒绝，没有 reviewed Script |
+| Synthetic hardening | Reviewer 输出 `factual_grounding=fail` 且 `issues=[]` | Artifact 被拒绝，绝不产生 reviewed Script |
+
+两份通过稿件均从匹配 Review Artifact 重新加载，以验证不是仅靠内存状态。
+本次受控稿件较短，是为了验证 Gate 和 provenance，而不是虚构拉长时长；不会为了
+默认 12 分钟补入研究外事实。完整 suite 为 165 项通过，原 V0.4 记录的 151 项全部继续通过。
+
 评测日期：2026-08-10。完整真实 Research 与 Script artifacts 保存在被 Git 忽略的 `reports/evaluations/v0.4.0-approved/` 和 `script_drafts/evaluations/v0.4.0/`；公开仓库只提交去内容化汇总 `evaluations/v0.4.0-summary.json`。
 
 ## 方法

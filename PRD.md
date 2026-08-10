@@ -164,6 +164,18 @@ Writer 和 Reviewer 必须是两个独立步骤，二者都不能自行 Web Sear
 
 V0.4 不包含素材搜索、图片或视频生成、剪辑方案和平台发布；这些能力仍属于未开始的 V0.5 及以后版本。
 
+### 6.5 V0.4.1：Script Gate Hardening
+
+V0.4.1 只修正 Script Workflow 的可靠性，不重新设计写稿能力：
+
+- 任一失败的 Review check 必须有明确对应的 issue；八项事实安全检查失败必须有对应 blocking issue。缺失时拒绝 Artifact，不能推测为通过。
+- `not_applicable` 不得跳过事实安全检查；仅在没有可审反方时允许用于 counterargument fairness，并保留理由。
+- 通过 Review 的新 Script revision 必须保存机器拥有的 Review linkage：Review ID、被审 revision、通过状态和内容指纹；读取时必须找到并重新验证对应 Artifact。
+- 用户任何内容修订自动回到 `draft`，旧 Review 不能沿用。
+- Beat identity 在修订中保持稳定：已有段落尽量保留 ID，新段落取递增新 ID，删除 ID 永不复用；比较结果按真实连续性报告。
+
+V0.4.0 的旧 `reviewed` JSON 没有上述 linkage 时不得自动信任；需要重新执行 Review。V0.5 仍未开始。
+
 ## 7. V0.1 验收记录
 
 - [x] 已初始化独立正式项目和 Git 历史。

@@ -160,6 +160,13 @@ class ScriptValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ScriptValidationError, "character_count"):
             validate_script_draft(script, self.report, self.profile)
 
+    def test_manual_status_change_cannot_turn_writer_draft_into_reviewed_script(self):
+        script = self.prepare().to_dict()
+        script["status"] = "reviewed"
+
+        with self.assertRaisesRegex(ScriptValidationError, "Review linkage|review_state"):
+            validate_script_draft(script, self.report, self.profile)
+
     def test_duration_parser_handles_explicit_and_coarse_natural_language(self):
         self.assertEqual(parse_target_duration("写成 8 分钟"), 8)
         self.assertEqual(parse_target_duration("15 分钟左右"), 15)

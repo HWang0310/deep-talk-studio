@@ -1,6 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Mapping, Optional
 
 
 @dataclass(frozen=True)
@@ -60,15 +60,25 @@ class ScriptDraft:
     """Validated, versioned Script Draft value object."""
 
     data: Dict[str, Any]
+    review_artifact: Optional[Dict[str, Any]] = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], report: ResearchReport, profile: Dict[str, Any]) -> "ScriptDraft":
+    def from_dict(
+        cls,
+        data: Dict[str, Any],
+        report: ResearchReport,
+        profile: Dict[str, Any],
+        review_artifact: Optional[Mapping[str, Any]] = None,
+    ) -> "ScriptDraft":
         from .script_validation import ScriptValidationError, validate_script_draft
 
         if not isinstance(data, dict):
             raise ScriptValidationError("Script Draft 必须是 JSON 对象")
-        script = cls(deepcopy(data))
-        validate_script_draft(script, report, profile)
+        script = cls(
+            deepcopy(data),
+            deepcopy(dict(review_artifact)) if review_artifact is not None else None,
+        )
+        validate_script_draft(script, report, profile, review_artifact)
         return script
 
     def to_dict(self) -> Dict[str, Any]:

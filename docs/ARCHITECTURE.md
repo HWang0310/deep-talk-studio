@@ -28,7 +28,7 @@ flowchart LR
     SW --> SD1["Script Draft 0.4 / r1"]
     SD1 --> SR["Independent Script Review"]
     SR -->|有阻断问题| SDF["Script r2：draft"]
-    SR -->|通过| SD2["Script r2：reviewed"]
+    SR -->|通过且 check/issue 一致| SD2["Script r2：reviewed + Review linkage"]
     SD2 --> E["Editor Markdown"]
     SD2 --> T["Teleprompter Markdown"]
 ```
@@ -56,8 +56,8 @@ flowchart LR
 | `revisions.py` | 新修订、更正、Approval Revision 和审批状态重置 | 静默覆盖旧报告 |
 | `.agents/skills/write-script` | 用户确认、原创写稿、独立审稿、自然语言修改与比较 | 自行联网研究、素材、发布 |
 | `script_profile.py` | 加载口播风格、时长和原创性约束 | 生成稿件内容 |
-| `script_validation.py` | Approval Gate、Grounding、Fact / Attribution / Analysis、禁讲项和机器字段校验 | 判断现实事实或润色稿件 |
-| `script_review.py` | 规范化独立审稿问题、15 项必检和阻断 Gate | 扮演 Writer 或自动发布 |
+| `script_validation.py` | Approval Gate、Grounding、Fact / Attribution / Analysis、Review linkage、Beat identity 和机器字段校验 | 判断现实事实或润色稿件 |
+| `script_review.py` | 规范化独立审稿问题、15 项必检、check/issue 一致性和阻断 Gate | 扮演 Writer 或自动发布 |
 | `script_renderer.py` | 派生 Editor / Teleprompter Markdown | 修改 Script Artifact |
 | `script_storage.py` | 不可覆盖稿件、Review Artifact 和 latest 指针 | 云端内容库 |
 | `script_revisions.py` | 新稿件 revision 与版本比较 | 偷换 Research revision |
@@ -104,7 +104,9 @@ V0.4 新增下游 `Script Draft Artifact 0.4` 与 `Script Review Artifact 0.4`�
 - Script Draft 精确绑定 `report_id + report_revision + script_profile_version`；Writer 只能生成内容字段，身份、状态、revision、Beat ID、字数、时长和 must-keep coverage 均由代码拥有；
 - 每个 Beat 通过 `content_kind`、`claim_ids`、`evidence_link_ids` 和 `analysis_basis_claim_ids` 保留事实、归因与分析边界；
 - Script Review 与 Writer 分离，要求 15 个唯一必检项；issue severity、blocking count 和 gate status 从 issue type 确定性推导；
-- Review 通过或失败都会创建新的 Script revision：通过为 `reviewed`，失败仍为 `draft`；历史文件不可覆盖；
+- V0.4.1 将每个 failed check 映射到允许的 issue type；八项事实安全 check 必须拥有匹配的 blocking issue，其他失败也不得没有 issue。无效输出直接拒绝，`not_applicable` 不能跳过事实安全 check；
+- Review 通过或失败都会创建新的 Script revision：通过为 `reviewed`，失败仍为 `draft`；通过版保存 review ID、来源 revision、passing Gate 与内容 SHA-256，并在读取时复验对应 Artifact；
+- Beat identity 由代码维护：保留段落维持 ID，新增段落取得单调递增 ID，删除 ID 进入退休集合且不复用；比较据此报告真实变化；
 - Editor Markdown 包含机器回链和风险提示，Teleprompter Markdown 只含朗读正文；Markdown 都是 JSON 的派生物；
 - Writer 和 Reviewer 都不能启用 Web Search；API 返回任何搜索 provenance 都会失败关闭。
 

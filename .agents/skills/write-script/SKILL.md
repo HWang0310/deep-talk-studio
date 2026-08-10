@@ -31,7 +31,7 @@ Read `references/script-contract.md` completely before writing or revising. Load
 
 1. Start a separate review pass after the Draft exists. Read only the approved Research Report and Script Draft. Do not browse or reuse the Writer's self-assessment.
 2. Check unsupported facts, attribution, evidence-strength inflation, unverified-as-fact, avoid Claims, must-keep coverage, high-risk wording, uncertainty, analysis/fact separation, research-gap invention, perspective fairness, oral naturalness, repetition, density, AI report tone, originality risk, and usability.
-3. Output only review content: issues, checks, reasons, and fixes. The Python core owns issue IDs, severity, blocking count, gate status, and final Script status.
+3. Output only review content: issues, checks, reasons, and fixes. Every failed check needs its matching typed issue; factual safety failures need the matching blocking issue. Do not use `not_applicable` for factual safety checks. The Python core owns issue IDs, severity, blocking count, gate status, review linkage, and final Script status.
 4. Apply and save the Review Artifact plus the next immutable Script revision. If blocking issues exist, keep `draft` and explain simply that the script still has factual-boundary problems. Do not present it as reviewed.
 
 ## Revisions
@@ -40,7 +40,7 @@ When the user says “更紧凑一点”, “开头换一个”, “缩到 8 分
 
 1. Load the latest Script and its exact approved `report_id + report_revision`.
 2. Create new model-owned content from that same Research revision; never switch research underneath an existing script.
-3. Create the next immutable Script revision with `revise-script`, then run a fresh independent Script Review.
+3. Create the next immutable Script revision with `revise-script`, then run a fresh independent Script Review. Do not ask the user to manage Beat IDs: the core preserves continuity automatically and uses an internal origin hint only when necessary.
 4. Keep old revisions. Use `compare-script` internally when the user asks what changed.
 
 ## Return to the user

@@ -1,6 +1,6 @@
 """Human-readable Editor and clean Teleprompter views for Script Draft 0.4."""
 
-from typing import Dict, Mapping
+from typing import Any, Dict, Mapping, Optional
 
 from .models import ResearchReport, ScriptDraft
 from .script_validation import validate_script_draft
@@ -16,9 +16,12 @@ KIND_LABELS = {
 
 
 def render_editor_markdown(
-    script: ScriptDraft, report: ResearchReport, profile: Mapping[str, object]
+    script: ScriptDraft,
+    report: ResearchReport,
+    profile: Mapping[str, object],
+    review_artifact: Optional[Mapping[str, Any]] = None,
 ) -> str:
-    validate_script_draft(script, report, profile)
+    validate_script_draft(script, report, profile, review_artifact)
     lines = [
         f"# Script Editor Version：{script.working_title}",
         "",

@@ -1,4 +1,4 @@
-# Original Script Agent 0.4 契约
+# Original Script Agent 0.4 契约（V0.4.1 加固）
 
 本文定义 DeepTalk Studio V0.4 从 Research Report 进入原创口播稿的正式边界。JSON 是机器接口；Markdown 只是给编辑和提词使用的派生物。
 
@@ -32,6 +32,7 @@ Profile 同时规定信息密度、故事性、观点冲突、自然归因和原
 - `beats`、`closing`、研究局限、研究空白；
 - must-keep 覆盖和遗漏理由；
 - 程序计算的有效字符数、估算时长和修订摘要。
+- V0.4.1 的机器拥有 `review_state` 与 `beat_identity`：前者证明 reviewed 状态，后者记录下一个可分配 Beat ID 和退休 ID。
 
 模型或 Skill 只能提交稿件内容。身份、revision、状态、Beat ID、字符数、时长和覆盖字段全部由代码创建，并在每次读取时重新计算。
 
@@ -73,6 +74,23 @@ Reviewer 读取同一 Research revision 和 Writer 的 Script Draft，但不继�
 
 少任何一项，Review Artifact 都无效。Issue ID、severity、blocking count 和 gate status 由程序生成。无来源事实、归因错误、禁讲结论、未核实信息事实化、高风险过度断言、关键不确定性丢失、分析伪装事实、填补研究空白和观点歪曲属于 blocking；存在一项就不能进入 `reviewed`。
 
+V0.4.1 使用 `review_consistency_version = 0.4.1` 的确定性 mapping。任何 `fail` check 都必须有对应 typed issue；以下安全 check 还必须有对应 blocking issue：
+
+| Check | 允许的 blocking issue |
+|---|---|
+| factual grounding | `unsupported_fact` / `unverified_as_fact` |
+| attribution integrity | `attribution_error` |
+| uncertainty preservation | `material_uncertainty_loss` |
+| avoid-claim compliance | `avoid_claim_usage` |
+| high-risk boundary | `high_risk_overclaim` |
+| analysis / fact separation | `analysis_as_fact` |
+| perspective fairness | `perspective_distortion` |
+| research-gap integrity | `research_gap_filled` |
+
+编辑性失败也必须有映射的 advisory issue，但不一定阻断 Gate。`not_applicable` 仅可用于 `counterargument_fairness`，并必须提供理由；所有事实安全检查均不可跳过。只要 check、issue 或机器 Gate 不一致，Artifact 被拒绝，不会生成误标为 `reviewed` 的稿件。
+
+通过 Review 的 Artifact 还保存被审稿件内容的 SHA-256。生成的 r2 `review_state` 保存 Review ID、r1 revision、`pass` 和相同指纹。读取 reviewed r2 时，系统会定位对应 Artifact，复验 report/script binding、15 checks、一致性 mapping、Gate 和指纹；仅修改 JSON 的 `status` 或伪造 Review 字段无效。Review fail 的 r2 保持 draft。V0.4.0 无该 linkage 的旧 reviewed JSON 必须重新审查，不能静默信任。
+
 Review 不修改原 r1。它创建 r2：通过则 `reviewed`，失败仍为 `draft`。这不是发布审批，最终发布仍需人类确认。
 
 ## 6. 双 Markdown 输出
@@ -85,6 +103,8 @@ Review 不修改原 r1。它创建 r2：通过则 `reviewed`，失败仍为 `dra
 ## 7. 修订和比较
 
 所有 Script revision 位于同一 `report_id / script_id` 下，必须绑定同一 approved report revision，且 `previous_revision` 指向紧邻上一版。已存在文件拒绝覆盖。比较功能报告新增、删除和修改的 Beat，以及字数、时长、目标时长和 must-keep coverage 变化。
+
+V0.4.1 不再按每版位置重编号。初稿从 `B001` 递增分配；修订会用受控的、可选 `origin_beat_id` 或唯一的结构化 grounding 匹配保留已有 ID。用户不管理最终 ID。新 Beat 从单调递增计数取得新 ID；删除 Beat 进入退休集合，之后永不复用。重复、未知或歧义的 origin 均会失败关闭。任何用户内容修订都会清空旧 Review linkage 并回到 `draft`，必须重新 Review。
 
 ## 8. 无搜索边界
 

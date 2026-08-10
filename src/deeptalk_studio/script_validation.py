@@ -1,5 +1,7 @@
 """Script Draft 0.4 derivation and cross-artifact grounding validation."""
 
+import hashlib
+import json
 import re
 import unicodedata
 from copy import deepcopy
@@ -13,6 +15,15 @@ from .validation import ReportValidationError, validate_json_schema, validate_re
 
 
 MACHINE_ID_PATTERN = re.compile(r"(?<![A-Za-z0-9])(?:IG|[CESPB])\d+(?![A-Za-z0-9])")
+BEAT_ID_PATTERN = re.compile(r"^B(\d+)$")
+
+EMPTY_REVIEW_STATE = {
+    "state": "not_reviewed",
+    "review_id": "",
+    "reviewed_from_revision": 0,
+    "review_gate_status": "not_run",
+    "reviewed_content_digest": "",
+}
 
 
 def _schema(value: Any, schema: Dict[str, Any], path: str) -> None:
@@ -187,6 +198,112 @@ def _derived_fields(
     }
 
 
+def script_content_digest(data: Mapping[str, Any]) -> str:
+    """Return the code-owned digest for the content a Review actually saw."""
+
+    content = {
+        field: deepcopy(data[field])
+        for field in (
+            "working_title",
+            "thesis",
+            "audience_promise",
+            "beats",
+            "closing",
+            "research_caveats",
+            "research_gaps",
+            "must_keep_omission_reasons",
+        )
+    }
+    canonical = json.dumps(
+        content, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def beat_id_number(beat_id: str) -> int:
+    match = BEAT_ID_PATTERN.fullmatch(beat_id)
+    if not match:
+        raise ScriptValidationError("beat_id 必须由程序生成为 B001 形式")
+    number = int(match.group(1))
+    if number < 1:
+        raise ScriptValidationError("beat_id 必须由程序生成为 B001 形式")
+    if beat_id != f"B{number:03d}":
+        raise ScriptValidationError("beat_id 必须由程序生成为 B001 形式")
+    return number
+
+
+def _validate_beat_identity(data: Mapping[str, Any]) -> None:
+    active_ids = [beat["beat_id"] for beat in data["beats"]]
+    if len(active_ids) != len(set(active_ids)):
+        raise ScriptValidationError("beat_id 不能重复")
+    active_numbers = [beat_id_number(beat_id) for beat_id in active_ids]
+    identity = data.get("beat_identity")
+    if identity is None:
+        # V0.4.0 legacy drafts had positional IDs only. They stay readable, but
+        # all newly created V0.4.1 drafts include explicit identity state.
+        expected_ids = [f"B{index:03d}" for index in range(1, len(active_ids) + 1)]
+        if active_ids != expected_ids:
+            raise ScriptValidationError("legacy beat_id 必须按顺序生成")
+        return
+    retired_ids = identity["retired_beat_ids"]
+    if len(retired_ids) != len(set(retired_ids)):
+        raise ScriptValidationError("retired_beat_ids 不能重复")
+    retired_numbers = [beat_id_number(beat_id) for beat_id in retired_ids]
+    if set(active_ids) & set(retired_ids):
+        raise ScriptValidationError("retired Beat 不能仍在当前稿件中")
+    highest = max(active_numbers + retired_numbers, default=0)
+    if identity["next_beat_number"] != highest + 1:
+        raise ScriptValidationError("next_beat_number 必须由当前和 retired Beat 推导")
+
+
+def _validate_review_state(
+    data: Mapping[str, Any],
+    report: ResearchReport,
+    profile: Mapping[str, Any],
+    review_artifact: Optional[Mapping[str, Any]],
+) -> None:
+    """Fail closed unless a reviewed Script can prove its passing Review."""
+
+    review_state = data.get("review_state")
+    if data["status"] == "draft":
+        if review_state is not None and review_state != EMPTY_REVIEW_STATE:
+            raise ScriptValidationError("draft Script 不能携带完成的 Review linkage")
+        return
+
+    if review_state is None:
+        raise ScriptValidationError(
+            "reviewed Script 缺少 Review linkage；旧版稿件必须重新审查"
+        )
+    if (
+        review_state["state"] != "reviewed"
+        or not review_state["review_id"]
+        or review_state["reviewed_from_revision"] != data["previous_revision"]
+        or review_state["review_gate_status"] != "pass"
+    ):
+        raise ScriptValidationError("reviewed Script 的 Review linkage 无效")
+    actual_digest = script_content_digest(data)
+    if review_state["reviewed_content_digest"] != actual_digest:
+        raise ScriptValidationError("reviewed Script content digest 与内容不一致")
+    if review_artifact is None:
+        raise ScriptValidationError("reviewed Script 缺少匹配的 Review Artifact")
+
+    from .script_review import validate_script_review_artifact
+
+    validate_script_review_artifact(
+        review_artifact,
+        report,
+        data,
+        expected_script_revision=review_state["reviewed_from_revision"],
+    )
+    if (
+        review_artifact["review_id"] != review_state["review_id"]
+        or review_artifact["gate_status"] != "pass"
+        or review_artifact.get("reviewed_content_digest")
+        != review_state["reviewed_content_digest"]
+    ):
+        raise ScriptValidationError("reviewed Script 的 Review linkage 与 Artifact 不一致")
+
+
 def prepare_script_draft(
     content: Dict[str, Any],
     report: ResearchReport,
@@ -200,6 +317,8 @@ def prepare_script_draft(
     previous_revision: int = 0,
     generated_at: Optional[str] = None,
     change_summary: str = "基于已批准 Research Report 生成第一版原创口播稿。",
+    beat_ids: Optional[Iterable[str]] = None,
+    beat_identity: Optional[Mapping[str, Any]] = None,
 ) -> ScriptDraft:
     assert_report_ready_for_script(report)
     _schema(content, SCRIPT_DRAFT_CONTENT_JSON_SCHEMA, "script_content")
@@ -210,9 +329,21 @@ def prepare_script_draft(
     ) or not 3 <= target_duration_minutes <= 30:
         raise ScriptValidationError("目标口播时长必须在 3 到 30 分钟之间")
     timestamp = generated_at or created_at
-    beats = []
-    for index, beat in enumerate(content["beats"], 1):
-        beats.append({"beat_id": f"B{index:03d}", **deepcopy(beat)})
+    assigned_ids = list(beat_ids or ())
+    if assigned_ids and len(assigned_ids) != len(content["beats"]):
+        raise ScriptValidationError("程序分配的 Beat ID 数量与内容不一致")
+    if not assigned_ids:
+        assigned_ids = [f"B{index:03d}" for index in range(1, len(content["beats"]) + 1)]
+    beats = [
+        {"beat_id": beat_id, **deepcopy(beat)}
+        for beat_id, beat in zip(assigned_ids, content["beats"])
+    ]
+    identity = dict(beat_identity or {})
+    if not identity:
+        identity = {
+            "next_beat_number": len(beats) + 1,
+            "retired_beat_ids": [],
+        }
     artifact = {
         "artifact_version": "0.4",
         "script_id": script_id,
@@ -235,15 +366,22 @@ def prepare_script_draft(
         "research_gaps": deepcopy(content["research_gaps"]),
         "must_keep_omission_reasons": deepcopy(content["must_keep_omission_reasons"]),
         "change_summary": change_summary.strip(),
+        "review_state": deepcopy(EMPTY_REVIEW_STATE),
+        "beat_identity": identity,
     }
     artifact.update(_derived_fields(artifact, report, profile))
     return ScriptDraft.from_dict(artifact, report, dict(profile))
 
 
 def validate_script_draft(
-    script: Any, report: ResearchReport, profile: Mapping[str, Any]
+    script: Any,
+    report: ResearchReport,
+    profile: Mapping[str, Any],
+    review_artifact: Optional[Mapping[str, Any]] = None,
 ) -> None:
     data = script.data if hasattr(script, "data") else script
+    if review_artifact is None and hasattr(script, "review_artifact"):
+        review_artifact = script.review_artifact
     _schema(data, SCRIPT_DRAFT_JSON_SCHEMA, "script_draft")
     assert_report_ready_for_script(report)
     if data["report_id"] != report.report_id:
@@ -260,9 +398,7 @@ def validate_script_draft(
         data["created_at"], "created_at"
     ):
         raise ScriptValidationError("Script generated_at 不能早于 created_at")
-    expected_ids = [f"B{index:03d}" for index in range(1, len(data["beats"]) + 1)]
-    if [beat["beat_id"] for beat in data["beats"]] != expected_ids:
-        raise ScriptValidationError("beat_id 必须由程序按顺序生成")
+    _validate_beat_identity(data)
     _validate_grounding(data, report)
     expected = _derived_fields(data, report, profile)
     for field, value in expected.items():
@@ -274,3 +410,4 @@ def validate_script_draft(
     for claim_id in omission_ids:
         if claim_id not in data["missing_must_keep_claim_ids"]:
             raise ScriptValidationError("must_keep omission 只能解释实际缺失的 Claim")
+    _validate_review_state(data, report, profile, review_artifact)

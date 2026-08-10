@@ -2,7 +2,7 @@
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional
 
 from .models import ResearchReport, ScriptDraft
 from .schema import (
@@ -11,7 +11,7 @@ from .schema import (
     SCRIPT_REVIEW_JSON_SCHEMA,
 )
 from .script_profile import ScriptValidationError
-from .script_validation import validate_script_draft
+from .script_validation import script_content_digest, validate_script_draft
 from .validation import ReportValidationError, validate_json_schema
 
 
@@ -26,6 +26,43 @@ BLOCKING_ISSUE_TYPES = {
     "research_gap_filled",
     "perspective_distortion",
 }
+
+# V0.4.1: a reviewer check is not merely explanatory text.  Every failure must
+# be represented by a typed issue, and safety-critical checks must produce a
+# blocking issue.  The mapping is deliberately small and deterministic rather
+# than attempting to infer editorial intent from natural language.
+REVIEW_CONSISTENCY_VERSION = "0.4.1"
+CHECK_ISSUE_TYPES = {
+    "factual_grounding": {"unsupported_fact", "unverified_as_fact"},
+    "attribution_integrity": {"attribution_error"},
+    "uncertainty_preservation": {"material_uncertainty_loss"},
+    "avoid_claim_compliance": {"avoid_claim_usage"},
+    "must_keep_coverage": {"must_keep_omission"},
+    "high_risk_boundary": {"high_risk_overclaim"},
+    "analysis_fact_separation": {"analysis_as_fact"},
+    "perspective_fairness": {"perspective_distortion"},
+    "research_gap_integrity": {"research_gap_filled"},
+    "narrative_structure": {"narrative_structure", "repetition"},
+    "oral_naturalness": {"oral_naturalness", "ai_report_tone"},
+    "information_density": {"information_density", "repetition"},
+    "original_expression": {"originality_risk", "long_quote"},
+    "script_usability": {"script_usability"},
+    "counterargument_fairness": {
+        "counterargument_unfair",
+        "perspective_distortion",
+    },
+}
+CRITICAL_CHECK_NAMES = {
+    "factual_grounding",
+    "attribution_integrity",
+    "uncertainty_preservation",
+    "avoid_claim_compliance",
+    "high_risk_boundary",
+    "analysis_fact_separation",
+    "perspective_fairness",
+    "research_gap_integrity",
+}
+ALLOWED_NOT_APPLICABLE_CHECK_NAMES = {"counterargument_fairness"}
 
 
 @dataclass(frozen=True)
@@ -95,24 +132,75 @@ def _derived_gate(issues: list) -> Dict[str, object]:
     }
 
 
+def _validate_check_issue_consistency(artifact: Mapping[str, Any]) -> None:
+    """Reject Reviewer output whose checks and typed findings contradict.
+
+    The output is invalid, instead of quietly treating a missing safety issue as
+    a pass.  This prevents a model response such as ``factual_grounding=fail``
+    plus an empty issue list from yielding a reviewed Script.
+    """
+
+    issue_types = {issue["issue_type"] for issue in artifact["issues"]}
+    for check in artifact["checks"]:
+        name = check["check_name"]
+        outcome = check["outcome"]
+        if outcome == "not_applicable":
+            if name not in ALLOWED_NOT_APPLICABLE_CHECK_NAMES:
+                raise ScriptValidationError(
+                    f"Script Review {name} 不允许标为 not_applicable"
+                )
+            continue
+        if outcome != "fail":
+            continue
+        matching = CHECK_ISSUE_TYPES[name] & issue_types
+        if not matching:
+            if name in CRITICAL_CHECK_NAMES:
+                raise ScriptValidationError(
+                    f"Script Review {name}=fail 必须包含对应 blocking issue"
+                )
+            raise ScriptValidationError(
+                f"Script Review {name}=fail 必须包含对应 issue"
+            )
+        if name in CRITICAL_CHECK_NAMES and not (
+            matching & BLOCKING_ISSUE_TYPES
+        ):
+            raise ScriptValidationError(
+                f"Script Review {name}=fail 必须包含对应 blocking issue"
+            )
+
+
 def _reviewed_script_revision(
     script: ScriptDraft,
     report: ResearchReport,
     profile: Mapping[str, object],
     generated_at: str,
-    gate_status: str,
+    artifact: Mapping[str, Any],
 ) -> ScriptDraft:
     data = script.to_dict()
     data["previous_revision"] = script.revision
     data["revision"] = script.revision + 1
     data["generated_at"] = generated_at
+    gate_status = artifact["gate_status"]
     data["status"] = "reviewed" if gate_status == "pass" else "draft"
+    if gate_status == "pass":
+        data["review_state"] = {
+            "state": "reviewed",
+            "review_id": artifact["review_id"],
+            "reviewed_from_revision": script.revision,
+            "review_gate_status": "pass",
+            "reviewed_content_digest": artifact["reviewed_content_digest"],
+        }
     data["change_summary"] = (
         "独立 Script Review 通过，生成 reviewed 稿件修订版。"
         if gate_status == "pass"
         else "独立 Script Review 发现阻断问题，保留 draft 状态。"
     )
-    return ScriptDraft.from_dict(data, report, dict(profile))
+    return ScriptDraft.from_dict(
+        data,
+        report,
+        dict(profile),
+        artifact if gate_status == "pass" else None,
+    )
 
 
 def prepare_script_review(
@@ -143,28 +231,46 @@ def prepare_script_review(
         "issues": issues,
         "checks": deepcopy(content["checks"]),
         "overall_notes": content["overall_notes"],
+        "reviewed_content_digest": script_content_digest(script.data),
+        "review_consistency_version": REVIEW_CONSISTENCY_VERSION,
         **gate,
     }
     validate_script_review_artifact(artifact, report, script)
     reviewed = _reviewed_script_revision(
-        script, report, profile, created_at, artifact["gate_status"]
+        script, report, profile, created_at, artifact
     )
     return ScriptReviewResult(artifact=artifact, script=reviewed)
 
 
 def validate_script_review_artifact(
-    artifact: Any, report: ResearchReport, script: ScriptDraft
+    artifact: Any,
+    report: ResearchReport,
+    script: Any,
+    *,
+    expected_script_revision: Optional[int] = None,
 ) -> None:
     _schema(artifact, SCRIPT_REVIEW_JSON_SCHEMA, "script_review")
-    if artifact["script_id"] != script.script_id:
+    script_data = script.data if hasattr(script, "data") else script
+    if artifact["script_id"] != script_data["script_id"]:
         raise ScriptValidationError("Script Review script_id 与稿件不一致")
-    if artifact["script_revision"] != script.revision:
+    expected_revision = (
+        script_data["revision"]
+        if expected_script_revision is None
+        else expected_script_revision
+    )
+    if artifact["script_revision"] != expected_revision:
         raise ScriptValidationError("Script Review script_revision 与稿件不一致")
     if artifact["report_id"] != report.report_id:
         raise ScriptValidationError("Script Review report_id 与 Research Report 不一致")
     if artifact["report_revision"] != report.revision:
         raise ScriptValidationError("Script Review report_revision 与 Research Report 不一致")
-    beat_ids = {beat["beat_id"] for beat in script.beats}
+    if not artifact.get("reviewed_content_digest"):
+        raise ScriptValidationError("Script Review 缺少 reviewed_content_digest")
+    if artifact.get("review_consistency_version") != REVIEW_CONSISTENCY_VERSION:
+        raise ScriptValidationError("Script Review consistency mapping 版本不一致")
+    if artifact["reviewed_content_digest"] != script_content_digest(script_data):
+        raise ScriptValidationError("Script Review content digest 与稿件不一致")
+    beat_ids = {beat["beat_id"] for beat in script_data["beats"]}
     claim_ids = {claim["id"] for claim in report.claims}
     for issue in artifact["issues"]:
         for beat_id in issue["beat_ids"]:
@@ -192,6 +298,7 @@ def validate_script_review_artifact(
         raise ScriptValidationError(
             "Script Review 缺少必检项：" + "、".join(missing_checks)
         )
+    _validate_check_issue_consistency(artifact)
     expected_gate = _derived_gate(artifact["issues"])
     for field, value in expected_gate.items():
         if artifact[field] != value:

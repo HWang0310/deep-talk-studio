@@ -6,7 +6,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping, Optional
 
 from .models import ResearchReport, ScriptDraft
 from .script_renderer import render_editor_markdown, render_teleprompter_markdown
@@ -59,8 +59,9 @@ def save_script(
     report: ResearchReport,
     profile: Mapping[str, object],
     output_root: Path,
+    review_artifact: Optional[Mapping[str, Any]] = None,
 ) -> ScriptPaths:
-    validate_script_draft(script, report, profile)
+    validate_script_draft(script, report, profile, review_artifact)
     directory = _script_directory(script, output_root)
     stem = directory / f"script-draft-r{script.revision:04d}"
     paths = ScriptPaths(
@@ -78,7 +79,7 @@ def save_script(
         encoding="utf-8",
     )
     paths.editor.write_text(
-        render_editor_markdown(script, report, profile), encoding="utf-8"
+        render_editor_markdown(script, report, profile, review_artifact), encoding="utf-8"
     )
     paths.teleprompter.write_text(
         render_teleprompter_markdown(script), encoding="utf-8"
@@ -105,7 +106,23 @@ def load_script(
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ScriptStorageError(f"无法读取 Script Draft：{path}") from exc
-    return ScriptDraft.from_dict(data, report, dict(profile))
+    review_artifact = None
+    if data.get("status") == "reviewed":
+        state = data.get("review_state")
+        if not isinstance(state, dict) or not state.get("review_id"):
+            # Let the formal validator give the deterministic legacy guidance.
+            return ScriptDraft.from_dict(data, report, dict(profile))
+        review_path = Path(path).parent / (
+            f"script-review-for-r{state.get('reviewed_from_revision', 0):04d}-"
+            f"{_safe_identifier(str(state['review_id']))}.json"
+        )
+        try:
+            review_artifact = json.loads(review_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ScriptStorageError(
+                f"reviewed Script 缺少可验证的 Review Artifact：{review_path}"
+            ) from exc
+    return ScriptDraft.from_dict(data, report, dict(profile), review_artifact)
 
 
 def save_script_review_artifact(

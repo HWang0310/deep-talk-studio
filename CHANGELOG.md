@@ -2,6 +2,22 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [0.4.1] - 2026-08-10
+
+### 修复：Script Gate Hardening
+
+- 增加版本化、确定性的 Script Review check → issue mapping。15 项检查任一 `fail` 都必须有对应 issue；八项事实安全检查必须有对应 blocking issue，否则直接拒绝 Review Artifact，不能错误产生 `reviewed`。
+- 收紧 `not_applicable`：事实安全检查不可跳过，仅 `counterargument_fairness` 可在明确无可审反方时使用。
+- 新增 machine-owned `review_state`、Review Artifact 内容 SHA-256 和 consistency mapping 版本。`reviewed` Script 在读取时复验真实通过的 r1 Review Artifact、Report/Script binding、Gate 和内容指纹；手改状态或伪造 Review 字段失败关闭。
+- 旧 V0.4.0 `reviewed` JSON 如没有 linkage 不再被静默信任，必须重新执行 Review；旧 draft 仍可读取并在下一修订建立新的 identity state。
+- 增加稳定 Beat identity：保留或移动的段落保持 ID，新增段落取得单调递增 ID，删除 ID 退休且永不复用；比较结果不再把中间插入误报为整篇修改。
+- 更新 Writer/Reviewer prompt、仓库 Skill、Script Contract、架构、PRD、ROADMAP、AGENTS、README 和交接文档；V0.5 未开始。
+
+### 验证
+
+- 原 151 项测试继续通过；新增 Review 一致性、provenance、存储加载、修订 identity 与比较回归后，完整 suite 为 165 项通过。
+- 重新执行 A/B/C 受控工作流评测并加入 `factual_grounding=fail + issues=[]` synthetic 场景；完整真实稿件继续保持 gitignore，公开仓库仅提交去内容化汇总。
+
 ## [0.4.0] - 2026-08-10
 
 ### Added
