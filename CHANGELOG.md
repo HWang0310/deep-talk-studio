@@ -4,6 +4,10 @@
 
 ## [0.1.0] - 2026-08-10
 
+### Changed
+
+- GitHub 仓库 `HWang0310/deep-talk-studio` 已改为公有，便于 ChatGPT 直接进行产品与架构 Review。
+
 ### Added
 
 - 初始化 DeepTalk Studio 独立 Git 项目。
@@ -21,4 +25,3 @@
 
 - 默认忽略真实研究报告、环境变量文件、缓存和本地虚拟环境。
 - API 错误对外只显示状态与可操作信息，不回显密钥。
-
