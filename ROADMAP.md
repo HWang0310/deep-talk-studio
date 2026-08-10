@@ -40,7 +40,15 @@
 - 新增 `discover-topics` Skill，支持用户回复编号后直接交给 `research-topic`，不重复要求标题；
 - 三类真实 Discovery 评测和去内容化汇总。
 
-## V0.4：原创 Script Agent
+### V0.3.1：Discovery Gate Hardening（已完成，等待产品正式验收）
+
+- 新增 Codex 实际打开页面的后台 inspection manifest，未在其中的 Seed 必须保持 `unmatched`；
+- Candidate Artifact 全部关键机器字段改为确定性重新推导和 fail-closed 校验；
+- 收紧不同研究方向、时间一致性和 Raw Candidate 最小池规则；
+- 类别多样性升级为先多样、再补位的软约束，并移除无效的 `--count` 参数；
+- 重新执行三类真实 Discovery 评测，明确记录 `pass` / `fail` / `not_applicable`。
+
+## V0.4：原创 Script Agent（未开始，等待 V0.3.1 Review）
 
 - 只读取通过 Review 的 Research Report；
 - 生成原创分析框架、故事线和口播稿；

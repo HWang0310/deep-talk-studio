@@ -2,6 +2,26 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [0.3.1] - 2026-08-10
+
+### Fixed
+
+- Codex Discovery 不再因为运行模式自动把 Source Seed 视为已打开；只有后台 inspection manifest 中实际检查的规范化 URL 才会成为 `manual_open`，其余保持 `unmatched`。
+- 新增纯确定性 Candidate derivation；读取 Candidate Set 时重新推导资格、理由、推荐、总分、展示顺序、首选和 watch/reject 统计，任何篡改均 fail closed。
+- Preflight 现在只计入 provenance 已匹配、来源类型合格且 URL / publisher / host 不重复的研究方向；social / creator Seed 与重复链接不能凑足门槛。
+- 新增开始/更新时间顺序和最多 5 分钟未来容差；未来时间不再获得 freshness。
+- 类别展示改为先多样后补位，同事件仍只出现一次；移除了没有实际作用的 `discover --count` 参数。
+- 原始候选池少于 7 项时明确拒绝生成 Candidate Set，不再把 1–2 个候选误称为完整 Discovery。
+
+### Validation
+
+- 自动测试由 101 项增加至 113 项，覆盖 inspection manifest（含无工具引用的实际打开记录）、机器字段篡改、来源方向去重、时间、类别补位、Raw Candidate 最小池、CLI 与旧 Research / FactCheck / Quality Gate 回归。
+- 三类真实 Discovery 评测已重新执行；公开汇总使用 `pass`、`fail` 和 `not_applicable`，不会在候选不足时宣称已经验证 Top 5。
+
+### Compatibility
+
+- Candidate Artifact 继续为 `0.3`，Research Report 和 FactCheck Artifact 继续为 `0.2`；旧的 Candidate Set 仍可按其保存的 legacy provenance 状态读取，但不会被提升为新检查过的来源。
+
 ## [0.3.0] - 2026-08-10
 
 ### Added

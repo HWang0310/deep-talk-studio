@@ -1,120 +1,119 @@
 # DeepTalk Studio 交接记录
 
 更新时间：2026-08-10
-当前版本：V0.3.0 / `0.3.0`
+当前版本：V0.3.1 / `0.3.1`
 当前正式分支：`main`
 GitHub：https://github.com/HWang0310/deep-talk-studio （公有仓库）
-正式发布：https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.3.0
+正式发布：https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.3.1
 
 ## 1. 本轮任务是什么
 
-根据 ChatGPT 对 V0.2.1 的正式验收，实施 **V0.3 Topic Discovery**：让用户可以问“今天讲什么”，获得少量可解释候选题，只回复编号后直接进入已有 V0.2 Research Workflow。本轮不实现 Script Agent、素材、视觉、剪辑或发布。
+根据 ChatGPT 对 V0.3.0 的 Conditional Pass，完成 **V0.3.1 Discovery Gate Hardening**。本轮只修正 Topic Discovery 的来源检查、候选工件防篡改、Preflight、时间、分类展示、Raw 候选池和评测准确性；没有开始 V0.4 Script Agent，也没有实现素材、视觉、剪辑或发布。
 
 ## 2. 本轮完成了什么
 
-- 建立版本化默认 Channel Profile，定位为 B 站真人深度口播；用户无需手工配置。
-- 新增独立 `Topic Candidate Set 0.3` 和 `Research Handoff Brief 0.3`，没有修改 Research Report 0.2。
-- 新增 72 小时发现窗口，并支持最近 14 天开始、但在 72 小时内出现关键进展的持续事件。
-- 新增轻量 Source Seed Preflight、Eligibility Gate 和风险降级：匿名传言、无公开资料、纯情绪、未证实严重指控和模仿型题材不能进 Top 5；重大快速事件或高风险弱证据题材会成为 `watch`。
-- 新增固定透明评分：可核查性 30%、深度冲突 25%、新鲜度 20%、频道匹配 15%、公开关注信号 10%；五项理由由搜索步骤提供，但总分、标签、首选和排序全部由程序计算。
-- 新增事件聚类去重、单分类最多两项、最多 5 张短卡片和一个首选；Creator signal 是可选辅助信号，不是事实证据。
-- 新增按日期保存的 discovery 历史和 latest 指针，历史不可静默覆盖；用户只回 `1` 或 `研究 1` 就能得到正式 Research Handoff。
-- 新增 `discover-topics` Skill 和 API/CLI 自动化入口；`research-topic` 已能接收 Handoff，不再重复要求标题。
-- 新增 16 项 V0.3 测试，原有 85 项测试保持通过；发布前完整验证共 101 项测试全部通过。
+- 新增后台 Codex inspection manifest。只有实际打开且记录在 manifest 内的 URL 才会标为 `manual_open`；Raw Candidate JSON 和运行模式都不能自认证页面已打开。
+- 新增纯确定性 Candidate derivation。Candidate Set 在读取时重新计算资格、理由、推荐、总分、展示顺序、首选和 watch/reject 统计；任何不一致都会被拒绝。
+- Source Seed Preflight 只计算 `matched` 或 manifest-backed `manual_open` 的 official、primary、media、academic、expert 来源；规范化重复 URL、同 publisher、同 host 只算一个方向。
+- 增加时间一致性：开始时间不能晚于最新进展；事件时间最多允许比 discovery 时间晚 5 分钟，明显未来时间不能获得新鲜度。
+- 原始候选池低于 7 项时明确拒绝生成 Candidate Set；这不会强迫 Eligibility Gate 放行 5 个题。
+- 分类展示改为先每类最多两项、再按确定性排名补足空位；同一事件始终只能展示一次。
+- 删除无效的 `discover --count` 参数；用户体验继续保持“最多 5 个候选”。
+- 重新执行 Broad、Tech / Business、Social / Public 真实公开资料评测，并以 `pass` / `fail` / `not_applicable` 记录结果。
 
 ## 3. 创建 / 修改了哪些重要文件
 
-- `config/channel-profile.json`：默认频道定位与版本。
-- `src/deeptalk_studio/discovery.py`：时间、Preflight、评分、去重、类别多样性与 Research Handoff。
-- `src/deeptalk_studio/discovery_validation.py`：Raw / Candidate Set / Handoff 契约和机器字段校验。
-- `src/deeptalk_studio/discovery_renderer.py`、`discovery_storage.py`：短卡片渲染、不可覆盖历史和 latest 指针。
-- `src/deeptalk_studio/schema.py`、`models.py`：Candidate Artifact 0.3 Schema 与值对象。
-- `src/deeptalk_studio/workflow.py`、`providers/openai.py`、`prompt.py`、`cli.py`：Discovery API、保存、CLI 和后续 Research 接口。
-- `.agents/skills/discover-topics/`：新的自然语言选题 Skill；`.agents/skills/research-topic/`：编号交接支持。
-- `docs/TOPIC_DISCOVERY_CONTRACT.md`、`docs/TOPIC_DISCOVERY_EVALS.md`、`evaluations/v0.3.0-summary.json`：契约、评测方法和去内容化汇总。
-- `README.md`、`PRD.md`、`ROADMAP.md`、`AGENTS.md`、`docs/ARCHITECTURE.md`、`CHANGELOG.md`、`docs/releases/v0.3.0.md`：同步 V0.3。
+- `src/deeptalk_studio/discovery_derivation.py`：唯一的纯机器字段推导、Preflight、时间、来源方向、排序和补位逻辑。
+- `src/deeptalk_studio/discovery.py`、`discovery_validation.py`、`schema.py`：inspection manifest、`seed_provenance`、工件重推导校验和 legacy 读取兼容。
+- `src/deeptalk_studio/cli.py`：移除无效 `--count`；为 Skill 自动化提供后台 `--inspection-manifest` companion input。
+- `.agents/skills/discover-topics/`：要求实际打开 Seed、后台生成 manifest、保证至少 7 个 Raw Candidate，不让普通用户管理技术文件。
+- `tests/test_discovery.py`、`tests/test_cli.py`：新增 provenance、篡改、方向去重、时间、类别补位、最小池和 CLI 回归测试。
+- `evaluations/v0.3.1-summary.json`、`docs/TOPIC_DISCOVERY_EVALS.md`：去内容化真实评测及状态语义。
+- `README.md`、`PRD.md`、`ROADMAP.md`、`AGENTS.md`、`CHANGELOG.md`、架构和契约文档：同步 V0.3.1。
 
 ## 4. 当前架构是什么
 
 ```text
 模式 A：用户直接主题
-→ V0.2 Research Draft
-→ Independent Fact Check
-→ Quality Gate
+→ V0.2 Research Draft → Independent Fact Check → Quality Gate
 
 模式 B：用户“今天讲什么？”
-→ Topic Discovery + 轻量 Preflight
-→ Topic Candidate Set 0.3（JSON 是机器接口，Markdown 是阅读版）
+→ 搜索并实际打开公开来源
+→ 后台 inspection manifest + Raw Candidate（至少 7 项）
+→ 确定性 Preflight / 评分 / 去重 / 展示
+→ Topic Candidate Set 0.3
 → 用户只回复编号
 → Research Handoff Brief 0.3
-→ 同一条 V0.2 Research Draft → Fact Check → Quality Gate
+→ 同一条 V0.2 Research → Fact Check → Quality Gate
 ```
 
-Topic Discovery 只决定“是否值得研究”，不确认事实。Source Seeds 只是可追踪的公开研究入口；完整证据账本、独立事实核查和质量 Gate 仍完全由 V0.2 执行。
+Topic Discovery 仍只回答“值不值得研究”，不确认现实事实。Source Seeds 仍只是下一步研究入口；完整 Evidence Ledger、独立事实核查和用户确认 Gate 没有变化。
 
 ## 5. 已经可以运行什么
 
-- 在 Codex 中直接说“今天讲什么？”“帮我找几个科技选题”“换一批”或“只看商业”。
-- 得到最多 5 个候选、一个首选、why now、核心冲突、风险、时效和机器计算总分。
-- 只回复 `1` 或 `研究 1`，无需再复制标题，开始该题的深度 Research Workflow。
-- API 自动化：`./scripts/deeptalk discover "今天有什么值得讲？"`、`select-topic "1"`、`research-selected "1"`。
-- 离线 Codex 内容入口：`prepare-discovery` 保存 Candidate Set；没有 API Key 时 CLI 会明确提示使用 Codex Skill，不会假装联网完成。
+- 用户仍可直接说“今天讲什么？”“帮我找几个科技选题”“换一批”或“只看商业”。
+- Codex 会在后台记录它实际打开的 Seed；没有实际打开的链接不能通过资料 Gate。
+- 最多展示 5 个不同事件；过滤后只剩一个分类时，也可以由高分不同事件补足。
+- 用户只回复 `1` 或 `研究 1`，无需重复标题，即可进入已有 V0.2 Research Workflow。
+- API、离线 CLI、不可覆盖 discovery 历史、Research Handoff、模式 A Research、V0.2 Fact Check 和 Quality Gate 均继续可用。
 
 ## 6. 还不能运行什么
 
 - Script Agent 或成品原创口播稿。
 - 素材搜索、截图/版权建议、Remotion、HyperFrames、图表和视频生成。
-- 剪辑方案、字幕、标题、封面、平台发布和运营数据学习。
-- 云端选题库、自动无人审核发布，或根据单一创作者内容决定选题。
+- 剪辑方案、字幕、标题、封面、平台发布或运营数据学习。
+- 云端选题库、自动无人审核发布，或任何模仿某位创作者的内容能力。
 
-## 7. 已知问题
+## 7. 已知限制和 blocker
 
-- Preflight 只能判断资料入口和结构，不能替代后续完整事实核查；快速事件仍会变化。
-- 事件聚类是第一版稳定事件键 + 确定性排序，面对语义完全不同但本质相同的标题仍需要搜索步骤正确赋予事件键；后续可用真实评测持续校准，但不能变成黑箱推荐算法。
-- API 模式需要 `OPENAI_API_KEY`；本轮没有使用用户密钥，不产生 API 费用。没有 Key 时 Codex Skill 使用宿主联网能力。
-- Creator signal 若平台公开页面无法稳定访问会直接缺失，不影响 Discovery；系统不绕过登录、风控或限制。
-- 真实 discovery artifacts 保持本机 Git ignore，目前没有云端历史库。
-- GitHub `v0.3.0` 正式发布已创建并核验；Release 包含 GitHub 自动生成的 ZIP/TAR 源码包，不发布空的软件包。
+- Preflight 只判断“是否有足够可靠的研究入口”，不能代替后续完整事实核查；快速事件仍可能变化。
+- inspection manifest 诚实地保存本次实际打开记录，但不是新闻事实证明，也不能阻止拥有完整本地文件写入权限的人同时伪造整个 Artifact 和 manifest；正常工作流会在保存和读取时做一致性校验。
+- 同 publisher / host 的保守归并会宁可少推荐一些相关资料，也不会轻易把它们当作独立方向；语义完全不同但本质同一事件仍依赖搜索步骤给出正确的事件键。
+- API 模式仍需 `OPENAI_API_KEY`。本轮没有使用用户 API Key，不产生 API 费用；没有 Key 时由 Codex Skill 使用宿主联网能力。
+- 真实 discovery artifacts 与检查记录仅在 gitignored `discoveries/evaluations/v0.3.1/`，没有云端历史库。
+- 没有工程 blocker；唯一等待的是 ChatGPT 对 V0.3.1 的产品/架构 Review。V0.4 不能在该 Review 前开始。
 
 ## 8. 重要技术决策
 
-1. 用独立 Candidate Artifact 0.3，而不是扩展 Research Report 0.2 或让 Research 解析 Markdown。
-2. 模型/Skill 只可提供候选判断和评分理由；总分、资格、首选、排序、身份、时间和 provenance 是机器字段。
-3. 可核查性权重最高；Top 5 前先过轻量资料 Gate，不能因热度绕过。
-4. `watch` 是保留未来可能性，不是低分推荐；它不在普通用户的 Top 5 中。
-5. 选择编号转换为 JSON Handoff；模式 A 和模式 B 在 Research Workflow 汇合，避免重复实现研究逻辑。
-6. API Seed 必须匹配本次 Web Search provenance；Codex Seed 仅在实际打开后标为 `manual_open`。
-7. 完整真实热点列表、网页笔记与 Candidate Set 默认不提交公有仓库；只提交去内容化评测汇总。
+1. inspection manifest 是独立 companion input，不能被 Raw Candidate 混入或由 `codex_skill` 模式自动推断。
+2. 通过单独 `discovery_derivation.py` 让准备和验证共用同一套纯规则，避免校验器只检查部分字段或循环依赖。
+3. 新 Candidate Set 保存规范化 provenance context；旧 `0.3` 文件仍可按照其 legacy 状态读取，但不会被升级成“新检查过”。
+4. `--count` 选择删除而非增加可变工件复杂度，固定最多 5 个更符合普通用户入口。
+5. Raw pool 最小值保证广泛搜索的最低覆盖面，Eligibility Gate 仍可让最终列表少于 5 个。
+6. 真实评测把资料不足标为 `not_applicable`，不靠虚构候选填补 Top 5 测试。
 
-## 9. 哪些问题需要产品经理决定
+## 9. 需要产品经理决定的问题
 
 请 ChatGPT Review：
 
-1. Candidate Artifact 0.3、五维评分与 Eligibility Gate 是否符合产品边界。
-2. 事件键第一版去重和“单分类最多两项”是否足够保守，或是否需要下一版调整。
-3. V0.3 是否正式验收通过，并是否进入 V0.4 Script Agent；若通过，Script Agent 只能读取已 `reviewed` 且经用户确认的 Research Report。
+1. Codex inspection manifest 与 Source Seed provenance 边界是否足够清晰、保守。
+2. Candidate Artifact 机器字段重推导和 legacy 读取兼容策略是否符合 V0.3 约束。
+3. Source direction 的 URL / publisher / host 归并、5 分钟时间容差和“先多样再补位”规则是否合适。
+4. V0.3.1 是否正式验收通过；若通过，请给出 V0.4 Original Script Agent 的明确开发任务。
 
 ## 10. 建议下一阶段做什么
 
-若 V0.3 通过 Review，进入 **V0.4 Original Script Agent**：只读取已通过 V0.2 Quality Gate 且用户确认的 Research Report，生成原创分析框架和口播稿，并保留事实回链、禁讲项、时长/结构和相似表达风险检查。不要提前做素材、剪辑或发布。
+只有 V0.3.1 被 ChatGPT 正式验收后，才进入 **V0.4 Original Script Agent**：它只能读取通过 V0.2 Quality Gate 且用户明确确认的 Research Report，生成原创分析框架和口播稿，并保留事实回链、禁讲项、时长/结构与相似表达风险检查。不要提前实现素材、视觉、剪辑或发布。
 
 ## 11. 本轮验收记录
 
-- `PYTHONPATH=src python3 -m unittest discover -s tests -v`：101 项全部通过。
-- 新增测试覆盖 Schema、未知/缺失字段、固定权重、机器总分、72 小时、14 天持续事件、陈旧事件、Source Seed URL、匿名传言、高风险弱证据 watch、Creator signal 缺失、无虚构 engagement、事件去重、类别多样性、历史不覆盖、latest 选择、编号交接、Codex/API、CLI error 和模式 A 回归。
-- 已完成 Broad、Tech / Business、Social / Public 三类真实公开 Discovery 评测：前两类各形成一个可选候选，Social / Public 因资料不足只保留 `watch`；没有为凑足候选降低 Gate。Broad 场景实际运行了编号选择并生成 Research Handoff。
-- `docs/TOPIC_DISCOVERY_EVALS.md` 记录方法，`evaluations/v0.3.0-summary.json` 只保留去内容化结果；完整 artifacts 位于 gitignored `discoveries/evaluations/`。
-- `python3 -m compileall -q src tests`、示例 Research/Draft CLI、Discovery 选题与编号交接端到端、干净环境安装 `0.3.0`、JSON 校验、密钥扫描、Git diff 检查均已通过。
-- `discover-topics` 和 `research-topic` Skills 已通过官方校验；GitHub `main` 与 `v0.3.0` Release 已核验。
+- `PYTHONPATH=src python3 -m unittest discover -s tests -v`：113 项全部通过（原 101 项继续通过）。
+- `python3 -m compileall -q src tests`：通过。
+- 新增覆盖：无 manifest 的 Codex Seed、带或不带 tool reference 的 manifest-backed `manual_open`、伪造资格/推荐/展示/首选/统计、伪造 `manual_open`、legacy Candidate Set、重复 URL、同 publisher/host、social Seed、两个真实合格方向、倒置/未来时间、Broad 多样性、单分类补位、Raw 最小池、无效 `--count` 和编号交接。
+- Broad 真实评测：7 个 Raw、5 个不同事件；首选机器分 98，高于第 5 名的 86；`研究 1` Handoff 已实际生成。
+- Tech / Business 真实评测：7 个 Raw、5 个展示题；验证了类别过滤后的补位。
+- Social / Public 真实评测：只有 1 个 Raw；系统正确拒绝生成不完整 Candidate Set，Top 5/首选/Handoff 如实标为不适用。
+- 完整真实 Candidate Set、manifest 与网页笔记位于 gitignored `discoveries/evaluations/v0.3.1/`；公开 `evaluations/v0.3.1-summary.json` 不含真实热点内容。
+- 发布前已再次运行完整测试、CLI 编号交接、干净安装、JSON、Skill、密钥和 Git 核验；Release 创建后会立即复核标签、目标提交和公开源码包。
 
 ## 12. 版本发布规则
 
-每个正式版本继续使用 GitHub Release。V0.3.0 已提供 `v0.3.0` 标签和 GitHub 自动生成的 ZIP/TAR 源码包；项目当前仍不发布空 GitHub Package。发布过程没有 force push，也没有重写 `main` 历史。
+每个正式版本继续使用 GitHub Release。V0.3.1 提供 `v0.3.1` 标签及 GitHub 自动生成的 ZIP/TAR 源码包；项目仍不发布空 GitHub Package。发布过程不得 force push 或重写 `main` 历史。
 
 ## 给用户的下一步操作
 
 下一步：只把下面这段话原样发给 ChatGPT：
 
-> 这是 Codex 完成的 DeepTalk Studio V0.3 Topic Discovery：GitHub 仓库是 https://github.com/HWang0310/deep-talk-studio ，Release 是 https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.3.0 。请完整阅读 HANDOFF.md，再 Review Candidate Artifact、评分模型、Eligibility Gate、事件去重、Source Seeds、用户选编号进入 Research 的流程、测试和真实评测。如果通过，请决定是否进入 V0.4 Script Agent，并直接给我下一轮发给 Codex 的任务。不要让我自己总结。
+> 这是 Codex 完成的 DeepTalk Studio V0.3.1 Discovery Gate Hardening。GitHub 仓库是 https://github.com/HWang0310/deep-talk-studio ，Release 是 https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.3.1 。请 Review Source Seed Codex provenance、Candidate machine-owned field canonical validation、Preflight source direction、时间规则、category fallback、测试和真实评测。如果通过，请正式验收 V0.3，并给我 V0.4 Original Script Agent 的开发任务。不要让我自己总结。
 
 如果 ChatGPT 暂时打不开仓库，只需把本文件 `HANDOFF.md` 全文复制给它，不需要自己解释。

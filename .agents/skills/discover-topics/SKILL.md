@@ -14,15 +14,16 @@ Read `references/candidate-contract.md` before producing a Candidate Set. Use th
 ## Discovery pass
 
 1. Interpret the user request. Default to five candidates and the latest 72 hours. Treat “只看科技”“只看商业”“少一点社会新闻” as a new filtered discovery request. Treat “换一批” as a fresh search, not a rearrangement of the old list.
-2. Search public sources. Check recent events and continuing stories from the last 14 days that have a major update in the last 72 hours. Open the source pages used as Seeds; never turn a search snippet into a confirmed fact.
-3. Propose at least seven raw candidates so deterministic de-duplication and category diversity can retain up to five. For each recommendable candidate, record two to four Source Seeds from separate research directions and explain why each Seed matters.
-4. Keep only topics with public research footing. Anonymous rumors, unsupported accusations, pure emotion, pure gossip, copied-creator premises, and high-risk weak-evidence events are `watch` or `rejected`, not Top 5.
-5. Use the five 0–5 score assessments with concrete reasons. Never supply a total score, rank, label, Discovery ID, timestamp, provenance status, engagement count, playback count, or search-index number. The Python core owns those fields.
-6. If public creator titles/descriptions are accessible without bypassing platform limits, they may explain a `creator_attention_signal`. Do not collect scripts, subtitles, long quotations, distinctive wording, or use one creator as factual evidence. Missing creator signal is normal.
-7. Save the raw candidate input and run:
+2. Search public sources. Check recent events and continuing stories from the last 14 days that have a major update in the last 72 hours. Open every page used as a Seed; never turn a search snippet into a confirmed fact.
+3. In the background, build a separate `inspection-manifest.json` containing only each actually opened Seed URL, its tool/open reference when available, and the inspection time. Raw Candidate JSON must never contain provenance status and a URL that was only written into JSON is not inspected.
+4. Propose at least seven raw candidates so deterministic de-duplication and category diversity can retain up to five. If fewer than seven raw candidates survive the search, do more searching or clearly report that the Discovery pass cannot yet produce a Candidate Set; do not pretend that one or two candidates were a complete search. For each recommendable candidate, record two to four Source Seeds from separate research directions and explain why each Seed matters.
+5. Keep only topics with public research footing. Only distinct checked Seeds of type official, primary, media, academic or expert count as research directions. Normalized duplicate URLs, same-publisher pages and same-host pages count once. Anonymous rumors, unsupported accusations, pure emotion, pure gossip, copied-creator premises, and high-risk weak-evidence events are `watch` or `rejected`, not Top 5.
+6. Use the five 0–5 score assessments with concrete reasons. Never supply a total score, rank, label, Discovery ID, timestamp, provenance status, engagement count, playback count, or search-index number. The Python core owns those fields.
+7. If public creator titles/descriptions are accessible without bypassing platform limits, they may explain a `creator_attention_signal`. Do not collect scripts, subtitles, long quotations, distinctive wording, or use one creator as factual evidence. Missing creator signal is normal.
+8. Save the Raw Candidate input and the background inspection manifest to an ignored temporary discovery directory, then run:
 
    ```bash
-   ./scripts/deeptalk prepare-discovery <discovery-input.json> --output discoveries
+   ./scripts/deeptalk prepare-discovery <discovery-input.json> --inspection-manifest <inspection-manifest.json> --output discoveries
    ```
 
 8. Read the generated Markdown and show the user only its short numbered cards. Do not paste the JSON Artifact into conversation.
@@ -53,6 +54,7 @@ Return up to five cards, one explicit `【首选】`, why now, core tension, fit
 
 - Discovery Source Seeds are not confirmed facts and are not the V0.2 Evidence Ledger.
 - Do not fabricate attention metrics, URL, page opening, source inspection or creator signal.
+- Never mark a Codex Seed as `manual_open` unless its normalized URL appears in the background inspection manifest created from an actual page open.
 - Do not bypass login, rate limits, anti-bot controls or platform restrictions.
 - Do not create a script, thumbnail, edit plan, video or publishing action.
 - Do not use another creator’s content as a source for imitation or rewriting.

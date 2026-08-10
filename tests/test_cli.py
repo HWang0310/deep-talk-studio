@@ -50,12 +50,34 @@ class CliTests(unittest.TestCase):
     def test_prepare_discovery_and_select_topic_need_no_json_for_normal_user(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             input_path = Path(temp_dir) / "discovery-input.json"
+            manifest_path = Path(temp_dir) / "inspection-manifest.json"
             discovery_root = Path(temp_dir) / "discoveries"
-            input_path.write_text(
-                json.dumps(valid_discovery_input(), ensure_ascii=False), encoding="utf-8"
+            raw = valid_discovery_input()
+            input_path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "inspections": [
+                            {
+                                "url": seed["url"],
+                                "tool_reference": f"open-{index}",
+                                "inspected_at": "2026-08-10T11:00:00+00:00",
+                            }
+                            for index, candidate in enumerate(raw["candidates"], 1)
+                            for seed in candidate["source_seeds"]
+                        ]
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
             )
             prepared = run_cli(
-                "prepare-discovery", str(input_path), "--output", str(discovery_root)
+                "prepare-discovery",
+                str(input_path),
+                "--inspection-manifest",
+                str(manifest_path),
+                "--output",
+                str(discovery_root),
             )
             selected = run_cli("select-topic", "1", "--output", str(discovery_root))
 
@@ -72,6 +94,12 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("没有检测到 OPENAI_API_KEY", result.stderr)
         self.assertIn("今天讲什么", result.stderr)
+
+    def test_discover_does_not_accept_a_nonfunctional_count_option(self):
+        result = run_cli("discover", "今天讲什么？", "--count", "3")
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unrecognized arguments", result.stderr)
 
     def test_selecting_without_latest_discovery_is_a_clean_cli_error(self):
         with tempfile.TemporaryDirectory() as temp_dir:
