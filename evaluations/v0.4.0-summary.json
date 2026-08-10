@@ -1,0 +1,51 @@
+{
+  "version": "0.4.0",
+  "evaluated_at": "2026-08-10",
+  "content_policy": "decontented; full real scripts and reports are gitignored",
+  "scenarios": [
+    {
+      "scenario": "stable_tech_business",
+      "input_status": "approved_ready_for_script",
+      "approval_revision_created": true,
+      "must_keep_total": 2,
+      "must_keep_covered": 2,
+      "target_duration_minutes": 5,
+      "character_count": 1273,
+      "estimated_duration_minutes": 4.9,
+      "required_review_checks": 15,
+      "completed_review_checks": 15,
+      "blocking_issue_count": 0,
+      "final_status": "reviewed",
+      "editorial_average": 4.4
+    },
+    {
+      "scenario": "contested_public_issue",
+      "input_status": "approved_ready_for_script",
+      "approval_revision_created": true,
+      "must_keep_total": 3,
+      "must_keep_covered": 3,
+      "target_duration_minutes": 6,
+      "character_count": 1520,
+      "estimated_duration_minutes": 5.8,
+      "required_review_checks": 15,
+      "completed_review_checks": 15,
+      "blocking_issue_count": 0,
+      "final_status": "reviewed",
+      "editorial_average": 4.5
+    },
+    {
+      "scenario": "blocked_input",
+      "input_status": "reviewed_without_user_approval",
+      "writer_called": false,
+      "exit_code": 2,
+      "created_file_count": 0,
+      "final_status": "rejected"
+    }
+  ],
+  "teleprompter_checks": {
+    "files_read_in_full": 2,
+    "machine_ids_present": 0,
+    "urls_present": 0,
+    "editor_labels_present": 0
+  }
+}

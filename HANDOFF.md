@@ -1,119 +1,140 @@
 # DeepTalk Studio 交接记录
 
 更新时间：2026-08-10
-当前版本：V0.3.1 / `0.3.1`
+当前版本：V0.4.0 / `0.4.0`
 当前正式分支：`main`
 GitHub：https://github.com/HWang0310/deep-talk-studio （公有仓库）
-正式发布：https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.3.1
+正式发布：https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.4.0
 
 ## 1. 本轮任务是什么
 
-根据 ChatGPT 对 V0.3.0 的 Conditional Pass，完成 **V0.3.1 Discovery Gate Hardening**。本轮只修正 Topic Discovery 的来源检查、候选工件防篡改、Preflight、时间、分类展示、Raw 候选池和评测准确性；没有开始 V0.4 Script Agent，也没有实现素材、视觉、剪辑或发布。
+根据 ChatGPT 对 V0.3.1 的正式验收和 V0.4 产品 / 架构任务，实现 **Original Script Agent**：把经过独立 Fact Check、通过 Quality Gate 并由用户明确批准的 Research Report，转换为可核查、原创、适合真人露脸的深度口播稿。本轮要求同时完成 Approval Revision、Script Artifact、Grounding、独立 Script Review、Editor / Teleprompter 输出、版本修订、三类真实评测、文档和 `v0.4.0` Release。
+
+本轮没有开始 V0.5，也没有实现素材、视觉、剪辑或发布。
 
 ## 2. 本轮完成了什么
 
-- 新增后台 Codex inspection manifest。只有实际打开且记录在 manifest 内的 URL 才会标为 `manual_open`；Raw Candidate JSON 和运行模式都不能自认证页面已打开。
-- 新增纯确定性 Candidate derivation。Candidate Set 在读取时重新计算资格、理由、推荐、总分、展示顺序、首选和 watch/reject 统计；任何不一致都会被拒绝。
-- Source Seed Preflight 只计算 `matched` 或 manifest-backed `manual_open` 的 official、primary、media、academic、expert 来源；规范化重复 URL、同 publisher、同 host 只算一个方向。
-- 增加时间一致性：开始时间不能晚于最新进展；事件时间最多允许比 discovery 时间晚 5 分钟，明显未来时间不能获得新鲜度。
-- 原始候选池低于 7 项时明确拒绝生成 Candidate Set；这不会强迫 Eligibility Gate 放行 5 个题。
-- 分类展示改为先每类最多两项、再按确定性排名补足空位；同一事件始终只能展示一次。
-- 删除无效的 `discover --count` 参数；用户体验继续保持“最多 5 个候选”。
-- 重新执行 Broad、Tech / Business、Social / Public 真实公开资料评测，并以 `pass` / `fail` / `not_applicable` 记录结果。
+- 用户确认不再只是内存状态：`approve-report` 会建立新的不可覆盖 Research Revision，保存原始确认并设为 `ready_for_script`。
+- 新增 Script Profile 0.4，默认适配 B 站中文真人口播、约 12 分钟，并支持“8 分钟”“做长一点”“紧凑一些”等自然语言调整。
+- 新增 Script Draft Artifact 0.4。每个 Beat 区分事实、归因、分析、转场和问题，并保留 Claim / Evidence 回链。
+- 新增硬 Grounding Gate：未批准 Research、未核查高风险事实、错误归因、直接使用禁讲结论、无依据分析、无效引用和伪造机器字段都会被拒绝。
+- 新增 must-keep coverage、有效口播字符数和估算时长，由程序计算，Writer 无法自报。
+- Writer 与 Reviewer 分离，二者都不能 Web Search。API 载荷不提供搜索工具，任何返回的搜索 provenance 都会被工作流拒绝。
+- 新增 Script Review Artifact 0.4。Reviewer 必须完成 15 个检查维度；缺一项就无效。阻断问题、严重度、数量和 Gate 全部由程序推导。
+- Review 会创建新 Script revision：通过为 `reviewed`，有阻断问题仍为 `draft`；旧稿不覆盖。
+- 同时输出 Editor Markdown 和纯口播 Teleprompter Markdown；支持修订、比较和自然语言反馈。
+- 新增仓库级 `write-script` Skill，让普通用户只需确认时长、粘贴反馈或说“比较两个版本”。
 
 ## 3. 创建 / 修改了哪些重要文件
 
-- `src/deeptalk_studio/discovery_derivation.py`：唯一的纯机器字段推导、Preflight、时间、来源方向、排序和补位逻辑。
-- `src/deeptalk_studio/discovery.py`、`discovery_validation.py`、`schema.py`：inspection manifest、`seed_provenance`、工件重推导校验和 legacy 读取兼容。
-- `src/deeptalk_studio/cli.py`：移除无效 `--count`；为 Skill 自动化提供后台 `--inspection-manifest` companion input。
-- `.agents/skills/discover-topics/`：要求实际打开 Seed、后台生成 manifest、保证至少 7 个 Raw Candidate，不让普通用户管理技术文件。
-- `tests/test_discovery.py`、`tests/test_cli.py`：新增 provenance、篡改、方向去重、时间、类别补位、最小池和 CLI 回归测试。
-- `evaluations/v0.3.1-summary.json`、`docs/TOPIC_DISCOVERY_EVALS.md`：去内容化真实评测及状态语义。
-- `README.md`、`PRD.md`、`ROADMAP.md`、`AGENTS.md`、`CHANGELOG.md`、架构和契约文档：同步 V0.3.1。
+- `.agents/skills/write-script/`：普通用户的确认、写稿、独立审稿、修改和比较流程。
+- `config/script-profile.json`：V0.4 频道、口播、时长、风格和原创性约束。
+- `src/deeptalk_studio/script_validation.py`：Approval Gate、Grounding、类型边界、禁讲项、覆盖和机器字段校验。
+- `src/deeptalk_studio/script_review.py`：独立 15 项 Review、阻断规则和 Gate。
+- `src/deeptalk_studio/script_renderer.py`、`script_storage.py`：双 Markdown 输出和不可覆盖保存。
+- `src/deeptalk_studio/script_revisions.py`：稿件修订和版本比较。
+- `src/deeptalk_studio/script_prompt.py`、`script_workflow.py`：Writer / Reviewer 提示与两阶段工作流。
+- `src/deeptalk_studio/schema.py`、`models.py`、`providers/`、`cli.py`、`revisions.py`、`workflow.py`：正式契约、Provider 和统一入口。
+- `docs/SCRIPT_CONTRACT.md`、`docs/SCRIPT_EVALS.md`：V0.4 契约与真实评测。
+- `evaluations/v0.4.0-summary.json`：不含真实题材内容的公开评测汇总。
+- `docs/releases/v0.4.0.md`：正式版本说明。
+- README、PRD、ROADMAP、AGENTS、CHANGELOG、架构和本 HANDOFF：全部同步 V0.4。
 
 ## 4. 当前架构是什么
 
 ```text
-模式 A：用户直接主题
-→ V0.2 Research Draft → Independent Fact Check → Quality Gate
+模式 A：用户直接主题 ─┐
+                     ├→ Research → Independent Fact Check → Quality Gate
+模式 B：Topic Discovery → 用户选编号 ┘
 
-模式 B：用户“今天讲什么？”
-→ 搜索并实际打开公开来源
-→ 后台 inspection manifest + Raw Candidate（至少 7 项）
-→ 确定性 Preflight / 评分 / 去重 / 展示
-→ Topic Candidate Set 0.3
-→ 用户只回复编号
-→ Research Handoff Brief 0.3
-→ 同一条 V0.2 Research → Fact Check → Quality Gate
+Gate fail → draft，禁止写稿
+Gate pass → reviewed，等待用户确认
+用户确认 → 新 Approval Revision / ready_for_script
+          → Original Script Writer（不联网）
+          → Script Draft r1
+          → Independent Script Reviewer（不联网，15 项必检）
+          → blocking：Script r2 / draft
+          → pass：Script r2 / reviewed
+          → Editor Markdown + Teleprompter Markdown
+          → 用户反馈生成 r3、r4……，历史不覆盖
 ```
 
-Topic Discovery 仍只回答“值不值得研究”，不确认现实事实。Source Seeds 仍只是下一步研究入口；完整 Evidence Ledger、独立事实核查和用户确认 Gate 没有变化。
+Research Report 继续使用 0.2 契约，Topic Candidate Set 继续使用 0.3 契约。V0.4 只新增 Script Profile、Script Draft 和 Script Review 0.4，没有破坏上游工件。
 
 ## 5. 已经可以运行什么
 
-- 用户仍可直接说“今天讲什么？”“帮我找几个科技选题”“换一批”或“只看商业”。
-- Codex 会在后台记录它实际打开的 Seed；没有实际打开的链接不能通过资料 Gate。
-- 最多展示 5 个不同事件；过滤后只剩一个分类时，也可以由高分不同事件补足。
-- 用户只回复 `1` 或 `研究 1`，无需重复标题，即可进入已有 V0.2 Research Workflow。
-- API、离线 CLI、不可覆盖 discovery 历史、Research Handoff、模式 A Research、V0.2 Fact Check 和 Quality Gate 均继续可用。
+- 用户可继续直接给主题，或说“今天讲什么？”后只回复编号。
+- Research Workflow 继续执行多来源研究、独立 Fact Check 和透明质量 Gate。
+- 通过 Gate 后，用户只需说“确认进入写稿，做成 8 分钟”，系统会保存确认并完整写稿、审稿。
+- Script Editor 版可检查每段类型、Claim、Evidence、分析依据、风险、研究局限和必须保留覆盖。
+- Teleprompter 版只保留真人可读正文，不显示机器 ID、URL 或 citation syntax。
+- 用户可说“第二段更紧凑”“做长一点”或“比较这两个版本”，系统会建立不可覆盖的新 revision。
+- Codex Skill 模式不需要 API Key；可选 API 模式支持同一正式契约。
 
 ## 6. 还不能运行什么
 
-- Script Agent 或成品原创口播稿。
-- 素材搜索、截图/版权建议、Remotion、HyperFrames、图表和视频生成。
-- 剪辑方案、字幕、标题、封面、平台发布或运营数据学习。
-- 云端选题库、自动无人审核发布，或任何模仿某位创作者的内容能力。
+- 自动搜索或下载新闻截图、公开文件、图片和视频素材。
+- 自动生成图表、时间线动画、Remotion / HyperFrames 画面。
+- 镜头级剪辑方案、字幕、封面、标题、B 站上传或其他平台分发。
+- 根据发布数据自动学习，或无人审核自动发布。
+- 这些均属于尚未开始的 V0.5 / V0.6，不应把 `reviewed` Script 误解成发布批准。
 
-## 7. 已知限制和 blocker
+## 7. 已知问题和 blocker
 
-- Preflight 只判断“是否有足够可靠的研究入口”，不能代替后续完整事实核查；快速事件仍可能变化。
-- inspection manifest 诚实地保存本次实际打开记录，但不是新闻事实证明，也不能阻止拥有完整本地文件写入权限的人同时伪造整个 Artifact 和 manifest；正常工作流会在保存和读取时做一致性校验。
-- 同 publisher / host 的保守归并会宁可少推荐一些相关资料，也不会轻易把它们当作独立方向；语义完全不同但本质同一事件仍依赖搜索步骤给出正确的事件键。
-- API 模式仍需 `OPENAI_API_KEY`。本轮没有使用用户 API Key，不产生 API 费用；没有 Key 时由 Codex Skill 使用宿主联网能力。
-- 真实 discovery artifacts 与检查记录仅在 gitignored `discoveries/evaluations/v0.3.1/`，没有云端历史库。
-- 没有工程 blocker；唯一等待的是 ChatGPT 对 V0.3.1 的产品/架构 Review。V0.4 不能在该 Review 前开始。
+- 口播时长来自有效中文字符数估算，真人停顿、语速和临场发挥仍需要最终朗读确认。
+- `avoid_claims` 的直接文字使用由程序硬阻止；换一种说法但语义仍越界的情况依赖独立 Reviewer 识别。
+- 工程 Grounding 证明稿件忠于批准的 Research Artifact，不能证明现实世界永远没有变化；快速事件要先更新 Research revision，再重新批准。
+- 真实评测的两份既有 Research Report 只有 2 项和 3 项可用主张，因此实际稿件采用 5 / 6 分钟目标，没有为凑默认 12 分钟重复信息或补写研究外事实。
+- Codex Skill 模式下，Writer / Reviewer 的“独立”是严格分步和不同职责，不是两个长期独立运行的服务器进程。
+- 没有工程 blocker。是否进入 V0.5 只等待 ChatGPT 的产品 / 架构验收决定。
 
 ## 8. 重要技术决策
 
-1. inspection manifest 是独立 companion input，不能被 Raw Candidate 混入或由 `codex_skill` 模式自动推断。
-2. 通过单独 `discovery_derivation.py` 让准备和验证共用同一套纯规则，避免校验器只检查部分字段或循环依赖。
-3. 新 Candidate Set 保存规范化 provenance context；旧 `0.3` 文件仍可按照其 legacy 状态读取，但不会被升级成“新检查过”。
-4. `--count` 选择删除而非增加可变工件复杂度，固定最多 5 个更符合普通用户入口。
-5. Raw pool 最小值保证广泛搜索的最低覆盖面，Eligibility Gate 仍可让最终列表少于 5 个。
-6. 真实评测把资料不足标为 `not_applicable`，不靠虚构候选填补 Top 5 测试。
+1. Approval 必须是新 Research Revision，而不是把原报告原地改为批准；任何新研究内容都会重置旧确认。
+2. Writer 只生成内容字段。身份、revision、Beat ID、状态、字符数、时长和覆盖都归代码所有，并在读取时重新推导。
+3. Fact / Attribution / Analysis 使用结构化 Beat 明确区分；自然归因与语义越界再由 Reviewer 复核。
+4. Writer / Reviewer 不联网，避免研究阶段结束后悄悄混入新事实；需要新信息时必须回到 Research Workflow。
+5. Review 要求全部 15 个检查维度，不能用少数“看起来没问题”的检查自报通过。
+6. Review 结果也通过新 revision 表达，不修改 r1；Review Artifact 单独保存，保持审稿过程可追踪。
+7. Editor 与 Teleprompter 都从 JSON 派生；机器不反向解析 Markdown。
+8. 真实完整 Script 默认 gitignore，公开仓库只放去内容化指标，避免未经最终编辑的真实稿件被公开。
 
-## 9. 需要产品经理决定的问题
+## 9. 哪些问题需要产品经理决定
 
 请 ChatGPT Review：
 
-1. Codex inspection manifest 与 Source Seed provenance 边界是否足够清晰、保守。
-2. Candidate Artifact 机器字段重推导和 legacy 读取兼容策略是否符合 V0.3 约束。
-3. Source direction 的 URL / publisher / host 归并、5 分钟时间容差和“先多样再补位”规则是否合适。
-4. V0.3.1 是否正式验收通过；若通过，请给出 V0.4 Original Script Agent 的明确开发任务。
+1. Approval Revision 是否充分表达用户批准和新研究修订后的自动失效。
+2. Script Draft 的 Beat grounding、Fact / Attribution / Analysis 边界和 `avoid_claims` / must-keep 策略是否达到 V0.4 要求。
+3. Script Review 的 15 项必检、blocking 类型和 `reviewed` 含义是否合适。
+4. Editor / Teleprompter 分工、不可覆盖 revision 和 Writer / Reviewer 无 Web Search 边界是否清晰。
+5. 两份真实稿件的 4.4 / 4.5 人工 Editorial 结果和“证据有限时缩短时长”决策是否可接受。
+6. V0.4 是否正式验收，并决定是否进入 V0.5 Material Search 与 Visual Assistance。
 
 ## 10. 建议下一阶段做什么
 
-只有 V0.3.1 被 ChatGPT 正式验收后，才进入 **V0.4 Original Script Agent**：它只能读取通过 V0.2 Quality Gate 且用户明确确认的 Research Report，生成原创分析框架和口播稿，并保留事实回链、禁讲项、时长/结构与相似表达风险检查。不要提前实现素材、视觉、剪辑或发布。
+如果 ChatGPT 正式验收 V0.4，下一阶段建议只做 **V0.5 Material Search 与 Visual Assistance 的产品设计和最小实现**：从 reviewed Script 和 Research Evidence 中推荐可合法使用的公开文件、截图、图片、短视频片段与原创图表位置，记录来源、版权风险和画面用途。不要直接跳到自动剪辑或平台发布。
+
+在 ChatGPT 明确给出 V0.5 任务前，不开始开发。
 
 ## 11. 本轮验收记录
 
-- `PYTHONPATH=src python3 -m unittest discover -s tests -v`：113 项全部通过（原 101 项继续通过）。
-- `python3 -m compileall -q src tests`：通过。
-- 新增覆盖：无 manifest 的 Codex Seed、带或不带 tool reference 的 manifest-backed `manual_open`、伪造资格/推荐/展示/首选/统计、伪造 `manual_open`、legacy Candidate Set、重复 URL、同 publisher/host、social Seed、两个真实合格方向、倒置/未来时间、Broad 多样性、单分类补位、Raw 最小池、无效 `--count` 和编号交接。
-- Broad 真实评测：7 个 Raw、5 个不同事件；首选机器分 98，高于第 5 名的 86；`研究 1` Handoff 已实际生成。
-- Tech / Business 真实评测：7 个 Raw、5 个展示题；验证了类别过滤后的补位。
-- Social / Public 真实评测：只有 1 个 Raw；系统正确拒绝生成不完整 Candidate Set，Top 5/首选/Handoff 如实标为不适用。
-- 完整真实 Candidate Set、manifest 与网页笔记位于 gitignored `discoveries/evaluations/v0.3.1/`；公开 `evaluations/v0.3.1-summary.json` 不含真实热点内容。
-- 发布前已再次运行完整测试、CLI 编号交接、干净安装、JSON、Skill、密钥和 Git 核验；Release 创建后会立即复核标签、目标提交和公开源码包。
+- 自动测试：151 项全部通过，原 113 项全部继续通过。
+- Python 编译：`src` 与 `tests` 全部通过。
+- Writer / Reviewer 无 Web Search：Provider payload 与工作流 provenance 两层测试通过。
+- Stable Tech / Business：Approval r3；must-keep 2 / 2；1273 字符；约 4.9 分钟；15 / 15 Review；0 blocking；最终 `reviewed`；人工 Editorial 4.4 / 5。
+- Contested Public Issue：Approval r3；must-keep 3 / 3；1520 字符；约 5.8 分钟；15 / 15 Review；0 blocking；最终 `reviewed`；人工 Editorial 4.5 / 5。
+- Blocked Input：`reviewed` 但无用户 Approval 的报告被拒绝；退出码 2；没有创建文件。
+- 两份 Teleprompter 已实际阅读全文，并核验不含 URL、机器 ID 或编辑标签。
+- 三个仓库 Skill、JSON 文件、CLI 端到端、密钥扫描、Git diff 和公开 Release 均已核验。
 
 ## 12. 版本发布规则
 
-每个正式版本继续使用 GitHub Release。V0.3.1 提供 `v0.3.1` 标签及 GitHub 自动生成的 ZIP/TAR 源码包；项目仍不发布空 GitHub Package。发布过程不得 force push 或重写 `main` 历史。
+本轮正式版本为 `v0.4.0`。继续使用公有仓库 `HWang0310/deep-talk-studio`，不创建新仓库、不 force push、不重写 `main` 历史。GitHub Release 自动提供 ZIP / TAR 源码包；项目仍不发布没有实际安装价值的空 GitHub Package。
 
 ## 给用户的下一步操作
 
-下一步：只把下面这段话原样发给 ChatGPT：
+下一步：把下面这段话原样发给 ChatGPT：
 
-> 这是 Codex 完成的 DeepTalk Studio V0.3.1 Discovery Gate Hardening。GitHub 仓库是 https://github.com/HWang0310/deep-talk-studio ，Release 是 https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.3.1 。请 Review Source Seed Codex provenance、Candidate machine-owned field canonical validation、Preflight source direction、时间规则、category fallback、测试和真实评测。如果通过，请正式验收 V0.3，并给我 V0.4 Original Script Agent 的开发任务。不要让我自己总结。
+> 这是 Codex 完成的 DeepTalk Studio V0.4 Original Script Agent。GitHub 仓库是 https://github.com/HWang0310/deep-talk-studio ，v0.4.0 Release 是 https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.4.0 。请完整 Review Approval Revision、Script Draft Artifact、Grounding Rules、Fact/Attribution/Analysis 边界、Script Review Gate、Editor/Teleprompter 输出、版本修订、测试和三类真实评测。如果通过，请正式验收 V0.4，并决定是否进入 V0.5 Material Search 与 Visual Assistance。不要让我自己总结。
 
 如果 ChatGPT 暂时打不开仓库，只需把本文件 `HANDOFF.md` 全文复制给它，不需要自己解释。

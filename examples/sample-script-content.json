@@ -1,0 +1,47 @@
+{
+  "working_title": "一次公开事件，为什么事实和解释总会混在一起",
+  "thesis": "面对热点，最重要的不是抢着归责，而是先分清事实、当事方解释和仍无证据的猜测。",
+  "audience_promise": "用一个完全虚构的案例说明如何判断公开事件中的证据边界。",
+  "beats": [
+    {
+      "purpose": "用已经确认的时间点建立问题。",
+      "content_kind": "fact",
+      "narration": "事件发生在八月九日。这个时间点有两份相互独立的公开材料支持。",
+      "claim_ids": ["C1"],
+      "evidence_link_ids": ["E1", "E2"],
+      "analysis_basis_claim_ids": [],
+      "risk_notes": "只陈述已经核查的发生日期。"
+    },
+    {
+      "purpose": "呈现当事机构的解释，但不替它背书。",
+      "content_kind": "attribution",
+      "narration": "当事机构在公告中的说法是，问题来自流程故障。这证明机构给出了这种解释，却不等于原因已经被独立证实。",
+      "claim_ids": ["C2"],
+      "evidence_link_ids": ["E3"],
+      "analysis_basis_claim_ids": [],
+      "risk_notes": "保留自然归因。"
+    },
+    {
+      "purpose": "解释为什么信息分层比抢结论更重要。",
+      "content_kind": "analysis",
+      "narration": "这里真正值得追问的，是公众为什么总被迫在官方解释和网络猜测之间二选一。其实还有第三种选择：承认事件已经发生，也承认原因证据还不够。",
+      "claim_ids": [],
+      "evidence_link_ids": ["E1", "E3"],
+      "analysis_basis_claim_ids": ["C1", "C2"],
+      "risk_notes": "这是基于已知材料的作者分析。"
+    },
+    {
+      "purpose": "保留未经证实说法的边界。",
+      "content_kind": "attribution",
+      "narration": "网络上确实流传过人为操纵的说法，但现有核查没有找到可以验证它的原始证据。",
+      "claim_ids": ["C3"],
+      "evidence_link_ids": ["E4"],
+      "analysis_basis_claim_ids": [],
+      "risk_notes": "必须同时说清传言存在和证据缺失。"
+    }
+  ],
+  "closing": "这件事留下的不是一个轻易的答案，而是一条更实用的判断线：事实可以确认，解释需要归因，猜测必须停在猜测的位置。",
+  "research_caveats": ["这是虚构测试材料，不代表真实事件。"],
+  "research_gaps": ["后续完整检查材料尚未公开。"],
+  "must_keep_omission_reasons": []
+}

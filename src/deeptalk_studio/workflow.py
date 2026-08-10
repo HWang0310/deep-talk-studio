@@ -18,7 +18,7 @@ from .models import ResearchReport
 from .provenance import ProviderProvenance, reconcile_provenance, reconcile_source_records
 from .providers.base import ProviderResult, ResearchProvider
 from .quality import apply_quality_gate, calculate_quality_summary
-from .revisions import create_revision
+from .revisions import create_approval_revision, create_revision
 from .schema import (
     API_RESEARCH_DRAFT_JSON_SCHEMA,
     CODEX_DRAFT_JSON_SCHEMA,
@@ -64,6 +64,18 @@ def _iso(moment: datetime) -> str:
     if moment.tzinfo is None:
         return moment.astimezone().isoformat()
     return moment.isoformat()
+
+
+def run_report_approval(
+    report: ResearchReport,
+    confirmation: str,
+    output_root: Path,
+    clock: Callable[[], datetime] = _default_clock,
+) -> ReportPaths:
+    """Persist explicit user approval as the next immutable report revision."""
+
+    approved = create_approval_revision(report, confirmation, _iso(clock()))
+    return save_report(ResearchReport.from_dict(approved), output_root)
 
 
 def _provenance_manifest(provenance: ProviderProvenance) -> dict:

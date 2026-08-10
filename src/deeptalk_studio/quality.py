@@ -1,9 +1,11 @@
 """Transparent research quality metrics and human approval gates."""
 
 from copy import deepcopy
+from datetime import datetime
 from typing import Any, Dict, List, Set
 
 from .models import ResearchReport
+from .revisions import create_approval_revision
 from .validation import ReportValidationError, validate_report
 
 
@@ -170,18 +172,10 @@ def apply_quality_gate(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def approve_for_script(report: ResearchReport, confirmation: str) -> Dict[str, Any]:
-    validate_report(report)
-    if report.status != "reviewed" or report.quality_summary["gate_status"] != "pass":
-        raise ReportValidationError("只有通过质量 Gate 的 reviewed 报告才能确认")
-    clean_confirmation = confirmation.strip()
-    if not clean_confirmation:
-        raise ReportValidationError("进入未来 Script Agent 前必须保留用户确认")
-    result = report.to_dict()
-    result["approval_gate"].update(
-        status="approved",
-        user_confirmation=clean_confirmation,
-        ready_for_script=True,
+    """Compatibility wrapper that always creates a formal approval revision."""
+
+    return create_approval_revision(
+        report,
+        confirmation,
+        datetime.now().astimezone().isoformat(),
     )
-    result["status"] = "ready_for_script"
-    ResearchReport.from_dict(result)
-    return result

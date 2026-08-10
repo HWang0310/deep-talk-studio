@@ -1,0 +1,4 @@
+interface:
+  display_name: "DeepTalk 原创口播稿"
+  short_description: "从已批准研究报告生成、审查并交付原创中文深度口播稿件"
+  default_prompt: "Use $write-script to turn an approved DeepTalk Research Report into a grounded reviewed teleprompter script."

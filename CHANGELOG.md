@@ -2,6 +2,30 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [0.4.0] - 2026-08-10
+
+### Added
+
+- 新增不可覆盖的 Approval Revision：只有完成独立 Fact Check、通过 Quality Gate 且处于 `reviewed` 的 Research Report 才能记录用户原始确认并进入 `ready_for_script`。
+- 新增 Script Profile 0.4、Script Draft Artifact 0.4、独立 Script Review Artifact 0.4，以及 Editor / Teleprompter 双输出。
+- 新增 `write-script` Codex Skill，普通用户可直接说“根据这份研究写稿”“做成 8 分钟”或“第二段更紧凑”；不需要修改 JSON 或执行命令。
+- 新增稿件 grounding：Beat 级 Claim / Evidence 回链、Fact / Attribution / Analysis 边界、已核查高风险事实检查、`avoid_claims` 硬阻止和 must-keep coverage。
+- 新增独立 Writer / Reviewer 工作流；Reviewer 必须完成 15 个必检维度，阻断问题由程序计算 Gate，模型不能自报通过。
+- 新增不可覆盖的 Script revision、版本比较、自然语言时长解析，以及 `approve-report`、`prepare-script`、`review-script`、`revise-script`、`compare-script`、`write-script` CLI。
+- 新增 `docs/SCRIPT_CONTRACT.md`、`docs/SCRIPT_EVALS.md` 和去内容化 `evaluations/v0.4.0-summary.json`。
+
+### Validation
+
+- 原 113 项测试全部继续通过；V0.4 新增 Approval、Script Artifact、grounding、审稿 Gate、存储、修订、CLI 和无 Web Search 边界测试。
+- 稳定商业报告和争议公共议题报告均经过正式 Approval Revision、完整写稿和独立 15 项复核，最终成为 `reviewed` 稿件；实际阅读两份 Teleprompter 后分别完成 10 维人工编辑评分。
+- 未获用户批准的 `reviewed` Research Report 被拒绝写稿，退出码为 2，且没有创建任何稿件文件。
+
+### Security
+
+- Script Writer 与 Reviewer 均只读已批准 Research Report，不启用 Web Search；API 请求载荷不包含搜索工具，带搜索 provenance 的结果会被拒绝。
+- 真实完整稿件继续保存在 gitignored `script_drafts/`；公开仓库只提交去内容化评测指标。
+- V0.4 不实现素材搜索、视觉生成、剪辑或自动发布，V0.5 仍未开始。
+
 ## [0.3.1] - 2026-08-10
 
 ### Fixed

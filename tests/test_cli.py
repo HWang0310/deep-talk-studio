@@ -8,10 +8,13 @@ from pathlib import Path
 
 from deeptalk_studio.quality import calculate_quality_summary
 from tests.fixtures import (
+    approved_report_data,
     valid_codex_draft_input,
     valid_discovery_input,
     valid_fact_check_data,
     valid_report_data,
+    valid_script_content,
+    valid_script_review_content,
 )
 
 
@@ -46,6 +49,162 @@ class CliTests(unittest.TestCase):
         self.assertIn("prepare-draft", result.stdout)
         self.assertIn("discover", result.stdout)
         self.assertIn("select-topic", result.stdout)
+        self.assertIn("approve-report", result.stdout)
+        self.assertIn("prepare-script", result.stdout)
+        self.assertIn("review-script", result.stdout)
+        self.assertIn("compare-script", result.stdout)
+        self.assertIn("revise-script", result.stdout)
+        self.assertIn("write-script", result.stdout)
+
+    def test_prepare_review_and_compare_script_cli_have_clean_artifacts(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            report_path = root / "approved.json"
+            content_path = root / "script-content.json"
+            review_path = root / "script-review.json"
+            output = root / "script_drafts"
+            report_path.write_text(
+                json.dumps(approved_report_data(), ensure_ascii=False), encoding="utf-8"
+            )
+            content_path.write_text(
+                json.dumps(valid_script_content(), ensure_ascii=False), encoding="utf-8"
+            )
+            review_path.write_text(
+                json.dumps(valid_script_review_content(), ensure_ascii=False), encoding="utf-8"
+            )
+
+            prepared = run_cli(
+                "prepare-script",
+                str(report_path),
+                str(content_path),
+                "--duration",
+                "写成 8 分钟",
+                "--output",
+                str(output),
+            )
+            draft_files = list(output.rglob("script-draft-r0001.json"))
+            reviewed_cli = run_cli(
+                "review-script",
+                str(report_path),
+                str(draft_files[0]),
+                str(review_path),
+                "--output",
+                str(output),
+            )
+            reviewed_files = list(output.rglob("script-draft-r0002.json"))
+            compared = run_cli(
+                "compare-script",
+                str(report_path),
+                str(draft_files[0]),
+                str(reviewed_files[0]),
+            )
+
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+        self.assertIn("Teleprompter", prepared.stdout)
+        self.assertEqual(reviewed_cli.returncode, 0, reviewed_cli.stderr)
+        self.assertIn("稿件审查已完成", reviewed_cli.stdout)
+        self.assertEqual(compared.returncode, 0, compared.stderr)
+        self.assertIn('"from_revision": 1', compared.stdout)
+
+    def test_prepare_script_rejects_unapproved_report_without_traceback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            report_path = root / "reviewed.json"
+            content_path = root / "content.json"
+            report_path.write_text(
+                json.dumps(valid_report_data(), ensure_ascii=False), encoding="utf-8"
+            )
+            content_path.write_text(
+                json.dumps(valid_script_content(), ensure_ascii=False), encoding="utf-8"
+            )
+            result = run_cli("prepare-script", str(report_path), str(content_path))
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("用户确认", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_revise_script_cli_creates_new_revision_for_natural_duration_request(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            report_path = root / "approved.json"
+            first_content = root / "first.json"
+            revised_content = root / "revised.json"
+            output = root / "script_drafts"
+            report_path.write_text(
+                json.dumps(approved_report_data(), ensure_ascii=False), encoding="utf-8"
+            )
+            first_content.write_text(
+                json.dumps(valid_script_content(), ensure_ascii=False), encoding="utf-8"
+            )
+            revised = valid_script_content()
+            revised["beats"][0]["narration"] = "换一个更紧凑的开头。"
+            revised_content.write_text(
+                json.dumps(revised, ensure_ascii=False), encoding="utf-8"
+            )
+            prepared = run_cli(
+                "prepare-script",
+                str(report_path),
+                str(first_content),
+                "--output",
+                str(output),
+            )
+            first_script = list(output.rglob("script-draft-r0001.json"))[0]
+            result = run_cli(
+                "revise-script",
+                str(report_path),
+                str(first_script),
+                str(revised_content),
+                "--duration",
+                "压到 10 分钟",
+                "--summary",
+                "开头更紧凑并压到 10 分钟。",
+                "--output",
+                str(output),
+            )
+            files = list(output.rglob("script-draft-r0002.json"))
+            data = json.loads(files[0].read_text(encoding="utf-8")) if files else {}
+
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(data["revision"], 2)
+        self.assertEqual(data["target_duration_minutes"], 10)
+
+    def test_write_script_without_api_key_gives_simple_guidance(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report = Path(temp_dir) / "approved.json"
+            report.write_text(
+                json.dumps(approved_report_data(), ensure_ascii=False), encoding="utf-8"
+            )
+            result = run_cli("write-script", str(report), env={"OPENAI_API_KEY": ""})
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("没有检测到 OPENAI_API_KEY", result.stderr)
+        self.assertIn("确认", result.stderr)
+
+    def test_approve_report_creates_a_persistent_ready_revision(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            report_path = root / "reviewed.json"
+            output = root / "reports"
+            report_path.write_text(
+                json.dumps(valid_report_data(), ensure_ascii=False), encoding="utf-8"
+            )
+
+            result = run_cli(
+                "approve-report",
+                str(report_path),
+                "--confirmation",
+                "确认进入写稿",
+                "--output",
+                str(output),
+            )
+            files = list(output.rglob("research-report-r0002.json"))
+            approved = json.loads(files[0].read_text(encoding="utf-8")) if files else {}
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("用户确认已保存", result.stdout)
+        self.assertEqual(len(files), 1)
+        self.assertEqual(approved["status"], "ready_for_script")
 
     def test_prepare_discovery_and_select_topic_need_no_json_for_normal_user(self):
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -498,3 +498,100 @@ def valid_discovery_input():
             candidate("第二个科技类备选", "technology", "technology-second", "2026-08-09T06:00:00+00:00", "2026-08-10T03:00:00+00:00", medium, seeds("technology-second")),
         ],
     }
+
+
+def approved_report_data():
+    data = valid_report_data()
+    data["revision"] = 2
+    data["previous_revision"] = 1
+    data["generated_at"] = "2026-08-10T12:00:00+08:00"
+    data["status"] = "ready_for_script"
+    data["change_summary"] = "记录用户明确确认，批准该研究修订进入原创写稿。"
+    data["approval_gate"].update(
+        status="approved",
+        user_confirmation="确认，开始写稿",
+        ready_for_script=True,
+    )
+    return data
+
+
+def valid_script_content():
+    return {
+        "working_title": "一次公开事件，为什么事实和解释总会混在一起",
+        "thesis": "面对热点，最重要的不是抢着归责，而是先分清事实、当事方解释和仍无证据的猜测。",
+        "audience_promise": "用一个虚构案例说明如何判断公开事件中的证据边界。",
+        "beats": [
+            {
+                "purpose": "用已经确认的时间点建立问题。",
+                "content_kind": "fact",
+                "narration": "事件发生在八月九日。这个时间点有两份相互独立的公开材料支持。",
+                "claim_ids": ["C1"],
+                "evidence_link_ids": ["E1", "E2"],
+                "analysis_basis_claim_ids": [],
+                "risk_notes": "只陈述已经核查的发生日期。",
+            },
+            {
+                "purpose": "呈现当事机构的解释，但不替它背书。",
+                "content_kind": "attribution",
+                "narration": "当事机构在公告中的说法是，问题来自流程故障。这证明机构给出了这种解释，却不等于原因已经被独立证实。",
+                "claim_ids": ["C2"],
+                "evidence_link_ids": ["E3"],
+                "analysis_basis_claim_ids": [],
+                "risk_notes": "保留自然归因。",
+            },
+            {
+                "purpose": "解释为什么信息分层比抢结论更重要。",
+                "content_kind": "analysis",
+                "narration": "这里真正值得追问的，是公众为什么总被迫在官方解释和网络猜测之间二选一。其实还存在第三种选择：承认事件已经发生，也承认原因证据还不够。",
+                "claim_ids": [],
+                "evidence_link_ids": ["E1", "E3"],
+                "analysis_basis_claim_ids": ["C1", "C2"],
+                "risk_notes": "这是基于已知材料的作者分析。",
+            },
+            {
+                "purpose": "保留未经证实说法的边界。",
+                "content_kind": "attribution",
+                "narration": "网络上确实流传过人为操纵的说法，但现有核查没有找到可以验证它的原始证据。",
+                "claim_ids": ["C3"],
+                "evidence_link_ids": ["E4"],
+                "analysis_basis_claim_ids": [],
+                "risk_notes": "必须同时说清传言存在和证据缺失。",
+            },
+        ],
+        "closing": "所以，这件事留下的不是一个轻易的答案，而是一条更实用的判断线：事实可以确认，解释需要归因，猜测必须停在猜测的位置。",
+        "research_caveats": ["这是虚构测试材料，不代表真实事件。"],
+        "research_gaps": ["后续完整检查材料尚未公开。"],
+        "must_keep_omission_reasons": [],
+    }
+
+
+def valid_script_review_content():
+    check_reasons = {
+        "factual_grounding": "事实型 Beat 均能回链已批准 Research Claim。",
+        "attribution_integrity": "当事方和评论者说法保留了自然归因。",
+        "uncertainty_preservation": "研究中的不确定性没有被写成定论。",
+        "avoid_claim_compliance": "未使用 Research Report 明确禁止的结论。",
+        "must_keep_coverage": "必须保留的主张已经覆盖或解释遗漏。",
+        "high_risk_boundary": "高风险主张没有超出核查结论。",
+        "analysis_fact_separation": "分析判断与事实表达清楚分开。",
+        "perspective_fairness": "现有不同解释没有被歪曲。",
+        "research_gap_integrity": "稿件没有擅自填补研究空白。",
+        "narrative_structure": "结构有清楚的推进关系。",
+        "oral_naturalness": "句子可直接口播。",
+        "information_density": "信息密度适合深度口播。",
+        "original_expression": "表达由研究底稿重新组织，不含长段借用。",
+        "script_usability": "编辑稿和提词稿可进入人工复核。",
+        "counterargument_fairness": "脚本没有弱化或稻草人化反方解释。",
+    }
+    return {
+        "issues": [],
+        "checks": [
+            {
+                "check_name": check_name,
+                "outcome": "pass",
+                "reason": reason,
+            }
+            for check_name, reason in check_reasons.items()
+        ],
+        "overall_notes": "未发现阻断写稿的事实边界问题。",
+    }

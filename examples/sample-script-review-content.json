@@ -1,0 +1,21 @@
+{
+  "issues": [],
+  "checks": [
+    {"check_name": "factual_grounding", "outcome": "pass", "reason": "事实型 Beat 回链已核查主张。"},
+    {"check_name": "attribution_integrity", "outcome": "pass", "reason": "机构解释和网络传言均保留归因。"},
+    {"check_name": "uncertainty_preservation", "outcome": "pass", "reason": "原因证据不足被明确保留。"},
+    {"check_name": "avoid_claim_compliance", "outcome": "pass", "reason": "没有把人为操纵写成已证实事实。"},
+    {"check_name": "must_keep_coverage", "outcome": "pass", "reason": "三项必须保留主张均已覆盖。"},
+    {"check_name": "high_risk_boundary", "outcome": "pass", "reason": "高风险事实只使用已核查日期。"},
+    {"check_name": "analysis_fact_separation", "outcome": "pass", "reason": "作者分析保留 basis Claims。"},
+    {"check_name": "perspective_fairness", "outcome": "pass", "reason": "没有替机构背书或夸大传言。"},
+    {"check_name": "research_gap_integrity", "outcome": "pass", "reason": "没有补写尚未公开的材料。"},
+    {"check_name": "narrative_structure", "outcome": "pass", "reason": "事实、解释、分析和边界顺序清楚。"},
+    {"check_name": "oral_naturalness", "outcome": "pass", "reason": "句子可以直接口播。"},
+    {"check_name": "information_density", "outcome": "pass", "reason": "每段承担独立信息功能。"},
+    {"check_name": "original_expression", "outcome": "pass", "reason": "没有复制来源表达。"},
+    {"check_name": "script_usability", "outcome": "pass", "reason": "适合进入人工编辑复核。"},
+    {"check_name": "counterargument_fairness", "outcome": "pass", "reason": "没有制造虚假对立。"}
+  ],
+  "overall_notes": "虚构示例未发现阻断问题。"
+}

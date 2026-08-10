@@ -117,9 +117,54 @@ V0.3 使用版本化 Channel Profile 和独立 `Topic Candidate Set 0.3`。每�
 - 至少 7 个 Raw Candidate 才可进行候选生成；这不要求最后必须有 5 个合格题。
 - 分类多样性先保证每类最多两项，再按分数补齐展示位；同一事件仍永不重复。
 
-模式 A 的用户直接主题入口保持不变。V0.3.1 不实现 Script Agent、素材、视觉、剪辑和发布。
+模式 A 的用户直接主题入口保持不变。V0.3.1 不实现素材、视觉、剪辑和发布。
 
-## 6. V0.1 验收记录
+## 6. V0.4：Original Script Agent
+
+V0.4 把已经核查并由用户明确批准的 Research Report 转成原创深度口播稿。Script Agent 不重新搜索，不从其他创作者稿件出发，也不能补写研究底稿没有支持的新事实。
+
+### 6.1 进入写稿的硬条件
+
+1. Research Report 已完成独立 Fact Check。
+2. 透明 Quality Gate 为 `pass`。
+3. 报告状态为 `reviewed`。
+4. 用户明确确认进入写稿；系统把原始确认保存为新的、不可覆盖的 Research Revision。
+5. 只有该新修订版的状态、审批状态和确认文本同时有效，Writer 才能运行。
+
+任何草稿、未通过 Gate、未完成 Fact Check 或只有 `reviewed` 但没有用户确认的报告，都必须拒绝写稿且不产生文件。
+
+### 6.2 稿件要求
+
+- 默认平台为 B 站，形式为真人露脸深度口播；默认目标约 12 分钟，支持用户自然语言调整为 3–30 分钟。
+- Script Draft 0.4 必须绑定准确的 Research Report ID 和 revision。
+- 每个 Beat 标明 `fact`、`attribution`、`analysis`、`transition` 或 `question`。
+- 事实 Beat 只能使用已核查的 `confirmed_fact`；当事方和评论者说法必须自然归因；分析必须声明它依据哪些 Research Claims。
+- 所有重要表达保留 Claim / Evidence Link 回链；机器 ID 只出现在 Editor 版本，不能进入 Teleprompter 口播。
+- 程序计算必须保留主张覆盖、字数和估算时长；Writer 不能伪造这些字段。
+- `avoid_claims` 直接使用会被硬阻止；语义近似越界由独立 Reviewer 继续检查。
+- 输出 Editor Markdown 和只含口播正文的 Teleprompter Markdown；完整真实稿件默认不上传 GitHub。
+
+### 6.3 独立 Script Review
+
+Writer 和 Reviewer 必须是两个独立步骤，二者都不能自行 Web Search。Reviewer 至少逐项检查事实 grounding、归因、不确定性、禁讲项、must-keep、高风险边界、事实与分析分离、观点公平、研究空白、结构、口语、信息密度、原创表达、可用性和反方公平。
+
+阻断问题包括无来源事实、归因错误、使用禁讲结论、把未核实信息写成事实、高风险过度断言、丢失关键不确定性、把分析伪装成事实、擅自填补研究空白和歪曲观点。Gate 由程序从问题类型计算；存在任一阻断问题时，稿件保持 `draft`。
+
+### 6.4 V0.4 验收标准
+
+- [x] Approval 创建新的不可覆盖 Research Revision，普通内容修订会重置 Approval。
+- [x] 未批准 Research 无法写稿。
+- [x] Script Profile、Script Draft、Script Review 三个 0.4 契约可用。
+- [x] Writer / Reviewer 分离，且不启用 Web Search。
+- [x] Grounding、归因、分析、禁讲项、must-keep 和高风险边界可校验。
+- [x] Editor / Teleprompter 双输出、不可覆盖修订和 revision 比较可用。
+- [x] 支持自然语言时长和后续修改反馈。
+- [x] 稳定商业、争议公共议题和未批准输入三类真实评测完成。
+- [x] 原测试继续通过，新测试、Skill 校验和端到端检查通过。
+
+V0.4 不包含素材搜索、图片或视频生成、剪辑方案和平台发布；这些能力仍属于未开始的 V0.5 及以后版本。
+
+## 7. V0.1 验收记录
 
 - [x] 已初始化独立正式项目和 Git 历史。
 - [x] 有可扩展的 Agent / Workflow 设计。
@@ -132,6 +177,6 @@ V0.3 使用版本化 Channel Profile 和独立 `Topic Candidate Set 0.3`。每�
 - [x] 有 README、PRD、ROADMAP、AGENTS、CHANGELOG、HANDOFF。
 - [x] V0.2 已使用三类真实题材完成编辑质量评估。
 
-## 7. 成功信号
+## 8. 成功信号
 
-V0.2.1 的成功不是“AI 写得像一个知名博主”，而是：编辑能快速看清什么已确认、谁在说什么、每条证据如何关联主张、核查是否真的做了新搜索、哪些高风险内容被拦截，而且未知来源不会被程序猜成独立来源。
+V0.4 的成功不是“AI 写得像一个知名博主”，而是：编辑能快速确认每句重要口播从哪里来，事实、归因和分析没有混在一起，真实争议没有被弱化，研究未知没有被擅自填满，同时稿子听起来仍像真人在讲述，而不是一份机器报告。
