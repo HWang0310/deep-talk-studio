@@ -80,6 +80,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 - 机器校验能保证“引用结构完整”，不能自动保证现实世界中的每个结论都正确，发布前仍需人类编辑 Review。
 - 真实研究报告默认不提交 Git；未来是否建立私有内容库需要产品经理决定。
 - 目前只有虚构示例和工程测试，尚未使用一个真实热点完成编辑质量评分。
+- 当前电脑的普通 `git push` 在 HTTPS 通道中持续挂起，因此首次发布改用已授权的 GitHub API。远程 `main` 与本地 `main` 的文件树已做哈希比对并完全一致，但两边提交历史的 SHA 不同。未来 Codex 不应盲目强推；先检查远程树，再继续用 API 发布或修复 Git 传输通道。
 
 ## 8. 重要技术决策
 
@@ -119,6 +120,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 - 在全新临时虚拟环境安装项目并运行 `deeptalk --help`：通过。
 - 官方 Skill Creator `quick_validate.py`：`Skill is valid!`。
 - Git diff 空白错误、占位符和常见密钥格式扫描：通过。
+- GitHub 远程 `main` 与本地最终文件树哈希比对：完全一致；`v0.1.0` 已指向远程最终版本。
 
 ## 给用户的下一步操作
 
