@@ -125,7 +125,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 
 ## 12. 版本发布规则
 
-用户已要求后续每个正式版本发布到 GitHub。项目新增 `RELEASE_POLICY.md`：每个正式版本号都必须有 GitHub Release、清晰更新说明和自动源码下载；未完成的小改动不单独发布。V0.1.0 将作为第一个正式 Release 发布。软件包暂不创建，因为当前没有需要安装的成品。
+用户已要求后续每个正式版本发布到 GitHub。项目新增 `RELEASE_POLICY.md`：每个正式版本号都必须有 GitHub Release、清晰更新说明和自动源码下载；未完成的小改动不单独发布。首个正式 Release 已发布：[DeepTalk Studio V0.1.0](https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.1.0)，标签已冻结。软件包暂不创建，因为当前没有需要安装的成品。
 
 ## 给用户的下一步操作
 
