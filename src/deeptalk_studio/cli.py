@@ -66,7 +66,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     discover = subparsers.add_parser("discover", help="联网寻找近期值得深度研究的候选题")
     discover.add_argument("query", nargs="?", default="今天有什么值得讲？")
-    discover.add_argument("--count", type=int, default=5)
     discover.add_argument("--window", default="72h")
     discover.add_argument("--category", default="")
     discover.add_argument("--output", type=Path, default=DEFAULT_DISCOVERIES)
@@ -103,6 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     prepare_discovery.add_argument("input", type=Path)
     prepare_discovery.add_argument("--output", type=Path, default=DEFAULT_DISCOVERIES)
+    prepare_discovery.add_argument("--inspection-manifest", type=Path)
 
     select_topic = subparsers.add_parser(
         "select-topic", help="从最新候选中按编号生成 Research Handoff"
@@ -168,7 +168,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 0
         if args.command == "prepare-discovery":
             raw = json.loads(args.input.read_text(encoding="utf-8"))
-            candidate_set = prepare_codex_discovery(raw, load_channel_profile())
+            manifest = (
+                json.loads(args.inspection_manifest.read_text(encoding="utf-8"))
+                if args.inspection_manifest
+                else None
+            )
+            candidate_set = prepare_codex_discovery(
+                raw, load_channel_profile(), inspection_manifest=manifest
+            )
             paths = save_discovery(candidate_set, args.output)
             print(
                 "候选选题已生成：\n"
@@ -214,8 +221,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if args.command == "discover":
             if args.window != "72h":
                 raise ValueError("V0.3 目前固定使用 72h 发现窗口")
-            if not 1 <= args.count <= 5:
-                raise ValueError("候选数量目前只能是 1 到 5")
             api_key = os.environ.get("OPENAI_API_KEY", "").strip()
             if not api_key:
                 print(

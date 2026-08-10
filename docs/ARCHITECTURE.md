@@ -34,8 +34,9 @@ flowchart LR
 | `.agents/skills/research-topic` | 搜索策略、来源判断、观点比较和报告组装 | 成品口播稿、发布 |
 | `models.py` | 接收和复制版本化 Research / Candidate 对象 | 判断事实真假 |
 | `schema.py` | 正式工件契约和 API/Codex 内容草稿契约 | 业务校验和渲染 |
-| `discovery.py` | Preflight、固定权重总分、时间窗口、去重、类别多样性、Research Handoff | 完整 Fact Check 或热度造假 |
-| `discovery_validation.py` | Candidate Set / Handoff 契约、Seed URL、机器总分与展示约束 | 从网页推断事实 |
+| `discovery_derivation.py` | 纯确定性 Seed provenance、Preflight、评分、排序、首选、统计推导 | 打开网页或确认事实 |
+| `discovery.py` | 组装 Candidate Set、Channel Profile、Research Handoff | 完整 Fact Check 或热度造假 |
+| `discovery_validation.py` | Candidate Set / Handoff 契约、时间、Seed URL 与所有机器字段的重新推导校验 | 从网页推断事实 |
 | `discovery_renderer.py` | 最多五张普通人可读选题卡 | 解析 Markdown 作为机器接口 |
 | `discovery_storage.py` | 不可覆盖的选题历史和 latest 指针 | 云端选题库 |
 | `validation.py` | 完整 Schema、ID、URL、分类、指标和交叉引用完整性 | 自动证明现实世界事实 |
@@ -74,7 +75,11 @@ V0.3 新增上游 `Topic Candidate Set 0.3`，不改变 Research Report 0.2：
 - Channel Profile 是版本化的编辑定位，当前为 `config/channel-profile.json`；
 - Candidate Set 记录候选、why now、核心张力、研究问题、风险、时效、Source Seeds、五项评分理由和代码计算的总分；
 - Source Seed 只是后续检索入口，不能当作已确认事实或 Evidence Link；
-- Preflight 先排除匿名传言、无公开资料、纯情绪、模仿型题材和高风险弱证据；`watch` 不进入 Top 5；
+- Codex 检查页面的真实 URL 由后台 inspection manifest 单独记录；Raw Candidate 不能声称 `manual_open`，未记录的 Seed 为 `unmatched`；
+- Preflight 只将已匹配的合格来源类型计作研究方向，并在 URL、publisher、host 层面保守去重；
+- Candidate Set 读取时从内容、provenance、时间与固定规则重新推导所有资格、评分、展示、首选和统计机器字段；
+- Preflight 先排除匿名传言、无公开资料、纯情绪、模仿型题材、高风险弱证据、时间倒置/明显未来时间和不足 7 项 Raw 池；`watch` 不进入 Top 5；
+- 展示先保证类别多样性，再以排序补足空位；相同事件仍永不重复；
 - `display_candidate_ids` 是唯一给用户展示和按编号选择的机器接口；Markdown 仅供阅读；
 - Research Handoff Brief 从 Candidate JSON 生成，模式 B 在这里汇入原有 Research Workflow，模式 A 不经过 Discovery。
 

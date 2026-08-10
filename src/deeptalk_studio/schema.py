@@ -28,11 +28,11 @@ def _ratio():
     return {"type": "number", "minimum": 0, "maximum": 1}
 
 
-def _object(properties):
+def _object(properties, optional=()):
     return {
         "type": "object",
         "properties": properties,
-        "required": list(properties.keys()),
+        "required": [key for key in properties if key not in optional],
         "additionalProperties": False,
     }
 
@@ -440,6 +440,22 @@ DISCOVERY_SOURCE_SEED_SCHEMA = _object(
     }
 )
 
+DISCOVERY_INSPECTION_ENTRY_SCHEMA = _object(
+    {
+        "url": _string(),
+        "tool_reference": _string(allow_empty=True),
+        "inspected_at": _string(),
+    },
+    optional=("tool_reference",),
+)
+
+DISCOVERY_SEED_PROVENANCE_SCHEMA = _object(
+    {
+        "matched_urls": _string_array(),
+        "codex_inspections": _array(DISCOVERY_INSPECTION_ENTRY_SCHEMA),
+    }
+)
+
 DISCOVERY_SCORE_BREAKDOWN_RAW_SCHEMA = _object(
     {
         "researchability": DISCOVERY_SCORE_SCHEMA,
@@ -520,12 +536,14 @@ TOPIC_CANDIDATE_SET_JSON_SCHEMA = _object(
         "time_window_hours": _integer(1),
         "channel_profile_version": _string(),
         "channel_profile_name": _string(),
+        "seed_provenance": DISCOVERY_SEED_PROVENANCE_SCHEMA,
         "candidates": _array(DISCOVERY_CANDIDATE_SCHEMA),
         "display_candidate_ids": _string_array(),
         "watch_candidate_count": _integer(),
         "rejected_candidate_count": _integer(),
         "limitations": _string_array(),
-    }
+    },
+    optional=("seed_provenance",),
 )
 
 RESEARCH_HANDOFF_BRIEF_JSON_SCHEMA = _object(

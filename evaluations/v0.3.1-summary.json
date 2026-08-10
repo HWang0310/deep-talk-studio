@@ -1,0 +1,56 @@
+{
+  "version": "0.3.1",
+  "executed_at": "2026-08-10",
+  "artifact": "Topic Candidate Set 0.3",
+  "public_content_policy": "完整真实 Candidate Set、检查清单和网页笔记仅在 gitignored discoveries/evaluations/v0.3.1/；本文件不保存真实标题、人物、事件、数字或长文本。",
+  "scenarios": [
+    {
+      "type": "broad",
+      "user_request": "今天有什么值得讲？",
+      "raw_candidate_count": 7,
+      "display_candidate_count": 5,
+      "checks": {
+        "raw_pool_minimum": "pass",
+        "manifest_backed_seed_provenance": "pass",
+        "distinct_qualifying_directions": "pass",
+        "time_consistency": "pass",
+        "event_deduplication": "pass",
+        "category_diversity_then_fallback": "pass",
+        "first_vs_fifth_ranking": "pass",
+        "numbered_research_handoff": "pass"
+      },
+      "result": "pass"
+    },
+    {
+      "type": "technology_business",
+      "user_request": "最近科技商业有什么值得讲？",
+      "raw_candidate_count": 7,
+      "display_candidate_count": 5,
+      "checks": {
+        "raw_pool_minimum": "pass",
+        "manifest_backed_seed_provenance": "pass",
+        "distinct_qualifying_directions": "pass",
+        "single_category_fallback": "pass",
+        "event_deduplication": "pass",
+        "numbered_research_handoff": "pass"
+      },
+      "result": "pass"
+    },
+    {
+      "type": "social_public",
+      "user_request": "最近社会公共事件有什么值得讲？",
+      "raw_candidate_count": 1,
+      "display_candidate_count": 0,
+      "checks": {
+        "raw_pool_minimum_rejection": "pass",
+        "candidate_set_generation": "not_applicable",
+        "top_five_diversity": "not_applicable",
+        "first_vs_fifth_ranking": "not_applicable",
+        "numbered_research_handoff": "not_applicable"
+      },
+      "not_applicable_reason": "insufficient_raw_candidates_after_real_search",
+      "result": "not_applicable"
+    }
+  ],
+  "decision": "没有为了凑满候选降低 Eligibility Gate；原始候选池不足时系统明确拒绝生成 Candidate Set。"
+}
