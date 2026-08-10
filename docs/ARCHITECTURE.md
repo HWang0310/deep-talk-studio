@@ -4,11 +4,16 @@
 
 系统把需要判断力的 AI 工作与必须稳定的工程契约分开。Agent 负责搜索、比较和分析；Python 核心负责校验、保存和为下游提供一致工件。这样未来更换模型、搜索工具或视频工具时，不需要重写整个项目。
 
-## V0.2.1 数据流
+## V0.3 数据流
 
 ```mermaid
 flowchart LR
-    U["用户输入主题"] --> R["Research Pass"]
+    U["用户直接输入主题"] --> R["Research Pass"]
+    B["用户：今天讲什么？"] --> TD["Topic Discovery + 轻量 Preflight"]
+    TD --> TC["Topic Candidate Set 0.3"]
+    TC --> C["用户只回复编号"]
+    C --> H["Research Handoff Brief 0.3"]
+    H --> R
     R --> W1["首次公开来源检索"]
     W1 --> D1["Research Draft 0.2 / r1"]
     D1 --> F["Independent Fact Check"]
@@ -25,9 +30,14 @@ flowchart LR
 
 | 模块 | 只负责什么 | 不负责什么 |
 |---|---|---|
+| `.agents/skills/discover-topics` | 近期候选、Source Seed 预检、自然语言筛选和编号选择 | 最终事实裁决、口播稿、模仿创作者 |
 | `.agents/skills/research-topic` | 搜索策略、来源判断、观点比较和报告组装 | 成品口播稿、发布 |
-| `models.py` | 接收和复制版本化报告对象 | 判断事实真假 |
+| `models.py` | 接收和复制版本化 Research / Candidate 对象 | 判断事实真假 |
 | `schema.py` | 正式工件契约和 API/Codex 内容草稿契约 | 业务校验和渲染 |
+| `discovery.py` | Preflight、固定权重总分、时间窗口、去重、类别多样性、Research Handoff | 完整 Fact Check 或热度造假 |
+| `discovery_validation.py` | Candidate Set / Handoff 契约、Seed URL、机器总分与展示约束 | 从网页推断事实 |
+| `discovery_renderer.py` | 最多五张普通人可读选题卡 | 解析 Markdown 作为机器接口 |
+| `discovery_storage.py` | 不可覆盖的选题历史和 latest 指针 | 云端选题库 |
 | `validation.py` | 完整 Schema、ID、URL、分类、指标和交叉引用完整性 | 自动证明现实世界事实 |
 | `renderer.py` | 把通过校验的报告转成中文 Markdown | 修改研究结论 |
 | `storage.py` | 不可覆盖的修订路径、Markdown/JSON 和 FactCheck 保存 | 云端存储 |
@@ -59,11 +69,20 @@ V0.2.1 新增两个内部边界，但不改变正式工件版本：
 
 `confirmed_fact` 的独立确认必须同时满足 `supports`、provenance 已匹配、来源明确为 `independent`、且 group 不同。group ID 不同本身不是独立性证明。
 
+V0.3 新增上游 `Topic Candidate Set 0.3`，不改变 Research Report 0.2：
+
+- Channel Profile 是版本化的编辑定位，当前为 `config/channel-profile.json`；
+- Candidate Set 记录候选、why now、核心张力、研究问题、风险、时效、Source Seeds、五项评分理由和代码计算的总分；
+- Source Seed 只是后续检索入口，不能当作已确认事实或 Evidence Link；
+- Preflight 先排除匿名传言、无公开资料、纯情绪、模仿型题材和高风险弱证据；`watch` 不进入 Top 5；
+- `display_candidate_ids` 是唯一给用户展示和按编号选择的机器接口；Markdown 仅供阅读；
+- Research Handoff Brief 从 Candidate JSON 生成，模式 B 在这里汇入原有 Research Workflow，模式 A 不经过 Discovery。
+
 未来模块的建议输入输出：
 
 | 模块 | 输入 | 输出 |
 |---|---|---|
-| Topic Discovery | 频道策略、时间窗口、公开热点 | Topic Candidate JSON |
+| Topic Discovery | 频道策略、时间窗口、公开页面 | Topic Candidate Set 0.3 |
 | Research | Topic Candidate 或用户主题 | Research Report JSON |
 | Fact Check | Research Draft | FactCheck Artifact + 新修订 Research Report |
 | Perspective Analysis | Research Report | Perspective Map JSON |
@@ -80,6 +99,8 @@ V0.2.1 新增两个内部边界，但不改变正式工件版本：
 - API 密钥只从环境变量读取，HTTP payload、异常和报告都不包含密钥。
 - API 模式保留 `web_search_call.action.sources` 和 URL citation；无法匹配真实工具结果的来源会被降级。
 - API Structured Output 只生成 research content；任何模型自报的质量或审批字段都会在草稿契约处被拒绝。
+- Discovery API 只生成 Raw Candidate 内容；Candidate ID、总分、资格、推荐、首选、时间与 provenance 由代码拥有。Seed 无法匹配 API Web Search 结果时不能装作已打开。
+- Creator metadata 只可作为可选 attention signal，绝不是事实证据；不绕过登录或限制，也不保存创作者脚本、字幕或独特表达。
 - Codex 模式记录 `codex_tool_result` 与实际打开 URL，不能把搜索摘要假装成已检查正文。
 - 每个修订路径包含 `report_id` 和 `rNNNN`，已存在文件拒绝覆盖。
 - 发布前必须有人类编辑 Review；工程校验不等于新闻事实认证。

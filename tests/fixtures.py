@@ -383,3 +383,118 @@ def valid_api_research_draft_input():
         ):
             source.pop(field)
     return data
+
+
+def valid_discovery_input():
+    """Raw content proposed after lightweight Discovery preflight."""
+
+    def candidate(
+        title,
+        category,
+        cluster,
+        started,
+        updated,
+        scores,
+        seeds,
+        risk_level="medium",
+    ):
+        return {
+            "title": title,
+            "category": category,
+            "topic_summary": "这是一项用于测试 Discovery 排名与交接的公开事件。",
+            "why_now": "最近 72 小时出现可以追踪的新进展。",
+            "core_tension": "公开目标、现实利益与信息透明之间存在可讨论的张力。",
+            "research_question": "新进展改变了什么，证据与不同立场分别说明什么？",
+            "event_started_at": started,
+            "latest_update_at": updated,
+            "shelf_life": "medium",
+            "risk_level": risk_level,
+            "risk_notes": "需要区分公开事实、机构说法与评论判断。",
+            "event_cluster_key": cluster,
+            "eligibility_signals": {
+                "anonymous_rumor_only": False,
+                "public_evidence_available": True,
+                "material_unverified_allegation": False,
+                "emotion_only": False,
+                "creator_imitation_dependency": False,
+                "major_fast_event": False,
+                "research_directions": len(seeds),
+            },
+            "score_assessments": {
+                name: {"score": score, "reason": "有具体公开资料和可解释的编辑判断。"}
+                for name, score in scores.items()
+            },
+            "source_seeds": seeds,
+            "warnings": [],
+            "creator_attention_signal": {"available": False, "summary": ""},
+        }
+
+    def seeds(prefix, source_types=("official", "media")):
+        return [
+            {
+                "url": f"https://example.com/{prefix}-official",
+                "publisher": "示例官方机构",
+                "published_at": "2026-08-10",
+                "source_type": source_types[0],
+                "why_useful": "提供可打开的原始公告或公开文件入口。",
+            },
+            {
+                "url": f"https://example.org/{prefix}-report",
+                "publisher": "示例独立媒体",
+                "published_at": "2026-08-10",
+                "source_type": source_types[1],
+                "why_useful": "提供不同角度的可靠报道和追问方向。",
+            },
+        ]
+
+    high = {
+        "researchability": 5,
+        "depth_conflict": 5,
+        "freshness": 5,
+        "channel_fit": 5,
+        "attention_signal": 4,
+    }
+    medium = {
+        "researchability": 4,
+        "depth_conflict": 4,
+        "freshness": 4,
+        "channel_fit": 4,
+        "attention_signal": 3,
+    }
+    return {
+        "query": "今天有什么值得讲？",
+        "time_window_hours": 72,
+        "candidates": [
+            candidate(
+                "近 72 小时的科技政策新进展",
+                "technology",
+                "tech-policy",
+                "2026-08-09T09:00:00+00:00",
+                "2026-08-10T08:00:00+00:00",
+                high,
+                seeds("tech"),
+            ),
+            candidate(
+                "持续事件出现关键新进展",
+                "business",
+                "ongoing-business",
+                "2026-08-01T09:00:00+00:00",
+                "2026-08-10T06:00:00+00:00",
+                medium,
+                seeds("ongoing"),
+            ),
+            candidate(
+                "已经没有新进展的旧话题",
+                "social",
+                "stale-story",
+                "2026-07-20T09:00:00+00:00",
+                "2026-07-20T10:00:00+00:00",
+                medium,
+                seeds("stale"),
+            ),
+            candidate("公共政策的近期变化", "public_affairs", "public-policy", "2026-08-09T09:00:00+00:00", "2026-08-10T07:00:00+00:00", medium, seeds("policy")),
+            candidate("网络文化的公开争议", "internet_culture", "culture-event", "2026-08-09T08:00:00+00:00", "2026-08-10T05:00:00+00:00", medium, seeds("culture")),
+            candidate("商业治理的新公开材料", "business", "business-governance", "2026-08-09T07:00:00+00:00", "2026-08-10T04:00:00+00:00", medium, seeds("governance")),
+            candidate("第二个科技类备选", "technology", "technology-second", "2026-08-09T06:00:00+00:00", "2026-08-10T03:00:00+00:00", medium, seeds("technology-second")),
+        ],
+    }

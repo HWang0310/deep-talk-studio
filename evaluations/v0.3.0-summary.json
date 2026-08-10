@@ -1,0 +1,48 @@
+{
+  "version": "0.3.0",
+  "executed_at": "2026-08-10",
+  "artifact": "Topic Candidate Set 0.3",
+  "public_content_policy": "完整真实选题列表与网页笔记只保存在 gitignored discoveries/evaluations/；本文件不保存真实标题、人物、事件、数字或长文本。",
+  "scenarios": [
+    {
+      "type": "broad",
+      "user_request": "今天有什么值得讲？",
+      "checks": {
+        "recent_relevance_checked": true,
+        "event_deduplication_checked": true,
+        "seed_openability_checked": true,
+        "rumor_gate_checked": true,
+        "diversity_checked": true,
+        "ranking_explanations_checked": true,
+        "numbered_research_handoff_checked": true
+      },
+      "result": "one_eligible_candidate_and_numbered_handoff_completed"
+    },
+    {
+      "type": "technology_business",
+      "user_request": "最近科技商业有什么值得讲？",
+      "checks": {
+        "recent_relevance_checked": true,
+        "source_seed_provenance_checked": true,
+        "no_creator_copying_checked": true,
+        "no_invented_engagement_checked": true,
+        "ranking_explanations_checked": true,
+        "numbered_research_handoff_checked": true
+      },
+      "result": "one_eligible_candidate_completed"
+    },
+    {
+      "type": "social_public",
+      "user_request": "最近社会公共事件有什么值得讲？",
+      "checks": {
+        "recent_relevance_checked": true,
+        "source_seed_openability_checked": true,
+        "high_risk_weak_evidence_downgrade_checked": true,
+        "rumor_gate_checked": true,
+        "numbered_research_handoff_checked": true
+      },
+      "result": "watch_preserved_no_recommendation"
+    }
+  ],
+  "decision": "未因候选数量或热点压力降低 Eligibility Gate；资料不足的快速高风险题材不进入 Top 5。"
+}

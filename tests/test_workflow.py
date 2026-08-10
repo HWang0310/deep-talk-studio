@@ -13,12 +13,14 @@ from deeptalk_studio.workflow import (
     prepare_codex_draft,
     run_fact_check_review,
     run_research,
+    run_topic_discovery,
 )
 from tests.fixtures import (
     valid_api_research_draft_input,
     valid_codex_draft_input,
     valid_fact_check_data,
     valid_report_data,
+    valid_discovery_input,
 )
 
 
@@ -27,10 +29,12 @@ class FakeProvider:
         self.calls = []
         self.fact_check_provenance = fact_check_provenance
         self.research_schema = None
+        self.received_handoff = None
 
-    def research(self, topic, schema):
+    def research(self, topic, schema, research_handoff=None):
         self.calls.append(("research", topic))
         self.research_schema = schema
+        self.received_handoff = research_handoff
         data = valid_api_research_draft_input()
         data["topic"] = topic
         provenance = ProviderProvenance(
@@ -77,8 +81,69 @@ class FakeProvider:
         )
         return ProviderResult(data=artifact, provenance=provenance)
 
+    def discover(self, query, schema):
+        self.calls.append(("discover", query))
+        data = valid_discovery_input()
+        data["query"] = query
+        source_urls = tuple(
+            seed["url"] for candidate in data["candidates"] for seed in candidate["source_seeds"]
+        )
+        return ProviderResult(
+            data=data,
+            provenance=ProviderProvenance(
+                search_calls=(
+                    SearchCall(
+                        call_id="ws_discovery",
+                        action_type="search",
+                        queries=(query,),
+                        source_urls=source_urls,
+                    ),
+                ),
+                citations=(),
+            ),
+        )
+
 
 class WorkflowTests(unittest.TestCase):
+    def test_selected_handoff_is_forwarded_to_research_pass(self):
+        provider = FakeProvider()
+        handoff = {
+            "research_question": "这项公开研究实际证明了什么？",
+            "core_tension": "效率承诺与证据边界之间的张力。",
+            "why_now": "刚出现关键公开材料。",
+            "risk_level": "medium",
+            "risk_notes": "不能把预印本当作定论。",
+            "source_seeds": [
+                {"url": "https://example.com/official", "why_useful": "原始入口。"}
+            ],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_research(
+                "选中的主题",
+                provider,
+                Path(temp_dir),
+                research_handoff=handoff,
+            )
+
+        self.assertEqual(provider.received_handoff, handoff)
+
+    def test_api_discovery_saves_candidate_history_before_user_selection(self):
+        provider = FakeProvider()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_topic_discovery(
+                "今天有什么值得讲？",
+                provider,
+                Path(temp_dir),
+                clock=lambda: datetime(2026, 8, 10, 12, 0, tzinfo=timezone.utc),
+                id_factory=lambda prefix: f"{prefix}-test",
+            )
+            saved = json.loads(result.paths.json.read_text(encoding="utf-8"))
+
+        self.assertEqual(provider.calls, [("discover", "今天有什么值得讲？")])
+        self.assertEqual(saved["discovery_id"], "DISC-test")
+        self.assertEqual(len(saved["display_candidate_ids"]), 5)
+        self.assertEqual(result.candidate_set.discovery_mode, "openai_api")
+
     def test_codex_draft_input_gets_deterministic_machine_metadata(self):
         report = prepare_codex_draft(
             valid_codex_draft_input(),

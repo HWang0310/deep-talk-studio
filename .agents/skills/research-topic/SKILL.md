@@ -15,7 +15,7 @@ Read `references/report-contract.md` completely before starting. Use `examples/s
 
 ## Phase A: Research Draft
 
-1. Identify the question and scope. Ask only when the topic itself is unsafe or genuinely ambiguous.
+1. Identify the question and scope. If `discover-topics` supplied a Research Handoff Brief, use its title, research question, core tension, risk notes and Source Seeds directly; do not ask the user to repeat the title. Seeds are only starting points, not evidence. Ask only when the topic itself is unsafe or genuinely ambiguous.
 2. Search broadly, then open candidate pages. A snippet cannot support a claim.
 3. Prefer primary documents and official records, add reliable media, then relevant expert, commentator, and creator perspectives.
 4. Record each opened URL with `inspection_method=codex_web_open`, `provenance_method=codex_tool_result`, a truthful `provenance_status`, and a traceable URL/tool reference. Unopened or unmatched sources stay `unmatched`.

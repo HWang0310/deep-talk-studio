@@ -5,10 +5,16 @@ from urllib.error import HTTPError
 from deeptalk_studio.providers.openai import OpenAIProviderError, OpenAIResponsesProvider
 from deeptalk_studio.schema import (
     API_RESEARCH_DRAFT_JSON_SCHEMA,
+    DISCOVERY_RAW_JSON_SCHEMA,
     FACT_CHECK_JSON_SCHEMA,
     REPORT_JSON_SCHEMA,
 )
-from tests.fixtures import valid_api_research_draft_input, valid_fact_check_data, valid_report_data
+from tests.fixtures import (
+    valid_api_research_draft_input,
+    valid_discovery_input,
+    valid_fact_check_data,
+    valid_report_data,
+)
 
 
 def api_response():
@@ -51,6 +57,26 @@ def api_response():
 
 
 class OpenAIProviderTests(unittest.TestCase):
+    def test_discovery_uses_its_own_schema_prompt_and_web_search_provenance(self):
+        captured = {}
+
+        def transport(url, headers, body, timeout):
+            captured["body"] = body
+            response = api_response()
+            response["output"][1]["content"][0]["text"] = json.dumps(
+                valid_discovery_input(), ensure_ascii=False
+            )
+            return response
+
+        provider = OpenAIResponsesProvider(api_key="secret-value", transport=transport)
+        result = provider.discover("最近科技商业有什么值得讲？", DISCOVERY_RAW_JSON_SCHEMA)
+
+        self.assertEqual(captured["body"]["text"]["format"]["name"], "deep_talk_topic_discovery")
+        self.assertIn("Topic Discovery", captured["body"]["input"][0]["content"])
+        self.assertEqual(captured["body"]["tools"], [{"type": "web_search"}])
+        self.assertEqual(result.data["time_window_hours"], 72)
+        self.assertEqual(result.provenance.search_calls[0].call_id, "ws_123")
+
     def test_provider_preserves_web_search_calls_sources_and_annotations(self):
         captured = {}
 

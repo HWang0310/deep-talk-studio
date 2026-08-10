@@ -24,7 +24,11 @@
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- 当前 V0.2.1 不提前实现 Topic Discovery、Script Writing、素材、视觉、剪辑和发布。
+- V0.3 已完成 Topic Discovery；当前不提前实现 Script Writing、素材、视觉、剪辑和发布。
+- 用户说“今天讲什么”“找几个选题”“换一批”或带分类偏好时，先阅读 `.agents/skills/discover-topics/SKILL.md` 和 `docs/TOPIC_DISCOVERY_CONTRACT.md`，不要把它塞进 `research-topic`。
+- 用户回复候选编号时，读取 latest Candidate Set 的结构化 Research Handoff，直接进入 `research-topic`；不要要求用户再复制标题，也不要把 Discovery Source Seeds 当成事实证据。
+- Topic Candidate Set 0.3 的总分、资格状态、推荐标签、首选、身份、时间和来源 provenance 由程序计算；模型或 Skill 只能给评分理由和轻量预检内容。
+- Top 5 不展示 `watch` 或 `rejected`；高风险且资料薄弱的事件应降为 `watch`，而不是为凑热点上榜。
 - Research Draft 与 Fact Check 必须是不同步骤；Fact Check 必须有新的搜索 provenance。
 - 未通过质量 Gate 的报告只能保持 `draft`，不能手工改状态绕过。
 - `unknown`、`related`、`duplicate`、`syndicated` 来源不能计作独立确认；不得为过 Gate 自动改成 `independent`。
@@ -48,9 +52,11 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ./scripts/deeptalk sample
 ./scripts/deeptalk validate examples/sample-research-report.json
 ./scripts/deeptalk prepare-draft examples/sample-codex-draft-input.json
+./scripts/deeptalk prepare-discovery <discovery-input.json> --output discoveries
+./scripts/deeptalk select-topic "1" --output discoveries
 ```
 
-修改 `.agents/skills/research-topic` 后，还要运行 Skill Creator 的 `quick_validate.py`。若本机脚本缺少 PyYAML，可在临时目录安装依赖运行，不能把临时依赖提交到仓库。
+修改 `.agents/skills/research-topic` 或 `.agents/skills/discover-topics` 后，还要运行 Skill Creator 的 `quick_validate.py`。若本机脚本缺少 PyYAML，可在临时目录安装依赖运行，不能把临时依赖提交到仓库。
 
 ## 每轮结束前必须完成
 
