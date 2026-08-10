@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deep-talk-studio"
+version = "0.1.0"
+description = "Source-backed research workflows for original long-form video commentary"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+  { name = "HWang0310" }
+]
+dependencies = []
+
+[project.scripts]
+deeptalk = "deeptalk_studio.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

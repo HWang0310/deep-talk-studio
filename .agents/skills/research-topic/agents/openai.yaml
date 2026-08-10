@@ -1,0 +1,4 @@
+interface:
+  display_name: "DeepTalk 主题研究"
+  short_description: "为深度口播建立多来源、可核查、区分事实与观点的结构化研究底稿"
+  default_prompt: "Use $research-topic to research a topic and save a source-backed Research Report."
