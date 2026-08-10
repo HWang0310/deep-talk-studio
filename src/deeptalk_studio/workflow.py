@@ -13,7 +13,11 @@ from .provenance import ProviderProvenance, reconcile_provenance, reconcile_sour
 from .providers.base import ProviderResult, ResearchProvider
 from .quality import apply_quality_gate, calculate_quality_summary
 from .revisions import create_revision
-from .schema import CODEX_DRAFT_JSON_SCHEMA, FACT_CHECK_JSON_SCHEMA, REPORT_JSON_SCHEMA
+from .schema import (
+    API_RESEARCH_DRAFT_JSON_SCHEMA,
+    CODEX_DRAFT_JSON_SCHEMA,
+    FACT_CHECK_JSON_SCHEMA,
+)
 from .sources import normalize_report_sources
 from .storage import ReportPaths, save_fact_check_artifact, save_report
 from .validation import validate_json_schema
@@ -71,42 +75,56 @@ def _prepare_draft(
     created_at: str,
     report_id: str,
 ) -> ResearchReport:
-    validate_json_schema(provider_result.data, REPORT_JSON_SCHEMA)
-    data = deepcopy(provider_result.data)
-    data.update(
-        schema_version="0.2",
-        report_id=report_id,
-        revision=1,
-        previous_revision=0,
-        created_at=created_at,
-        generated_at=created_at,
-        research_mode="openai_api",
-        status="fact_check_pending",
-        change_summary="完成 Research Draft，等待独立 Fact Check。",
-        corrections=[],
-        topic=topic,
+    validate_json_schema(
+        provider_result.data, API_RESEARCH_DRAFT_JSON_SCHEMA, "api_research_draft"
     )
-    data["fact_check"] = {
-        "review_id": "",
-        "reviewed_at": "",
-        "status": "not_run",
-        "checked_claim_ids": [],
-        "unresolved_claim_ids": [],
-    }
-    for claim in data["claims"]:
+    content = deepcopy(provider_result.data)
+    for source in content["sources"]:
+        source.update(
+            normalized_url=source["url"],
+            inspection_method="not_inspected",
+            provenance_method="web_search_action_source",
+            provenance_status="unmatched",
+            provenance_refs=[],
+            independence_group="pending",
+        )
+    for claim in content["claims"]:
         claim["verification_status"] = "not_checked"
-    for link in data["evidence_links"]:
+    for link in content["evidence_links"]:
+        link["independence_group"] = "pending"
         link["verified_in_review"] = False
-    data["approval_gate"] = {
-        "status": "pending",
-        "requires_user_confirmation": True,
-        "high_risk_claim_ids": [
-            claim["id"]
-            for claim in data["claims"]
-            if claim["risk_level"] in {"high", "critical"}
-        ],
-        "user_confirmation": "",
-        "ready_for_script": False,
+    data = {
+        "schema_version": "0.2",
+        "report_id": report_id,
+        "revision": 1,
+        "previous_revision": 0,
+        "created_at": created_at,
+        "generated_at": created_at,
+        "research_mode": "openai_api",
+        "status": "fact_check_pending",
+        "change_summary": "完成 Research Draft，等待独立 Fact Check。",
+        "corrections": [],
+        **content,
+        "topic": topic,
+        "fact_check": {
+            "review_id": "",
+            "reviewed_at": "",
+            "status": "not_run",
+            "checked_claim_ids": [],
+            "unresolved_claim_ids": [],
+        },
+        "quality_summary": {},
+        "approval_gate": {
+            "status": "pending",
+            "requires_user_confirmation": True,
+            "high_risk_claim_ids": [
+                claim["id"]
+                for claim in content["claims"]
+                if claim["risk_level"] in {"high", "critical"}
+            ],
+            "user_confirmation": "",
+            "ready_for_script": False,
+        },
     }
     data = reconcile_provenance(data, provider_result.provenance)
     data["quality_summary"] = calculate_quality_summary(data)
@@ -210,7 +228,7 @@ def run_research(
     if not clean_topic:
         raise ValueError("主题不能为空")
 
-    research_result = provider.research(clean_topic, REPORT_JSON_SCHEMA)
+    research_result = provider.research(clean_topic, API_RESEARCH_DRAFT_JSON_SCHEMA)
     draft = _prepare_draft(
         clean_topic,
         research_result,
