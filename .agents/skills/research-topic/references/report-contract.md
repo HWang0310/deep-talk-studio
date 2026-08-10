@@ -1,91 +1,95 @@
-# Research Report 0.1 Contract
+# Research Workflow 0.2 Contract
 
-Read this file before constructing a report. The executable JSON Schema lives in `src/deeptalk_studio/schema.py`; this reference explains the intended meaning.
+The executable schemas live in `src/deeptalk_studio/schema.py`. This reference explains what each artifact means. All IDs must be unique and every reference must exist.
 
-## ID conventions
+## Two separate artifacts and two passes
 
-- Sources: `S1`, `S2`, ...
-- Claims: `C1`, `C2`, ...
-- Perspectives: `P1`, `P2`, ...
-- IDs must be unique within their collection.
-- Every referenced ID must exist in the same report.
-
-## Top-level fields
-
-All fields are required, even when an array is empty:
-
-| Field | Meaning |
-|---|---|
-| `schema_version` | Always `0.1` |
-| `topic` | Clear topic title |
-| `research_question` | The decision-driving question |
-| `generated_at` | ISO 8601 time with timezone |
-| `scope_summary` | Time range, geography, and deliberate exclusions |
-| `executive_summary` | Short synthesis that preserves uncertainty |
-| `sources` | Inspected sources and provenance notes |
-| `claims` | Atomic evidence ledger |
-| `timeline` | Dated sequence linked to claims and sources |
-| `perspectives` | Named actors and their reasoning |
-| `conflicts` | Material disagreements and current evidence state |
-| `open_questions` | Questions that remain answerable with more work |
-| `angles` | Original content directions, not draft scripts |
-| `fact_check_notes` | Verification status for important claims |
-| `limitations` | Coverage and evidence limits |
-| `handoff_to_script_agent` | Safe input for future original script development |
-
-## Claim classification
-
-Use exactly one classification per atomic claim:
-
-- `confirmed_fact`: supported by inspectable evidence; must have at least one source. Prefer independent corroboration for consequential or disputed facts.
-- `media_report`: attributed reporting that has not been independently confirmed by this workflow.
-- `party_statement`: a statement, explanation, denial, allegation, or estimate from an involved party.
-- `commentary`: interpretation, judgment, prediction, or normative opinion from an expert, creator, media commentator, or member of the public.
-- `unverified`: circulating information for which inspectable support is absent or insufficient.
-
-Confidence is `high`, `medium`, or `low`. Confidence records the evidence quality and agreement, not how persuasive the prose sounds.
-
-## Source object
-
-Every source contains:
-
-```json
-{
-  "id": "S1",
-  "title": "Exact page title",
-  "url": "https://example.com/page",
-  "publisher": "Publisher or account",
-  "published_at": "2026-08-10 or not stated",
-  "accessed_at": "2026-08-10",
-  "source_type": "official",
-  "stance_summary": "What this source contributes or argues",
-  "credibility_notes": "First-hand status, limitations, incentives, corrections"
-}
+```text
+Codex Draft Input
+→ Research Report r1 (`fact_check_pending`)
+→ FactCheck Artifact 0.2 from new searches
+→ Research Report r2 (`reviewed` or `draft`)
+→ one explicit user confirmation
+→ `ready_for_script`
 ```
 
-Allowed `source_type`: `official`, `primary`, `media`, `academic`, `expert`, `creator`, `social`, `other`.
+Research and Fact Check may use the same underlying model, but they must be separate work steps. The FactCheck Artifact must preserve new search provenance and cannot be created by rephrasing r1.
 
-## Cross-reference fields
+## Codex Draft Input
 
-- `claims[].source_ids` → sources.
-- `timeline[].claim_ids` → claims; `timeline[].source_ids` → sources.
-- `perspectives[].source_ids` → sources.
-- `conflicts[].source_ids` → sources.
-- `angles[].required_claim_ids` → claims.
-- `fact_check_notes[].claim_id` → one claim.
-- `handoff_to_script_agent.must_keep_claim_ids` → claims.
+Use `examples/sample-codex-draft-input.json` as the exact structural example. Include:
 
-Allowed fact-check status: `verified`, `partially_verified`, `unverified`, `disputed`.
+- `topic`, `research_question`, `scope_summary`, `executive_summary`;
+- `sources`, `claims`, `evidence_links`, `timeline`, `perspectives`, `conflicts`;
+- `open_questions`, `angles`, `limitations`, `handoff_to_script_agent`.
 
-## Script Agent boundary
+Do not add machine-owned metadata. `prepare-draft` creates `report_id`, revision fields, timestamps, status, Fact Check state, quality metrics, approval state, normalized URLs, independence groups and review flags.
 
-The handoff must include:
+## Source
 
-- `recommended_angle`: the strongest evidence-supported direction.
-- `central_tension`: the unresolved collision that gives the story depth.
-- `must_keep_claim_ids`: claims a future script must preserve with their labels.
-- `avoid_claims`: tempting assertions that must not be stated as fact.
-- `follow_up_research`: concrete research needed before publication.
+Each source input includes:
 
-The Script Agent may create an original narrative later, but it may not erase classifications, uncertainty, attribution, or source provenance.
+- identity/content: `id`, `title`, `url`, `publisher`, `published_at`, `accessed_at`, `source_type`, `stance_summary`, `credibility_notes`;
+- inspection: `inspection_method` = `codex_web_open`, `manual_open`, or `not_inspected`;
+- provenance: `provenance_method` = `codex_tool_result` or `user_supplied`, `provenance_status` = `matched`, `partial`, or `unmatched`, plus `provenance_refs`;
+- independence hints: `independence_status` and `syndication_of`.
 
+Allowed source types: `official`, `primary`, `media`, `academic`, `expert`, `creator`, `social`, `other`.
+
+The core removes tracking parameters and groups identical URLs, same-publisher pages and declared/likely syndications. Use `unknown` when independence cannot be established.
+
+## Claim
+
+Every claim is atomic and includes:
+
+- classification: `confirmed_fact`, `media_report`, `party_statement`, `commentary`, `unverified`;
+- confidence: `high`, `medium`, `low`;
+- importance: `background`, `key`, `core`;
+- risk: `low`, `medium`, `high`, `critical`;
+- risk factors chosen from `contested`, `attribution`, `reputation`, `fast_changing`, `responsibility`, `causal`, `legal`, `financial`, `safety`.
+
+High and critical claims automatically enter Fact Check. `confirmed_fact` requires at least one `supports` link; the quality Gate separately requires independent corroboration coverage.
+
+## Evidence Link
+
+IDs use `E1`, `E2`, ... and include:
+
+- `claim_id`, `source_id`;
+- `relation`: `supports`, `contradicts`, `attributes`, or `context`;
+- `evidence_summary`, `evidence_locator`, `verification_notes`.
+
+`prepare-draft` fills `independence_group` and `verified_in_review=false`. `review-report` updates review flags and applies new evidence.
+
+## FactCheck Artifact 0.2
+
+Required top-level fields:
+
+- identity: `artifact_version=0.2`, `review_id`, `report_id`, `report_revision`, `created_at`, `research_mode`, `status`;
+- real second-pass trace: `tool_provenance.search_call_ids`, `search_queries`, `consulted_urls`, `citation_urls`;
+- work: `queued_claim_ids`, `new_sources`, `evidence_links`, `checks`, `overall_notes`.
+
+Each check includes `claim_id`, `outcome`, original and recommended classification, `searched_new_sources`, counterevidence summary, source IDs, independence assessment and verification notes. Outcomes: `verified`, `partially_verified`, `disputed`, `unverified`.
+
+Every queued high-risk claim needs a check and a real new source search. New sources use the full 0.2 Source object, including normalized URL, provenance and independence fields.
+
+## Quality Gate
+
+The core calculates and verifies every metric; do not invent them:
+
+- claim source coverage ≥ 80%;
+- high-risk Fact Check coverage = 100%;
+- confirmed-fact independent source coverage ≥ 80%;
+- provenance match rate ≥ 80%;
+- at least two source types;
+- unresolved high-risk claims = 0;
+- unsourced attributions = 0.
+
+Duplicate and syndicated source counts remain visible. A failed Gate can be saved only as `draft`. `reviewed` requires a completed independent Fact Check. `ready_for_script` additionally requires explicit user confirmation, and all high-risk claim IDs must be shown to the user.
+
+## Revisions and corrections
+
+`report_id` stays stable; `revision` increments and `previous_revision` points to the immediately prior version. `created_at` stays stable, while `generated_at`, `change_summary` and `corrections` describe the new revision. Existing revision files are never overwritten.
+
+## Copyright and originality
+
+Record short evidence summaries and precise locators. Quote only when necessary and keep quotes short. Never save full articles, build from another creator's script, imitate distinctive expression, or erase uncertainty for narrative effect.

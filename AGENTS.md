@@ -24,7 +24,10 @@
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- V0.1 不提前实现 Topic Discovery、Script Writing、素材、视觉、剪辑和发布。
+- 当前 V0.2 不提前实现 Topic Discovery、Script Writing、素材、视觉、剪辑和发布。
+- Research Draft 与 Fact Check 必须是不同步骤；Fact Check 必须有新的搜索 provenance。
+- 未通过质量 Gate 的报告只能保持 `draft`，不能手工改状态绕过。
+- 即使质量 Gate 通过，未来 Script Agent 前也必须保留用户明确确认。
 
 ## 内容与研究安全
 
@@ -41,6 +44,7 @@
 PYTHONPATH=src python3 -m unittest discover -s tests -v
 ./scripts/deeptalk sample
 ./scripts/deeptalk validate examples/sample-research-report.json
+./scripts/deeptalk prepare-draft examples/sample-codex-draft-input.json
 ```
 
 修改 `.agents/skills/research-topic` 后，还要运行 Skill Creator 的 `quick_validate.py`。若本机脚本缺少 PyYAML，可在临时目录安装依赖运行，不能把临时依赖提交到仓库。
