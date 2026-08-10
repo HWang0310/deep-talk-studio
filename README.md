@@ -2,7 +2,7 @@
 
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
-当前版本是 **V0.2**。输入一个主题后，系统先生成 Research Draft，再单独进行一次新的事实核查，最后由透明的质量 Gate 决定报告只能停在草稿，还是可以进入人工确认。
+当前版本是 **V0.2.1**。输入一个主题后，系统先生成 Research Draft，再单独进行一次新的事实核查，最后由透明的质量 Gate 决定报告只能停在草稿，还是可以进入人工确认。V0.2.1 不增加新功能，专门修正独立来源计数、API 机器字段和 Fact Check 新来源归组。
 
 ## 现在最简单的用法
 
@@ -36,6 +36,7 @@ reports/YYYY/MM/DD/主题/报告ID/research-report-r0002.json
 - 生成给未来 Script Agent 使用的安全交接字段；
 - 用 Evidence Ledger 标明来源是支持、反驳、归属说法还是只提供背景；
 - 识别重复 URL、同发布者和疑似转载，避免把同一信源误算成多源；
+- 只有明确标为独立、provenance 已匹配且属于不同分组的支持来源，才能形成两份独立确认；`unknown` 不会被猜成独立；
 - 自动把高风险主张放入二次核查队列，并单独保存 FactCheck Artifact；
 - 计算来源覆盖率、独立来源覆盖率、高风险核查率等质量指标；
 - 保留不可覆盖的报告修订版和更正记录；
@@ -43,7 +44,7 @@ reports/YYYY/MM/DD/主题/报告ID/research-report-r0002.json
 
 ## 还不能做什么
 
-V0.2 仍不包含自动选题、成品口播稿、素材下载、图片或视频生成、剪辑方案、B 站发布和其他平台分发。即使报告通过机器 Gate，也不会自动写稿；未来 Script Agent 前还保留一次用户明确确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
+V0.2.1 仍不包含自动选题、成品口播稿、素材下载、图片或视频生成、剪辑方案、B 站发布和其他平台分发。即使报告通过机器 Gate，也不会自动写稿；未来 Script Agent 前还保留一次用户明确确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
 
 ## 不依赖联网的检查方式
 
@@ -55,7 +56,7 @@ V0.2 仍不包含自动选题、成品口播稿、素材下载、图片或视频
 ./scripts/deeptalk sample
 ```
 
-校验当前 V0.2 示例报告：
+校验当前 V0.2.1 示例报告：
 
 ```bash
 ./scripts/deeptalk validate examples/sample-research-report.json
@@ -84,7 +85,7 @@ Codex Skill 模式还可以把研究内容整理为带机器字段的草稿，�
 ./scripts/deeptalk research "要研究的主题"
 ```
 
-该入口使用 OpenAI Responses API 的 `web_search` 与结构化输出，并保留 `web_search_call`、URL citation 和完整 action sources 的可用 provenance。研究与事实核查是两次独立调用。密钥只能放在环境变量或密码管理器中，绝不能写进仓库。没有 API 密钥也不影响在 Codex 中使用仓库 Skill。
+该入口使用 OpenAI Responses API 的 `web_search` 与结构化输出，并保留 `web_search_call`、URL citation 和完整 action sources 的可用 provenance。API 模型只生成研究内容；报告身份、修订、状态、质量和审批字段全部由程序生成，模型无法自报通过。研究与事实核查是两次独立调用。密钥只能放在环境变量或密码管理器中，绝不能写进仓库。没有 API 密钥也不影响在 Codex 中使用仓库 Skill。
 
 实现依据：[OpenAI Web Search 文档](https://developers.openai.com/api/docs/guides/tools-web-search)、[Structured Outputs 文档](https://developers.openai.com/api/docs/guides/structured-outputs)、[Codex Skills 文档](https://learn.chatgpt.com/docs/build-skills)。
 
@@ -94,7 +95,7 @@ Codex Skill 模式还可以把研究内容整理为带机器字段的草稿，�
 .agents/skills/research-topic/  Codex 可自动发现的研究工作流
 src/deeptalk_studio/            报告模型、校验、渲染、保存与 API 适配
 scripts/deeptalk                无需安装的统一入口
-examples/                       V0.2 虚构报告与 Codex Draft 输入示例
+examples/                       V0.2.1 虚构报告与 Codex Draft 输入示例
 evaluations/                    去内容化真实编辑评测汇总
 tests/                          自动测试
 docs/                           架构、设计和实施计划
@@ -111,6 +112,6 @@ HANDOFF.md                      每轮开发交接
 - Codex：工程师，负责实现、测试、修复、文档和 GitHub。
 - 用户：只负责复制、粘贴和确认，不负责总结技术内容。
 
-每轮开发结束后，以 [HANDOFF.md](HANDOFF.md) 为唯一交接入口。V0.2 的真实评测方法见 [docs/EVALS.md](docs/EVALS.md)。
+每轮开发结束后，以 [HANDOFF.md](HANDOFF.md) 为唯一交接入口。V0.2.1 的真实评测方法见 [docs/EVALS.md](docs/EVALS.md)。
 
 正式版本的 GitHub 发布与未来软件包规则见 [RELEASE_POLICY.md](RELEASE_POLICY.md)。

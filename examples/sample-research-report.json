@@ -137,7 +137,7 @@
       "id": "E4",
       "claim_id": "C3",
       "source_id": "S2",
-      "relation": "context",
+      "relation": "contradicts",
       "evidence_summary": "报道提到网络传言但未发现原始证据。",
       "evidence_locator": "报道核查部分",
       "independence_group": "IG2",

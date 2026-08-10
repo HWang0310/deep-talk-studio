@@ -2,6 +2,32 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [0.2.1] - 2026-08-10
+
+### Fixed
+
+- confirmed fact 独立确认现在只接受 `supports + matched + independent + 不同 independence_group`；`unknown`、`related`、`duplicate`、`syndicated` 均不能贡献独立确认。
+- context-only 与未匹配来源不再抬高 claim source coverage；未匹配 attribution 不再解除无来源归属；duplicate / syndicated 不再抬高来源类型或 provenance 指标。
+- Fact Check 新来源与 Research Draft 来源统一执行 URL 规范化、追踪参数去除、重复、同发布者、转载和 independence grouping；保存的 Artifact 与 reviewed report 使用相同确定性结果。
+- 重复 URL 的判断优先于显式转载提示，使来源规范化可重复执行且结果稳定。
+
+### Changed
+
+- 新增内部 `API_RESEARCH_DRAFT_JSON_SCHEMA`；OpenAI Research Pass 只生成研究内容，身份、revision、时间、状态、Fact Check、provenance、quality 和审批字段由程序生成。
+- 保持 Research Report / FactCheck Artifact Schema `0.2` 和全部质量阈值不变。
+- `research-topic` Skill、报告契约、示例和架构文档同步 hardened 规则。
+
+### Validation
+
+- 85 项自动测试全部通过，原 68 项继续通过，新增独立来源、API 字段所有权、质量指标和 Fact Check 归组回归测试。
+- 三类真实公开题材重新运行：稳定商业与争议公共政策进入 `reviewed`；快速公共安全热点因未解决高风险信息保持 `draft`。
+- sample、validate、prepare-draft、review-report、迁移、修订防覆盖、Skill、Python 3.9、干净安装和密钥扫描完成验证。
+
+### Security
+
+- 模型无法通过 API Research payload 伪造 quality summary 或 approval 状态。
+- 完整真实评测报告继续只保存在 gitignored `reports/`，公开仓库仅保存去内容化汇总。
+
 ## [0.2.0] - 2026-08-10
 
 ### Added

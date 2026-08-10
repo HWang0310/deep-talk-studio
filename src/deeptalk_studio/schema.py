@@ -324,6 +324,58 @@ CODEX_DRAFT_JSON_SCHEMA = _object(
 )
 
 
+API_RESEARCH_DRAFT_JSON_SCHEMA = _object(
+    {
+        "topic": REPORT_JSON_SCHEMA["properties"]["topic"],
+        "research_question": REPORT_JSON_SCHEMA["properties"]["research_question"],
+        "scope_summary": REPORT_JSON_SCHEMA["properties"]["scope_summary"],
+        "executive_summary": REPORT_JSON_SCHEMA["properties"]["executive_summary"],
+        "sources": _array(
+            _object(
+                {
+                    key: value
+                    for key, value in SOURCE_SCHEMA["properties"].items()
+                    if key
+                    not in {
+                        "normalized_url",
+                        "inspection_method",
+                        "provenance_method",
+                        "provenance_status",
+                        "provenance_refs",
+                        "independence_group",
+                    }
+                }
+            )
+        ),
+        "claims": _array(
+            _object(
+                {
+                    key: value
+                    for key, value in CLAIM_SCHEMA["properties"].items()
+                    if key != "verification_status"
+                }
+            )
+        ),
+        "evidence_links": _array(
+            _object(
+                {
+                    key: value
+                    for key, value in EVIDENCE_LINK_SCHEMA["properties"].items()
+                    if key not in {"independence_group", "verified_in_review"}
+                }
+            )
+        ),
+        "timeline": REPORT_JSON_SCHEMA["properties"]["timeline"],
+        "perspectives": REPORT_JSON_SCHEMA["properties"]["perspectives"],
+        "conflicts": REPORT_JSON_SCHEMA["properties"]["conflicts"],
+        "open_questions": REPORT_JSON_SCHEMA["properties"]["open_questions"],
+        "angles": REPORT_JSON_SCHEMA["properties"]["angles"],
+        "limitations": REPORT_JSON_SCHEMA["properties"]["limitations"],
+        "handoff_to_script_agent": REPORT_JSON_SCHEMA["properties"]["handoff_to_script_agent"],
+    }
+)
+
+
 FACT_CHECK_JSON_SCHEMA = _object(
     {
         "artifact_version": _enum(["0.2"]),

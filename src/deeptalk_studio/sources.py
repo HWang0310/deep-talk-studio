@@ -64,13 +64,13 @@ def normalize_and_group_sources(sources: Iterable[Dict[str, Any]]) -> List[Dict[
         title_parent = first_by_title.get(title_key)
         publisher_parent = first_by_publisher.get(publisher_key)
 
-        if explicit_parent:
-            source["independence_group"] = explicit_parent["independence_group"]
-            source["independence_status"] = "syndicated"
-        elif duplicate_parent:
+        if duplicate_parent:
             source["independence_group"] = duplicate_parent["independence_group"]
             source["independence_status"] = "duplicate"
             source["syndication_of"] = duplicate_parent["id"]
+        elif explicit_parent:
+            source["independence_group"] = explicit_parent["independence_group"]
+            source["independence_status"] = "syndicated"
         elif title_parent and title_parent["publisher"].casefold() != source["publisher"].casefold():
             source["independence_group"] = title_parent["independence_group"]
             source["independence_status"] = "syndicated"

@@ -1,4 +1,4 @@
-# V0.2 真实编辑评测方法
+# V0.2 / V0.2.1 真实编辑评测方法
 
 ## 目的
 
@@ -37,6 +37,16 @@ V0.2 不用“格式合法”代替“研究可靠”。每个正式版本至少
 三份样本均保留来源、Evidence Link、独立 FactCheck provenance 和不可覆盖的 r1/r2 修订历史。没有一份自动进入 `ready_for_script`，因为未来进入写稿步骤前仍需用户明确确认。
 
 去内容化的详细分数和 Gate 指标见 `evaluations/v0.2-summary.json`。
+
+## V0.2.1 复测记录
+
+执行日期：2026-08-10。沿用同三类题材、同评分维度和同质量阈值，使用 hardened quality 规则重新生成 r1、应用独立 FactCheck Artifact 并生成 r2。
+
+- 稳定商业 / 科技样本：`reviewed`，Gate 通过；明确独立且不同组的支持来源满足 confirmed fact 要求。
+- 争议公共政策样本：`reviewed`，Gate 通过；事实、主管机关说明和不同利益立场继续分层。
+- 快速公共安全热点：`draft`，Gate 失败；高风险动态数字已被复查但仍未解决，不能因“做过核查”而升级为事实。
+
+复测同时确认：`unknown` 不贡献独立确认，context-only 不贡献 claim source coverage，duplicate / syndicated 不抬高来源类型或 provenance 指标。完整报告保存在 gitignored `reports/evaluations/v0.2.1-final/`；公开汇总见 `evaluations/v0.2.1-summary.json`。
 
 ## 复测规则
 

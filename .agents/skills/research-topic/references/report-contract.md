@@ -36,7 +36,7 @@ Each source input includes:
 
 Allowed source types: `official`, `primary`, `media`, `academic`, `expert`, `creator`, `social`, `other`.
 
-The core removes tracking parameters and groups identical URLs, same-publisher pages and declared/likely syndications. Use `unknown` when independence cannot be established.
+The core removes tracking parameters and groups identical URLs, same-publisher pages and declared/likely syndications. Use `unknown` when independence cannot be established. Only `independent` sources with matched provenance and different groups can contribute to the confirmed-fact independent coverage metric.
 
 ## Claim
 
@@ -70,7 +70,11 @@ Required top-level fields:
 
 Each check includes `claim_id`, `outcome`, original and recommended classification, `searched_new_sources`, counterevidence summary, source IDs, independence assessment and verification notes. Outcomes: `verified`, `partially_verified`, `disputed`, `unverified`.
 
-Every queued high-risk claim needs a check and a real new source search. New sources use the full 0.2 Source object, including normalized URL, provenance and independence fields.
+Every queued high-risk claim needs a check and a real new source search. New sources use the full 0.2 Source object at the Artifact boundary. Before trust or storage, the core combines them with the r1 sources and deterministically overwrites normalized URL, duplicate/syndication status, independence group and Evidence Link groups.
+
+## API Research Draft
+
+The Responses API uses a separate content-only schema. The model supplies research judgments, but it does not supply report identity, revisions, timestamps, report status, Fact Check state, provenance-derived source fields, quality metrics, approval state, claim verification status, or Evidence review flags. The workflow injects those fields and rejects extra model-owned metadata before creating r1.
 
 ## Quality Gate
 

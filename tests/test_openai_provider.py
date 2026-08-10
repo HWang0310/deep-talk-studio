@@ -3,8 +3,12 @@ import unittest
 from urllib.error import HTTPError
 
 from deeptalk_studio.providers.openai import OpenAIProviderError, OpenAIResponsesProvider
-from deeptalk_studio.schema import FACT_CHECK_JSON_SCHEMA, REPORT_JSON_SCHEMA
-from tests.fixtures import valid_fact_check_data, valid_report_data
+from deeptalk_studio.schema import (
+    API_RESEARCH_DRAFT_JSON_SCHEMA,
+    FACT_CHECK_JSON_SCHEMA,
+    REPORT_JSON_SCHEMA,
+)
+from tests.fixtures import valid_api_research_draft_input, valid_fact_check_data, valid_report_data
 
 
 def api_response():
@@ -29,7 +33,7 @@ def api_response():
                 "content": [
                     {
                         "type": "output_text",
-                        "text": json.dumps(valid_report_data(), ensure_ascii=False),
+                        "text": json.dumps(valid_api_research_draft_input(), ensure_ascii=False),
                         "annotations": [
                             {
                                 "type": "url_citation",
@@ -55,7 +59,7 @@ class OpenAIProviderTests(unittest.TestCase):
             return api_response()
 
         provider = OpenAIResponsesProvider(api_key="secret-value", transport=transport)
-        result = provider.research("示例公共事件", REPORT_JSON_SCHEMA)
+        result = provider.research("示例公共事件", API_RESEARCH_DRAFT_JSON_SCHEMA)
 
         payload = captured["body"]
         self.assertEqual(captured["url"], "https://api.openai.com/v1/responses")
@@ -108,6 +112,38 @@ class OpenAIProviderTests(unittest.TestCase):
         self.assertNotIn(
             "uniqueItems", json.dumps(captured["body"]["text"]["format"]["schema"])
         )
+
+    def test_api_research_schema_excludes_machine_owned_metadata(self):
+        top_level = API_RESEARCH_DRAFT_JSON_SCHEMA["properties"]
+        for field in (
+            "report_id",
+            "revision",
+            "previous_revision",
+            "created_at",
+            "generated_at",
+            "status",
+            "fact_check",
+            "quality_summary",
+            "approval_gate",
+        ):
+            self.assertNotIn(field, top_level)
+
+        source = top_level["sources"]["items"]["properties"]
+        for field in (
+            "normalized_url",
+            "inspection_method",
+            "provenance_method",
+            "provenance_status",
+            "provenance_refs",
+            "independence_group",
+        ):
+            self.assertNotIn(field, source)
+        self.assertNotIn(
+            "verification_status", top_level["claims"]["items"]["properties"]
+        )
+        evidence = top_level["evidence_links"]["items"]["properties"]
+        self.assertNotIn("independence_group", evidence)
+        self.assertNotIn("verified_in_review", evidence)
 
     def test_api_errors_do_not_leak_key(self):
         def failing_transport(url, headers, body, timeout):

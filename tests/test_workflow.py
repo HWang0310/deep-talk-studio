@@ -4,21 +4,34 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
+from deeptalk_studio.models import ResearchReport
 from deeptalk_studio.provenance import ProviderProvenance, SearchCall, UrlCitation
 from deeptalk_studio.providers.base import ProviderResult
 from deeptalk_studio.validation import ReportValidationError
-from deeptalk_studio.workflow import prepare_codex_draft, run_research
-from tests.fixtures import valid_codex_draft_input, valid_fact_check_data, valid_report_data
+from deeptalk_studio.workflow import (
+    _prepare_draft,
+    prepare_codex_draft,
+    run_fact_check_review,
+    run_research,
+)
+from tests.fixtures import (
+    valid_api_research_draft_input,
+    valid_codex_draft_input,
+    valid_fact_check_data,
+    valid_report_data,
+)
 
 
 class FakeProvider:
     def __init__(self, fact_check_provenance=True):
         self.calls = []
         self.fact_check_provenance = fact_check_provenance
+        self.research_schema = None
 
     def research(self, topic, schema):
         self.calls.append(("research", topic))
-        data = valid_report_data()
+        self.research_schema = schema
+        data = valid_api_research_draft_input()
         data["topic"] = topic
         provenance = ProviderProvenance(
             search_calls=(
@@ -105,6 +118,7 @@ class WorkflowTests(unittest.TestCase):
             fact_check = json.loads(result.fact_check.read_text(encoding="utf-8"))
 
         self.assertEqual([call[0] for call in provider.calls], ["research", "fact_check"])
+        self.assertNotIn("quality_summary", provider.research_schema["properties"])
         self.assertEqual(draft["report_id"], "RPT-test")
         self.assertEqual(draft["revision"], 1)
         self.assertEqual(draft["status"], "fact_check_pending")
@@ -117,6 +131,26 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(fact_check["tool_provenance"]["search_call_ids"], ["ws_fact"])
         self.assertTrue(result.draft.markdown.name.endswith("r0001.md"))
         self.assertTrue(result.reviewed.markdown.name.endswith("r0002.md"))
+
+    def test_api_content_cannot_smuggle_machine_owned_quality_or_approval(self):
+        data = valid_api_research_draft_input()
+        data["quality_summary"] = {"gate_status": "pass"}
+        data["approval_gate"] = {
+            "status": "approved",
+            "ready_for_script": True,
+        }
+        result = ProviderResult(
+            data=data,
+            provenance=ProviderProvenance(search_calls=(), citations=()),
+        )
+
+        with self.assertRaisesRegex(ReportValidationError, "未知字段"):
+            _prepare_draft(
+                "示例公共事件",
+                result,
+                "2026-08-10T10:00:00+08:00",
+                "RPT-api-owned",
+            )
 
     def test_fact_check_without_separate_tool_provenance_is_rejected(self):
         provider = FakeProvider(fact_check_provenance=False)
@@ -136,6 +170,34 @@ class WorkflowTests(unittest.TestCase):
                     clock=lambda: next(moments),
                     id_factory=lambda prefix: f"{prefix}-test",
                 )
+
+    def test_saved_fact_check_and_reviewed_report_use_canonical_source_grouping(self):
+        report = ResearchReport.from_dict(valid_report_data())
+        artifact = valid_fact_check_data(report.data)
+        duplicate = dict(report.sources[0])
+        duplicate.update(
+            id="S9",
+            url="https://example.com/official?utm_source=second-pass",
+            normalized_url="https://forged.invalid/source",
+            publisher="重复页面标签",
+            independence_group="MODEL-GROUP",
+            independence_status="independent",
+            syndication_of="",
+        )
+        artifact["new_sources"] = [duplicate]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = run_fact_check_review(report, artifact, Path(temp_dir))
+            saved_artifact = json.loads(result.fact_check.read_text(encoding="utf-8"))
+            reviewed = json.loads(result.reviewed.json.read_text(encoding="utf-8"))
+
+        saved_source = saved_artifact["new_sources"][0]
+        reviewed_source = next(source for source in reviewed["sources"] if source["id"] == "S9")
+        self.assertEqual(saved_source["normalized_url"], "https://example.com/official")
+        self.assertEqual(saved_source["independence_status"], "duplicate")
+        self.assertEqual(saved_source["independence_group"], "IG1")
+        self.assertEqual(reviewed_source["independence_status"], "duplicate")
+        self.assertEqual(reviewed_source["independence_group"], "IG1")
 
     def test_empty_topic_is_rejected_before_provider_call(self):
         provider = FakeProvider()

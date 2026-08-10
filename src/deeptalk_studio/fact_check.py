@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from .models import ResearchReport
 from .schema import FACT_CHECK_JSON_SCHEMA
-from .sources import normalize_report_sources, normalize_url
+from .sources import normalize_and_group_sources, normalize_report_sources, normalize_url
 from .validation import ReportValidationError, validate_json_schema, validate_report
 
 
@@ -30,11 +30,39 @@ def _http_url(value: str) -> bool:
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
+def normalize_fact_check_sources(
+    artifact: Dict[str, Any], report: ResearchReport
+) -> Dict[str, Any]:
+    """Canonicalize new Fact Check sources together with the Research Draft."""
+
+    validate_report(report)
+    result = deepcopy(artifact)
+    new_source_ids = [source["id"] for source in result["new_sources"]]
+    grouped = normalize_and_group_sources(
+        list(report.data["sources"]) + result["new_sources"]
+    )
+    grouped_by_id = {source["id"]: source for source in grouped}
+    result["new_sources"] = [grouped_by_id[source_id] for source_id in new_source_ids]
+    for link in result["evidence_links"]:
+        source = grouped_by_id.get(link["source_id"])
+        if source:
+            link["independence_group"] = source["independence_group"]
+    return result
+
+
 def validate_fact_check_artifact(
     artifact: Dict[str, Any], report: ResearchReport
 ) -> None:
     validate_report(report)
     validate_json_schema(artifact, FACT_CHECK_JSON_SCHEMA, "fact_check_artifact")
+    canonical = normalize_fact_check_sources(artifact, report)
+    if (
+        artifact["new_sources"] != canonical["new_sources"]
+        or artifact["evidence_links"] != canonical["evidence_links"]
+    ):
+        raise ReportValidationError(
+            "FactCheck 新来源和 Evidence Link 必须使用系统确定的规范化与独立性分组"
+        )
     if artifact["report_id"] != report.report_id:
         raise ReportValidationError("FactCheck Artifact 的 report_id 与报告不一致")
     if artifact["report_revision"] != report.revision:
@@ -136,6 +164,7 @@ def validate_fact_check_artifact(
 def apply_fact_check(
     report: ResearchReport, artifact: Dict[str, Any]
 ) -> Dict[str, Any]:
+    artifact = normalize_fact_check_sources(artifact, report)
     validate_fact_check_artifact(artifact, report)
     result = report.to_dict()
     result["sources"].extend(deepcopy(artifact["new_sources"]))
