@@ -125,7 +125,7 @@ Research Report 继续使用 0.2 契约，Topic Candidate Set 继续使用 0.3 �
 - Contested Public Issue：Approval r3；must-keep 3 / 3；1520 字符；约 5.8 分钟；15 / 15 Review；0 blocking；最终 `reviewed`；人工 Editorial 4.5 / 5。
 - Blocked Input：`reviewed` 但无用户 Approval 的报告被拒绝；退出码 2；没有创建文件。
 - 两份 Teleprompter 已实际阅读全文，并核验不含 URL、机器 ID 或编辑标签。
-- 三个仓库 Skill、JSON 文件、CLI 端到端、密钥扫描、Git diff 和公开 Release 会在发布前后再次核验。
+- 三个仓库 Skill、JSON 文件、CLI 端到端、密钥扫描、Git diff 和公开 Release 均已核验。
 
 ## 12. 版本发布规则
 
