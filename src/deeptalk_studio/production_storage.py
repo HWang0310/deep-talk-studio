@@ -12,6 +12,7 @@ class ProductionStorageError(RuntimeError):
 
 
 SAFE_ID = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._-]{0,119}$")
+SAFE_ARTIFACT_NAME = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._-]{0,159}\.json$")
 
 
 def _safe_id(value: str) -> str:
@@ -36,6 +37,26 @@ def save_production_plan(plan: Mapping[str, Any], output_root: Path) -> Path:
         raise ProductionStorageError("Production Plan 已存在，拒绝静默覆盖")
     directory.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(dict(plan), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def save_production_artifact(
+    artifact: Mapping[str, Any], plan_path: Path, filename: str
+) -> Path:
+    """Save a manifest or QA artifact beside its immutable bound plan."""
+
+    if not SAFE_ARTIFACT_NAME.fullmatch(str(filename)):
+        raise ProductionStorageError("Production Artifact 文件名无效")
+    plan = Path(plan_path).resolve()
+    if not plan.is_file():
+        raise ProductionStorageError("Production Plan 不存在，无法保存绑定 Artifact")
+    path = plan.parent / str(filename)
+    if path.exists():
+        raise ProductionStorageError("Production Artifact 已存在，拒绝静默覆盖")
+    path.write_text(
+        json.dumps(dict(artifact), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return path
 
 

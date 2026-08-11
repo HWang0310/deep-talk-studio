@@ -6,6 +6,7 @@ from deeptalk_studio.production_renderer import render_production_summary
 from deeptalk_studio.production_storage import (
     ProductionStorageError,
     production_output_path,
+    save_production_artifact,
     save_production_plan,
 )
 
@@ -44,6 +45,23 @@ class ProductionStorageTests(unittest.TestCase):
             path.write_bytes(b"exists")
             with self.assertRaisesRegex(ProductionStorageError, "覆盖"):
                 production_output_path(root, "PROD-safe", "MA001", "mp4")
+
+    def test_bound_artifacts_are_saved_beside_plan_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            plan_path = save_production_plan(tiny_plan(), root)
+            artifact = {"manifest_id": "MAM-store", "production_id": "PROD-store"}
+            path = save_production_artifact(
+                artifact, plan_path, "motion-asset-manifest-r0001.json"
+            )
+            self.assertEqual(path.parent, plan_path.parent)
+            self.assertTrue(path.exists())
+            with self.assertRaisesRegex(ProductionStorageError, "覆盖"):
+                save_production_artifact(
+                    artifact, plan_path, "motion-asset-manifest-r0001.json"
+                )
+            with self.assertRaisesRegex(ProductionStorageError, "文件名"):
+                save_production_artifact(artifact, plan_path, "../escape.json")
 
     def test_user_summary_hides_json_and_explains_safe_gap(self):
         summary = render_production_summary(tiny_plan(), ready_count=1, failed_count=0)
