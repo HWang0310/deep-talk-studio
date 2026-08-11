@@ -11,6 +11,7 @@ from deeptalk_studio.production_planner import prepare_production_plan
 from deeptalk_studio.production_profile import load_production_profile
 from deeptalk_studio.production_qa import build_motion_asset_manifest, prepare_production_qa
 from deeptalk_studio.production_renderers import get_renderer
+from deeptalk_studio.production_renderers.base import RendererCheckResult
 from tests.material_fixtures import reviewed_inputs, valid_material_content
 
 
@@ -75,7 +76,9 @@ class RealRendererIntegrationTests(unittest.TestCase):
                 qa = prepare_production_qa(
                     plan, manifest, created_at="2026-08-11T15:04:00+08:00",
                     qa_id=f"PQA-v060-{renderer_name}",
-                    renderer_checks={"project_validation": bool(validation), "preview": preview.exit_code == 0},
+                    renderer_checks=[RendererCheckResult(
+                        "environment", "core", 0, "pass", "environment", "环境可用。",
+                    ), *validation, preview],
                 )
                 results[renderer_name] = (manifest, qa)
 

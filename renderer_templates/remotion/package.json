@@ -1,12 +1,13 @@
 {
   "name": "deeptalk-remotion-production",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
     "dev": "remotion studio src/index.ts --no-open",
     "build": "remotion bundle src/index.ts",
-    "lint": "eslint src && tsc"
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@remotion/cli": "4.0.507",

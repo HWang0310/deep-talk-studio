@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .base import (
-    CommandResult, PreparedProject, RenderBatch, RenderOutput, RendererError,
-    prepare_project_directory, run_command, stage_plan_assets, write_json,
+    CommandResult, PreparedProject, RenderBatch, RenderOutput, RendererCheckResult,
+    RendererError, prepare_project_directory, run_command, run_renderer_check,
+    safe_check_summary, stage_plan_assets, write_json,
 )
 from ..production_storage import production_output_path
 
@@ -62,18 +63,28 @@ class RemotionRenderer:
             return CommandResult("npm ci (cached)", 0, "node_modules 已存在", "")
         return run_command(["npm", "ci", "--no-audit", "--no-fund"], prepared.project_dir, timeout=1200)
 
-    def validate_project(self, prepared: PreparedProject) -> Sequence[CommandResult]:
-        install = self._install(prepared)
-        lint = run_command(["npm", "run", "lint"], prepared.project_dir, timeout=600)
-        compositions = run_command(
+    def validate_project(self, prepared: PreparedProject) -> Sequence[RendererCheckResult]:
+        install = run_renderer_check(
+            "remotion_npm_ci", self.name, "install",
+            ["npm", "ci", "--no-audit", "--no-fund"], prepared.project_dir, timeout=1200,
+        )
+        lint = run_renderer_check(
+            "remotion_lint", self.name, "lint", ["npm", "run", "lint"],
+            prepared.project_dir, timeout=600,
+        )
+        typecheck = run_renderer_check(
+            "remotion_typecheck", self.name, "typecheck", ["npm", "run", "typecheck"],
+            prepared.project_dir, timeout=600,
+        )
+        compositions = run_renderer_check(
+            "remotion_compositions", self.name, "compositions",
             ["npx", "remotion", "compositions", "src/index.ts",
              f"--public-dir={prepared.project_dir / 'public'}", *browser_executable_args()],
-            prepared.project_dir, timeout=600
+            prepared.project_dir, timeout=600,
         )
-        return (install, lint, compositions)
+        return (install, lint, typecheck, compositions)
 
-    def preview(self, prepared: PreparedProject, *, port: int = 3210) -> CommandResult:
-        self._install(prepared)
+    def preview(self, prepared: PreparedProject, *, port: int = 3210) -> RendererCheckResult:
         command = [
             "npx", "remotion", "studio", "src/index.ts", "--no-open",
             f"--port={port}", "--force-new",
@@ -91,10 +102,16 @@ class RemotionRenderer:
                 if line:
                     lines.append(line)
                     if "http://" in line or "localhost:" in line:
-                        return CommandResult(" ".join(command), 0, "".join(lines)[-4000:].strip(), "")
+                        return RendererCheckResult(
+                            "remotion_preview", self.name, 0, "pass", "preview",
+                            safe_check_summary("".join(lines), prepared.project_dir),
+                        )
                 if process.poll() is not None:
                     break
-            raise RendererError("Remotion Studio 未能在 45 秒内提供 preview URL")
+            return RendererCheckResult(
+                "remotion_preview", self.name, process.returncode or -1,
+                "fail", "preview", "Remotion Studio 未能提供 preview URL。",
+            )
         finally:
             if process.poll() is None:
                 process.terminate()

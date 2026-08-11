@@ -1,4 +1,4 @@
-"""Canonical input, render-time asset and display-text gates for Production 0.6."""
+"""Canonical input, render-time asset and display-text gates for Production 0.6.1."""
 
 import hashlib
 import re
@@ -16,6 +16,11 @@ ALLOWED_PRODUCTION_MIME_EXTENSIONS = {
     ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
     ".webp": "image/webp", ".svg": "image/svg+xml", ".pdf": "application/pdf",
 }
+
+MACHINE_EDITORIAL_ALLOWLIST = frozenset({
+    "发生了什么", "关键时间点", "数据对比", "两个解释", "关系说明",
+    "真人口播", "辅助画面待补", "资料画面", "页面截图",
+})
 
 
 def validate_production_input(
@@ -94,6 +99,10 @@ def validate_render_asset(
         raise ProductionValidationError("素材文件不在允许的素材目录")
     if not path.is_file():
         raise ProductionValidationError("素材本地文件不存在")
+    if path.suffix.casefold() == ".pdf":
+        raise ProductionValidationError(
+            "原始 PDF 只保留来源记录，必须先登记为已批准页面截图才能进入图片 Renderer"
+        )
     expected_size = int(asset.get("byte_size", -1))
     actual_size = path.stat().st_size
     if expected_size != actual_size or actual_size <= 0:
@@ -116,38 +125,61 @@ def _number_tokens(text: str) -> Sequence[str]:
     return tuple(result)
 
 
+def _semantic_text(text: str) -> str:
+    """Normalize only punctuation/spacing; never infer synonyms or hidden meaning."""
+
+    return "".join(
+        character.casefold() for character in str(text)
+        if character.isalnum() or "\u3400" <= character <= "\u9fff"
+    )
+
+
 def validate_display_text(
     entry: Mapping[str, Any], report: Any, *,
     additional_grounded_texts: Sequence[str] = (),
 ) -> None:
-    """Conservatively prove visible numbers/dates from bound approved Claims."""
+    """Prove every visible phrase from a fixed core phrase or bound approved text."""
 
     text = str(entry.get("text", "")).strip()
     kind = entry.get("text_kind")
+    origin = entry.get("origin")
     claim_ids = list(entry.get("claim_ids", []))
     evidence_ids = list(entry.get("evidence_link_ids", []))
-    if not text or kind not in {"editorial", "factual", "attribution"}:
+    if not text or kind not in {"editorial", "factual", "attribution"} or origin not in {
+        "machine_editorial", "research_fact", "research_attribution",
+        "material_caption", "visual_label",
+    }:
         raise ProductionValidationError("屏幕文字结构无效")
-    if kind == "editorial":
-        if claim_ids or evidence_ids or _number_tokens(text):
-            raise ProductionValidationError("编辑性屏幕标题不能携带事实数字或 Research binding")
+    if origin == "machine_editorial":
+        if kind != "editorial" or claim_ids or evidence_ids or text not in MACHINE_EDITORIAL_ALLOWLIST:
+            raise ProductionValidationError("未绑定屏幕文字不在版本化机器编辑白名单")
         return
+    if kind == "editorial":
+        raise ProductionValidationError("非机器编辑文字必须按事实或归因文字绑定")
     report_obj = report if isinstance(report, ResearchReport) else ResearchReport.from_dict(report)
     claims = {claim["id"]: claim for claim in report_obj.claims}
     links = {link["id"]: link for link in report_obj.evidence_links}
     if not claim_ids or any(claim_id not in claims for claim_id in claim_ids):
         raise ProductionValidationError("事实性屏幕文字必须绑定有效 Research Claim")
+    if not evidence_ids:
+        raise ProductionValidationError("事实性屏幕文字必须绑定有效 Research Evidence")
     for evidence_id in evidence_ids:
         link = links.get(evidence_id)
         if link is None or link["claim_id"] not in claim_ids:
             raise ProductionValidationError("屏幕文字 Evidence 与 Claim binding 无效")
-    approved_text = " ".join(
+    approved_parts = (
         [claims[claim_id]["claim"] for claim_id in claim_ids]
         + [str(value) for value in additional_grounded_texts]
     )
+    approved_text = " ".join(approved_parts)
     approved_tokens = set(_number_tokens(approved_text))
     for token in _number_tokens(text):
         if token not in approved_tokens:
             raise ProductionValidationError(
                 f"屏幕文字包含无法从绑定 Claim 回查的数字或日期：{token}"
             )
+    normalized = _semantic_text(text)
+    if not normalized or not any(
+        normalized in _semantic_text(part) for part in approved_parts if _semantic_text(part)
+    ):
+        raise ProductionValidationError("屏幕文字语义无法从绑定 Claim 或批准结构化条目回查")

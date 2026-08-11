@@ -1,4 +1,4 @@
-"""File-backed Motion Asset Manifest and deterministic Production QA 0.6."""
+"""File-backed Motion Asset Manifest and deterministic Production QA 0.6.1."""
 
 import hashlib
 import json
@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Sequence, Tuple
 
 from .production_profile import ProductionValidationError
-from .production_renderers.base import RenderBatch
+from .production_renderers.base import RenderBatch, RendererCheckResult
 from .production_schema import MOTION_ASSET_MANIFEST_SCHEMA, PRODUCTION_QA_SCHEMA
 from .validation import ReportValidationError, validate_json_schema
 
@@ -140,7 +140,7 @@ def build_motion_asset_manifest(
                 "details": "Renderer 失败后没有可检查的真实输出文件。",
             })
     manifest = {
-        "artifact_version": "0.6", "manifest_id": manifest_id,
+        "artifact_version": "0.6.1", "manifest_id": manifest_id,
         "production_id": plan["production_id"],
         "production_plan_digest": plan["plan_digest"], "renderer": renderer,
         "created_at": created_at, "assets": assets,
@@ -175,24 +175,28 @@ def validate_motion_manifest(manifest: Mapping[str, Any], plan: Mapping[str, Any
 
 def prepare_production_qa(
     plan: Mapping[str, Any], manifest_result: ManifestResult, *, created_at: str,
-    qa_id: str, renderer_checks: Mapping[str, bool],
-    package_failures: Sequence[Mapping[str, str]] = (),
+    qa_id: str, renderer_checks: Sequence[Any],
 ) -> Dict[str, Any]:
     manifest = manifest_result.manifest
     validate_motion_manifest(manifest, plan)
-    checks = []
-    for name, passed in renderer_checks.items():
-        checks.append({
-            "check_name": name, "scope": "package", "motion_asset_id": "",
-            "outcome": "pass" if passed else "fail",
-            "details": "检查通过。" if passed else "检查失败。",
-        })
+    checks = [
+        dict(item.to_dict() if isinstance(item, RendererCheckResult) else item)
+        for item in renderer_checks
+    ]
     issues = []
-    for failure in package_failures:
+    for check in checks:
+        if check["outcome"] != "fail":
+            continue
+        if check["command_category"] == "environment":
+            issue_type = "production_environment_unavailable"
+        elif check["command_category"] == "preview":
+            issue_type = "renderer_preview_failed"
+        else:
+            issue_type = "renderer_validation_failed"
         issues.append({
-            "issue_id": f"PQI{len(issues) + 1:03d}", "issue_type": failure["issue_type"],
+            "issue_id": f"PQI{len(issues) + 1:03d}", "issue_type": issue_type,
             "scope": "package", "motion_asset_id": "", "blocking": True,
-            "details": failure["details"],
+            "details": f'{check["check_name"]}: {check["summary"]}',
         })
     for failure in manifest_result.failures:
         issues.append({
@@ -213,7 +217,7 @@ def prepare_production_qa(
     else:
         gate = "pass"
     qa = {
-        "artifact_version": "0.6", "qa_id": qa_id, "production_id": plan["production_id"],
+        "artifact_version": "0.6.1", "qa_id": qa_id, "production_id": plan["production_id"],
         "production_plan_digest": plan["plan_digest"],
         "manifest_digest": manifest["manifest_digest"], "created_at": created_at,
         "checks": checks, "issues": issues, "clip_results": clip_results,
@@ -242,6 +246,14 @@ def validate_production_qa(
     expected_ids = [f"PQI{index:03d}" for index in range(1, len(qa["issues"]) + 1)]
     if [issue["issue_id"] for issue in qa["issues"]] != expected_ids:
         raise ProductionValidationError("Production QA issue ID 不是机器生成")
+    issue_details = {
+        issue["details"] for issue in qa["issues"]
+        if issue["scope"] == "package" and issue["blocking"]
+    }
+    for check in qa["checks"]:
+        expected_detail = f'{check["check_name"]}: {check["summary"]}'
+        if check["outcome"] == "fail" and expected_detail not in issue_details:
+            raise ProductionValidationError("Renderer fail check 必须确定性生成 blocking issue")
     ready_ids = {asset["motion_asset_id"] for asset in manifest["assets"]}
     expected_results = [
         {"motion_asset_id": item["motion_asset_id"], "status": "ready" if item["motion_asset_id"] in ready_ids else "failed"}

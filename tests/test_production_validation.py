@@ -173,12 +173,13 @@ class ProductionValidationTests(unittest.TestCase):
 
     def test_display_text_allows_editorial_heading_and_grounded_date(self):
         validate_display_text(
-            {"text": "发生了什么", "text_kind": "editorial", "claim_ids": [],
+            {"text": "发生了什么", "origin": "machine_editorial", "text_kind": "editorial", "claim_ids": [],
              "evidence_link_ids": []}, self.report
         )
         validate_display_text(
-            {"text": "2026-08-09", "text_kind": "factual", "claim_ids": ["C1"],
-             "evidence_link_ids": ["E1"]}, self.report
+            {"text": "2026-08-09", "origin": "research_fact", "text_kind": "factual",
+             "claim_ids": ["C1"], "evidence_link_ids": ["E1"]}, self.report,
+            additional_grounded_texts=("2026-08-09",),
         )
 
     def test_display_text_rejects_unsupported_number_date_and_bar_extra_number(self):
@@ -186,12 +187,12 @@ class ProductionValidationTests(unittest.TestCase):
             with self.subTest(text=text):
                 with self.assertRaisesRegex(ProductionValidationError, "屏幕文字"):
                     validate_display_text(
-                        {"text": text, "text_kind": "factual", "claim_ids": ["C1"],
+                        {"text": text, "origin": "research_fact", "text_kind": "factual", "claim_ids": ["C1"],
                          "evidence_link_ids": ["E1"]}, self.report
                     )
 
     def test_display_text_can_use_an_exact_approved_timeline_entry_as_extra_grounding(self):
-        entry = {"text": "2026-05-08", "text_kind": "factual", "claim_ids": ["C1"],
+        entry = {"text": "2026-05-08", "origin": "research_fact", "text_kind": "factual", "claim_ids": ["C1"],
                  "evidence_link_ids": ["E1"]}
         validate_display_text(
             entry, self.report, additional_grounded_texts=("2026-05-08",)
@@ -201,6 +202,44 @@ class ProductionValidationTests(unittest.TestCase):
                 dict(entry, text="2026-05-08 / 999"), self.report,
                 additional_grounded_texts=("2026-05-08",),
             )
+
+    def test_display_text_rejects_nonnumeric_fact_unrelated_claim_and_fake_caption(self):
+        cases = [
+            {"text": "公司已经承认全部责任", "origin": "research_fact", "text_kind": "factual",
+             "claim_ids": ["C1"], "evidence_link_ids": ["E1"]},
+            {"text": "监管机构认定违法", "origin": "material_caption", "text_kind": "factual",
+             "claim_ids": ["C1"], "evidence_link_ids": ["E1"]},
+        ]
+        for entry in cases:
+            with self.subTest(text=entry["text"]):
+                with self.assertRaisesRegex(ProductionValidationError, "语义|回查"):
+                    validate_display_text(entry, self.report)
+
+    def test_only_versioned_machine_editorial_phrases_can_be_unbound(self):
+        for text in ("关键时间点", "真人口播"):
+            validate_display_text(
+                {"text": text, "origin": "machine_editorial", "text_kind": "editorial",
+                 "claim_ids": [], "evidence_link_ids": []}, self.report,
+            )
+        with self.assertRaisesRegex(ProductionValidationError, "白名单"):
+            validate_display_text(
+                {"text": "公司已经承认全部责任", "origin": "machine_editorial",
+                 "text_kind": "editorial", "claim_ids": [], "evidence_link_ids": []},
+                self.report,
+            )
+
+    def test_raw_pdf_is_provenance_only_and_cannot_enter_image_renderer(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "official.pdf"
+            payload = b"%PDF-1.7\nsynthetic"
+            path.write_bytes(payload)
+            asset = {
+                "material_id": "M001", "local_path": str(path), "byte_size": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(), "eligibility_status": "ready_to_use",
+            }
+            with self.assertRaisesRegex(ProductionValidationError, "PDF"):
+                validate_render_asset(asset, root)
 
 
 if __name__ == "__main__":
