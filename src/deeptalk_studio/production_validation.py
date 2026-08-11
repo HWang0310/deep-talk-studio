@@ -116,7 +116,10 @@ def _number_tokens(text: str) -> Sequence[str]:
     return tuple(result)
 
 
-def validate_display_text(entry: Mapping[str, Any], report: Any) -> None:
+def validate_display_text(
+    entry: Mapping[str, Any], report: Any, *,
+    additional_grounded_texts: Sequence[str] = (),
+) -> None:
     """Conservatively prove visible numbers/dates from bound approved Claims."""
 
     text = str(entry.get("text", "")).strip()
@@ -138,7 +141,10 @@ def validate_display_text(entry: Mapping[str, Any], report: Any) -> None:
         link = links.get(evidence_id)
         if link is None or link["claim_id"] not in claim_ids:
             raise ProductionValidationError("屏幕文字 Evidence 与 Claim binding 无效")
-    approved_text = " ".join(claims[claim_id]["claim"] for claim_id in claim_ids)
+    approved_text = " ".join(
+        [claims[claim_id]["claim"] for claim_id in claim_ids]
+        + [str(value) for value in additional_grounded_texts]
+    )
     approved_tokens = set(_number_tokens(approved_text))
     for token in _number_tokens(text):
         if token not in approved_tokens:

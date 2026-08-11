@@ -148,6 +148,26 @@ class ProductionPlannerTests(unittest.TestCase):
         )
         self.assertNotIn("M001", [mid for scene in plan["scenes"] for mid in scene["source_material_ids"]])
 
+    def test_numeric_visual_title_is_factual_and_must_be_grounded(self):
+        package = self.package.to_dict()
+        package["generated_visuals"][0]["title"] = "2026 年事件核查"
+        plan = prepare_production_plan(
+            type(self.package)(package), self.script, self.report, self.production_profile,
+            self.root / "assets", created_at="2026-08-11T12:00:00+08:00",
+            production_id="PROD-numeric-title", renderer_mode="remotion",
+        )
+        title = plan["scenes"][1]["on_screen_text"][0]
+        self.assertEqual(title["text_kind"], "factual")
+        self.assertEqual(title["claim_ids"], ["C1", "C2"])
+
+        package["generated_visuals"][0]["title"] = "999 年事件核查"
+        with self.assertRaisesRegex(ProductionValidationError, "999"):
+            prepare_production_plan(
+                type(self.package)(package), self.script, self.report, self.production_profile,
+                self.root / "assets", created_at="2026-08-11T12:00:00+08:00",
+                production_id="PROD-bad-title", renderer_mode="remotion",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

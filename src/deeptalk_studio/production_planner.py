@@ -46,15 +46,36 @@ def _factual(text: str, claim_ids: list, evidence_ids: list) -> dict:
     }
 
 
+def _visual_heading(text: str, visual: Mapping[str, Any]) -> dict:
+    if re.search(r"\d", text):
+        return _factual(text, visual["claim_ids"], visual["evidence_link_ids"])
+    return _editorial(text)
+
+
 def _visual_text(visual: Mapping[str, Any], report: ResearchReport) -> list:
-    entries = [_editorial(str(visual["title"]))]
-    if str(visual.get("subtitle", "")).strip() and not re.search(r"\d", str(visual["subtitle"])):
-        entries.append(_editorial(str(visual["subtitle"])))
+    entries = [_visual_heading(str(visual["title"]), visual)]
+    prevalidated = set()
+    if str(visual.get("subtitle", "")).strip():
+        entries.append(_visual_heading(str(visual["subtitle"]), visual))
     visual_type = visual["visual_type"]
     if visual_type == "timeline":
         for event in visual["events"]:
-            entries.append(_factual(event["date"], event["claim_ids"], event["evidence_link_ids"]))
-            entries.append(_factual(event["label"], event["claim_ids"], event["evidence_link_ids"]))
+            approved = next((item for item in report.timeline if (
+                item["date"] == event["date"] and item["event"] == event["label"]
+                and item["claim_ids"] == event["claim_ids"]
+                and item["evidence_link_ids"] == event["evidence_link_ids"]
+            )), None)
+            if approved is None:
+                raise ProductionValidationError("Timeline 屏幕文字不是已批准 Research Timeline 的精确条目")
+            date_entry = _factual(event["date"], event["claim_ids"], event["evidence_link_ids"])
+            label_entry = _factual(event["label"], event["claim_ids"], event["evidence_link_ids"])
+            for entry in (date_entry, label_entry):
+                validate_display_text(
+                    entry, report,
+                    additional_grounded_texts=(approved["date"], approved["event"]),
+                )
+                prevalidated.add(id(entry))
+                entries.append(entry)
     elif visual_type == "bar":
         for point in visual["data_points"]:
             entries.append(_factual(
@@ -80,7 +101,8 @@ def _visual_text(visual: Mapping[str, Any], report: ResearchReport) -> list:
             if str(edge["label"]).strip() and not re.search(r"\d", str(edge["label"])):
                 entries.append(_editorial(str(edge["label"])))
     for entry in entries:
-        validate_display_text(entry, report)
+        if id(entry) not in prevalidated:
+            validate_display_text(entry, report)
     return entries
 
 
@@ -266,7 +288,8 @@ def validate_production_plan(
     cue_ids = {cue["cue_id"] for cue in package.cue_sheet}
     beat_ids = {beat["beat_id"] for beat in script.beats}
     material_ids = {item["material_id"] for item in package.materials}
-    visual_ids = {item["visual_id"] for item in package.generated_visuals}
+    visual_by_id = {item["visual_id"]: item for item in package.generated_visuals}
+    visual_ids = set(visual_by_id)
     expected_scene_ids = [f"S{index:03d}" for index in range(1, len(plan["scenes"]) + 1)]
     if [scene["scene_id"] for scene in plan["scenes"]] != expected_scene_ids:
         raise ProductionValidationError("Production Scene ID 必须由程序连续生成")
@@ -282,8 +305,24 @@ def validate_production_plan(
         if scene["duration_frames"] != round(scene["duration_seconds"] * plan["canvas"]["fps"]):
             raise ProductionValidationError("Production Scene duration 不确定或与 frame 数不一致")
         if report is not None:
+            additional_grounding = []
+            for visual_id in scene["source_visual_ids"]:
+                visual = visual_by_id[visual_id]
+                if visual["visual_type"] == "timeline":
+                    for event in visual["events"]:
+                        approved = next((item for item in report.timeline if (
+                            item["date"] == event["date"] and item["event"] == event["label"]
+                            and item["claim_ids"] == event["claim_ids"]
+                            and item["evidence_link_ids"] == event["evidence_link_ids"]
+                        )), None)
+                        if approved is None:
+                            raise ProductionValidationError("Production Plan Timeline 与 Research Timeline 不一致")
+                        additional_grounding.extend((approved["date"], approved["event"]))
             for entry in scene["on_screen_text"]:
-                validate_display_text(entry, report)
+                validate_display_text(
+                    entry, report,
+                    additional_grounded_texts=tuple(additional_grounding),
+                )
     for index, item in enumerate(plan["motion_assets"], 1):
         if item["asset_kind"] == "motion_clip" and item["motion_asset_id"] != f"MA{index:03d}":
             raise ProductionValidationError("Motion Asset ID 必须由程序生成")

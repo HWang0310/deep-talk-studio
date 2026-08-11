@@ -190,6 +190,18 @@ class ProductionValidationTests(unittest.TestCase):
                          "evidence_link_ids": ["E1"]}, self.report
                     )
 
+    def test_display_text_can_use_an_exact_approved_timeline_entry_as_extra_grounding(self):
+        entry = {"text": "2026-05-08", "text_kind": "factual", "claim_ids": ["C1"],
+                 "evidence_link_ids": ["E1"]}
+        validate_display_text(
+            entry, self.report, additional_grounded_texts=("2026-05-08",)
+        )
+        with self.assertRaisesRegex(ProductionValidationError, "999"):
+            validate_display_text(
+                dict(entry, text="2026-05-08 / 999"), self.report,
+                additional_grounded_texts=("2026-05-08",),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
