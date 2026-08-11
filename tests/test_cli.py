@@ -55,6 +55,16 @@ class CliTests(unittest.TestCase):
         self.assertIn("compare-script", result.stdout)
         self.assertIn("revise-script", result.stdout)
         self.assertIn("write-script", result.stdout)
+        self.assertIn("produce-assets", result.stdout)
+
+    def test_produce_assets_help_exposes_simple_renderer_choice(self):
+        result = run_cli("produce-assets", "--help")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--renderer", result.stdout)
+        self.assertIn("auto", result.stdout)
+        self.assertIn("remotion", result.stdout)
+        self.assertIn("hyperframes", result.stdout)
 
     def test_prepare_review_and_compare_script_cli_have_clean_artifacts(self):
         with tempfile.TemporaryDirectory() as temp_dir:
