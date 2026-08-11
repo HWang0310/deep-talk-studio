@@ -1,0 +1,79 @@
+{
+  "version": "0.6.1",
+  "evaluated_at": "2026-08-11",
+  "public_data_policy": "fictional_or_decontented_only",
+  "overall_status": "pass",
+  "scenarios": [
+    {
+      "id": "A",
+      "name": "stable_business_bar",
+      "status": "pass",
+      "evidence": "three grounded bars become three independent baseline-growth elements in both renderers; real MP4 evidence generated"
+    },
+    {
+      "id": "B",
+      "name": "contested_timeline",
+      "status": "pass",
+      "evidence": "baseline then ordered markers; only exact Research Timeline entries accepted; reference-only material excluded"
+    },
+    {
+      "id": "C",
+      "name": "rights_sparse_diagram",
+      "status": "pass",
+      "evidence": "three nodes and two edges preserve order; edge follows endpoints; unsupported causal label rejected"
+    },
+    {
+      "id": "D",
+      "name": "comparison",
+      "status": "pass",
+      "evidence": "two or more items render as independent left/right regions and item animations"
+    },
+    {
+      "id": "E",
+      "name": "pdf_capture_boundary",
+      "status": "pass",
+      "evidence": "raw PDF rejected with fixed gap; reviewed PNG/JPEG/WebP capture remains renderable"
+    },
+    {
+      "id": "F",
+      "name": "qa_contradiction",
+      "status": "pass",
+      "evidence": "validation or preview fail creates package blocker even when manifest files exist; tampered contradiction rejected"
+    },
+    {
+      "id": "G",
+      "name": "display_text_semantic_bypass",
+      "status": "pass",
+      "evidence": "unsupported nonnumeric fact, unrelated claim, unsupported causal edge and false material caption fail or downgrade before project generation"
+    }
+  ],
+  "automated_tests": {
+    "total": 267,
+    "executed_pass": 266,
+    "default_skipped_real_render": 1,
+    "v0_6_0_baseline_preserved": 255
+  },
+  "cross_renderer_real_motion": {
+    "payload": "synthetic_three_bar_36_64_88",
+    "internal_element_count": 3,
+    "remotion": {
+      "version": "4.0.507",
+      "sha256": "7cb45c99a801c3e5535a267e5e1c15e14065267514711fe14975f7f6f4114abd",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "duration_seconds": 3.050667,
+      "qa_gate": "pass"
+    },
+    "hyperframes": {
+      "version": "0.7.106",
+      "sha256": "33e9cc4650a094d0c620ce9558cc3cc1d7ddd3f8754f3d7582fcf616a6f65dd5",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "duration_seconds": 3.0,
+      "qa_gate": "pass"
+    },
+    "contact_sheet_sha256": "5e9d1a026547d1f9825993cc0a1d8f91a7241f854866c45fcd1bd20170f3efbf"
+  }
+}

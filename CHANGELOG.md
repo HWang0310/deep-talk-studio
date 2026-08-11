@@ -2,6 +2,32 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [0.6.1] - 2026-08-11
+
+### Added
+
+- Production Scene 新增严格 `scene_payload`，统一保存 timeline、bar、comparison、diagram 的元素、顺序、文字和 binding。
+- Remotion 与 HyperFrames 新增四类逐元素 motion semantics；公开三柱虚构动效生成器可产出双引擎 MP4、contact sheet、ffprobe、SHA 和 QA 证据。
+- Display Text 新增 `machine_editorial`、`research_fact`、`research_attribution`、`material_caption`、`visual_label` 来源。
+- renderer 命令新增结构化 check：name、renderer、exit code、outcome、category、安全摘要。
+
+### Changed
+
+- V0.5 SVG 不再作为四类 Motion 动画主体；两套 renderer 只消费同一 Python Core payload。
+- HyperFrames rough preview 改为新场景覆盖式入场，不再提前淡出旧场景。
+- rough preview 仅在 MAPREVIEW 真正进入 Manifest 且 ready 时宣称成功。
+
+### Security
+
+- 无数字事实文字、无关 Claim、无依据因果 edge 和虚假素材 caption 均在项目生成前失败或安全降级。
+- raw PDF 永不 stage/render；无已审 capture 时生成固定缺口。
+- fail check 确定性生成 blocking issue，Production QA 无法同时保存失败检查和通过 Gate；公开命令摘要会脱敏本机路径和局域网地址。
+
+### Verification
+
+- unittest 共 **267 项**（266 项执行通过、1 项真实渲染集成测试默认跳过）；V0.6.0 的 255 项基线全部保留。
+- 双引擎真实渲染同一份 3 元素 synthetic bar Plan，Remotion 4.0.507 与 HyperFrames 0.7.106 均通过完整 validation/preview/render/ffprobe/QA。
+
 ## [0.6.0] - 2026-08-11
 
 ### Added：Motion Production Layer

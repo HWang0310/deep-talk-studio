@@ -29,7 +29,7 @@ Allow the core workflow to create the Production Plan, renderer project, preview
 ## Inspect Results
 
 1. Reopen the saved Production QA and Motion Asset Manifest.
-2. Report an asset as usable only when it appears in the Manifest and its QA clip result is `ready`.
+2. Report an asset as usable only when it appears in the Manifest and its QA clip result is `ready`. Report rough preview success only when `MAPREVIEW` itself is present and ready.
 3. Treat package Gate `fail` as blocked. Treat `warnings` as partial success and list the exact missing clips in ordinary language.
 4. Mention Production gaps, especially missing real voice timing, missing lawful imagery or retained A-roll placeholders.
 
@@ -49,6 +49,9 @@ Provide clickable paths only for the rough preview and final readable QA if usef
 
 - Produce auxiliary visuals, not a fake host, synthetic witness, fabricated event scene or fake document.
 - Do not add TTS, final A-roll edit, subtitle system, BGM, title, cover, publishing or platform upload in V0.6.
-- Displayed facts and numbers must remain grounded in the approved Research bindings.
+- Except for the versioned machine-editorial allowlist, every displayed factual phrase must be semantically grounded in approved Research bindings even when it contains no number.
+- Never stage or render raw PDF. Use only a V0.5-reviewed PNG/JPEG/WebP capture with capture provenance; otherwise return the fixed document screenshot gap.
+- timeline/bar/comparison/diagram must animate independent elements from `scene_payload`; never animate the complete V0.5 SVG as one image.
+- A failed typed renderer check must create a blocking package issue; never reinterpret it as pass.
 - A renderer success message is not QA; real files must pass file, metadata, duration, size and digest checks.
 - Preserve immutable storage and create a new Production run instead of replacing an old one.
