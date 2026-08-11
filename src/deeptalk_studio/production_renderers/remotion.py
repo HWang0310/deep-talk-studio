@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .base import (
-    CommandResult, PreparedProject, RenderOutput, RendererError,
+    CommandResult, PreparedProject, RenderBatch, RenderOutput, RendererError,
     prepare_project_directory, run_command, stage_plan_assets, write_json,
 )
 from ..production_storage import production_output_path
@@ -83,9 +83,9 @@ class RemotionRenderer:
 
     def render(
         self, prepared: PreparedProject, plan: Mapping[str, Any], output_root: Path,
-    ) -> Sequence[RenderOutput]:
+    ) -> RenderBatch:
         self._install(prepared)
-        outputs = []
+        outputs, failures = [], []
         for expected in plan["motion_assets"]:
             path = production_output_path(
                 output_root, str(plan["production_id"]), expected["motion_asset_id"],
@@ -108,9 +108,15 @@ class RemotionRenderer:
                     "npx", "remotion", "still", "src/index.ts", "HeroStill", str(path),
                     "--log=error",
                 ]
-            result = run_command(command, prepared.project_dir, timeout=1200)
-            outputs.append(RenderOutput(
-                expected["motion_asset_id"], expected["scene_id"], expected["asset_kind"],
-                path, result.command_summary,
-            ))
-        return tuple(outputs)
+            try:
+                result = run_command(command, prepared.project_dir, timeout=1200)
+                outputs.append(RenderOutput(
+                    expected["motion_asset_id"], expected["scene_id"], expected["asset_kind"],
+                    path, result.command_summary,
+                ))
+            except RendererError as exc:
+                failures.append({
+                    "motion_asset_id": expected["motion_asset_id"],
+                    "issue_type": "render_failed", "details": str(exc),
+                })
+        return RenderBatch(tuple(outputs), tuple(failures))

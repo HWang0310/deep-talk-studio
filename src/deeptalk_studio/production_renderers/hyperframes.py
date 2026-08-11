@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .base import (
-    CommandResult, PreparedProject, RenderOutput, RendererError,
+    CommandResult, PreparedProject, RenderBatch, RenderOutput, RendererError,
     prepare_project_directory, run_command, stage_plan_assets, write_json,
 )
 from ..production_storage import production_output_path
@@ -195,9 +195,9 @@ class HyperFramesRenderer:
 
     def render(
         self, prepared: PreparedProject, plan: Mapping[str, Any], output_root: Path,
-    ) -> Sequence[RenderOutput]:
+    ) -> RenderBatch:
         self._install(prepared)
-        outputs = []
+        outputs, failures = [], []
         rough_output = None
         for expected in plan["motion_assets"]:
             path = production_output_path(
@@ -207,11 +207,14 @@ class HyperFramesRenderer:
             path.parent.mkdir(parents=True, exist_ok=True)
             if expected["asset_kind"] == "hero_still":
                 if rough_output is None:
-                    raise RendererError("HyperFrames hero still 需要先完成 rough preview")
-                command = [
-                    "ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", "0.5",
-                    "-i", str(rough_output), "-frames:v", "1", str(path),
-                ]
+                    failures.append({
+                        "motion_asset_id": expected["motion_asset_id"],
+                        "issue_type": "render_failed",
+                        "details": "HyperFrames hero still 需要先完成 rough preview",
+                    })
+                    continue
+                command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", "0.5",
+                           "-i", str(rough_output), "-frames:v", "1", str(path)]
             else:
                 command = [
                     "npx", "hyperframes", "render", ".", "--output", str(path),
@@ -221,9 +224,15 @@ class HyperFramesRenderer:
                     command.extend(["--composition", f'compositions/{expected["scene_id"]}.html'])
                 else:
                     rough_output = path
-            result = run_command(command, prepared.project_dir, timeout=1800)
-            outputs.append(RenderOutput(
-                expected["motion_asset_id"], expected["scene_id"], expected["asset_kind"],
-                path, result.command_summary,
-            ))
-        return tuple(outputs)
+            try:
+                result = run_command(command, prepared.project_dir, timeout=1800)
+                outputs.append(RenderOutput(
+                    expected["motion_asset_id"], expected["scene_id"], expected["asset_kind"],
+                    path, result.command_summary,
+                ))
+            except RendererError as exc:
+                failures.append({
+                    "motion_asset_id": expected["motion_asset_id"],
+                    "issue_type": "render_failed", "details": str(exc),
+                })
+        return RenderBatch(tuple(outputs), tuple(failures))

@@ -40,6 +40,12 @@ class RenderOutput:
     command_summary: str
 
 
+@dataclass(frozen=True)
+class RenderBatch:
+    outputs: Tuple[RenderOutput, ...]
+    failures: Tuple[Mapping[str, str], ...]
+
+
 def _summary(text: str, limit: int = 4000) -> str:
     clean = str(text).strip()
     return clean[-limit:] if len(clean) > limit else clean
