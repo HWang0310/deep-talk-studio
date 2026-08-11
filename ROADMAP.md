@@ -68,7 +68,7 @@
 - Beat ID 采用稳定、递增、不可复用策略，版本比较能区分插入、删除、移动与实际修改；
 - 完成 V0.4.1 受控 A/B/C 评测和 synthetic fail-closed 场景。
 
-## V0.5：素材与视觉辅助（V0.5.1 已完成，待产品复核）
+## V0.5：素材与视觉辅助（V0.5.1 已完成并验收）
 
 - reviewed Script + exact Research + V0.4.1 Review linkage 输入 Gate；
 - Material Package 0.5、Cue Sheet、真实 inspection、Rights/Reuse Gate、Claim/Evidence binding；
@@ -79,7 +79,7 @@
 - `prepare-materials` Skill、API Provider、CLI 和三类真实评测；
 - Remotion / HyperFrames 只保留 render target hints，未创建完整视频工程。
 
-### V0.5.1：Material Gate Hardening（已完成，待产品复核）
+### V0.5.1：Material Gate Hardening（已完成并验收）
 
 - Rights actual-open provenance、rights evidence page 和工具引用一一绑定；
 - Visual Spec 内部 timeline/bar/comparison/diagram grounding 全部 fail-closed；
@@ -87,12 +87,20 @@
 - SVG sanitizer 与 PDF/截图校验加固；
 - 仍未开始 Remotion / HyperFrames 制作层。
 
-## V0.6：剪辑与发布辅助
+## V0.6：Motion Production Layer（V0.6.0 已完成）
 
-- 生成镜头级剪辑方案和素材清单；
-- 辅助字幕、章节、标题、封面文案和发布说明；
-- B 站发布前检查；
-- 在运营数据足够后扩展小红书、抖音等平台适配。
+- V0.5.1 canonical input Gate、Production Plan 0.6 与统一 Production Profile；
+- Remotion / HyperFrames 两个适配器共用同一计划和 QA，普通流程只选一个引擎；
+- 真实 motion clips、rough visual preview、hero still、Motion Asset Manifest 与 Production QA；
+- timeline、bar、comparison、diagram、document/screenshot、static image 与 A-roll placeholder 映射；
+- render-time SHA / path / MIME / eligibility 与 Display Text Grounding Gate；
+- 字幕、BGM、标题、封面和发布仍保留到后续。
+
+## V0.7：第一轮真实用户端到端试用（待产品决定）
+
+- 用一期真实内容从选题跑到可导入剪辑软件的素材包；
+- 收集普通用户的阻塞点，再决定是优先做音频对齐、字幕还是发布辅助；
+- 不默认自动发布。
 
 ## 暂不承诺
 

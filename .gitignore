@@ -20,3 +20,10 @@ material_packages/**
 !material_packages/.gitkeep
 material_assets/**
 !material_assets/.gitkeep
+production_packages/**
+!production_packages/.gitkeep
+production_assets/**
+!production_assets/.gitkeep
+production_projects/**
+!production_projects/.gitkeep
+.cache/

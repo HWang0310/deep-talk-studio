@@ -1,0 +1,25 @@
+{
+  "version": "0.6.0",
+  "evaluated_at": "2026-08-11",
+  "full_artifacts_gitignored": true,
+  "scenarios": [
+    {"scenario": "stable_business", "scene_type": "bar_motion", "renderer": "remotion", "real_mp4": true, "qa": "pass"},
+    {"scenario": "contested_public", "scene_types": ["timeline_motion", "aroll_placeholder"], "reference_only_embedded": false},
+    {"scenario": "rights_sparse", "scene_types": ["diagram_motion", "aroll_placeholder"], "reference_only_embedded": false},
+    {"scenario": "blocked_input", "result": "rejected_before_renderer"},
+    {"scenario": "cross_renderer", "same_plan": true, "remotion_qa": "pass", "hyperframes_qa": "pass", "real_motion_assets": 6},
+    {"scenario": "asset_tampering", "result": "rejected_before_renderer"}
+  ],
+  "render_environment": {
+    "node": "22.23.2",
+    "npm_npx": "10.9.8",
+    "ffmpeg_ffprobe": "8.1.1",
+    "remotion": "4.0.507",
+    "hyperframes": "0.7.106",
+    "browser": "system Google Chrome"
+  },
+  "automated_tests": 255,
+  "original_tests_preserved": 219,
+  "real_render_integration": "pass",
+  "api_key_used": false
+}

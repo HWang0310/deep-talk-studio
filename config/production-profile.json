@@ -1,0 +1,44 @@
+{
+  "profile_version": "0.6",
+  "platform": "bilibili",
+  "default_renderer": "remotion",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "aspect_ratio": "16:9",
+    "fps": 30
+  },
+  "design_tokens": {
+    "colors": {
+      "background": "#151716",
+      "surface": "#242824",
+      "foreground": "#F4F0E6",
+      "muted": "#B9B4A8",
+      "accent": "#E6A84A",
+      "danger": "#C95C54"
+    },
+    "typography": {
+      "display": "Arial Black",
+      "body": "Georgia",
+      "data": "Menlo"
+    },
+    "spacing_unit": 8,
+    "safe_area": {
+      "horizontal": 96,
+      "vertical": 100
+    },
+    "motion_intensity": "restrained",
+    "source_attribution_style": "bottom-left-muted"
+  },
+  "scene_defaults": {
+    "transition": "editorial_push",
+    "audio_mode": "none",
+    "aroll_placeholder_label": "真人口播",
+    "duration_tolerance_seconds": 0.2
+  },
+  "dependencies": {
+    "remotion": "4.0.507",
+    "hyperframes": "0.7.106",
+    "gsap": "3.14.2"
+  }
+}

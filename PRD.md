@@ -213,6 +213,31 @@ V0.5 从经过 V0.4.1 真实 Review 的 Script 和精确 Research revision 生�
 
 V0.5 不包含完整视频、剪辑时间线、字幕、音乐、标题封面、上传发布和运营分析。
 
+## 7.4 V0.6：Motion Production Layer
+
+V0.6 只把已审查的素材包制作成可复核的辅助动画，不代替真人出镜、最终剪辑和发布决策。
+
+1. 入口只接受能由 V0.5.1 loader 重放验证的 `reviewed` / `reviewed_with_warnings` Material Package。
+2. Production Plan 0.6 绑定精确 Script、Material revision、Review、Profile、Scene、时长、来源和预期输出。
+3. 普通制作只选 Remotion 或 HyperFrames 中一个；两者共用同一计划、设计 Profile、Manifest 和 QA。
+4. 渲染前重验 asset root、本地文件、MIME、byte size、SHA-256、render status 和 eligibility。非 ready 素材永不进入 Composition。
+5. 所有显示数字、日期和事实文字必须从绑定 Claim/Evidence 或精确 Research Timeline 重新证明。
+6. 映射 timeline、bar、comparison、diagram、official document/webpage、screenshot、static image 和 A-roll placeholder；缺画面时记录 Production gap。
+7. 输出 MP4 动画片段、MP4 rough visual preview 与 PNG hero still。Manifest 记录真实文件元数据和 SHA，QA 由程序计算 clip/package Gate。
+8. 计划、输出和渲染工程不可静默覆盖，且默认被 Git 忽略。
+
+### V0.6 验收记录
+
+- [x] Remotion Studio / compositions / real render 成功。
+- [x] HyperFrames DESIGN-first、lint、validate、inspect、preview 和 real render 成功。
+- [x] 同一 tiny plan 双引擎各产出 1920×1080、30 fps 真实 MP4，QA 均为 pass。
+- [x] Stable Business bar 完整 project → validation → preview → render → QA 成功。
+- [x] Contested Public 与 Rights Sparse 保持 reference-only 隔离，使用原创 timeline/diagram 或 A-roll。
+- [x] blocked input 与 asset tampering 在 Renderer 前拒绝。
+- [x] 自动测试共 255 项（254 项执行通过、1 项真实渲染测试默认跳过），真实双引擎测试已显式启用并通过。
+
+V0.6 不做假主播、TTS、最终 A-roll 合成、真实音频时码、字幕、BGM/SFX、标题封面、上传或自动发布。
+
 ## 8. V0.1 验收记录
 
 - [x] 已初始化独立正式项目和 Git 历史。
@@ -231,3 +256,5 @@ V0.5 不包含完整视频、剪辑时间线、字幕、音乐、标题封面、
 V0.4 的成功不是“AI 写得像一个知名博主”，而是：编辑能快速确认每句重要口播从哪里来，事实、归因和分析没有混在一起，真实争议没有被弱化，研究未知没有被擅自填满，同时稿子听起来仍像真人在讲述，而不是一份机器报告。
 
 V0.5 的成功不是“搜到很多图”，而是：编辑能知道画面放在哪里、为什么放、它能证明什么、能否复用；未知版权不会混入 ready-to-use，原创图没有虚构数据，发现新事实会回到 Research，而不是悄悄改稿。
+
+V0.6 的成功不是“渲染命令返回 0”，而是真实文件的尺寸、帧率、时长、大小和 SHA 与计划一致，不合法素材和未支持数字没有混入画面，缺口被说清楚。

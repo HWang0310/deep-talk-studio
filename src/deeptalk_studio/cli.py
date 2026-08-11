@@ -27,6 +27,15 @@ from .material_workflow import (
     run_material_workflow,
 )
 from .providers.openai import OpenAIProviderError, OpenAIResponsesProvider
+from .production_profile import ProductionValidationError
+from .production_renderers import RendererError
+from .production_storage import ProductionStorageError
+from .production_workflow import (
+    DEFAULT_PRODUCTION_ASSETS,
+    DEFAULT_PRODUCTION_PACKAGES,
+    DEFAULT_PRODUCTION_PROJECTS,
+    run_production_workflow,
+)
 from .storage import ReportStorageError, save_report
 from .script_profile import load_script_profile, parse_target_duration
 from .script_revisions import compare_script_revisions, create_script_revision
@@ -192,6 +201,20 @@ def build_parser() -> argparse.ArgumentParser:
     materials.add_argument("--output", type=Path, default=DEFAULT_MATERIALS)
     materials.add_argument("--assets", type=Path, default=DEFAULT_ASSETS)
     materials.add_argument("--model", default="gpt-5.6")
+
+    produce = subparsers.add_parser(
+        "produce-assets", help="从已审查素材包生成动画、粗剪预览和制作质检"
+    )
+    produce.add_argument("report", type=Path)
+    produce.add_argument("script", type=Path)
+    produce.add_argument("package", type=Path)
+    produce.add_argument(
+        "--renderer", choices=("auto", "remotion", "hyperframes"), default="auto"
+    )
+    produce.add_argument("--output", type=Path, default=DEFAULT_PRODUCTION_PACKAGES)
+    produce.add_argument("--assets", type=Path, default=DEFAULT_PRODUCTION_ASSETS)
+    produce.add_argument("--projects", type=Path, default=DEFAULT_PRODUCTION_PROJECTS)
+    produce.add_argument("--material-assets", type=Path, default=DEFAULT_ASSETS)
 
     prepare = subparsers.add_parser(
         "prepare-draft", help="把 Codex 研究内容整理为带机器字段的 V0.2 Draft"
@@ -423,6 +446,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 f"- 最终状态：{result.final_status}"
             )
             return 0
+        if args.command == "produce-assets":
+            report = _load_report(args.report)
+            script = load_script(args.script, report, load_script_profile())
+            result = run_production_workflow(
+                args.package, script, report,
+                material_asset_root=args.material_assets,
+                package_root=args.output, asset_root=args.assets,
+                project_root=args.projects, renderer_mode=args.renderer,
+            )
+            print(
+                result.summary
+                + f"\n实际使用的制作引擎：{result.plan['selected_renderer']}\n"
+                + f"制作质检：{result.qa['package_gate_status']}\n"
+                + f"粗剪和动画素材目录：{args.assets.resolve() / result.plan['production_id'] / 'assets'}\n"
+                + f"制作质检报告：{result.qa_path}\n"
+            )
+            return 0
         if args.command == "prepare-draft":
             raw = json.loads(args.input.read_text(encoding="utf-8"))
             report = prepare_codex_draft(raw)
@@ -548,6 +588,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         MaterialValidationError,
         MaterialReviewError,
         MaterialStorageError,
+        ProductionValidationError,
+        ProductionStorageError,
+        RendererError,
     ) as exc:
         print(f"无法生成报告：{exc}", file=sys.stderr)
         return 2
