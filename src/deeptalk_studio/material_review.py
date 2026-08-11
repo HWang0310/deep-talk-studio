@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Mapping
 
 from .material_profile import MaterialValidationError
-from .material_schema import MATERIAL_REVIEW_CHECK_NAMES
+from .material_schema import MATERIAL_ARTIFACT_VERSION, MATERIAL_REVIEW_CHECK_NAMES
 from .material_validation import (
     material_package_digest,
     validate_material_package_integrity,
@@ -103,7 +103,31 @@ def prepare_material_review(
         raise MaterialReviewError("review_mode 无效")
     issues = _canonical_issues(content, package)
     checks = _validate_checks(content, issues)
+    artifact = {
+        "artifact_version": MATERIAL_ARTIFACT_VERSION, "review_id": review_id,
+        "package_id": package.package_id, "package_revision": package.revision,
+        "script_id": package.script_id, "script_revision": package.script_revision,
+        "report_id": package.report_id, "report_revision": package.report_revision,
+        "created_at": created_at, "review_mode": review_mode,
+        "issues": issues, "checks": checks,
+        "overall_notes": str(content.get("overall_notes", "")).strip(),
+        "blocking_issue_count": sum(issue["severity"] == "blocking" for issue in issues),
+        "gate_status": "not_run", "reviewed_package_digest": package.package_digest,
+    }
+    if not artifact["overall_notes"]:
+        raise MaterialReviewError("Material Review overall_notes 不能为空")
+    reviewed = derive_reviewed_material_package(package, artifact)
+    artifact["gate_status"] = reviewed.review_state["review_gate_status"]
+    validate_material_review_artifact(artifact, package)
+    reviewed = derive_reviewed_material_package(package, artifact)
+    return MaterialReviewResult(artifact, reviewed)
+
+
+def derive_reviewed_material_package(package: MaterialPackage, artifact: Mapping[str, Any]) -> MaterialPackage:
+    """The only allowed transition from immutable r1 to reviewed r2."""
+
     data = package.to_dict()
+    issues = artifact["issues"]
     package_level_block = any(
         issue["severity"] == "blocking" and not issue["material_ids"] and not issue["visual_ids"]
         for issue in issues
@@ -130,31 +154,18 @@ def prepare_material_review(
         final_status, gate = "reviewed_with_warnings", "warnings"
     else:
         final_status, gate = "reviewed", "pass"
-    artifact = {
-        "artifact_version": "0.5", "review_id": review_id,
-        "package_id": package.package_id, "package_revision": package.revision,
-        "script_id": package.script_id, "script_revision": package.script_revision,
-        "report_id": package.report_id, "report_revision": package.report_revision,
-        "created_at": created_at, "review_mode": review_mode,
-        "issues": issues, "checks": checks,
-        "overall_notes": str(content.get("overall_notes", "")).strip(),
-        "blocking_issue_count": sum(issue["severity"] == "blocking" for issue in issues),
-        "gate_status": gate, "reviewed_package_digest": package.package_digest,
-    }
-    if not artifact["overall_notes"]:
-        raise MaterialReviewError("Material Review overall_notes 不能为空")
     data.update(
         revision=package.revision + 1, previous_revision=package.revision,
-        generated_at=created_at, status=final_status,
+        generated_at=artifact["created_at"], status=final_status,
         review_state={
-            "state": "reviewed", "review_id": review_id,
+            "state": "reviewed", "review_id": artifact["review_id"],
             "reviewed_from_revision": package.revision, "review_gate_status": gate,
             "reviewed_package_digest": package.package_digest,
         },
     )
     data["warnings"] = list(dict.fromkeys(data["warnings"] + [issue["explanation"] for issue in issues]))
     data["package_digest"] = material_package_digest(data)
-    return MaterialReviewResult(artifact, MaterialPackage(data))
+    return MaterialPackage(data)
 
 
 def validate_material_review_artifact(artifact: Mapping[str, Any], package: MaterialPackage) -> None:
@@ -166,12 +177,10 @@ def validate_material_review_artifact(artifact: Mapping[str, Any], package: Mate
     }
     if not isinstance(artifact, dict) or set(artifact) != required:
         raise MaterialReviewError("Material Review Artifact 字段无效")
-    if artifact["artifact_version"] != "0.5" or artifact["package_id"] != package.package_id:
+    if artifact["artifact_version"] != MATERIAL_ARTIFACT_VERSION or artifact["package_id"] != package.package_id:
         raise MaterialReviewError("Material Review Artifact binding 无效")
-    if artifact["package_revision"] != package.previous_revision:
+    if artifact["package_revision"] != package.revision:
         raise MaterialReviewError("Material Review Artifact revision binding 无效")
-    if artifact["review_id"] != package.review_state["review_id"]:
-        raise MaterialReviewError("Material Review Artifact ID 与 package linkage 不一致")
     if (
         artifact["script_id"] != package.script_id
         or artifact["script_revision"] != package.script_revision
@@ -189,12 +198,9 @@ def validate_material_review_artifact(artifact: Mapping[str, Any], package: Mate
     blocking = sum(issue["severity"] == "blocking" for issue in artifact["issues"])
     if artifact["blocking_issue_count"] != blocking:
         raise MaterialReviewError("Material Review blocking count 被篡改")
-    if artifact["reviewed_package_digest"] != package.review_state["reviewed_package_digest"]:
-        raise MaterialReviewError("Material Review digest 与 package linkage 不一致")
-    expected_gate = {
-        "reviewed": "pass", "reviewed_with_warnings": "warnings",
-        "blocked": "fail", "research_update_required": "fail",
-    }.get(package.status)
-    if expected_gate and artifact["gate_status"] != expected_gate:
-        raise MaterialReviewError("Material Review Gate 与 package status 不一致")
+    if artifact["reviewed_package_digest"] != package.package_digest:
+        raise MaterialReviewError("Material Review digest 与 r1 package 不一致")
     _validate_checks(artifact, list(artifact["issues"]))
+    expected = derive_reviewed_material_package(package, artifact)
+    if artifact["gate_status"] != expected.review_state["review_gate_status"]:
+        raise MaterialReviewError("Material Review Gate 与确定性 package gate 不一致")

@@ -105,7 +105,7 @@ def valid_material_content():
                 "events": [
                     {
                         "date": "2026-08-09",
-                        "label": "事件发生并首次说明",
+                        "label": "事件发生并由机构发布首次说明。",
                         "claim_ids": ["C1", "C2"],
                         "evidence_link_ids": ["E1", "E2", "E3"],
                     }
@@ -140,6 +140,12 @@ def inspection_manifest():
                 "inspected_at": "2026-08-11T09:00:00+08:00",
                 "inspection_method": "codex_web_open",
                 "tool_reference": "open:official-pdf",
+            },
+            {
+                "url": "https://example.com/press-terms",
+                "inspected_at": "2026-08-11T09:05:00+08:00",
+                "inspection_method": "codex_web_open",
+                "tool_reference": "open:press-terms",
             }
         ]
     }
@@ -152,6 +158,7 @@ def rights_manifest():
                 "url": "https://example.com/official.pdf",
                 "rights_status": "official_press_asset",
                 "rights_basis": "媒体资料页明确允许新闻报道使用。",
+                "rights_evidence_url": "https://example.com/press-terms",
                 "license_url": "https://example.com/press-terms",
                 "verified_at": "2026-08-11T09:05:00+08:00",
                 "tool_reference": "open:press-terms",
@@ -162,4 +169,3 @@ def rights_manifest():
 
 def copy_content():
     return deepcopy(valid_material_content())
-

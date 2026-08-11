@@ -2,7 +2,7 @@
 
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
-当前版本是 **V0.5.0**。现在有两个研究入口：直接给主题，或问“今天讲什么？”。研究完成并通过独立事实核查后，你只需确认“开始写稿”，系统会生成原创口播稿并做独立 Script Review；稿件通过后，再说“给这期配素材”，就会得到经过来源和版权检查的画面准备单与原创 SVG 图表。
+当前版本是 **V0.5.1**。现在有两个研究入口：直接给主题，或问“今天讲什么？”。研究完成并通过独立事实核查后，你只需确认“开始写稿”，系统会生成原创口播稿并做独立 Script Review；稿件通过后，再说“给这期配素材”，就会得到经过来源和版权检查的画面准备单与原创 SVG 图表。
 
 ## 现在最简单的用法
 
@@ -72,6 +72,9 @@ script_drafts/YYYY/MM/DD/报告ID/稿件ID/script-draft-r0002.json
 ```text
 material_packages/YYYY/MM/DD/报告ID/稿件ID/素材包ID/material-package-r0001.json
 material_packages/YYYY/MM/DD/报告ID/稿件ID/素材包ID/material-package-r0001.md
+material_packages/YYYY/MM/DD/报告ID/稿件ID/素材包ID/material-input-for-r0001.json
+material_packages/YYYY/MM/DD/报告ID/稿件ID/素材包ID/material-inspection-for-r0001.json
+material_packages/YYYY/MM/DD/报告ID/稿件ID/素材包ID/material-rights-for-r0001.json
 material_packages/YYYY/MM/DD/报告ID/稿件ID/素材包ID/material-review-for-r0001-审查ID.json
 material_assets/素材包ID/generated/V001.svg
 ```
@@ -117,14 +120,16 @@ material_assets/素材包ID/generated/V001.svg
 - 搜索并实际检查公开文件、网页、截图、照片、视频引用、数据源和档案；搜索摘要只能算发现，不能算页面已检查；
 - 对每项素材记录来源、发布者、检查方法、Claim/Evidence 回链、使用位置、时长和可证明/不可证明边界；
 - 用单独 Rights manifest 判断 public domain、明确复用、CC、official press asset、仅编辑引用、需许可、未知或避免使用；未知版权绝不会成为可直接使用；
+- 可直接使用的素材必须同时有素材页和权利依据页的实际打开记录；权利页工具记录必须能一一对应，不能只靠模型或文件自称；
 - 只安全保存明确可复用的静态文件，拒绝本机/内网、危险 MIME、超大文件、脚本 SVG、路径越界和覆盖；截图保留页码、裁切区域和语境；
 - 若素材搜索出现冲突或新事实，标记 `research_update_required`，不会静默改稿、改研究或改图表；
 - 只用已批准 Research 数据生成 timeline、bar、comparison、diagram，实际输出 1920×1080 SVG 和 SHA-256；
+- 每个图表内部事件、数值、比较项和关系节点都会逐条回查 Research Claim/Evidence；手改已审素材包的状态、权利、排序或审查关联，在重新打开时会被拒绝；
 - 由独立 Material Reviewer 检查来源、权利、Claim 对齐、误导裁切、时效、身份、生成数据、AI/真实混淆、重复和用途；危险 item 可隔离，包级伪造会阻断。
 
 ## 还不能做什么
 
-V0.5.0 不生成完整 Remotion/HyperFrames 视频，不做镜头级剪辑时间线、字幕、BGM/SFX、标题封面、B 站上传发布或运营分析。素材包 `reviewed` 表示来源、权利和画面数据通过当前工程检查，不等于法律许可或最终发布批准；发布前仍需要人类最终确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
+V0.5.1 仍不生成完整 Remotion/HyperFrames 视频，不做镜头级剪辑时间线、字幕、BGM/SFX、标题封面、B 站上传发布或运营分析。素材包 `reviewed` 表示来源、权利和画面数据通过当前工程检查，不等于法律许可或最终发布批准；发布前仍需要人类最终确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
 
 ## 不依赖联网的检查方式
 

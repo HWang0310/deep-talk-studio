@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .material_renderer import render_material_markdown
-from .material_review import validate_material_review_artifact
-from .material_validation import validate_material_package_integrity
+from .material_review import derive_reviewed_material_package, validate_material_review_artifact
+from .material_validation import MaterialValidationError, validate_material_package_integrity
 from .models import MaterialPackage
 
 
@@ -39,11 +39,23 @@ def save_material_package(package: MaterialPackage, output_root: Path) -> Materi
     directory = _directory(package, output_root)
     stem = directory / f"material-package-r{package.revision:04d}"
     paths = MaterialPaths(stem.with_suffix(".json"), stem.with_suffix(".md"))
-    if paths.json.exists() or paths.markdown.exists():
+    provenance_paths = {
+        name: directory / f"material-{name}-for-r0001.json"
+        for name in ("input", "inspection", "rights")
+    }
+    if paths.json.exists() or paths.markdown.exists() or (
+        package.revision == 1 and any(path.exists() for path in provenance_paths.values())
+    ):
         raise MaterialStorageError("Material Package 已存在，拒绝静默覆盖")
     directory.mkdir(parents=True, exist_ok=True)
     paths.json.write_text(json.dumps(package.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     paths.markdown.write_text(render_material_markdown(package), encoding="utf-8")
+    if package.revision == 1:
+        for name, path in provenance_paths.items():
+            path.write_text(
+                json.dumps(package.provenance_bundle[name], ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
     return paths
 
 
@@ -62,8 +74,25 @@ def load_material_package(path: Path, script: Any, report: Any, profile: Mapping
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise MaterialStorageError(f"无法读取 Material Package：{path}") from exc
-    package = validate_material_package_integrity(data, script, report, profile)
+    try:
+        package = validate_material_package_integrity(data, script, report, profile)
+    except MaterialValidationError as exc:
+        raise MaterialStorageError(f"Material Package integrity 无效：{exc}") from None
     if package.status in {"reviewed", "reviewed_with_warnings", "blocked", "research_update_required"} and package.review_state["state"] == "reviewed":
+        r1_path = Path(path).parent / "material-package-r0001.json"
+        try:
+            r1_data = json.loads(r1_path.read_text(encoding="utf-8"))
+            r1 = validate_material_package_integrity(r1_data, script, report, profile)
+        except (OSError, json.JSONDecodeError, MaterialValidationError) as exc:
+            raise MaterialStorageError(f"Material Package 缺少可验证的 r1 provenance：{r1_path}") from exc
+        for name in ("input", "inspection", "rights"):
+            provenance_path = Path(path).parent / f"material-{name}-for-r0001.json"
+            try:
+                stored = json.loads(provenance_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise MaterialStorageError(f"Material Package 缺少可验证的 provenance artifact：{provenance_path}") from exc
+            if stored != r1.provenance_bundle[name]:
+                raise MaterialStorageError("Material Package provenance artifact 与 r1 不一致")
         review_path = Path(path).parent / (
             f"material-review-for-r{package.review_state['reviewed_from_revision']:04d}-"
             f"{_safe(package.review_state['review_id'])}.json"
@@ -72,6 +101,11 @@ def load_material_package(path: Path, script: Any, report: Any, profile: Mapping
             artifact = json.loads(review_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise MaterialStorageError(f"Material Package 缺少可验证的 Review Artifact：{review_path}") from exc
-        validate_material_review_artifact(artifact, package)
+        try:
+            validate_material_review_artifact(artifact, r1)
+            expected = derive_reviewed_material_package(r1, artifact)
+        except (MaterialValidationError, ValueError) as exc:
+            raise MaterialStorageError(f"Material Package Review Artifact 无效：{exc}") from None
+        if expected.to_dict() != package.to_dict():
+            raise MaterialStorageError("Material Package canonical revalidation 失败：r2 不是由 r1 与 Review Artifact 推导")
     return package
-

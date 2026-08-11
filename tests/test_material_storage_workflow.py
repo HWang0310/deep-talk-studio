@@ -12,6 +12,7 @@ from deeptalk_studio.material_storage import (
     save_material_review_artifact,
 )
 from deeptalk_studio.material_validation import prepare_material_package
+from deeptalk_studio.material_validation import material_package_digest
 from deeptalk_studio.material_workflow import (
     prepare_codex_materials,
     run_codex_material_review,
@@ -88,7 +89,93 @@ class MaterialStorageWorkflowTests(unittest.TestCase):
             with self.assertRaisesRegex(MaterialStorageError, "Review Artifact"):
                 load_material_package(reviewed.paths.json, self.script, self.report, self.profile)
 
+    def test_reviewed_loader_rederives_r1_review_r2_and_rejects_tampering(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            prepared = prepare_codex_materials(
+                valid_material_content(), self.script, self.report, root / "packages",
+                root / "assets", self.profile, inspection_manifest(), rights_manifest(),
+                created_at="2026-08-11T10:00:00+08:00", package_id="MAT-canonical",
+            )
+            reviewed = run_codex_material_review(
+                review_content(), prepared.package, self.script, self.report,
+                root / "packages", self.profile,
+                created_at="2026-08-11T11:00:00+08:00", review_id="MRV-canonical",
+            )
+            for path, mutate in (
+                (reviewed.paths.json, lambda data: data["materials"][0].update(eligibility_status="reference_only")),
+                (reviewed.paths.json, lambda data: data["materials"][0].update(rights_status="unknown")),
+                (reviewed.paths.json, lambda data: data["materials"][0].update(provenance_status="unmatched")),
+                (reviewed.paths.json, lambda data: data["materials"][0].update(ranking_score=99)),
+                (reviewed.paths.json, lambda data: data.update(status="reviewed_with_warnings")),
+            ):
+                original = json.loads(path.read_text(encoding="utf-8"))
+                data = json.loads(path.read_text(encoding="utf-8"))
+                mutate(data)
+                data["package_digest"] = material_package_digest(data)
+                path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+                with self.assertRaisesRegex(MaterialStorageError, "canonical|provenance|Review"):
+                    load_material_package(path, self.script, self.report, self.profile)
+                path.write_text(json.dumps(original, ensure_ascii=False), encoding="utf-8")
+            review_artifact = reviewed.review_artifact
+            original_review = json.loads(review_artifact.read_text(encoding="utf-8"))
+            wrong_review = dict(original_review, package_revision=999)
+            review_artifact.write_text(json.dumps(wrong_review, ensure_ascii=False), encoding="utf-8")
+            with self.assertRaisesRegex(MaterialStorageError, "Review Artifact"):
+                load_material_package(reviewed.paths.json, self.script, self.report, self.profile)
+            review_artifact.write_text(json.dumps(original_review, ensure_ascii=False), encoding="utf-8")
+            inspection_artifact = reviewed.paths.json.parent / "material-inspection-for-r0001.json"
+            inspection_artifact.unlink()
+            with self.assertRaisesRegex(MaterialStorageError, "provenance"):
+                load_material_package(reviewed.paths.json, self.script, self.report, self.profile)
+
+    def test_canonical_loader_rejects_reference_or_rejected_item_promoted_to_ready(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            content = valid_material_content()
+            content["materials"][0]["claimed_rights_status"] = "unknown"
+            prepared = prepare_codex_materials(
+                content, self.script, self.report, root / "packages", root / "assets", self.profile,
+                inspection_manifest(), {"entries": []},
+                created_at="2026-08-11T10:00:00+08:00", package_id="MAT-promote",
+            )
+            reviewed = run_codex_material_review(
+                review_content(), prepared.package, self.script, self.report, root / "packages", self.profile,
+                created_at="2026-08-11T11:00:00+08:00", review_id="MRV-promote",
+            )
+            data = json.loads(reviewed.paths.json.read_text(encoding="utf-8"))
+            self.assertEqual(data["materials"][0]["eligibility_status"], "reference_only")
+            data["materials"][0]["eligibility_status"] = "ready_to_use"
+            data["package_digest"] = material_package_digest(data)
+            reviewed.paths.json.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+            with self.assertRaisesRegex(MaterialStorageError, "canonical"):
+                load_material_package(reviewed.paths.json, self.script, self.report, self.profile)
+
+            blocked = review_content()
+            blocked["issues"] = [{
+                "issue_type": "rights_misrepresented", "material_ids": ["M001"], "visual_ids": [],
+                "cue_ids": ["VC001"], "explanation": "权利依据不成立。", "suggested_fix": "不要使用。",
+            }]
+            for check in blocked["checks"]:
+                if check["check_name"] == "rights_reuse":
+                    check["outcome"] = "fail"
+            prepared = prepare_codex_materials(
+                valid_material_content(), self.script, self.report, root / "packages-2", root / "assets-2", self.profile,
+                inspection_manifest(), rights_manifest(),
+                created_at="2026-08-11T10:00:00+08:00", package_id="MAT-rejected",
+            )
+            rejected = run_codex_material_review(
+                blocked, prepared.package, self.script, self.report, root / "packages-2", self.profile,
+                created_at="2026-08-11T11:00:00+08:00", review_id="MRV-rejected",
+            )
+            data = json.loads(rejected.paths.json.read_text(encoding="utf-8"))
+            self.assertEqual(data["materials"][0]["eligibility_status"], "rejected")
+            data["materials"][0]["eligibility_status"] = "ready_to_use"
+            data["package_digest"] = material_package_digest(data)
+            rejected.paths.json.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+            with self.assertRaisesRegex(MaterialStorageError, "canonical"):
+                load_material_package(rejected.paths.json, self.script, self.report, self.profile)
+
 
 if __name__ == "__main__":
     unittest.main()
-

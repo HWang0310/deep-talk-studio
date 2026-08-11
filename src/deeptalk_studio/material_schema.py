@@ -18,6 +18,7 @@ RIGHTS_STATUSES = [
 SAFE_REUSE_STATUSES = {
     "public_domain", "explicit_reuse_allowed", "creative_commons", "official_press_asset"
 }
+MATERIAL_ARTIFACT_VERSION = "0.5.1"
 
 MATERIAL_CUE_RAW_SCHEMA = _object({
     "beat_id": _string(),
@@ -30,7 +31,7 @@ MATERIAL_CUE_RAW_SCHEMA = _object({
 })
 
 CAPTURE_SCHEMA = _object({
-    "page_number": _integer(),
+    "page_number": _integer(1),
     "capture_region": _string(allow_empty=True),
     "source_context": _string(allow_empty=True),
     "what_it_proves": _string(allow_empty=True),
@@ -131,7 +132,8 @@ INSPECTION_MANIFEST_SCHEMA = _object({"entries": _array(_object({
 
 RIGHTS_MANIFEST_SCHEMA = _object({"entries": _array(_object({
     "url": _string(), "rights_status": _enum(RIGHTS_STATUSES),
-    "rights_basis": _string(), "license_url": _string(allow_empty=True),
+    "rights_basis": _string(), "rights_evidence_url": _string(),
+    "license_url": _string(allow_empty=True),
     "verified_at": _string(), "tool_reference": _string(),
 }))})
 
@@ -170,7 +172,7 @@ MATERIAL_SCHEMA = _object({
     "inspected_at": _string(allow_empty=True), "inspection_reference": _string(allow_empty=True),
     "rights_status": _enum(RIGHTS_STATUSES), "rights_basis": _string(),
     "license_url": _string(allow_empty=True), "rights_verified_at": _string(allow_empty=True),
-    "rights_reference": _string(allow_empty=True),
+    "rights_reference": _string(allow_empty=True), "rights_evidence_url": _string(allow_empty=True),
     "eligibility_status": _enum(["ready_to_use", "reference_only", "permission_required", "rejected"]),
     "ranking_score": _number(), "local_path": _string(allow_empty=True),
     "byte_size": _integer(), "sha256": _string(allow_empty=True),
@@ -194,11 +196,34 @@ PROVIDER_PROVENANCE_SCHEMA = _object({
     "search_call_ids": _string_array(), "search_queries": _string_array(),
     "source_urls": _string_array(), "citation_urls": _string_array(),
 })
+MATERIAL_INPUT_PROVENANCE_SCHEMA = _object({
+    "artifact_version": _enum([MATERIAL_ARTIFACT_VERSION]), "artifact_type": _enum(["material_input"]),
+    "package_id": _string(), "package_revision": _integer(1), "script_id": _string(),
+    "script_revision": _integer(1), "report_id": _string(), "report_revision": _integer(1),
+    "created_at": _string(), "content": MATERIAL_CONTENT_JSON_SCHEMA, "artifact_digest": _string(),
+})
+MATERIAL_INSPECTION_PROVENANCE_SCHEMA = _object({
+    "artifact_version": _enum([MATERIAL_ARTIFACT_VERSION]), "artifact_type": _enum(["material_inspection"]),
+    "package_id": _string(), "package_revision": _integer(1), "script_id": _string(),
+    "script_revision": _integer(1), "report_id": _string(), "report_revision": _integer(1),
+    "created_at": _string(), "entries": INSPECTION_MANIFEST_SCHEMA["properties"]["entries"], "artifact_digest": _string(),
+})
+MATERIAL_RIGHTS_PROVENANCE_SCHEMA = _object({
+    "artifact_version": _enum([MATERIAL_ARTIFACT_VERSION]), "artifact_type": _enum(["material_rights"]),
+    "package_id": _string(), "package_revision": _integer(1), "script_id": _string(),
+    "script_revision": _integer(1), "report_id": _string(), "report_revision": _integer(1),
+    "created_at": _string(), "entries": RIGHTS_MANIFEST_SCHEMA["properties"]["entries"], "artifact_digest": _string(),
+})
+MATERIAL_PROVENANCE_BUNDLE_SCHEMA = _object({
+    "input": MATERIAL_INPUT_PROVENANCE_SCHEMA,
+    "inspection": MATERIAL_INSPECTION_PROVENANCE_SCHEMA,
+    "rights": MATERIAL_RIGHTS_PROVENANCE_SCHEMA,
+})
 RESEARCH_UPDATE_STATE_SCHEMA = _object({
     "required": {"type": "boolean"}, "signals": _array(RESEARCH_UPDATE_SIGNAL_SCHEMA),
 })
 MATERIAL_PACKAGE_JSON_SCHEMA = _object({
-    "artifact_version": _enum(["0.5"]), "package_id": _string(),
+    "artifact_version": _enum([MATERIAL_ARTIFACT_VERSION]), "package_id": _string(),
     "revision": _integer(1), "previous_revision": _integer(),
     "created_at": _string(), "generated_at": _string(),
     "package_mode": _enum(["codex_skill", "openai_api", "fixture"]),
@@ -211,5 +236,6 @@ MATERIAL_PACKAGE_JSON_SCHEMA = _object({
     "generated_visuals": _array(VISUAL_SPEC_SCHEMA), "gaps": _string_array(),
     "research_update_required": RESEARCH_UPDATE_STATE_SCHEMA,
     "warnings": _string_array(), "review_state": MATERIAL_REVIEW_STATE_SCHEMA,
-    "provider_provenance": PROVIDER_PROVENANCE_SCHEMA, "package_digest": _string(),
+    "provider_provenance": PROVIDER_PROVENANCE_SCHEMA,
+    "provenance_bundle": MATERIAL_PROVENANCE_BUNDLE_SCHEMA, "package_digest": _string(),
 })

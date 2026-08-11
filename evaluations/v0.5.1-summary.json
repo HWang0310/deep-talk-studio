@@ -1,0 +1,16 @@
+{
+  "version": "0.5.1",
+  "evaluated_at": "2026-08-11",
+  "full_artifacts_gitignored": true,
+  "scenarios": [
+    {"scenario": "stable_business", "result": "pass_conservative", "ordinary_media_ready": false},
+    {"scenario": "contested_public", "result": "pass", "rights_evidence_actual_open_required": true},
+    {"scenario": "rights_sparse", "result": "pass_conservative", "safe_alternative": "generated_visual"},
+    {"scenario": "rights_page_not_open", "result": "fail_closed", "ready_to_use": false},
+    {"scenario": "comparison_c404_e404", "result": "rejected_before_render"},
+    {"scenario": "reviewed_r2_tampering", "result": "rejected_by_canonical_loader"}
+  ],
+  "automated_tests": 219,
+  "original_tests_preserved": 205,
+  "api_key_used": false
+}

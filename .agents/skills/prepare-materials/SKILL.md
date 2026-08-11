@@ -18,7 +18,7 @@ Turn the latest genuinely reviewed Script into a source-backed Material Package 
 1. Build short exact narration anchors, not audio timecodes. Give a Cue only where an auxiliary visual materially helps.
 2. Search official documents, public datasets, press assets, pages, photos, video references and archives. Open every page used in the Package. A search result summary is not inspection.
    必须实际打开页面；只看到搜索摘要不能登记为 inspection。
-3. In the background, write a separate inspection manifest containing only actually opened URLs, inspection time, method and tool reference. Record a separate rights manifest only after opening the page that provides the reuse basis.
+3. In the background, write a separate inspection manifest containing only actually opened URLs, inspection time, method and tool reference. Record a separate rights manifest only after opening the page that provides the reuse basis. A safe-reuse rights record must include `rights_evidence_url`; its tool reference must exactly match that page's inspection record. The asset page and rights page may be the same, but both still require actual-open proof.
 4. Keep evidence, context, illustration and transition distinct. Evidence materials bind valid Claim and Evidence Link IDs. Illustration is always `illustrative_only` and cannot prove a factual claim.
 5. If a page contradicts, updates or materially changes the approved Research, add a `research_update_signal` with affected Beat/Claim/reason/URL. Stop silent updating: do not change the script, Research or chart data.
 6. Treat ordinary news pages, videos and creator content as `reference_only` unless explicit reuse terms say otherwise. Never infer permission from a publisher name.
@@ -26,9 +26,9 @@ Turn the latest genuinely reviewed Script into a source-backed Material Package 
 ## Acquisition and Original Visuals
 
 1. Automatically save only files whose real inspection and rights records produce `ready_to_use`. Do not bulk-download news/video/creator materials. Do not bypass login, paywall, DRM, anti-bot, rate limits or platform restrictions.
-2. For a webpage/PDF screenshot, capture only the useful region or relevant page. Record page/context/crop/caption, what it proves and what it does not prove. Register the static local capture through the project acquisition boundary.
+2. For a webpage/PDF screenshot, capture only the useful region or relevant page. Use 1-based page numbers, record page/context/crop/caption, what it proves and what it does not prove, and register a real PNG/JPEG/WebP through the project acquisition boundary.
 3. Keep video as a reference with page, publisher, title, suggested start/end and reason unless reuse permission clearly allows download.
-4. Generate timeline, bar, comparison or diagram Visual Specs only from the exact approved Research. Run the grounding validator, then render actual 1920×1080 SVG files. Never invent numbers, events, documents, chats, UI, news imagery, people or event scenes.
+4. Generate timeline, bar, comparison or diagram Visual Specs only from the exact approved Research. Every nested event/data point/comparison/node needs its own valid Claim/Evidence basis; use the approved timeline label directly and never put a different number in `value_label`. Run the grounding validator, then render actual 1920×1080 SVG files. Never invent numbers, events, documents, chats, UI, news imagery, people or event scenes.
 5. Keep Remotion / HyperFrames as future target hints. Do not create a full composition, video, edit timeline, subtitle, music, cover or publishing task.
 
 ## Independent Material Review
@@ -52,6 +52,7 @@ Show only the short reading view: number of Cues, how many items are ready, refe
 
 - Material Search cannot become a new Research pass.
 - A model cannot self-certify provenance, rights, ranking, local files or Review Gate.
+- A reviewed r2 is trusted only when its saved r1 input/inspection/rights artifacts and precise Review Artifact can rebuild it; never repair a package JSON by hand.
 - Unknown rights never means ready to use.
 - Search snippets, thumbnails and mirrored URLs do not prove page inspection or independent alternatives.
 - Do not imitate another creator’s visual language or collect their script/subtitles.
