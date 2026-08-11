@@ -13,6 +13,12 @@ from ..prompt import (
 )
 from ..provenance import extract_provenance
 from ..provenance import ProviderProvenance
+from ..material_prompt import (
+    MATERIAL_REVIEW_SYSTEM_PROMPT,
+    MATERIAL_SEARCH_SYSTEM_PROMPT,
+    build_material_review_prompt,
+    build_material_search_prompt,
+)
 from ..script_prompt import (
     SCRIPT_REVIEWER_SYSTEM_PROMPT,
     SCRIPT_WRITER_SYSTEM_PROMPT,
@@ -128,6 +134,28 @@ class OpenAIResponsesProvider:
             build_script_review_prompt(report, script),
             schema,
             "deep_talk_script_review",
+        )
+
+    def search_materials(
+        self, script: Dict[str, Any], report: Dict[str, Any],
+        profile: Dict[str, Any], schema: Dict[str, Any],
+    ) -> ProviderResult:
+        return self._run_structured_search(
+            MATERIAL_SEARCH_SYSTEM_PROMPT,
+            build_material_search_prompt(script, report, profile),
+            schema,
+            "deep_talk_material_search",
+        )
+
+    def review_materials(
+        self, package: Dict[str, Any], script: Dict[str, Any],
+        report: Dict[str, Any], schema: Dict[str, Any],
+    ) -> ProviderResult:
+        return self._run_structured_generation(
+            MATERIAL_REVIEW_SYSTEM_PROMPT,
+            build_material_review_prompt(package, script, report),
+            schema,
+            "deep_talk_material_review",
         )
 
     def _run_structured_generation(

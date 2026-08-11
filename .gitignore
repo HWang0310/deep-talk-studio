@@ -16,3 +16,7 @@ discoveries/**
 !discoveries/.gitkeep
 script_drafts/**
 !script_drafts/.gitkeep
+material_packages/**
+!material_packages/.gitkeep
+material_assets/**
+!material_assets/.gitkeep

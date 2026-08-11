@@ -1,0 +1,4 @@
+interface:
+  display_name: "准备口播素材"
+  short_description: "Prepare verified materials and original visuals"
+  default_prompt: "Use $prepare-materials to prepare source-backed materials and original visuals for this reviewed script."

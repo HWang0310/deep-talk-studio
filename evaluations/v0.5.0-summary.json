@@ -1,0 +1,42 @@
+{
+  "version": "0.5.0",
+  "evaluated_at": "2026-08-11",
+  "full_artifacts_gitignored": true,
+  "scenarios": [
+    {
+      "scenario": "stable_business",
+      "package_status": "reviewed",
+      "ready_to_use_materials": 0,
+      "reference_only_materials": 1,
+      "generated_visuals": 1,
+      "local_visual_assets": 1,
+      "rights_gate_expected": "pass_conservative"
+    },
+    {
+      "scenario": "contested_public",
+      "package_status": "reviewed",
+      "ready_to_use_materials": 1,
+      "reference_only_materials": 1,
+      "generated_visuals": 1,
+      "local_visual_assets": 1,
+      "ordinary_news_unknown_rights_ready": false
+    },
+    {
+      "scenario": "rights_sparse",
+      "package_status": "reviewed",
+      "ready_to_use_materials": 0,
+      "reference_only_materials": 1,
+      "generated_visuals": 1,
+      "local_visual_assets": 1,
+      "preferred_safe_alternative": "generated_visual"
+    }
+  ],
+  "controlled_acquisition": {
+    "explicit_reuse_fixture_downloaded": true,
+    "path_size_sha256_recorded": true,
+    "overwrite_rejected": true
+  },
+  "automated_tests": 205,
+  "original_tests_preserved": 165
+}
+

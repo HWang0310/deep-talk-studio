@@ -60,20 +60,24 @@
 - 稿件修订不可覆盖，并支持比较两个 revision；
 - 完成稳定商业、争议公共议题和未批准输入三类真实评测。
 
-## V0.4.1：Script Gate Hardening（已完成，待产品复核）
+## V0.4.1：Script Gate Hardening（已完成并验收）
 
 - 将 15 项 Script Review checks 与受控 issue mapping 绑定；任一失败检查必须有对应 issue，八项事实安全检查必须对应 blocking issue；
 - 仅 `counterargument_fairness` 可使用 `not_applicable`，事实安全检查不能借此绕过；
 - `reviewed` Script 绑定可复验的 Review Artifact、来源 revision 与内容指纹；旧 Review 不随内容修订继承；
 - Beat ID 采用稳定、递增、不可复用策略，版本比较能区分插入、删除、移动与实际修改；
-- 完成 V0.4.1 受控 A/B/C 评测和 synthetic fail-closed 场景；V0.5 尚未开始。
+- 完成 V0.4.1 受控 A/B/C 评测和 synthetic fail-closed 场景。
 
-## V0.5：素材与视觉辅助（未开始）
+## V0.5：素材与视觉辅助（已完成，待产品复核）
 
-- Material Search：推荐公开文件、截图、图片、视频片段和图表；
-- 标注来源、版权风险、建议使用位置和时长；
-- Visual Generation：生成原创图表、时间线、地图和说明动画；
-- 评估接入 Remotion、HyperFrames 或其他视觉工具。
+- reviewed Script + exact Research + V0.4.1 Review linkage 输入 Gate；
+- Material Package 0.5、Cue Sheet、真实 inspection、Rights/Reuse Gate、Claim/Evidence binding；
+- 安全静态文件获取、网页/PDF capture 登记、视频 reference-only 边界；
+- Research update escalation，不用素材搜索静默改稿或制图；
+- 原创 timeline/bar/comparison/diagram Visual Spec 和 1920×1080 SVG；
+- 独立 Material Review、item 隔离、package Gate 和不可覆盖存储；
+- `prepare-materials` Skill、API Provider、CLI 和三类真实评测；
+- Remotion / HyperFrames 只保留 render target hints，未创建完整视频工程。
 
 ## V0.6：剪辑与发布辅助
 

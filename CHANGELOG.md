@@ -2,6 +2,27 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [0.5.0] - 2026-08-11
+
+### Added：Material Search & Visual Assistance
+
+- 新增 Material Package / Visual Spec / Material Review 0.5 完整 JSON 契约，以及 B 站 1920×1080 Material Profile。
+- 新增 reviewed Script 输入 Gate：复验 V0.4.1 Review Artifact、Review ID、被审 revision、内容 SHA-256 和精确 Research revision；draft、伪造状态、缺 Artifact 或错版底稿在搜索前失败关闭。
+- 新增 Cue Sheet、素材类型、Evidence/Context/Illustration/Transition 边界、Claim/Evidence binding、URL 规范化去重和透明五维排序。
+- 新增 actual-open inspection manifest 与独立 Rights manifest；API Web Search 结果只标 discovered，未知权利和普通新闻不会成为 ready-to-use。
+- 新增安全静态文件获取和网页/PDF capture 登记：公开 URL、MIME、大小、SVG 脚本、路径、覆盖、SHA-256 与证明边界均受控。
+- 新增 Research update escalation；素材搜索发现冲突或更新时不静默改稿、Research 或 Visual。
+- 新增 timeline、bar、comparison、diagram Visual Spec grounding 和实际 1920×1080 SVG renderer；保留 Remotion/HyperFrames future hints，但不创建视频工程。
+- 新增 10 项独立 Material Review、typed blocking issues、item isolation、package Gate、不可覆盖 Package/Review/Asset 存储和普通用户简明 Markdown。
+- 新增 `prepare-materials` Skill、`search_materials/review_materials` Provider boundary、OpenAI API 和 `prepare-materials` / `review-materials` / `materials` CLI。
+- 新增三类真实世界编辑评测和隔离安全下载评测；完整真实工件与资产保持 gitignored，公开仓库只提交去内容化汇总。
+
+### Validation
+
+- 原 165 项测试全部继续通过；新增 40 项后完整 suite 为 **205 项通过**。
+- 新测试覆盖 input gate、provenance、rights、binding、dedupe、research update、下载、截图、四类 Visual、Review、存储、Provider、CLI 和 Skill。
+- 三类评测分别证明：官方页无复用依据时保持 reference-only；EU CC 页面可 ready 而普通新闻仍 unknown；rights 稀缺时优先原创 SVG，不伪装许可。
+
 ## [0.4.1] - 2026-08-10
 
 ### 修复：Script Gate Hardening

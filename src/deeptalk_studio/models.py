@@ -89,3 +89,19 @@ class ScriptDraft:
             return self.data[name]
         except KeyError as exc:
             raise AttributeError(name) from exc
+
+
+@dataclass(frozen=True)
+class MaterialPackage:
+    """Validated Material Package 0.5 value object."""
+
+    data: Dict[str, Any]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return deepcopy(self.data)
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self.data[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc

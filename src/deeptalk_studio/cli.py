@@ -16,6 +16,16 @@ from .discovery_storage import load_latest_discovery, save_discovery
 from .discovery_storage import DiscoveryStorageError
 from .models import ResearchReport
 from .migration import load_compatible_report, migrate_v01_to_v02
+from .material_profile import MaterialValidationError, load_material_profile
+from .material_review import MaterialReviewError
+from .material_storage import MaterialStorageError, load_material_package
+from .material_workflow import (
+    DEFAULT_MATERIAL_ASSETS,
+    DEFAULT_MATERIAL_PACKAGES,
+    prepare_codex_materials,
+    run_codex_material_review,
+    run_material_workflow,
+)
 from .providers.openai import OpenAIProviderError, OpenAIResponsesProvider
 from .storage import ReportStorageError, save_report
 from .script_profile import load_script_profile, parse_target_duration
@@ -42,6 +52,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REPORTS = REPO_ROOT / "reports"
 DEFAULT_DISCOVERIES = REPO_ROOT / "discoveries"
 DEFAULT_SCRIPTS = DEFAULT_SCRIPT_OUTPUT
+DEFAULT_MATERIALS = DEFAULT_MATERIAL_PACKAGES
+DEFAULT_ASSETS = DEFAULT_MATERIAL_ASSETS
 SAMPLE_REPORT = REPO_ROOT / "examples" / "sample-research-report.json"
 CATEGORY_ALIASES = {
     "tech": "technology",
@@ -151,6 +163,35 @@ def build_parser() -> argparse.ArgumentParser:
     write_script.add_argument("--duration", default="")
     write_script.add_argument("--output", type=Path, default=DEFAULT_SCRIPTS)
     write_script.add_argument("--model", default="gpt-5.6")
+
+    prepare_materials = subparsers.add_parser(
+        "prepare-materials", help="为 reviewed Script 准备 Material Package 0.5"
+    )
+    prepare_materials.add_argument("report", type=Path)
+    prepare_materials.add_argument("script", type=Path)
+    prepare_materials.add_argument("input", type=Path)
+    prepare_materials.add_argument("--inspection-manifest", type=Path)
+    prepare_materials.add_argument("--rights-manifest", type=Path)
+    prepare_materials.add_argument("--output", type=Path, default=DEFAULT_MATERIALS)
+    prepare_materials.add_argument("--assets", type=Path, default=DEFAULT_ASSETS)
+
+    review_materials = subparsers.add_parser(
+        "review-materials", help="独立审查 Material Package 并生成新修订"
+    )
+    review_materials.add_argument("report", type=Path)
+    review_materials.add_argument("script", type=Path)
+    review_materials.add_argument("package", type=Path)
+    review_materials.add_argument("review", type=Path)
+    review_materials.add_argument("--output", type=Path, default=DEFAULT_MATERIALS)
+
+    materials = subparsers.add_parser(
+        "materials", help="用 API 搜索素材、生成原创画面并独立审查"
+    )
+    materials.add_argument("report", type=Path)
+    materials.add_argument("script", type=Path)
+    materials.add_argument("--output", type=Path, default=DEFAULT_MATERIALS)
+    materials.add_argument("--assets", type=Path, default=DEFAULT_ASSETS)
+    materials.add_argument("--model", default="gpt-5.6")
 
     prepare = subparsers.add_parser(
         "prepare-draft", help="把 Codex 研究内容整理为带机器字段的 V0.2 Draft"
@@ -321,6 +362,67 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 f"- 最终状态：{result.final_status}"
             )
             return 0
+        if args.command == "prepare-materials":
+            report = _load_report(args.report)
+            script = load_script(args.script, report, load_script_profile())
+            content = json.loads(args.input.read_text(encoding="utf-8"))
+            inspection = (
+                json.loads(args.inspection_manifest.read_text(encoding="utf-8"))
+                if args.inspection_manifest else {"entries": []}
+            )
+            rights = (
+                json.loads(args.rights_manifest.read_text(encoding="utf-8"))
+                if args.rights_manifest else {"entries": []}
+            )
+            result = prepare_codex_materials(
+                content, script, report, args.output, args.assets,
+                load_material_profile(), inspection, rights,
+            )
+            print(
+                "素材准备单已生成：\n"
+                f"- 阅读版：{result.paths.markdown}\n"
+                f"- 数据版：{result.paths.json}\n"
+                "下一步必须执行独立 Material Review。"
+            )
+            return 0
+        if args.command == "review-materials":
+            report = _load_report(args.report)
+            profile = load_material_profile()
+            script = load_script(args.script, report, load_script_profile())
+            package = load_material_package(args.package, script, report, profile)
+            content = json.loads(args.review.read_text(encoding="utf-8"))
+            result = run_codex_material_review(
+                content, package, script, report, args.output, profile
+            )
+            print(
+                "素材独立审查已完成：\n"
+                f"- Review Artifact：{result.review_artifact}\n"
+                f"- 阅读版：{result.paths.markdown}\n"
+                f"- 最终状态：{result.package.status}"
+            )
+            return 0
+        if args.command == "materials":
+            api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+            if not api_key:
+                print(
+                    "没有检测到 OPENAI_API_KEY。你仍可在 Codex 中直接说“给这期配素材”，prepare-materials Skill 会使用当前 Codex 的联网能力。",
+                    file=sys.stderr,
+                )
+                return 2
+            report = _load_report(args.report)
+            script = load_script(args.script, report, load_script_profile())
+            result = run_material_workflow(
+                script, report, OpenAIResponsesProvider(api_key=api_key, model=args.model),
+                args.output, args.assets, load_material_profile(),
+            )
+            print(
+                "素材搜索、原创画面和独立审查已完成：\n"
+                f"- 初始包：{result.draft.markdown}\n"
+                f"- Review Artifact：{result.review_artifact}\n"
+                f"- 最终包：{result.reviewed.markdown}\n"
+                f"- 最终状态：{result.final_status}"
+            )
+            return 0
         if args.command == "prepare-draft":
             raw = json.loads(args.input.read_text(encoding="utf-8"))
             report = prepare_codex_draft(raw)
@@ -443,6 +545,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         DiscoveryStorageError,
         ScriptStorageError,
         ScriptValidationError,
+        MaterialValidationError,
+        MaterialReviewError,
+        MaterialStorageError,
     ) as exc:
         print(f"无法生成报告：{exc}", file=sys.stderr)
         return 2
