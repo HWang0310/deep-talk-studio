@@ -87,13 +87,14 @@
 - SVG sanitizer 与 PDF/截图校验加固；
 - 仍未开始 Remotion / HyperFrames 制作层。
 
-## V0.6：Motion Production Layer（V0.6.0 已完成）
+## V0.6：Motion Production Layer（V0.6.1 已完成，等待正式验收）
 
-- V0.5.1 canonical input Gate、Production Plan 0.6 与统一 Production Profile；
+- V0.5.1 canonical input Gate、Production Plan 0.6.1、结构化 scene payload 与统一 Production Profile；
 - Remotion / HyperFrames 两个适配器共用同一计划和 QA，普通流程只选一个引擎；
 - 真实 motion clips、rough visual preview、hero still、Motion Asset Manifest 与 Production QA；
 - timeline、bar、comparison、diagram、document/screenshot、static image 与 A-roll placeholder 映射；
-- render-time SHA / path / MIME / eligibility 与 Display Text Grounding Gate；
+- timeline、bar、comparison、diagram 按内部元素真正运动，两套 renderer 消费同一 payload；
+- render-time SHA/path/MIME/eligibility、非数字 Display Text grounding、raw PDF/capture boundary 与 check→issue→gate fail-closed；
 - 字幕、BGM、标题、封面和发布仍保留到后续。
 
 ## V0.7：第一轮真实用户端到端试用（待产品决定）

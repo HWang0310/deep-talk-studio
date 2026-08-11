@@ -25,7 +25,7 @@
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- V0.5.1 已正式验收；V0.6.0 Motion Production Layer 已完成并等待产品复核。不要自行扩展假主播、TTS、最终剪辑、字幕、BGM、标题封面或发布。
+- V0.5.1 已正式验收；V0.6.1 Motion Semantics & Production Gate Hardening 已完成并等待 ChatGPT 正式验收 V0.6。不要自行扩展假主播、TTS、最终剪辑、字幕、BGM、标题封面或发布。
 - 用户说“今天讲什么”“找几个选题”“换一批”或带分类偏好时，先阅读 `.agents/skills/discover-topics/SKILL.md` 和 `docs/TOPIC_DISCOVERY_CONTRACT.md`，不要把它塞进 `research-topic`。
 - 用户回复候选编号时，读取 latest Candidate Set 的结构化 Research Handoff，直接进入 `research-topic`；不要要求用户再复制标题，也不要把 Discovery Source Seeds 当成事实证据。
 - Topic Candidate Set 0.3 的总分、资格状态、资格理由、推荐标签、展示顺序、首选、统计数、身份、时间和来源 provenance 由程序计算并在读取时重新推导；模型或 Skill 只能给评分理由和轻量预检内容。
@@ -63,9 +63,11 @@
 - 用户说“生成视频素材”“做动画”或“出粗剪预览”时，使用 `produce-video-assets` Skill。先通过 V0.5.1 canonical loader，再创建 Production Plan。
 - 普通 Production run 只创建 `selected_renderer` 对应的一个适配器。双引擎只用于明确评测，且必须使用同一 tiny Production Plan。
 - 素材 stage 前重验 root/path/MIME/size/SHA/eligibility/render status。reference-only、permission-required、rejected、missing 或 tampered asset 不得进入 renderer。
-- 屏幕事实文字、数字和日期只能来自绑定 Claim/Evidence 或精确 approved Research Timeline。
+- 除版本化 `machine_editorial` 白名单外，屏幕事实文字即使没有数字也必须语义回查绑定 Claim/Evidence 或精确 approved Research Timeline；合法但无关的 Claim ID 不算通过。
+- raw PDF 永远不能作为 CanvasImage/img；Production 只消费 V0.5 已登记、已审且带 capture metadata 的 PNG/JPEG/WebP。无 capture 必须生成固定 gap。
+- 四类 Visual 必须由 Python Core 生成结构化 `scene_payload`，renderer 逐元素动画；V0.5 SVG 只能作静态 fallback/debug，不得作为四类 Motion 主体。
 - Remotion 必须 frame-driven，使用 `useCurrentFrame` / `interpolate` / `staticFile`，不用 CSS animation/transition。HyperFrames 必须先 DESIGN.md、再 HTML，使用 paused 同步 GSAP timeline，按 lint → validate/inspect → preview → render 执行。
-- Renderer 命令成功不等于 asset ready。只有输出通过 ffprobe、size、SHA、duration、dimensions、fps 和 binding QA 才可用。
+- Renderer 命令成功不等于 asset ready。所有命令以 typed check 进入 Core；任一关键 fail 必须产生 blocking issue。只有输出通过 ffprobe、size、SHA、duration、dimensions、fps 和 binding QA 才可用。
 - Production Plan、Manifest、QA、输出和 renderer project 不可覆盖，分别位于 gitignored `production_packages/`、`production_assets/`、`production_projects/`。
 
 ## 内容与研究安全

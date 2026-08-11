@@ -2,7 +2,7 @@
 
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
-当前版本是 **V0.6.0**。研究、独立事实核查、原创写稿、素材准备和制作已连成可验证链路。已审查素材包可由 Remotion 或 HyperFrames 中的一个引擎生成真实 MP4 动画、粗剪视觉预览、PNG 定帧和制作质检报告。
+当前版本是 **V0.6.1**。研究、独立事实核查、原创写稿、素材准备和制作已连成可验证链路。已审查素材包可由 Remotion 或 HyperFrames 中的一个引擎生成真实 MP4 动画、粗剪视觉预览、PNG 定帧和制作质检报告；四类图表会按内部元素真正运动，不再只是整张 SVG 进场。
 
 ## 现在最简单的用法
 
@@ -136,15 +136,16 @@ material_assets/素材包ID/generated/V001.svg
 - 只用已批准 Research 数据生成 timeline、bar、comparison、diagram，实际输出 1920×1080 SVG 和 SHA-256；
 - 每个图表内部事件、数值、比较项和关系节点都会逐条回查 Research Claim/Evidence；手改已审素材包的状态、权利、排序或审查关联，在重新打开时会被拒绝；
 - 由独立 Material Reviewer 检查来源、权利、Claim 对齐、误导裁切、时效、身份、生成数据、AI/真实混淆、重复和用途；危险 item 可隔离，包级伪造会阻断。
-- 将通过 V0.5.1 canonical Gate 的 Material Package 确定性映射为 Production Plan 0.6，支持 timeline、bar、comparison、diagram、官方文件/网页截图、静态图和真人口播占位。
+- 将通过 V0.5.1 canonical Gate 的 Material Package 确定性映射为 Production Plan 0.6.1；`scene_payload` 保存 timeline、bar、comparison、diagram 的真实数据、顺序、文字和 Claim/Evidence binding。
 - 渲染前重新检查本地路径、格式、大小和 SHA-256；`reference_only`、`permission_required`、`rejected` 与被篡改素材永不进入 Composition。
-- 对画面数字、日期和事实文字重新做 Research Claim/Evidence/Timeline grounding，未支持的新数字在渲染前失败关闭。
+- 对所有事实画面文字重新做 Research Claim/Evidence/Timeline 语义 grounding；没有数字也不能绕过，无关 Claim ID 不能充数。
+- 原始 PDF 只保留来源记录，只有 V0.5 已登记的 PNG/JPEG/WebP 页面截图可以进入图片 renderer；无截图时明确报告缺口。
 - 普通制作只启动 Remotion 或 HyperFrames 中的一个；两者都能输出 1920×1080、30 fps 的动画片段、粗剪预览和定帧图。
-- Motion Asset Manifest 保留路径、时长、尺寸、帧率、字节大小、SHA-256、来源 binding 和渲染命令摘要；Production QA 在 clip 与 package 两级决定 ready/warnings/fail。
+- Motion Asset Manifest 保留路径、时长、尺寸、帧率、字节大小、SHA-256、来源 binding 和渲染命令摘要；Production QA 由结构化 check 自动推导 issue 和 Gate，检查失败不可能与通过状态并存。
 
 ## 还不能做什么
 
-V0.6.0 生成的是可导入剪辑软件的辅助动画和 rough visual preview，不是含真人口播的最终成片。它不做假主播、TTS、精确音频对齐、自动字幕、BGM/SFX、标题封面、B 站上传或运营分析。来源与权利工程检查也不等于律师意见或最终发布批准。
+V0.6.1 生成的是可导入剪辑软件的辅助动画和 rough visual preview，不是含真人口播的最终成片。它不做假主播、TTS、精确音频对齐、自动字幕、BGM/SFX、标题封面、B 站上传或运营分析。来源与权利工程检查也不等于律师意见或最终发布批准。
 
 ## 不依赖联网的检查方式
 
@@ -243,6 +244,7 @@ config/production-profile.json  V0.6 统一画布、设计 token 和渲染版本
 renderer_templates/             锁定版本的 Remotion / HyperFrames 制作模板
 src/deeptalk_studio/            研究、稿件、素材、制作、QA、保存和 API 适配
 scripts/deeptalk                无需安装的统一入口
+scripts/build_v061_motion_evidence.py 双引擎公开虚构动效证据生成器
 examples/                       虚构 Research、Script 和 Review 输入示例
 evaluations/                    去内容化真实编辑评测汇总
 tests/                          自动测试

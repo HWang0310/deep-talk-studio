@@ -142,14 +142,14 @@ V0.5.1 的 `Material Package Artifact` 与 `Material Review Artifact` 不改变 
 - r1 保存 input/inspection/rights provenance artifacts；r2 只能由精确 r1 + Independent Review 重新导出。独立 Review 可隔离危险 item；包级伪造、无安全替代或 Research update 会失败关闭；
 - Remotion / HyperFrames 仅使用 deterministic dimensions/duration/target hints 作为未来接口，不是 V0.5 runtime。
 
-V0.6 新增 `Production Plan 0.6 → Renderer Adapter → Motion Asset Manifest → Production QA`：
+V0.6.1 收口为 `Production Plan 0.6.1 scene_payload → Renderer Adapter → Motion Asset Manifest → typed checks → Production QA`：
 
 - Production input 先调用 V0.5.1 canonical loader，不直接信任 reviewed 字段。
-- Production Plan 是两个 renderer 之上的唯一语义接口；Remotion 和 HyperFrames 只把同一 Scene 契约转成各自工程，不是两个独立制作系统。
+- Production Plan 是两个 renderer 之上的唯一语义接口；Python Core 拥有元素数据、顺序、显示文字和 binding，Remotion/HyperFrames 只按同一 `scene_payload` 动画。
 - `renderer_mode=auto` 根据已审 Visual hint 和 Profile 确定选择；普通流程只实例化 `selected_renderer`。
-- Adapter stage asset 时重新检查 root/path/MIME/size/SHA/eligibility，只复制已在 Scene 中合法引用的本地素材。
+- Adapter stage asset 时重新检查 root/path/MIME/size/SHA/eligibility，只复制已在 Scene 中合法引用的本地图片；raw PDF 和四类 V0.5 SVG 不进入 motion renderer。
 - Remotion 使用 frame-driven React Composition；HyperFrames 使用 DESIGN-first HTML 与 paused GSAP timeline。两者都产生 clips、rough preview 和 hero still。
-- Manifest 只接收真实存在且经 ffprobe 和 SHA 复核的文件。QA 的 clip/package Gate 由程序推导，模型不能自报 pass。
+- Manifest 只接收真实存在且经 ffprobe 和 SHA 复核的文件。所有 renderer 命令成为 typed check，Core 执行 check→issue→gate，失败检查无法与 pass Gate 共存。
 
 未来模块的建议输入输出：
 
@@ -162,7 +162,7 @@ V0.6 新增 `Production Plan 0.6 → Renderer Adapter → Motion Asset Manifest 
 | Script Writing | 已批准的 `ready_for_script` Research Revision | Script Draft 0.4 + Script Review 0.4 + Editor / Teleprompter |
 | Material Search | reviewed Script + exact Research + Review Artifact | Material Package 0.5.1 |
 | Visual Generation | grounded Visual Spec | SVG Assets + hash + target hints |
-| Motion Production | reviewed Material Package + Script + Research | Production Plan 0.6 + MP4/PNG + Manifest + QA |
+| Motion Production | reviewed Material Package + Script + Research | Production Plan 0.6.1 + MP4/PNG + Manifest + typed QA |
 | Editing Plan | Script + Motion Asset Manifest | Final Timeline / Shot Plan JSON |
 | Publishing | 审批后的成品和元数据 | Platform Publish Record |
 

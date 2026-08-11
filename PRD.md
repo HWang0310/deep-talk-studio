@@ -218,13 +218,14 @@ V0.5 不包含完整视频、剪辑时间线、字幕、音乐、标题封面、
 V0.6 只把已审查的素材包制作成可复核的辅助动画，不代替真人出镜、最终剪辑和发布决策。
 
 1. 入口只接受能由 V0.5.1 loader 重放验证的 `reviewed` / `reviewed_with_warnings` Material Package。
-2. Production Plan 0.6 绑定精确 Script、Material revision、Review、Profile、Scene、时长、来源和预期输出。
+2. Production Plan 0.6.1 绑定精确 Script、Material revision、Review、Profile、Scene、时长、来源和预期输出；结构化 `scene_payload` 由 Python Core 拥有。
 3. 普通制作只选 Remotion 或 HyperFrames 中一个；两者共用同一计划、设计 Profile、Manifest 和 QA。
 4. 渲染前重验 asset root、本地文件、MIME、byte size、SHA-256、render status 和 eligibility。非 ready 素材永不进入 Composition。
-5. 所有显示数字、日期和事实文字必须从绑定 Claim/Evidence 或精确 Research Timeline 重新证明。
+5. 所有事实显示文字无论是否含数字，都必须从绑定 Claim/Evidence 或精确 Research Timeline 重新证明；只有版本化机器短语可不绑定。
 6. 映射 timeline、bar、comparison、diagram、official document/webpage、screenshot、static image 和 A-roll placeholder；缺画面时记录 Production gap。
 7. 输出 MP4 动画片段、MP4 rough visual preview 与 PNG hero still。Manifest 记录真实文件元数据和 SHA，QA 由程序计算 clip/package Gate。
-8. 计划、输出和渲染工程不可静默覆盖，且默认被 Git 忽略。
+8. raw PDF 只保留 provenance；只有已审 PNG/JPEG/WebP capture 可进入 renderer。计划、输出和渲染工程不可静默覆盖，且默认被 Git 忽略。
+9. renderer 的 environment/install/lint/typecheck/compositions/doctor/validate/inspect/preview 结果均为 typed check；Core 确定性执行 check → issue → gate。
 
 ### V0.6 验收记录
 
@@ -234,7 +235,8 @@ V0.6 只把已审查的素材包制作成可复核的辅助动画，不代替真
 - [x] Stable Business bar 完整 project → validation → preview → render → QA 成功。
 - [x] Contested Public 与 Rights Sparse 保持 reference-only 隔离，使用原创 timeline/diagram 或 A-roll。
 - [x] blocked input 与 asset tampering 在 Renderer 前拒绝。
-- [x] 自动测试共 255 项（254 项执行通过、1 项真实渲染测试默认跳过），真实双引擎测试已显式启用并通过。
+- [x] V0.6.1 四类逐元素 Motion、Display Text 语义 Gate、QA fail-closed 和 PDF/capture boundary 已完成。
+- [x] 自动测试共 267 项（266 项执行通过、1 项真实渲染测试默认跳过），真实双引擎测试已显式启用并通过。
 
 V0.6 不做假主播、TTS、最终 A-roll 合成、真实音频时码、字幕、BGM/SFX、标题封面、上传或自动发布。
 
