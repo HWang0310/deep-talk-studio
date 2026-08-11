@@ -174,9 +174,38 @@ V0.4.1 只修正 Script Workflow 的可靠性，不重新设计写稿能力：
 - 用户任何内容修订自动回到 `draft`，旧 Review 不能沿用。
 - Beat identity 在修订中保持稳定：已有段落尽量保留 ID，新段落取递增新 ID，删除 ID 永不复用；比较结果按真实连续性报告。
 
-V0.4.0 的旧 `reviewed` JSON 没有上述 linkage 时不得自动信任；需要重新执行 Review。V0.5 仍未开始。
+V0.4.0 的旧 `reviewed` JSON 没有上述 linkage 时不得自动信任；需要重新执行 Review。V0.4.1 已正式验收。
 
-## 7. V0.1 验收记录
+## 7. V0.5：Material Search & Visual Assistance
+
+V0.5 从经过 V0.4.1 真实 Review 的 Script 和精确 Research revision 生成 Material Package。它提供逐段画面提示、来源与复用权利记录、安全获取、原创静态图和独立 Material Review，但不生成完整视频。
+
+### 7.1 产品要求
+
+1. draft、伪造 reviewed、缺 Review Artifact 或错误 Research revision 必须在搜索前拒绝。
+2. Cue 使用短原句 anchor，区分 evidence/context/illustration/transition；不是每个 Beat 都强制配画面。
+3. 搜索摘要不算 inspection；所有重要候选保留实际打开页面的 provenance。
+4. Rights 状态和最终 eligibility 由程序保守推导，普通新闻和 unknown 不可 ready-to-use。
+5. Evidence 素材绑定 Research Claim/Evidence；插图明确 illustrative-only。
+6. 新事实只触发 research update，不静默改 Script/Research/Visual。
+7. 仅安全保存明确复用的静态文件，保留路径、类型、大小、SHA-256 和截图语境。
+8. 用 approved Research 生成 timeline/bar/comparison/diagram Visual Spec 和实际 1920×1080 SVG。
+9. 独立 Reviewer 检查来源、绑定、权利、裁切、时效、身份、生成数据、AI/真实混淆、重复和用途。
+10. JSON 为正式接口，Markdown 为普通用户简明阅读版；真实 Package/Assets 默认不上传 GitHub。
+
+### 7.2 V0.5 验收记录
+
+- [x] Material Package / Visual Spec / Material Review 0.5 完整契约。
+- [x] V0.4.1 Review linkage 与 exact Research input Gate。
+- [x] Provenance、Rights/Reuse、Claim/Evidence、排序、去重和 Research update Gate。
+- [x] 安全下载、截图/PDF capture、视频引用边界和不可覆盖资产记录。
+- [x] 四类静态 SVG renderer 与未来 Remotion/HyperFrames hints。
+- [x] 独立 Material Review、item isolation 和 package-level Gate。
+- [x] Skill、Provider、CLI、205 项测试和三类真实评测。
+
+V0.5 不包含完整视频、剪辑时间线、字幕、音乐、标题封面、上传发布和运营分析。
+
+## 8. V0.1 验收记录
 
 - [x] 已初始化独立正式项目和 Git 历史。
 - [x] 有可扩展的 Agent / Workflow 设计。
@@ -189,6 +218,8 @@ V0.4.0 的旧 `reviewed` JSON 没有上述 linkage 时不得自动信任；需�
 - [x] 有 README、PRD、ROADMAP、AGENTS、CHANGELOG、HANDOFF。
 - [x] V0.2 已使用三类真实题材完成编辑质量评估。
 
-## 8. 成功信号
+## 9. 成功信号
 
 V0.4 的成功不是“AI 写得像一个知名博主”，而是：编辑能快速确认每句重要口播从哪里来，事实、归因和分析没有混在一起，真实争议没有被弱化，研究未知没有被擅自填满，同时稿子听起来仍像真人在讲述，而不是一份机器报告。
+
+V0.5 的成功不是“搜到很多图”，而是：编辑能知道画面放在哪里、为什么放、它能证明什么、能否复用；未知版权不会混入 ready-to-use，原创图没有虚构数据，发现新事实会回到 Research，而不是悄悄改稿。

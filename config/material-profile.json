@@ -1,0 +1,31 @@
+{
+  "profile_version": "0.5",
+  "platform": "bilibili",
+  "canvas_width": 1920,
+  "canvas_height": 1080,
+  "aspect_ratio": "16:9",
+  "safe_area_percent": 5,
+  "visual_style": [
+    "现代克制",
+    "高信息密度",
+    "高对比且易读",
+    "真人口播优先，辅助画面不喧宾夺主"
+  ],
+  "avoid": [
+    "模板化 AI 蓝",
+    "伪新闻画面",
+    "伪造文件、聊天、产品界面或数据页",
+    "把生成图冒充真实人物或事件现场",
+    "模仿特定创作者的独特视觉表达"
+  ],
+  "default_cue_duration_seconds": 7,
+  "max_download_bytes": 26214400,
+  "allowed_download_mime_types": [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/svg+xml",
+    "application/pdf",
+    "text/plain"
+  ]
+}

@@ -2,7 +2,7 @@
 
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
-当前版本是 **V0.4.1**。现在有两个研究入口：直接给主题，或问“今天讲什么？”。研究完成并通过独立事实核查后，你只需确认“开始写稿”，系统就会把这次确认保存为新版本，再生成原创口播稿并做独立 Script Review。
+当前版本是 **V0.5.0**。现在有两个研究入口：直接给主题，或问“今天讲什么？”。研究完成并通过独立事实核查后，你只需确认“开始写稿”，系统会生成原创口播稿并做独立 Script Review；稿件通过后，再说“给这期配素材”，就会得到经过来源和版权检查的画面准备单与原创 SVG 图表。
 
 ## 现在最简单的用法
 
@@ -25,6 +25,14 @@ DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目�
 > 确认进入写稿，做成 8 分钟的 B 站口播稿。
 
 仓库里的 `write-script` Skill 会先记录你的确认，再生成稿件和独立审稿结果。之后也可以直接说“做长一点”“第二段更紧凑”或“比较这两个版本”。每次修改都会建立新版本，不覆盖旧稿。
+
+稿件通过审查后，直接说：
+
+> 给这期配素材。
+
+> 把画面准备一下，少一点，只配关键段落。
+
+`prepare-materials` Skill 会核对稿件的真实 Review 凭证和精确 Research 版本，再搜索并实际打开候选页面、保守判断复用权利、生成画面提示和原创 SVG，并进行独立 Material Review。你不需要自己判断版权术语或管理文件。
 
 选题结果会保存在本机：
 
@@ -58,6 +66,17 @@ script_drafts/YYYY/MM/DD/报告ID/稿件ID/script-draft-r0002.json
 ```
 
 完整真实稿件同样默认不会上传 GitHub。
+
+素材准备单和本地素材默认保存在：
+
+```text
+material_packages/YYYY/MM/DD/报告ID/稿件ID/素材包ID/material-package-r0001.json
+material_packages/YYYY/MM/DD/报告ID/稿件ID/素材包ID/material-package-r0001.md
+material_packages/YYYY/MM/DD/报告ID/稿件ID/素材包ID/material-review-for-r0001-审查ID.json
+material_assets/素材包ID/generated/V001.svg
+```
+
+两类目录都默认不上传 GitHub，避免把受版权保护的真实素材或内部工作稿意外公开。
 
 ## 项目现在能做什么
 
@@ -93,10 +112,19 @@ script_drafts/YYYY/MM/DD/报告ID/稿件ID/script-draft-r0002.json
 - `reviewed` 稿件会校验对应的 Review Artifact、原稿版本与内容指纹，单独改状态无效；
 - 修改、移动或插入段落时保留已有 Beat 身份，删除的 Beat ID 不再复用，因此版本比较不会把一次插入误报为整篇重写；
 - 在保存前执行完整 Schema 和跨字段校验，错误会给出中文提示。
+- 只允许有真实 V0.4.1 Review linkage、内容指纹和精确 Research revision 的 `reviewed` 稿件进入素材流程；手改状态或伪造 Review 无效；
+- 用短原句 anchor 给关键 Beat 安排证据、背景、说明或转场画面，不强迫每段都有素材；
+- 搜索并实际检查公开文件、网页、截图、照片、视频引用、数据源和档案；搜索摘要只能算发现，不能算页面已检查；
+- 对每项素材记录来源、发布者、检查方法、Claim/Evidence 回链、使用位置、时长和可证明/不可证明边界；
+- 用单独 Rights manifest 判断 public domain、明确复用、CC、official press asset、仅编辑引用、需许可、未知或避免使用；未知版权绝不会成为可直接使用；
+- 只安全保存明确可复用的静态文件，拒绝本机/内网、危险 MIME、超大文件、脚本 SVG、路径越界和覆盖；截图保留页码、裁切区域和语境；
+- 若素材搜索出现冲突或新事实，标记 `research_update_required`，不会静默改稿、改研究或改图表；
+- 只用已批准 Research 数据生成 timeline、bar、comparison、diagram，实际输出 1920×1080 SVG 和 SHA-256；
+- 由独立 Material Reviewer 检查来源、权利、Claim 对齐、误导裁切、时效、身份、生成数据、AI/真实混淆、重复和用途；危险 item 可隔离，包级伪造会阻断。
 
 ## 还不能做什么
 
-V0.4.1 不包含素材搜索或下载、图片和视频生成、剪辑方案、B 站发布及其他平台分发。稿件成为 `reviewed` 只代表通过工程与独立编辑检查，不代表已经获准发布；发布前仍需要人类最终确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
+V0.5.0 不生成完整 Remotion/HyperFrames 视频，不做镜头级剪辑时间线、字幕、BGM/SFX、标题封面、B 站上传发布或运营分析。素材包 `reviewed` 表示来源、权利和画面数据通过当前工程检查，不等于法律许可或最终发布批准；发布前仍需要人类最终确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
 
 ## 不依赖联网的检查方式
 
@@ -140,6 +168,16 @@ V0.4 的底层调试入口包括：
 
 这些命令面向测试和自动化；普通用户只需在 Codex 中用自然语言确认和修改。
 
+V0.5 的底层调试入口包括：
+
+```bash
+./scripts/deeptalk prepare-materials approved-report.json reviewed-script.json material-content.json --inspection-manifest inspection.json --rights-manifest rights.json
+./scripts/deeptalk review-materials approved-report.json reviewed-script.json material-package-r0001.json material-review.json
+./scripts/deeptalk materials approved-report.json reviewed-script.json
+```
+
+普通用户仍只需说“给这期配素材”。
+
 开发或自动化时也可以使用：
 
 ```bash
@@ -168,9 +206,11 @@ V0.4 的底层调试入口包括：
 .agents/skills/discover-topics/ Codex 可自动发现的选题发现工作流
 .agents/skills/research-topic/  Codex 可自动发现的研究工作流
 .agents/skills/write-script/    Codex 原创写稿、独立审稿与版本修改工作流
+.agents/skills/prepare-materials/ Codex 素材搜索、权利检查、原创画面和独立审查
 config/channel-profile.json     V0.3 默认频道定位
 config/script-profile.json      V0.4 口播风格、时长和原创性约束
-src/deeptalk_studio/            研究与稿件模型、校验、渲染、保存和 API 适配
+config/material-profile.json    V0.5 B 站画布、视觉风格和安全获取限制
+src/deeptalk_studio/            研究、稿件、素材、视觉、校验、保存和 API 适配
 scripts/deeptalk                无需安装的统一入口
 examples/                       虚构 Research、Script 和 Review 输入示例
 evaluations/                    去内容化真实编辑评测汇总
@@ -189,6 +229,6 @@ HANDOFF.md                      每轮开发交接
 - Codex：工程师，负责实现、测试、修复、文档和 GitHub。
 - 用户：只负责复制、粘贴和确认，不负责总结技术内容。
 
-每轮开发结束后，以 [HANDOFF.md](HANDOFF.md) 为唯一交接入口。V0.4.1 的稿件契约与真实评测见 [docs/SCRIPT_CONTRACT.md](docs/SCRIPT_CONTRACT.md) 和 [docs/SCRIPT_EVALS.md](docs/SCRIPT_EVALS.md)。
+每轮开发结束后，以 [HANDOFF.md](HANDOFF.md) 为唯一交接入口。V0.5 的素材契约与真实评测见 [docs/MATERIAL_CONTRACT.md](docs/MATERIAL_CONTRACT.md)、[docs/VISUAL_SPEC.md](docs/VISUAL_SPEC.md) 和 [docs/MATERIAL_EVALS.md](docs/MATERIAL_EVALS.md)。
 
 正式版本的 GitHub 发布与未来软件包规则见 [RELEASE_POLICY.md](RELEASE_POLICY.md)。

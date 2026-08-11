@@ -40,3 +40,17 @@ class ScriptProvider(Protocol):
         schema: Dict[str, Any],
     ) -> ProviderResult:
         ...
+
+
+class MaterialProvider(Protocol):
+    def search_materials(
+        self, script: Dict[str, Any], report: Dict[str, Any],
+        profile: Dict[str, Any], schema: Dict[str, Any]
+    ) -> ProviderResult:
+        ...
+
+    def review_materials(
+        self, package: Dict[str, Any], script: Dict[str, Any],
+        report: Dict[str, Any], schema: Dict[str, Any]
+    ) -> ProviderResult:
+        ...
