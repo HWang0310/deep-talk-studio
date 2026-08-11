@@ -1,6 +1,7 @@
 """Shared subprocess, project and asset boundary for production renderers."""
 
 import json
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -53,11 +54,15 @@ def _summary(text: str, limit: int = 4000) -> str:
 
 def run_command(
     command: Sequence[str], cwd: Path, *, timeout: int = 600,
+    env: Mapping[str, str] = None,
 ) -> CommandResult:
+    command_env = os.environ.copy()
+    if env:
+        command_env.update({str(key): str(value) for key, value in env.items()})
     try:
         completed = subprocess.run(
             list(command), cwd=str(cwd), capture_output=True, text=True,
-            timeout=timeout, check=False,
+            timeout=timeout, check=False, env=command_env,
         )
     except FileNotFoundError as exc:
         raise RendererError(f"制作环境缺少命令：{command[0]}") from exc

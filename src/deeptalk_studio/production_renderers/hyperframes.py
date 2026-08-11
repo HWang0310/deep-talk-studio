@@ -2,6 +2,8 @@
 
 import html
 import json
+import os
+import shutil
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -15,6 +17,21 @@ from ..production_storage import production_output_path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_TEMPLATE = REPO_ROOT / "renderer_templates" / "hyperframes"
 GSAP_CDN = "https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"
+
+
+def hyperframes_browser_env(override: str = "") -> Mapping[str, str]:
+    candidates = [
+        override or os.environ.get("HYPERFRAMES_BROWSER_PATH", ""),
+        os.environ.get("DEEPTALK_BROWSER_EXECUTABLE", ""),
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        shutil.which("google-chrome") or "",
+        shutil.which("chromium") or "",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return {"HYPERFRAMES_BROWSER_PATH": str(Path(candidate).resolve())}
+    return {}
 
 
 def _e(value: Any) -> str:
@@ -67,7 +84,8 @@ def _scene_markup(scene: Mapping[str, Any], asset_map: Mapping[str, str], *, pre
         f'<div class="screen-text text-{index}">{_e(entry["text"])}</div>'
         for index, entry in enumerate(scene["on_screen_text"][:4])
     )
-    return f'<div class="scene-content" id="content-{scene_id}">{image}<div class="text-stack">{text}</div><div class="source-note">来源：已批准 Research / Material Package</div></div>'
+    complete_class = " complete-generated-visual" if scene["source_visual_ids"] else ""
+    return f'<div class="scene-content{complete_class}" id="content-{scene_id}">{image}<div class="text-stack">{text}</div><div class="source-note">来源：已批准 Research / Material Package</div></div>'
 
 
 def _styles(profile: Mapping[str, Any]) -> str:
@@ -85,6 +103,7 @@ body {{ font-family: \"{f['body']}\", serif; }}
 .screen-text {{ max-width: 1500px; padding: 10px 22px; background: {c['surface']}; color: {c['foreground']}; font-size: 34px; line-height: 1.3; }}
 .text-0 {{ background: {c['accent']}; color: {c['background']}; font-family: \"{f['display']}\", sans-serif; font-size: 58px; font-weight: 900; letter-spacing: -0.03em; }}
 .source-note {{ position: absolute; left: 96px; top: 70px; color: {c['muted']}; font-family: \"{f['data']}\", monospace; font-size: 22px; }}
+.complete-generated-visual .text-stack, .complete-generated-visual .source-note {{ display: none; }}
 """
 
 
@@ -100,7 +119,7 @@ def _standalone_scene(
         f'tl.from("#content-{scene_id} .source-note", {{ opacity: 0, duration: 0.3, ease: "power1.out" }}, 0.72);',
     ]
     return f'''<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"/><meta name="viewport" content="width=1920, height=1080"/><script src="{GSAP_CDN}"></script><style>{_styles(profile)}</style></head><body>
-<div id="root-{scene_id}" data-composition-id="scene-{scene_id}" data-start="0" data-duration="{duration}" data-width="1920" data-height="1080" data-fps="30"><div class="scene">{_scene_markup(scene, asset_map, prefix="../")}</div></div>
+<div id="root-{scene_id}" data-composition-id="scene-{scene_id}" data-start="0" data-duration="{duration}" data-width="1920" data-height="1080" data-fps="30"><div class="scene">{_scene_markup(scene, asset_map, prefix="")}</div></div>
 <script>window.__timelines = window.__timelines || {{}}; const tl = gsap.timeline({{ paused: true }}); {''.join(entrances)} window.__timelines["scene-{scene_id}"] = tl;</script></body></html>'''
 
 
@@ -113,7 +132,7 @@ def _rough_preview(plan: Mapping[str, Any], asset_map: Mapping[str, str], profil
         duration = float(scene["duration_seconds"])
         opacity = "1" if index == 0 else "0"
         clips.append(
-            f'<div id="scene-{scene_id}" class="scene" data-start="{cursor:.3f}" data-duration="{duration:.3f}" data-track-index="{index % 2 + 1}" style="opacity:{opacity}">{_scene_markup(scene, asset_map, prefix="")}</div>'
+            f'<div id="scene-{scene_id}" class="scene clip" data-start="{cursor:.3f}" data-duration="{duration:.3f}" data-track-index="{index % 2 + 1}" style="opacity:{opacity}">{_scene_markup(scene, asset_map, prefix="")}</div>'
         )
         start = cursor
         if index > 0:
@@ -225,7 +244,10 @@ class HyperFramesRenderer:
                 else:
                     rough_output = path
             try:
-                result = run_command(command, prepared.project_dir, timeout=1800)
+                result = run_command(
+                    command, prepared.project_dir, timeout=1800,
+                    env=hyperframes_browser_env(),
+                )
                 outputs.append(RenderOutput(
                     expected["motion_asset_id"], expected["scene_id"], expected["asset_kind"],
                     path, result.command_summary,

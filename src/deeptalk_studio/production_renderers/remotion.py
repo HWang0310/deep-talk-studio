@@ -1,5 +1,7 @@
 """Remotion adapter driven only by a validated Production Plan."""
 
+import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -14,6 +16,23 @@ from ..production_storage import production_output_path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_TEMPLATE = REPO_ROOT / "renderer_templates" / "remotion"
+
+
+def browser_executable_args(override: str = "") -> tuple:
+    """Prefer an installed Chromium browser over a slow first-run download."""
+
+    candidates = [
+        override or os.environ.get("DEEPTALK_BROWSER_EXECUTABLE", ""),
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        shutil.which("google-chrome") or "",
+        shutil.which("chromium") or "",
+        shutil.which("chromium-browser") or "",
+    ]
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return (f"--browser-executable={Path(candidate).resolve()}",)
+    return ()
 
 
 class RemotionRenderer:
@@ -47,7 +66,8 @@ class RemotionRenderer:
         install = self._install(prepared)
         lint = run_command(["npm", "run", "lint"], prepared.project_dir, timeout=600)
         compositions = run_command(
-            ["npx", "remotion", "compositions", "src/index.ts"], prepared.project_dir, timeout=600
+            ["npx", "remotion", "compositions", "src/index.ts", *browser_executable_args()],
+            prepared.project_dir, timeout=600
         )
         return (install, lint, compositions)
 
@@ -55,7 +75,7 @@ class RemotionRenderer:
         self._install(prepared)
         command = [
             "npx", "remotion", "studio", "src/index.ts", "--no-open",
-            f"--port={port}", "--force-new",
+            f"--port={port}", "--force-new", *browser_executable_args(),
         ]
         process = subprocess.Popen(
             command, cwd=str(prepared.project_dir), stdout=subprocess.PIPE,
@@ -80,6 +100,8 @@ class RemotionRenderer:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     process.kill()
+            if process.stdout is not None:
+                process.stdout.close()
 
     def render(
         self, prepared: PreparedProject, plan: Mapping[str, Any], output_root: Path,
@@ -96,17 +118,17 @@ class RemotionRenderer:
                 composition = f'Scene-{expected["scene_id"]}'
                 command = [
                     "npx", "remotion", "render", "src/index.ts", composition, str(path),
-                    "--codec=h264", "--log=error",
+                    "--codec=h264", "--concurrency=1", "--log=error", *browser_executable_args(),
                 ]
             elif expected["asset_kind"] == "rough_preview":
                 command = [
                     "npx", "remotion", "render", "src/index.ts", "RoughPreview", str(path),
-                    "--codec=h264", "--log=error",
+                    "--codec=h264", "--concurrency=1", "--log=error", *browser_executable_args(),
                 ]
             else:
                 command = [
                     "npx", "remotion", "still", "src/index.ts", "HeroStill", str(path),
-                    "--log=error",
+                    "--log=error", *browser_executable_args(),
                 ]
             try:
                 result = run_command(command, prepared.project_dir, timeout=1200)

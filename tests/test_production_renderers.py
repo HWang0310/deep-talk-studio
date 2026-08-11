@@ -11,6 +11,8 @@ from deeptalk_studio.production_planner import prepare_production_plan
 from deeptalk_studio.production_profile import load_production_profile
 from deeptalk_studio.production_renderers import get_renderer
 from deeptalk_studio.production_renderers.base import RendererError, run_command
+from deeptalk_studio.production_renderers.remotion import browser_executable_args
+from deeptalk_studio.production_renderers.hyperframes import hyperframes_browser_env
 from deeptalk_studio.production_validation import validate_production_input
 from tests.material_fixtures import (
     inspection_manifest,
@@ -67,12 +69,30 @@ class ProductionRendererTests(unittest.TestCase):
         with self.assertRaisesRegex(RendererError, "不支持"):
             get_renderer("unknown")
 
+    def test_remotion_can_reuse_an_existing_browser_instead_of_downloading_one(self):
+        browser = self.root / "Chrome"
+        browser.write_bytes(b"executable")
+        browser.chmod(0o755)
+        self.assertEqual(
+            browser_executable_args(str(browser)),
+            (f"--browser-executable={browser.resolve()}",),
+        )
+        self.assertEqual(
+            hyperframes_browser_env(str(browser)),
+            {"HYPERFRAMES_BROWSER_PATH": str(browser.resolve())},
+        )
+
     def test_command_runner_records_exit_output_and_turns_failure_into_clean_error(self):
         success = run_command([sys.executable, "-c", "print('ok')"], self.root)
         self.assertEqual(success.exit_code, 0)
         self.assertIn("ok", success.stdout_summary)
         with self.assertRaisesRegex(RendererError, "执行失败"):
             run_command([sys.executable, "-c", "raise SystemExit(4)"], self.root)
+        inherited = run_command(
+            [sys.executable, "-c", "import os; print(os.environ['DEEPTALK_TEST_ENV'])"],
+            self.root, env={"DEEPTALK_TEST_ENV": "safe-browser"},
+        )
+        self.assertIn("safe-browser", inherited.stdout_summary)
 
     def test_remotion_project_consumes_plan_and_only_stages_allowed_assets(self):
         project = get_renderer("remotion").prepare_project(
@@ -87,6 +107,10 @@ class ProductionRendererTests(unittest.TestCase):
         self.assertIn("useCurrentFrame", source)
         self.assertIn("interpolate", source)
         self.assertIn("staticFile", source)
+        self.assertIn("const revealRight", source)
+        self.assertIn("isCompleteGeneratedVisual", source)
+        self.assertIn("transform: `translateY", source)
+        self.assertNotIn('["inset(', source)
         self.assertNotIn("animation:", source)
         self.assertNotIn("transition:", source)
         self.assertNotIn("https://example.com", json.dumps(asset_map))
@@ -101,11 +125,15 @@ class ProductionRendererTests(unittest.TestCase):
         )
         design = (project.project_dir / "DESIGN.md").read_text(encoding="utf-8")
         html = (project.project_dir / "index.html").read_text(encoding="utf-8")
+        standalone = (project.project_dir / "compositions/S002.html").read_text(encoding="utf-8")
         self.assertIn(self.profile["design_tokens"]["colors"]["accent"], design)
         self.assertIn('data-composition-id="main"', html)
         self.assertIn("data-start=", html)
         self.assertIn("data-duration=", html)
         self.assertIn("data-track-index=", html)
+        self.assertIn('class="scene clip"', html)
+        self.assertIn("complete-generated-visual", html)
+        self.assertNotIn('../assets/', standalone)
         self.assertIn("gsap.timeline({ paused: true })", html)
         self.assertIn('window.__timelines["main"] = tl', html)
         self.assertNotIn("Math.random", html)

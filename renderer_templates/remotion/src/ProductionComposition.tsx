@@ -24,22 +24,26 @@ const SceneBody: React.FC<{scene: Scene; still?: boolean}> = ({scene, still = fa
   });
   const assetId = scene.source_visual_ids[0] ?? scene.source_material_ids[0];
   const asset = assetId ? assetMap[assetId] : undefined;
-  const reveal = still ? "inset(0 0% 0 0)" : interpolate(
-    frame, [0.25 * fps, 1.2 * fps], ["inset(0 100% 0 0)", "inset(0 0% 0 0)"],
+  const isCompleteGeneratedVisual = scene.source_visual_ids.length > 0;
+  const revealRight = still ? 0 : interpolate(
+    frame, [0.25 * fps, 1.2 * fps], [100, 0],
     {extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.22, 1, 0.36, 1)},
   );
   return <AbsoluteFill style={{backgroundColor: tokens.colors.background, color: tokens.colors.foreground}}>
     <div style={{position: "absolute", inset: 48, border: `2px solid ${tokens.colors.surface}`, opacity: 0.7}} />
     {asset ? <CanvasImage
       src={staticFile(asset)}
-      style={{position: "absolute", width: "100%", height: "100%", objectFit: "contain", clipPath: reveal, opacity: entrance}}
+      style={{position: "absolute", width: "100%", height: "100%", objectFit: "contain", clipPath: `inset(0 ${revealRight}% 0 0)`, opacity: entrance}}
     /> : <div style={{position: "absolute", inset: "100px 96px", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: tokens.colors.surface, opacity: entrance}}>
       <span style={{fontFamily: tokens.typography.display, fontSize: 86, fontWeight: 900}}>真人口播</span>
     </div>}
-    <div style={{position: "absolute", left: 96, right: 96, bottom: 100, display: "flex", flexDirection: "column", gap: 12}}>
+    {!isCompleteGeneratedVisual && <div style={{position: "absolute", left: 96, right: 96, bottom: 100, display: "flex", flexDirection: "column", gap: 12}}>
       {scene.on_screen_text.slice(0, 4).map((entry, index) => {
         const itemOpacity = still ? 1 : interpolate(frame, [(0.45 + index * 0.22) * fps, (0.9 + index * 0.22) * fps], [0, 1], {
           extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.16, 1, 0.3, 1),
+        });
+        const translateY = still ? 0 : interpolate(frame, [0.3 * fps, 1.1 * fps], [32, 0], {
+          extrapolateLeft: "clamp", extrapolateRight: "clamp",
         });
         return <div key={`${scene.scene_id}-${index}`} style={{
           alignSelf: "flex-start", maxWidth: 1500, padding: "10px 22px",
@@ -47,13 +51,13 @@ const SceneBody: React.FC<{scene: Scene; still?: boolean}> = ({scene, still = fa
           color: index === 0 ? tokens.colors.background : tokens.colors.foreground,
           fontFamily: index === 0 ? tokens.typography.display : tokens.typography.body,
           fontSize: index === 0 ? 58 : 34, fontWeight: index === 0 ? 900 : 400,
-          opacity: itemOpacity, translate: still ? "0 0" : interpolate(frame, [0.3 * fps, 1.1 * fps], ["0 32px", "0 0px"], {extrapolateLeft: "clamp", extrapolateRight: "clamp"}),
+          opacity: itemOpacity, transform: `translateY(${translateY}px)`,
         }}>{entry.text}</div>;
       })}
-    </div>
-    <div style={{position: "absolute", left: 96, top: 70, fontFamily: tokens.typography.data, fontSize: 22, color: tokens.colors.muted}}>
+    </div>}
+    {!isCompleteGeneratedVisual && <div style={{position: "absolute", left: 96, top: 70, fontFamily: tokens.typography.data, fontSize: 22, color: tokens.colors.muted}}>
       ROUGH VISUAL · {scene.scene_type}
-    </div>
+    </div>}
   </AbsoluteFill>;
 };
 
