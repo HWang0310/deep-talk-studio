@@ -66,7 +66,8 @@ class RemotionRenderer:
         install = self._install(prepared)
         lint = run_command(["npm", "run", "lint"], prepared.project_dir, timeout=600)
         compositions = run_command(
-            ["npx", "remotion", "compositions", "src/index.ts", *browser_executable_args()],
+            ["npx", "remotion", "compositions", "src/index.ts",
+             f"--public-dir={prepared.project_dir / 'public'}", *browser_executable_args()],
             prepared.project_dir, timeout=600
         )
         return (install, lint, compositions)
@@ -75,7 +76,8 @@ class RemotionRenderer:
         self._install(prepared)
         command = [
             "npx", "remotion", "studio", "src/index.ts", "--no-open",
-            f"--port={port}", "--force-new", *browser_executable_args(),
+            f"--port={port}", "--force-new",
+            f"--public-dir={prepared.project_dir / 'public'}", *browser_executable_args(),
         ]
         process = subprocess.Popen(
             command, cwd=str(prepared.project_dir), stdout=subprocess.PIPE,
@@ -118,17 +120,20 @@ class RemotionRenderer:
                 composition = f'Scene-{expected["scene_id"]}'
                 command = [
                     "npx", "remotion", "render", "src/index.ts", composition, str(path),
-                    "--codec=h264", "--concurrency=1", "--log=error", *browser_executable_args(),
+                    "--codec=h264", "--concurrency=1", "--log=error",
+                    f"--public-dir={prepared.project_dir / 'public'}", *browser_executable_args(),
                 ]
             elif expected["asset_kind"] == "rough_preview":
                 command = [
                     "npx", "remotion", "render", "src/index.ts", "RoughPreview", str(path),
-                    "--codec=h264", "--concurrency=1", "--log=error", *browser_executable_args(),
+                    "--codec=h264", "--concurrency=1", "--log=error",
+                    f"--public-dir={prepared.project_dir / 'public'}", *browser_executable_args(),
                 ]
             else:
                 command = [
                     "npx", "remotion", "still", "src/index.ts", "HeroStill", str(path),
-                    "--log=error", *browser_executable_args(),
+                    "--log=error", f"--public-dir={prepared.project_dir / 'public'}",
+                    *browser_executable_args(),
                 ]
             try:
                 result = run_command(command, prepared.project_dir, timeout=1200)

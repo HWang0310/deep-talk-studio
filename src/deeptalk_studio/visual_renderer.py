@@ -28,10 +28,16 @@ def _timeline(spec: Mapping[str, object]) -> str:
     parts = [f'<line x1="{start}" y1="{y}" x2="{end}" y2="{y}" class="line"/>']
     for index, event in enumerate(events):
         x = start if count == 1 else start + (end - start) * index / (count - 1)
+        if index == 0:
+            label_x, label_anchor = 96, "start"
+        elif index == count - 1:
+            label_x, label_anchor = 1824, "end"
+        else:
+            label_x, label_anchor = x, "middle"
         parts.extend([
             f'<circle cx="{x:.0f}" cy="{y}" r="18" class="accent"/>',
             f'<text x="{x:.0f}" y="{y-70}" text-anchor="middle" class="date">{_t(event["date"])}</text>',
-            f'<text x="{x:.0f}" y="{y+80}" text-anchor="middle" class="body">{_t(event["label"])}</text>',
+            f'<text x="{label_x:.0f}" y="{y+80}" text-anchor="{label_anchor}" class="body">{_t(event["label"])}</text>',
         ])
     return "".join(parts)
 
@@ -122,4 +128,3 @@ def render_visual_svg(spec: Mapping[str, object], output_root: Path) -> Path:
 def visual_asset_record(path: Path) -> dict:
     data = Path(path).read_bytes()
     return {"local_path": str(Path(path).resolve()), "byte_size": len(data), "sha256": hashlib.sha256(data).hexdigest(), "mime_type": "image/svg+xml"}
-

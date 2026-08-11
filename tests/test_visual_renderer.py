@@ -34,6 +34,7 @@ class VisualRendererTests(unittest.TestCase):
             self.assertIn('height="1080"', svg)
             self.assertIn("事件、解释与核查", svg)
             self.assertIn("已批准 Research Report", svg)
+            self.assertIn('x="96" y="620" text-anchor="start" class="body"', svg)
 
     def test_svg_escapes_untrusted_display_text(self):
         content = valid_material_content()
