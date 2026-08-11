@@ -37,7 +37,7 @@
     "duration_tolerance_seconds": 0.2
   },
   "dependencies": {
-    "remotion": "4.0.506",
+    "remotion": "4.0.507",
     "hyperframes": "0.7.106",
     "gsap": "3.14.2"
   }

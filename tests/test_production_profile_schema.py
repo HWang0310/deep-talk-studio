@@ -22,7 +22,7 @@ class ProductionProfileSchemaTests(unittest.TestCase):
         })
         self.assertIn(profile["default_renderer"], {"remotion", "hyperframes"})
         self.assertEqual(profile["design_tokens"]["safe_area"]["horizontal"], 96)
-        self.assertEqual(profile["dependencies"]["remotion"], "4.0.506")
+        self.assertEqual(profile["dependencies"]["remotion"], "4.0.507")
         self.assertTrue(profile["dependencies"]["hyperframes"])
 
     def test_profile_rejects_wrong_canvas_or_unknown_field(self):
