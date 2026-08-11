@@ -2,7 +2,7 @@
 
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
-当前版本是 **V0.5.1**。现在有两个研究入口：直接给主题，或问“今天讲什么？”。研究完成并通过独立事实核查后，你只需确认“开始写稿”，系统会生成原创口播稿并做独立 Script Review；稿件通过后，再说“给这期配素材”，就会得到经过来源和版权检查的画面准备单与原创 SVG 图表。
+当前版本是 **V0.6.0**。研究、独立事实核查、原创写稿、素材准备和制作已连成可验证链路。已审查素材包可由 Remotion 或 HyperFrames 中的一个引擎生成真实 MP4 动画、粗剪视觉预览、PNG 定帧和制作质检报告。
 
 ## 现在最简单的用法
 
@@ -33,6 +33,14 @@ DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目�
 > 把画面准备一下，少一点，只配关键段落。
 
 `prepare-materials` Skill 会核对稿件的真实 Review 凭证和精确 Research 版本，再搜索并实际打开候选页面、保守判断复用权利、生成画面提示和原创 SVG，并进行独立 Material Review。你不需要自己判断版权术语或管理文件。
+
+素材包通过审查后，直接说：
+
+> 生成视频素材。
+
+> 做一下动画和粗剪预览。
+
+`produce-video-assets` Skill 会自动找到最新合法输入，选择一个制作引擎，运行预览、渲染和 QA，并只告诉你生成了什么、哪些可用、哪些还需要真人口播或手工补画面。
 
 选题结果会保存在本机：
 
@@ -81,6 +89,8 @@ material_assets/素材包ID/generated/V001.svg
 
 两类目录都默认不上传 GitHub，避免把受版权保护的真实素材或内部工作稿意外公开。
 
+制作计划、真实输出和渲染工程分别保存在 `production_packages/`、`production_assets/` 和 `production_projects/`，三者均默认不上传 GitHub，且已存在的同次输出不会被覆盖。
+
 ## 项目现在能做什么
 
 - 接受社会、时事、商业、科技、网络热点或公共事件主题；
@@ -126,10 +136,15 @@ material_assets/素材包ID/generated/V001.svg
 - 只用已批准 Research 数据生成 timeline、bar、comparison、diagram，实际输出 1920×1080 SVG 和 SHA-256；
 - 每个图表内部事件、数值、比较项和关系节点都会逐条回查 Research Claim/Evidence；手改已审素材包的状态、权利、排序或审查关联，在重新打开时会被拒绝；
 - 由独立 Material Reviewer 检查来源、权利、Claim 对齐、误导裁切、时效、身份、生成数据、AI/真实混淆、重复和用途；危险 item 可隔离，包级伪造会阻断。
+- 将通过 V0.5.1 canonical Gate 的 Material Package 确定性映射为 Production Plan 0.6，支持 timeline、bar、comparison、diagram、官方文件/网页截图、静态图和真人口播占位。
+- 渲染前重新检查本地路径、格式、大小和 SHA-256；`reference_only`、`permission_required`、`rejected` 与被篡改素材永不进入 Composition。
+- 对画面数字、日期和事实文字重新做 Research Claim/Evidence/Timeline grounding，未支持的新数字在渲染前失败关闭。
+- 普通制作只启动 Remotion 或 HyperFrames 中的一个；两者都能输出 1920×1080、30 fps 的动画片段、粗剪预览和定帧图。
+- Motion Asset Manifest 保留路径、时长、尺寸、帧率、字节大小、SHA-256、来源 binding 和渲染命令摘要；Production QA 在 clip 与 package 两级决定 ready/warnings/fail。
 
 ## 还不能做什么
 
-V0.5.1 仍不生成完整 Remotion/HyperFrames 视频，不做镜头级剪辑时间线、字幕、BGM/SFX、标题封面、B 站上传发布或运营分析。素材包 `reviewed` 表示来源、权利和画面数据通过当前工程检查，不等于法律许可或最终发布批准；发布前仍需要人类最终确认。路线已预留，见 [ROADMAP.md](ROADMAP.md)。
+V0.6.0 生成的是可导入剪辑软件的辅助动画和 rough visual preview，不是含真人口播的最终成片。它不做假主播、TTS、精确音频对齐、自动字幕、BGM/SFX、标题封面、B 站上传或运营分析。来源与权利工程检查也不等于律师意见或最终发布批准。
 
 ## 不依赖联网的检查方式
 
@@ -183,6 +198,14 @@ V0.5 的底层调试入口包括：
 
 普通用户仍只需说“给这期配素材”。
 
+V0.6 制作调试入口：
+
+```bash
+./scripts/deeptalk produce-assets approved-report.json reviewed-script.json reviewed-material-package.json --renderer auto
+```
+
+普通用户只需说“生成视频素材”。
+
 开发或自动化时也可以使用：
 
 ```bash
@@ -212,10 +235,13 @@ V0.5 的底层调试入口包括：
 .agents/skills/research-topic/  Codex 可自动发现的研究工作流
 .agents/skills/write-script/    Codex 原创写稿、独立审稿与版本修改工作流
 .agents/skills/prepare-materials/ Codex 素材搜索、权利检查、原创画面和独立审查
+.agents/skills/produce-video-assets/ Codex 动画素材、粗剪预览和制作 QA
 config/channel-profile.json     V0.3 默认频道定位
 config/script-profile.json      V0.4 口播风格、时长和原创性约束
 config/material-profile.json    V0.5 B 站画布、视觉风格和安全获取限制
-src/deeptalk_studio/            研究、稿件、素材、视觉、校验、保存和 API 适配
+config/production-profile.json  V0.6 统一画布、设计 token 和渲染版本
+renderer_templates/             锁定版本的 Remotion / HyperFrames 制作模板
+src/deeptalk_studio/            研究、稿件、素材、制作、QA、保存和 API 适配
 scripts/deeptalk                无需安装的统一入口
 examples/                       虚构 Research、Script 和 Review 输入示例
 evaluations/                    去内容化真实编辑评测汇总
@@ -234,6 +260,6 @@ HANDOFF.md                      每轮开发交接
 - Codex：工程师，负责实现、测试、修复、文档和 GitHub。
 - 用户：只负责复制、粘贴和确认，不负责总结技术内容。
 
-每轮开发结束后，以 [HANDOFF.md](HANDOFF.md) 为唯一交接入口。V0.5 的素材契约与真实评测见 [docs/MATERIAL_CONTRACT.md](docs/MATERIAL_CONTRACT.md)、[docs/VISUAL_SPEC.md](docs/VISUAL_SPEC.md) 和 [docs/MATERIAL_EVALS.md](docs/MATERIAL_EVALS.md)。
+每轮开发结束后，以 [HANDOFF.md](HANDOFF.md) 为唯一交接入口。V0.6 制作边界与真实评测见 [docs/PRODUCTION_CONTRACT.md](docs/PRODUCTION_CONTRACT.md) 和 [docs/PRODUCTION_EVALS.md](docs/PRODUCTION_EVALS.md)。
 
 正式版本的 GitHub 发布与未来软件包规则见 [RELEASE_POLICY.md](RELEASE_POLICY.md)。

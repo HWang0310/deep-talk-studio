@@ -142,6 +142,15 @@ V0.5.1 的 `Material Package Artifact` 与 `Material Review Artifact` 不改变 
 - r1 保存 input/inspection/rights provenance artifacts；r2 只能由精确 r1 + Independent Review 重新导出。独立 Review 可隔离危险 item；包级伪造、无安全替代或 Research update 会失败关闭；
 - Remotion / HyperFrames 仅使用 deterministic dimensions/duration/target hints 作为未来接口，不是 V0.5 runtime。
 
+V0.6 新增 `Production Plan 0.6 → Renderer Adapter → Motion Asset Manifest → Production QA`：
+
+- Production input 先调用 V0.5.1 canonical loader，不直接信任 reviewed 字段。
+- Production Plan 是两个 renderer 之上的唯一语义接口；Remotion 和 HyperFrames 只把同一 Scene 契约转成各自工程，不是两个独立制作系统。
+- `renderer_mode=auto` 根据已审 Visual hint 和 Profile 确定选择；普通流程只实例化 `selected_renderer`。
+- Adapter stage asset 时重新检查 root/path/MIME/size/SHA/eligibility，只复制已在 Scene 中合法引用的本地素材。
+- Remotion 使用 frame-driven React Composition；HyperFrames 使用 DESIGN-first HTML 与 paused GSAP timeline。两者都产生 clips、rough preview 和 hero still。
+- Manifest 只接收真实存在且经 ffprobe 和 SHA 复核的文件。QA 的 clip/package Gate 由程序推导，模型不能自报 pass。
+
 未来模块的建议输入输出：
 
 | 模块 | 输入 | 输出 |
@@ -153,7 +162,8 @@ V0.5.1 的 `Material Package Artifact` 与 `Material Review Artifact` 不改变 
 | Script Writing | 已批准的 `ready_for_script` Research Revision | Script Draft 0.4 + Script Review 0.4 + Editor / Teleprompter |
 | Material Search | reviewed Script + exact Research + Review Artifact | Material Package 0.5.1 |
 | Visual Generation | grounded Visual Spec | SVG Assets + hash + target hints |
-| Editing Plan | Script + Material Manifest | Timeline / Shot Plan JSON |
+| Motion Production | reviewed Material Package + Script + Research | Production Plan 0.6 + MP4/PNG + Manifest + QA |
+| Editing Plan | Script + Motion Asset Manifest | Final Timeline / Shot Plan JSON |
 | Publishing | 审批后的成品和元数据 | Platform Publish Record |
 
 ## 安全边界
@@ -173,6 +183,7 @@ V0.5.1 的 `Material Package Artifact` 与 `Material Review Artifact` 不改变 
 - Material 搜索摘要不能冒充 actual page inspection；Rights 不能从来源名称推断。
 - 未知版权新闻/视频/creator 内容不自动下载；所有本地 asset 记录大小和 SHA-256，并拒绝覆盖。
 - 生成画面不能冒充新闻、文件、UI、真人或真实事件现场，也不能使用 Research 外数据。
+- Production 每次 stage 前重新检查素材路径边界、MIME、size、SHA 和 eligibility；任何 non-ready 素材不得进入 Composition。
 - 发布前必须有人类编辑 Review；工程校验不等于新闻事实认证。
 
 ## 扩展原则

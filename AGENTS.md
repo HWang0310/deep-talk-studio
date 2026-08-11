@@ -12,7 +12,8 @@
 4. `docs/ARCHITECTURE.md`：模块与工件接口。
 5. `CHANGELOG.md`：已经实际做过什么。
 6. `RELEASE_POLICY.md`：正式版本如何发布到 GitHub。
-7. 与任务直接相关的代码、测试和 Skill。
+7. 若任务涉及制作，完整阅读 `docs/PRODUCTION_CONTRACT.md`、`docs/PRODUCTION_EVALS.md` 和 `.agents/skills/produce-video-assets/SKILL.md`。
+8. 与任务直接相关的代码、测试和 Skill。
 
 若文件与当前代码不一致，以可运行代码和测试为事实，同时在本轮修正文档。
 
@@ -24,7 +25,7 @@
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- V0.4.1 已正式验收；V0.5.1 Material Gate Hardening 已完成并等待产品复核。不要在正式验收前越过 V0.5 进入 Remotion、HyperFrames、完整视频、剪辑、字幕、标题封面或发布。
+- V0.5.1 已正式验收；V0.6.0 Motion Production Layer 已完成并等待产品复核。不要自行扩展假主播、TTS、最终剪辑、字幕、BGM、标题封面或发布。
 - 用户说“今天讲什么”“找几个选题”“换一批”或带分类偏好时，先阅读 `.agents/skills/discover-topics/SKILL.md` 和 `docs/TOPIC_DISCOVERY_CONTRACT.md`，不要把它塞进 `research-topic`。
 - 用户回复候选编号时，读取 latest Candidate Set 的结构化 Research Handoff，直接进入 `research-topic`；不要要求用户再复制标题，也不要把 Discovery Source Seeds 当成事实证据。
 - Topic Candidate Set 0.3 的总分、资格状态、资格理由、推荐标签、展示顺序、首选、统计数、身份、时间和来源 provenance 由程序计算并在读取时重新推导；模型或 Skill 只能给评分理由和轻量预检内容。
@@ -59,6 +60,13 @@
 - Visual Spec 只能使用 approved Research timeline/Claim/Evidence；所有内部 event/data point/comparison/node 也必须逐项验证。数值采用边界匹配，value label 不能显示不同数值；生成 SVG 不得伪造新闻、文件、聊天、UI、人物或事件现场。
 - Material Reviewer 与 Search 分离，只审已有 Package，不扩大 Research。failed check 必须有 typed issue；issue severity、item eligibility、package Gate 和最终状态由代码拥有。
 - Material r1 同时保存 input、inspection、rights provenance artifact；reviewed r2 在读取时必须由精确 r1 和 Review Artifact 重建，任何手改 eligibility、rights/provenance、ranking、package status 或 review linkage 均失败关闭。Material Package、Review 和 Assets 不可覆盖，默认位于 gitignored `material_packages/` 与 `material_assets/`。Markdown 只给普通用户阅读，不能当机器接口。
+- 用户说“生成视频素材”“做动画”或“出粗剪预览”时，使用 `produce-video-assets` Skill。先通过 V0.5.1 canonical loader，再创建 Production Plan。
+- 普通 Production run 只创建 `selected_renderer` 对应的一个适配器。双引擎只用于明确评测，且必须使用同一 tiny Production Plan。
+- 素材 stage 前重验 root/path/MIME/size/SHA/eligibility/render status。reference-only、permission-required、rejected、missing 或 tampered asset 不得进入 renderer。
+- 屏幕事实文字、数字和日期只能来自绑定 Claim/Evidence 或精确 approved Research Timeline。
+- Remotion 必须 frame-driven，使用 `useCurrentFrame` / `interpolate` / `staticFile`，不用 CSS animation/transition。HyperFrames 必须先 DESIGN.md、再 HTML，使用 paused 同步 GSAP timeline，按 lint → validate/inspect → preview → render 执行。
+- Renderer 命令成功不等于 asset ready。只有输出通过 ffprobe、size、SHA、duration、dimensions、fps 和 binding QA 才可用。
+- Production Plan、Manifest、QA、输出和 renderer project 不可覆盖，分别位于 gitignored `production_packages/`、`production_assets/`、`production_projects/`。
 
 ## 内容与研究安全
 
@@ -84,9 +92,10 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ./scripts/deeptalk compare-script <script-r1.json> <script-r2.json>
 ./scripts/deeptalk prepare-materials <report.json> <reviewed-script.json> <content.json> --inspection-manifest <inspection.json> --rights-manifest <rights.json>
 ./scripts/deeptalk review-materials <report.json> <reviewed-script.json> <package.json> <review.json>
+./scripts/deeptalk produce-assets <report.json> <reviewed-script.json> <reviewed-package.json> --renderer auto
 ```
 
-修改 `.agents/skills/research-topic`、`.agents/skills/discover-topics`、`.agents/skills/write-script` 或 `.agents/skills/prepare-materials` 后，还要运行 Skill Creator 的 `quick_validate.py`。若本机脚本缺少 PyYAML，可在临时目录安装依赖运行，不能把临时依赖提交到仓库。
+修改 `.agents/skills/research-topic`、`.agents/skills/discover-topics`、`.agents/skills/write-script`、`.agents/skills/prepare-materials` 或 `.agents/skills/produce-video-assets` 后，还要运行 Skill Creator 的 `quick_validate.py`。若本机脚本缺少 PyYAML，可在临时目录安装依赖运行，不能把临时依赖提交到仓库。
 
 ## 每轮结束前必须完成
 

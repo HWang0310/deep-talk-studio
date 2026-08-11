@@ -2,6 +2,29 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [0.6.0] - 2026-08-11
+
+### Added：Motion Production Layer
+
+- 新增 Production Profile、Production Plan 0.6、Motion Asset Manifest 与 Production QA 严格契约。
+- 新增 V0.5.1 canonical input Gate、render-time path/MIME/size/SHA/eligibility Gate 和 Display Text Grounding Gate。
+- 新增共用同一计划与 QA 的 Remotion / HyperFrames adapters；锁定依赖，普通流程只运行一个 renderer。
+- 新增 timeline/bar/comparison/diagram、document/screenshot、static image、A-roll placeholder 映射、Production gaps、rough visual preview 和 immutable storage。
+- 新增 `produce-assets` CLI 和 `.agents/skills/produce-video-assets`。
+
+### Fixed during real rendering
+
+- Remotion 复用本机 Chrome、固定单并发渲染并显式绑定 project `public/`，避免慢速浏览器下载、多标签失败和 asset 404。
+- HyperFrames 修正 `.clip` timing 标记和 root-relative asset path，并通过官方环境变量复用本机 Chrome。
+- 原创完整 SVG 不再叠加重复标题；Timeline 文本保留 safe area。含数字标题与 Research Timeline 日期在精确绑定后可通过，新数字仍失败关闭。
+
+### Validation
+
+- 完整 unittest 共 **255 项**（254 项执行通过、1 项真实渲染集成测试默认跳过），原 219 项全部保留。
+- 显式启用真实渲染测试：同一 tiny Plan 在 Remotion 和 HyperFrames 均完成 validation、preview、MP4/PNG render 与 QA pass。
+- Apple 财报 bar 完成 Remotion 全链路真实 MP4 并 QA pass；欧盟 AI Act 和 rights-sparse 验证 reference-only 隔离、原创 timeline/diagram 与 A-roll fallback。
+- blocked Material Package 在 renderer 前拒绝；asset tampering 在 SHA/size Gate 失败关闭。
+
 ## [0.5.1] - 2026-08-11
 
 ### Fixed：Material Gate Hardening
