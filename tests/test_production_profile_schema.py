@@ -15,7 +15,7 @@ from deeptalk_studio.validation import validate_json_schema
 class ProductionProfileSchemaTests(unittest.TestCase):
     def test_default_profile_locks_bilibili_canvas_renderer_and_design_tokens(self):
         profile = load_production_profile()
-        self.assertEqual(profile["profile_version"], "0.6")
+        self.assertEqual(profile["profile_version"], "0.6.1")
         self.assertEqual(profile["platform"], "bilibili")
         self.assertEqual(profile["canvas"], {
             "width": 1920, "height": 1080, "aspect_ratio": "16:9", "fps": 30,

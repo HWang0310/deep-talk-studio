@@ -1,5 +1,5 @@
 {
-  "profile_version": "0.6",
+  "profile_version": "0.6.1",
   "platform": "bilibili",
   "default_renderer": "remotion",
   "canvas": {

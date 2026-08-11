@@ -1,8 +1,7 @@
-"""Deterministic Material Package → Production Plan 0.6 derivation."""
+"""Deterministic Material Package → Production Plan 0.6.1 derivation."""
 
 import hashlib
 import json
-import re
 from copy import deepcopy
 from typing import Any, Dict, Mapping
 
@@ -36,30 +35,42 @@ def production_plan_digest(plan: Mapping[str, Any]) -> str:
 
 
 def _editorial(text: str) -> dict:
-    return {"text": text, "text_kind": "editorial", "claim_ids": [], "evidence_link_ids": []}
-
-
-def _factual(text: str, claim_ids: list, evidence_ids: list) -> dict:
     return {
-        "text": text, "text_kind": "factual", "claim_ids": list(claim_ids),
+        "text": text, "origin": "machine_editorial", "text_kind": "editorial",
+        "claim_ids": [], "evidence_link_ids": [],
+    }
+
+
+def _factual(
+    text: str, claim_ids: list, evidence_ids: list, *, origin: str = "visual_label",
+    attribution: bool = False,
+) -> dict:
+    return {
+        "text": text, "origin": origin,
+        "text_kind": "attribution" if attribution else "factual",
+        "claim_ids": list(claim_ids),
         "evidence_link_ids": list(evidence_ids),
     }
 
 
-def _visual_heading(text: str, visual: Mapping[str, Any]) -> dict:
-    if re.search(r"\d", text):
-        return _factual(text, visual["claim_ids"], visual["evidence_link_ids"])
-    return _editorial(text)
+def _empty_payload(payload_type: str) -> dict:
+    return {
+        "payload_version": "0.6.1", "payload_type": payload_type,
+        "timeline_events": [], "bar_data_points": [], "comparison_items": [],
+        "diagram_nodes": [], "diagram_edges": [], "image_asset_id": "",
+        "capture_region": "",
+    }
 
 
-def _visual_text(visual: Mapping[str, Any], report: ResearchReport) -> list:
-    entries = [_visual_heading(str(visual["title"]), visual)]
-    prevalidated = set()
-    if str(visual.get("subtitle", "")).strip():
-        entries.append(_visual_heading(str(visual["subtitle"]), visual))
+def _visual_payload(visual: Mapping[str, Any], report: ResearchReport) -> tuple:
     visual_type = visual["visual_type"]
+    headings = {
+        "timeline": "关键时间点", "bar": "数据对比",
+        "comparison": "两个解释", "diagram": "关系说明",
+    }
+    payload = _empty_payload(visual_type)
     if visual_type == "timeline":
-        for event in visual["events"]:
+        for index, event in enumerate(visual["events"], 1):
             approved = next((item for item in report.timeline if (
                 item["date"] == event["date"] and item["event"] == event["label"]
                 and item["claim_ids"] == event["claim_ids"]
@@ -67,43 +78,72 @@ def _visual_text(visual: Mapping[str, Any], report: ResearchReport) -> list:
             )), None)
             if approved is None:
                 raise ProductionValidationError("Timeline 屏幕文字不是已批准 Research Timeline 的精确条目")
-            date_entry = _factual(event["date"], event["claim_ids"], event["evidence_link_ids"])
-            label_entry = _factual(event["label"], event["claim_ids"], event["evidence_link_ids"])
+            date_entry = _factual(
+                event["date"], event["claim_ids"], event["evidence_link_ids"],
+                origin="research_fact",
+            )
+            label_entry = _factual(
+                event["label"], event["claim_ids"], event["evidence_link_ids"],
+                origin="research_fact",
+            )
             for entry in (date_entry, label_entry):
                 validate_display_text(
                     entry, report,
                     additional_grounded_texts=(approved["date"], approved["event"]),
                 )
-                prevalidated.add(id(entry))
-                entries.append(entry)
+            payload["timeline_events"].append({
+                "order": index, "date": date_entry, "label": label_entry,
+            })
     elif visual_type == "bar":
-        for point in visual["data_points"]:
-            entries.append(_factual(
-                f'{point["label"]}：{point["value_label"]}',
-                point["claim_ids"], point["evidence_link_ids"],
-            ))
+        for index, point in enumerate(visual["data_points"], 1):
+            label = _factual(point["label"], point["claim_ids"], point["evidence_link_ids"])
+            value_label = _factual(point["value_label"], point["claim_ids"], point["evidence_link_ids"])
+            validate_display_text(label, report)
+            validate_display_text(value_label, report)
+            payload["bar_data_points"].append({
+                "order": index, "label": label, "value": point["value"],
+                "value_label": value_label,
+            })
     elif visual_type == "comparison":
-        for item in visual["comparison_items"]:
-            entries.append(_factual(
-                f'{item["label"]}：{item["left_text"]} / {item["right_text"]}',
-                item["claim_ids"], item["evidence_link_ids"],
-            ))
+        if len(visual["comparison_items"]) < 2:
+            raise ProductionValidationError("Comparison Motion 至少需要 2 个已绑定条目")
+        for index, item in enumerate(visual["comparison_items"], 1):
+            fields = {
+                key: _factual(item[key], item["claim_ids"], item["evidence_link_ids"])
+                for key in ("label", "left_text", "right_text")
+            }
+            for entry in fields.values():
+                validate_display_text(entry, report)
+            payload["comparison_items"].append({"order": index, **fields})
     elif visual_type == "diagram":
         evidence_by_claim = {}
         for link in report.evidence_links:
             evidence_by_claim.setdefault(link["claim_id"], []).append(link["id"])
-        for node in visual["nodes"]:
+        nodes_by_id = {node["node_id"]: node for node in visual["nodes"]}
+        for index, node in enumerate(visual["nodes"], 1):
             evidence = []
             for claim_id in node["claim_ids"]:
                 evidence.extend(evidence_by_claim.get(claim_id, []))
-            entries.append(_factual(node["label"], node["claim_ids"], list(dict.fromkeys(evidence))))
-        for edge in visual["edges"]:
-            if str(edge["label"]).strip() and not re.search(r"\d", str(edge["label"])):
-                entries.append(_editorial(str(edge["label"])))
-    for entry in entries:
-        if id(entry) not in prevalidated:
-            validate_display_text(entry, report)
-    return entries
+            label = _factual(node["label"], node["claim_ids"], list(dict.fromkeys(evidence)))
+            validate_display_text(label, report)
+            payload["diagram_nodes"].append({
+                "order": index, "node_id": node["node_id"], "label": label,
+            })
+        for index, edge in enumerate(visual["edges"], 1):
+            endpoint_claims = list(dict.fromkeys(
+                nodes_by_id[edge["from_node"]]["claim_ids"]
+                + nodes_by_id[edge["to_node"]]["claim_ids"]
+            ))
+            evidence = []
+            for claim_id in endpoint_claims:
+                evidence.extend(evidence_by_claim.get(claim_id, []))
+            label = _factual(edge["label"], endpoint_claims, list(dict.fromkeys(evidence)))
+            validate_display_text(label, report)
+            payload["diagram_edges"].append({
+                "order": index, "from_node": edge["from_node"],
+                "to_node": edge["to_node"], "label": label,
+            })
+    return [_editorial(headings[visual_type])], payload
 
 
 def _select_renderer(mode: str, visuals: list, profile: Mapping[str, Any]) -> str:
@@ -171,7 +211,7 @@ def prepare_production_plan(
             scene_type = VISUAL_SCENE_TYPES[selected_visual["visual_type"]]
             source_visual_ids = [selected_visual["visual_id"]]
             source_material_ids = []
-            screen_text = _visual_text(selected_visual, report_obj)
+            screen_text, scene_payload = _visual_payload(selected_visual, report_obj)
             duration = float(selected_visual["suggested_duration_seconds"])
             renderer_intent = str(selected_visual["animation_intent"])
             layout_intent = f'{selected_visual["visual_type"]} 分步建立，保持来源署名可读'
@@ -189,6 +229,12 @@ def prepare_production_plan(
                         "保留真人口播，取得安全本地截图后重新制作。",
                     )
                     continue
+                if str(item["local_path"]).casefold().endswith(".pdf"):
+                    add_gap(
+                        cue, "文件已取得，但尚无可安全展示的页面截图。",
+                        "在 V0.5 Material Workflow 登记带页码和区域信息的 PNG/JPEG/WebP 截图。",
+                    )
+                    continue
                 validate_render_asset(item, material_asset_root)
                 if item["asset_type"] in MATERIAL_SCENE_TYPES:
                     selected_material = item
@@ -197,7 +243,25 @@ def prepare_production_plan(
                 scene_type = MATERIAL_SCENE_TYPES[selected_material["asset_type"]]
                 source_material_ids = [selected_material["material_id"]]
                 source_visual_ids = []
-                screen_text = [_editorial(selected_material["caption"] or selected_material["title"])]
+                caption = _factual(
+                    selected_material["caption"] or selected_material["title"],
+                    selected_material["claim_ids"], selected_material["evidence_link_ids"],
+                    origin="material_caption",
+                )
+                try:
+                    validate_display_text(caption, report_obj)
+                    screen_text = [caption]
+                except ProductionValidationError:
+                    screen_text = [_editorial("资料画面")]
+                    add_gap(
+                        cue, "素材说明文字无法从绑定 Claim 确定性回查，已使用中性标签。",
+                        "人工核对说明文字后，在 Material Review 中重新登记。",
+                    )
+                scene_payload = _empty_payload("image")
+                scene_payload["image_asset_id"] = selected_material["material_id"]
+                scene_payload["capture_region"] = str(
+                    selected_material.get("capture", {}).get("capture_region", "")
+                )
                 duration = float(cue["suggested_duration_seconds"])
                 renderer_intent = "轻量推近或平移，不裁掉改变原意的上下文"
                 layout_intent = "安全素材占主体，标题和来源署名位于 safe area"
@@ -206,6 +270,7 @@ def prepare_production_plan(
                 source_material_ids = []
                 source_visual_ids = []
                 screen_text = [_editorial(str(profile["scene_defaults"]["aroll_placeholder_label"])), _editorial("辅助画面待补")]
+                scene_payload = _empty_payload("aroll")
                 duration = float(cue["suggested_duration_seconds"])
                 renderer_intent = "中性真人口播占位，不生成假主播"
                 layout_intent = "保留真人画面空间，只显示简短编辑提示"
@@ -218,7 +283,8 @@ def prepare_production_plan(
             "duration_seconds": frames / int(profile["canvas"]["fps"]),
             "duration_frames": frames, "renderer_intent": renderer_intent,
             "transition_intent": str(profile["scene_defaults"]["transition"]),
-            "layout_intent": layout_intent, "on_screen_text": screen_text,
+            "layout_intent": layout_intent, "scene_payload": scene_payload,
+            "on_screen_text": screen_text,
             "audio_mode": "aroll_placeholder" if scene_type == "aroll_placeholder" else "none",
             "warnings": [],
         })
@@ -243,7 +309,7 @@ def prepare_production_plan(
     ])
     selected_renderer = _select_renderer(renderer_mode, selected_visuals, profile)
     data = {
-        "artifact_version": "0.6", "production_id": production_id, "revision": 1,
+        "artifact_version": "0.6.1", "production_id": production_id, "revision": 1,
         "previous_revision": 0, "created_at": created_at, "generated_at": created_at,
         "script_id": script.script_id, "script_revision": script.revision,
         "script_content_digest": script_content_digest(script.data),
@@ -293,6 +359,13 @@ def validate_production_plan(
     expected_scene_ids = [f"S{index:03d}" for index in range(1, len(plan["scenes"]) + 1)]
     if [scene["scene_id"] for scene in plan["scenes"]] != expected_scene_ids:
         raise ProductionValidationError("Production Scene ID 必须由程序连续生成")
+    expected_payload_types = {
+        "timeline_motion": "timeline", "bar_motion": "bar",
+        "comparison_motion": "comparison", "diagram_motion": "diagram",
+        "document_reveal": "image", "screenshot_pan": "image",
+        "image_pan_zoom": "image", "text_explainer": "aroll",
+        "transition_card": "aroll", "aroll_placeholder": "aroll",
+    }
     for scene in plan["scenes"]:
         if scene["cue_id"] not in cue_ids:
             raise ProductionValidationError("Production Scene 引用了不存在的 Cue")
@@ -304,10 +377,46 @@ def validate_production_plan(
             raise ProductionValidationError("Production Scene 引用了不存在的 Visual")
         if scene["duration_frames"] != round(scene["duration_seconds"] * plan["canvas"]["fps"]):
             raise ProductionValidationError("Production Scene duration 不确定或与 frame 数不一致")
+        payload = scene["scene_payload"]
+        if payload["payload_type"] != expected_payload_types[scene["scene_type"]]:
+            raise ProductionValidationError("Production Scene payload 类型与 scene_type 不一致")
+        groups = (
+            payload["timeline_events"], payload["bar_data_points"],
+            payload["comparison_items"], payload["diagram_nodes"],
+            payload["diagram_edges"],
+        )
+        for group in groups:
+            if [item["order"] for item in group] != list(range(1, len(group) + 1)):
+                raise ProductionValidationError("Scene payload 元素顺序必须由程序连续生成")
+        group_by_type = {
+            "timeline": "timeline_events", "bar": "bar_data_points",
+            "comparison": "comparison_items", "diagram": "diagram_nodes",
+        }
+        payload_group_keys = {
+            "timeline_events", "bar_data_points", "comparison_items",
+            "diagram_nodes", "diagram_edges",
+        }
+        allowed_groups = {group_by_type[payload["payload_type"]]} if payload["payload_type"] in group_by_type else set()
+        if payload["payload_type"] == "diagram":
+            allowed_groups.add("diagram_edges")
+        if any(payload[key] for key in payload_group_keys - allowed_groups):
+            raise ProductionValidationError("Scene payload 包含与类型无关的元素组")
+        if payload["payload_type"] == "image":
+            if payload["image_asset_id"] not in scene["source_material_ids"]:
+                raise ProductionValidationError("Image scene payload 与 source material 不一致")
+        elif payload["image_asset_id"] or payload["capture_region"]:
+            raise ProductionValidationError("非图片 scene payload 不能携带图片字段")
+        node_order = {item["node_id"]: item["order"] for item in payload["diagram_nodes"]}
+        for edge in payload["diagram_edges"]:
+            if edge["from_node"] not in node_order or edge["to_node"] not in node_order:
+                raise ProductionValidationError("Diagram edge 端点不存在")
         if report is not None:
             additional_grounding = []
             for visual_id in scene["source_visual_ids"]:
                 visual = visual_by_id[visual_id]
+                expected_text, expected_payload = _visual_payload(visual, report)
+                if scene["scene_payload"] != expected_payload or scene["on_screen_text"] != expected_text:
+                    raise ProductionValidationError("Production Plan scene payload 与源 Visual 重新推导结果不一致")
                 if visual["visual_type"] == "timeline":
                     for event in visual["events"]:
                         approved = next((item for item in report.timeline if (
@@ -319,6 +428,22 @@ def validate_production_plan(
                             raise ProductionValidationError("Production Plan Timeline 与 Research Timeline 不一致")
                         additional_grounding.extend((approved["date"], approved["event"]))
             for entry in scene["on_screen_text"]:
+                validate_display_text(
+                    entry, report,
+                    additional_grounded_texts=tuple(additional_grounding),
+                )
+            payload_entries = []
+            for event in payload["timeline_events"]:
+                payload_entries.extend((event["date"], event["label"]))
+            for point in payload["bar_data_points"]:
+                payload_entries.extend((point["label"], point["value_label"]))
+            for item in payload["comparison_items"]:
+                payload_entries.extend((item["label"], item["left_text"], item["right_text"]))
+            for node in payload["diagram_nodes"]:
+                payload_entries.append(node["label"])
+            for edge in payload["diagram_edges"]:
+                payload_entries.append(edge["label"])
+            for entry in payload_entries:
                 validate_display_text(
                     entry, report,
                     additional_grounded_texts=tuple(additional_grounding),

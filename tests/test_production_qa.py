@@ -31,6 +31,20 @@ def tiny_plan():
     }
 
 
+def renderer_checks(*, environment="pass", validation="pass", preview="pass"):
+    return [
+        {"check_name": "environment", "renderer": "core",
+         "exit_code": 0 if environment == "pass" else 127,
+         "outcome": environment, "command_category": "environment", "summary": "环境检查。"},
+        {"check_name": "remotion_typecheck", "renderer": "remotion",
+         "exit_code": 0 if validation == "pass" else 2, "outcome": validation,
+         "command_category": "typecheck", "summary": "类型检查。"},
+        {"check_name": "remotion_preview", "renderer": "remotion",
+         "exit_code": 0 if preview == "pass" else 3, "outcome": preview,
+         "command_category": "preview", "summary": "预览检查。"},
+    ]
+
+
 class ProductionQATests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -98,17 +112,17 @@ class ProductionQATests(unittest.TestCase):
         )
         qa = prepare_production_qa(
             tiny_plan(), manifest, created_at="2026-08-11T13:01:00+08:00",
-            qa_id="PQA-partial", renderer_checks={"project_validation": True, "preview": True},
+            qa_id="PQA-partial", renderer_checks=renderer_checks(),
         )
         self.assertEqual(qa["package_gate_status"], "warnings")
         self.assertEqual(qa["clip_results"][0], {"motion_asset_id": "MA001", "status": "ready"})
 
         blocked = prepare_production_qa(
             tiny_plan(), manifest, created_at="2026-08-11T13:01:00+08:00",
-            qa_id="PQA-blocked", renderer_checks={"project_validation": True, "preview": True},
-            package_failures=[{"issue_type": "production_plan_binding_mismatch", "details": "binding"}],
+            qa_id="PQA-blocked", renderer_checks=renderer_checks(validation="fail"),
         )
         self.assertEqual(blocked["package_gate_status"], "fail")
+        self.assertIn("renderer_validation_failed", {issue["issue_type"] for issue in blocked["issues"]})
 
     def test_model_cannot_self_declare_manifest_or_qa_pass(self):
         result = build_motion_asset_manifest(
@@ -123,11 +137,43 @@ class ProductionQATests(unittest.TestCase):
             validate_motion_manifest(manifest, tiny_plan())
         qa = prepare_production_qa(
             tiny_plan(), result, created_at="2026-08-11T13:01:00+08:00",
-            qa_id="PQA-tamper", renderer_checks={"project_validation": True, "preview": True},
+            qa_id="PQA-tamper", renderer_checks=renderer_checks(),
         )
         qa["package_gate_status"] = "pass" if qa["package_gate_status"] != "pass" else "fail"
         with self.assertRaises(ProductionValidationError):
             validate_production_qa(qa, tiny_plan(), result.manifest)
+
+    def test_failed_check_cannot_coexist_with_a_passing_gate_even_when_files_exist(self):
+        result = build_motion_asset_manifest(
+            tiny_plan(), "remotion",
+            RenderBatch((RenderOutput("MA001", "S001", "motion_clip", self.clip, "ok"),), ()),
+            created_at="2026-08-11T13:00:00+08:00", manifest_id="MAM-check-fail",
+            probe_func=self.probe,
+        )
+        qa = prepare_production_qa(
+            tiny_plan(), result, created_at="2026-08-11T13:01:00+08:00",
+            qa_id="PQA-check-fail", renderer_checks=renderer_checks(preview="fail"),
+        )
+        self.assertEqual(qa["package_gate_status"], "fail")
+        self.assertIn("renderer_preview_failed", {issue["issue_type"] for issue in qa["issues"]})
+        environment_qa = prepare_production_qa(
+            tiny_plan(), result, created_at="2026-08-11T13:01:00+08:00",
+            qa_id="PQA-environment-fail", renderer_checks=renderer_checks(environment="fail"),
+        )
+        self.assertEqual(environment_qa["package_gate_status"], "fail")
+        self.assertIn(
+            "production_environment_unavailable",
+            {issue["issue_type"] for issue in environment_qa["issues"]},
+        )
+        tampered = deepcopy(qa)
+        tampered["issues"] = [issue for issue in tampered["issues"] if issue["issue_type"] != "renderer_preview_failed"]
+        for index, issue in enumerate(tampered["issues"], 1):
+            issue["issue_id"] = f"PQI{index:03d}"
+        tampered["package_gate_status"] = "warnings"
+        from deeptalk_studio.production_qa import _digest
+        tampered["qa_digest"] = _digest(tampered, "qa_digest")
+        with self.assertRaisesRegex(ProductionValidationError, "fail check"):
+            validate_production_qa(tampered, tiny_plan(), result.manifest)
 
 
 if __name__ == "__main__":

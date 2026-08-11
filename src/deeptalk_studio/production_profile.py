@@ -1,4 +1,4 @@
-"""Versioned visual identity and renderer defaults for Production 0.6."""
+"""Versioned visual identity and renderer defaults for Production 0.6.1."""
 
 import json
 from copy import deepcopy
@@ -31,8 +31,8 @@ def load_production_profile(
     }
     if not isinstance(profile, dict) or set(profile) != expected:
         raise ProductionValidationError("Production Profile 字段不完整或包含未知字段")
-    if profile["profile_version"] != "0.6" or profile["platform"] != "bilibili":
-        raise ProductionValidationError("V0.6 必须使用 Bilibili Production Profile 0.6")
+    if profile["profile_version"] != "0.6.1" or profile["platform"] != "bilibili":
+        raise ProductionValidationError("V0.6.1 必须使用 Bilibili Production Profile 0.6.1")
     if profile["default_renderer"] not in {"remotion", "hyperframes"}:
         raise ProductionValidationError("default_renderer 必须是 remotion 或 hyperframes")
     if profile["canvas"] != {

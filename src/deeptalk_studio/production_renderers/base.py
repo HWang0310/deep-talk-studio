@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -22,6 +23,23 @@ class CommandResult:
     exit_code: int
     stdout_summary: str
     stderr_summary: str
+
+
+@dataclass(frozen=True)
+class RendererCheckResult:
+    check_name: str
+    renderer: str
+    exit_code: int
+    outcome: str
+    command_category: str
+    summary: str
+
+    def to_dict(self) -> Mapping[str, Any]:
+        return {
+            "check_name": self.check_name, "renderer": self.renderer,
+            "exit_code": self.exit_code, "outcome": self.outcome,
+            "command_category": self.command_category, "summary": self.summary,
+        }
 
 
 @dataclass(frozen=True)
@@ -52,6 +70,15 @@ def _summary(text: str, limit: int = 4000) -> str:
     return clean[-limit:] if len(clean) > limit else clean
 
 
+def safe_check_summary(text: str, cwd: Path) -> str:
+    clean = _summary(text, 1200)
+    candidates = {str(cwd), str(Path(cwd).resolve()), str(Path.home()), str(Path.home().resolve())}
+    for candidate in sorted((value for value in candidates if value), key=len, reverse=True):
+        clean = clean.replace(candidate, "<project>" if candidate in {str(cwd), str(Path(cwd).resolve())} else "<home>")
+    clean = re.sub(r"https?://(?:localhost|127\.0\.0\.1|(?:\d{1,3}\.){3}\d{1,3})[^\s,]*", "<local-preview>", clean)
+    return clean or "检查完成。"
+
+
 def run_command(
     command: Sequence[str], cwd: Path, *, timeout: int = 600,
     env: Mapping[str, str] = None,
@@ -80,6 +107,33 @@ def run_command(
     return result
 
 
+def run_renderer_check(
+    check_name: str, renderer: str, command_category: str,
+    command: Sequence[str], cwd: Path, *, timeout: int = 600,
+    env: Mapping[str, str] = None,
+) -> RendererCheckResult:
+    """Run one QA command without erasing its exit outcome on failure."""
+
+    command_env = os.environ.copy()
+    if env:
+        command_env.update({str(key): str(value) for key, value in env.items()})
+    try:
+        completed = subprocess.run(
+            list(command), cwd=str(cwd), capture_output=True, text=True,
+            timeout=timeout, check=False, env=command_env,
+        )
+        summary = safe_check_summary(completed.stderr or completed.stdout or "检查完成。", cwd)
+        return RendererCheckResult(
+            check_name, renderer, completed.returncode,
+            "pass" if completed.returncode == 0 else "fail",
+            command_category, summary,
+        )
+    except FileNotFoundError:
+        return RendererCheckResult(check_name, renderer, 127, "fail", command_category, f"缺少命令：{command[0]}")
+    except subprocess.TimeoutExpired:
+        return RendererCheckResult(check_name, renderer, 124, "fail", command_category, "命令执行超时。")
+
+
 def prepare_project_directory(
     template_root: Path, projects_root: Path, production_id: str, renderer: str
 ) -> Path:
@@ -106,7 +160,12 @@ def stage_plan_assets(
     selected = []
     for scene in plan["scenes"]:
         selected.extend((item_id, materials[item_id], False) for item_id in scene["source_material_ids"])
-        selected.extend((item_id, visuals[item_id], True) for item_id in scene["source_visual_ids"])
+        # Four semantic motion types are rebuilt from scene_payload. Their V0.5 SVG is
+        # provenance/debug fallback only and must not become a whole-image animation.
+        if scene.get("scene_payload", {}).get("payload_type") not in {
+            "timeline", "bar", "comparison", "diagram",
+        }:
+            selected.extend((item_id, visuals[item_id], True) for item_id in scene["source_visual_ids"])
     destination.mkdir(parents=True, exist_ok=True)
     staged, asset_map = [], {}
     for item_id, item, generated in selected:

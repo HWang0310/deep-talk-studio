@@ -18,7 +18,9 @@ from .production_qa import (
 )
 from .production_renderer import render_production_summary
 from .production_renderers import get_renderer
-from .production_renderers.base import PreparedProject, RenderBatch, RendererError
+from .production_renderers.base import (
+    CommandResult, PreparedProject, RenderBatch, RendererCheckResult, RendererError,
+)
 from .production_storage import save_production_artifact, save_production_plan
 from .production_validation import validate_production_input
 
@@ -117,15 +119,12 @@ def run_production_workflow(
         raise RendererError("Renderer factory 返回了与 Production Plan 不一致的引擎")
     environment = detect_production_environment()
     required = ("node", "npm", "npx", "ffmpeg", "ffprobe")
-    package_failures = []
     missing = [name for name in required if environment.get(name) in {"missing", "unavailable"}]
-    if missing:
-        package_failures.append({
-            "issue_type": "production_environment_unavailable",
-            "details": "制作环境缺少或无法使用：" + "、".join(missing),
-        })
-
-    checks = {"environment": not missing, "project_validation": False, "preview": False}
+    checks = [RendererCheckResult(
+        "environment", "core", 0 if not missing else -1,
+        "pass" if not missing else "fail", "environment",
+        "制作环境可用。" if not missing else "制作环境缺少或无法使用：" + "、".join(missing),
+    )]
     prepared: Optional[PreparedProject] = None
     batch = RenderBatch((), ())
     if not missing:
@@ -133,26 +132,46 @@ def run_production_workflow(
             prepared = renderer.prepare_project(
                 plan, package, production_config, Path(material_asset_root), Path(project_root)
             )
-            renderer.validate_project(prepared)
-            checks["project_validation"] = True
+            validation_checks = list(renderer.validate_project(prepared))
+            for item in validation_checks:
+                if isinstance(item, RendererCheckResult):
+                    checks.append(item)
+                elif isinstance(item, CommandResult):
+                    checks.append(RendererCheckResult(
+                        "renderer_validation", renderer.name, item.exit_code,
+                        "pass" if item.exit_code == 0 else "fail", "validate",
+                        item.stderr_summary or item.stdout_summary or "项目验证完成。",
+                    ))
         except (OSError, RendererError, ValueError) as exc:
-            package_failures.append({
-                "issue_type": "renderer_validation_failed", "details": str(exc),
-            })
-        if checks["project_validation"] and prepared is not None:
+            checks.append(RendererCheckResult(
+                "renderer_validation", renderer.name, -1, "fail", "validate", str(exc),
+            ))
+        validation_passed = prepared is not None and all(
+            check.outcome == "pass" for check in checks
+            if check.command_category not in {"environment", "preview"}
+        )
+        if validation_passed and prepared is not None:
             try:
-                renderer.preview(prepared)
-                checks["preview"] = True
+                preview_result = renderer.preview(prepared)
+                if isinstance(preview_result, RendererCheckResult):
+                    checks.append(preview_result)
+                else:
+                    checks.append(RendererCheckResult(
+                        "renderer_preview", renderer.name, preview_result.exit_code,
+                        "pass" if preview_result.exit_code == 0 else "fail", "preview",
+                        preview_result.stderr_summary or preview_result.stdout_summary or "预览完成。",
+                    ))
             except (OSError, RendererError, ValueError) as exc:
-                package_failures.append({
-                    "issue_type": "renderer_preview_failed", "details": str(exc),
-                })
+                checks.append(RendererCheckResult(
+                    "renderer_preview", renderer.name, -1, "fail", "preview", str(exc),
+                ))
             try:
                 batch = renderer.render(prepared, plan, Path(asset_root))
             except (OSError, RendererError, ValueError) as exc:
-                package_failures.append({
-                    "issue_type": "renderer_batch_failed", "details": str(exc),
-                })
+                batch = RenderBatch((), tuple({
+                    "motion_asset_id": item["motion_asset_id"],
+                    "issue_type": "render_failed", "details": str(exc),
+                } for item in plan["motion_assets"]))
 
     manifest_result = build_motion_asset_manifest(
         plan, str(plan["selected_renderer"]), batch,
@@ -160,7 +179,7 @@ def run_production_workflow(
     )
     qa = prepare_production_qa(
         plan, manifest_result, created_at=timestamp, qa_id=chosen_qa_id,
-        renderer_checks=checks, package_failures=package_failures,
+        renderer_checks=checks,
     )
     manifest_path = save_production_artifact(
         manifest_result.manifest, plan_path, "motion-asset-manifest-r0001.json"
@@ -171,7 +190,15 @@ def run_production_workflow(
     ready_count = len(manifest_result.manifest["assets"])
     failed_count = sum(1 for item in qa["clip_results"] if item["status"] == "failed")
     summary = render_production_summary(
-        plan, ready_count=ready_count, failed_count=failed_count
+        plan, ready_count=ready_count, failed_count=failed_count,
+        preview_ready=any(
+            asset["motion_asset_id"] == "MAPREVIEW" and asset["qa_status"] == "ready"
+            for asset in manifest_result.manifest["assets"]
+        ),
+        motion_clip_ready_count=sum(
+            1 for asset in manifest_result.manifest["assets"]
+            if asset["asset_kind"] == "motion_clip" and asset["qa_status"] == "ready"
+        ),
     )
     return ProductionWorkflowResult(
         plan, manifest_result.manifest, qa, plan_path, manifest_path, qa_path,

@@ -10,6 +10,7 @@ from deeptalk_studio.production_renderers.base import (
     PreparedProject,
     RenderBatch,
     RenderOutput,
+    RendererCheckResult,
 )
 from deeptalk_studio.production_workflow import run_production_workflow
 from tests.material_fixtures import (
@@ -42,10 +43,14 @@ class FakeRenderer:
         return PreparedProject(self.name, project, plan_path, ())
 
     def validate_project(self, prepared):
-        return (CommandResult("validate", 0, "ok", ""),)
+        return (RendererCheckResult(
+            "remotion_typecheck", "remotion", 0, "pass", "typecheck", "ok",
+        ),)
 
     def preview(self, prepared, *, port=3210):
-        return CommandResult("preview", 0, "http://localhost", "")
+        return RendererCheckResult(
+            "remotion_preview", "remotion", 0, "pass", "preview", "http://localhost",
+        )
 
     def render(self, prepared, plan, output_root):
         outputs = []

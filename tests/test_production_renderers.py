@@ -10,7 +10,7 @@ from deeptalk_studio.material_workflow import prepare_codex_materials, run_codex
 from deeptalk_studio.production_planner import prepare_production_plan
 from deeptalk_studio.production_profile import load_production_profile
 from deeptalk_studio.production_renderers import get_renderer
-from deeptalk_studio.production_renderers.base import RendererError, run_command
+from deeptalk_studio.production_renderers.base import RendererError, run_command, run_renderer_check
 from deeptalk_studio.production_renderers.remotion import browser_executable_args
 from deeptalk_studio.production_renderers.hyperframes import hyperframes_browser_env
 from deeptalk_studio.production_validation import validate_production_input
@@ -94,6 +94,18 @@ class ProductionRendererTests(unittest.TestCase):
         )
         self.assertIn("safe-browser", inherited.stdout_summary)
 
+    def test_structured_check_summary_redacts_local_paths_and_preview_addresses(self):
+        result = run_renderer_check(
+            "privacy", "remotion", "validate",
+            [sys.executable, "-c", "import os; print(os.getcwd()); print('http://192.168.0.8:3210')"],
+            self.root,
+        )
+        self.assertEqual(result.outcome, "pass")
+        self.assertNotIn(str(self.root), result.summary)
+        self.assertNotIn("192.168.0.8", result.summary)
+        self.assertIn("<project>", result.summary)
+        self.assertIn("<local-preview>", result.summary)
+
     def test_remotion_project_consumes_plan_and_only_stages_allowed_assets(self):
         project = get_renderer("remotion").prepare_project(
             self.plan, self.package, self.profile, self.root / "material-assets",
@@ -102,15 +114,19 @@ class ProductionRendererTests(unittest.TestCase):
         stored = json.loads(project.plan_path.read_text(encoding="utf-8"))
         self.assertEqual(stored, self.plan)
         asset_map = json.loads((project.project_dir / "src/asset-map.json").read_text(encoding="utf-8"))
-        self.assertEqual(set(asset_map), {"V001"})
+        self.assertEqual(asset_map, {})
+        self.assertFalse(project.staged_assets)
         source = (project.project_dir / "src/ProductionComposition.tsx").read_text(encoding="utf-8")
         self.assertIn("useCurrentFrame", source)
         self.assertIn("interpolate", source)
         self.assertIn("staticFile", source)
-        self.assertIn("const revealRight", source)
-        self.assertIn("isCompleteGeneratedVisual", source)
-        self.assertIn("transform: `translateY", source)
-        self.assertNotIn('["inset(', source)
+        self.assertIn("TimelineMotion", source)
+        self.assertIn("BarMotion", source)
+        self.assertIn("ComparisonMotion", source)
+        self.assertIn("DiagramMotion", source)
+        self.assertIn('data-motion-element="timeline-marker"', source)
+        self.assertIn('data-motion-element="bar"', source)
+        self.assertNotIn("source_visual_ids[0]", source)
         self.assertNotIn("animation:", source)
         self.assertNotIn("transition:", source)
         self.assertNotIn("https://example.com", json.dumps(asset_map))
@@ -132,13 +148,16 @@ class ProductionRendererTests(unittest.TestCase):
         self.assertIn("data-duration=", html)
         self.assertIn("data-track-index=", html)
         self.assertIn('class="scene clip"', html)
-        self.assertIn("complete-generated-visual", html)
+        self.assertIn('data-motion-element="timeline-baseline"', standalone)
+        self.assertEqual(standalone.count('data-motion-element="timeline-marker"'), 1)
+        self.assertIn("timeline-marker-1", standalone)
         self.assertNotIn('../assets/', standalone)
         self.assertIn("gsap.timeline({ paused: true })", html)
         self.assertIn('window.__timelines["main"] = tl', html)
         self.assertNotIn("Math.random", html)
         self.assertNotIn("Date.now", html)
         self.assertNotIn("repeat: -1", html)
+        self.assertNotIn('tl.to("#scene-', html)
         self.assertNotIn("https://example.com", html)
 
     def test_projects_are_immutable_and_do_not_copy_reference_only_files(self):
@@ -152,6 +171,34 @@ class ProductionRendererTests(unittest.TestCase):
                 self.plan, self.package, self.profile, self.root / "material-assets",
                 self.root / "projects",
             )
+
+    def test_both_projects_expose_independent_motion_elements_for_all_four_payloads(self):
+        payloads = {
+            "bar": ("bar_data_points", [{"order": i, "label": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"], "value": i, "value_label": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["date"]} for i in range(1, 4)], "bar"),
+            "comparison": ("comparison_items", [{"order": i, "label": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"], "left_text": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"], "right_text": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"]} for i in range(1, 3)], "comparison-item"),
+            "diagram": ("diagram_nodes", [{"order": i, "node_id": f"N{i}", "label": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"]} for i in range(1, 4)], "diagram-node"),
+        }
+        from deeptalk_studio.production_planner import production_plan_digest
+        for index, (kind, (field, elements, marker)) in enumerate(payloads.items(), 1):
+            with self.subTest(kind=kind):
+                plan = json.loads(json.dumps(self.plan))
+                plan["production_id"] = f"PROD-semantic-{kind}"
+                scene = plan["scenes"][1]
+                scene["scene_type"] = kind + "_motion"
+                payload = scene["scene_payload"]
+                for key in ("timeline_events", "bar_data_points", "comparison_items", "diagram_nodes", "diagram_edges"):
+                    payload[key] = []
+                payload["payload_type"] = kind
+                payload[field] = elements
+                if kind == "diagram":
+                    payload["diagram_edges"] = [{"order": 1, "from_node": "N1", "to_node": "N2", "label": elements[0]["label"]}]
+                plan["plan_digest"] = production_plan_digest(plan)
+                project = get_renderer("hyperframes").prepare_project(
+                    plan, self.package, self.profile, self.root / "material-assets",
+                    self.root / f"semantic-projects-{index}",
+                )
+                html = (project.project_dir / "compositions/S002.html").read_text(encoding="utf-8")
+                self.assertEqual(html.count(f'data-motion-element="{marker}"'), len(elements))
 
 
 if __name__ == "__main__":
