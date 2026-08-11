@@ -82,6 +82,51 @@ class MaterialValidationTests(unittest.TestCase):
         self.assertEqual(item["rights_status"], "official_press_asset")
         self.assertEqual(item["eligibility_status"], "ready_to_use")
 
+    def test_asset_open_without_rights_page_open_is_not_ready_to_use(self):
+        inspection = inspection_manifest()
+        inspection["entries"] = inspection["entries"][:1]
+        item = self.prepare(inspection=inspection).materials[0]
+        self.assertEqual(item["eligibility_status"], "reference_only")
+
+    def test_forged_rights_tool_reference_is_not_ready_to_use(self):
+        rights = rights_manifest()
+        rights["entries"][0]["tool_reference"] = "open:forged"
+        item = self.prepare(rights=rights).materials[0]
+        self.assertEqual(item["eligibility_status"], "reference_only")
+
+    def test_separate_opened_license_page_can_prove_a_cc_rights_basis(self):
+        rights = rights_manifest()
+        rights["entries"][0].update(
+            rights_status="creative_commons",
+            rights_evidence_url="https://example.com/reuse-notice",
+            license_url="https://creativecommons.org/licenses/by/4.0/",
+            tool_reference="open:reuse-notice",
+        )
+        inspection = inspection_manifest()
+        inspection["entries"].extend([
+            {
+                "url": "https://example.com/reuse-notice", "inspected_at": "2026-08-11T09:06:00+08:00",
+                "inspection_method": "codex_web_open", "tool_reference": "open:reuse-notice",
+            },
+            {
+                "url": "https://creativecommons.org/licenses/by/4.0/", "inspected_at": "2026-08-11T09:07:00+08:00",
+                "inspection_method": "codex_web_open", "tool_reference": "open:cc-by",
+            },
+        ])
+        self.assertEqual(self.prepare(inspection=inspection, rights=rights).materials[0]["eligibility_status"], "ready_to_use")
+
+    def test_fake_license_url_is_not_ready_to_use(self):
+        rights = rights_manifest()
+        rights["entries"][0]["license_url"] = "https://example.com/fake-license"
+        item = self.prepare(rights=rights).materials[0]
+        self.assertEqual(item["eligibility_status"], "reference_only")
+
+    def test_model_claimed_rights_never_controls_final_eligibility(self):
+        content = valid_material_content()
+        content["materials"][0]["claimed_rights_status"] = "creative_commons"
+        item = self.prepare(content, rights={"entries": []}).materials[0]
+        self.assertEqual(item["eligibility_status"], "reference_only")
+
     def test_search_result_or_unopened_url_cannot_self_certify_inspection(self):
         item = self.prepare(inspection={"entries": []}).materials[0]
         self.assertEqual(item["provenance_status"], "unmatched")
@@ -131,7 +176,29 @@ class MaterialValidationTests(unittest.TestCase):
         self.assertTrue(package.research_update_required["required"])
         self.assertEqual(package.status, "research_update_required")
 
+    def test_timeline_child_unknown_claim_is_rejected(self):
+        content = valid_material_content()
+        content["visual_specs"][0]["events"][0]["claim_ids"] = ["C404"]
+        with self.assertRaisesRegex(MaterialValidationError, "不存在"):
+            self.prepare(content)
+
+    def test_timeline_child_unknown_or_wrong_claim_evidence_is_rejected(self):
+        content = valid_material_content()
+        content["visual_specs"][0]["events"][0]["evidence_link_ids"] = ["E404"]
+        with self.assertRaisesRegex(MaterialValidationError, "不存在"):
+            self.prepare(content)
+        content = valid_material_content()
+        content["visual_specs"][0]["events"][0]["evidence_link_ids"] = ["E3"]
+        content["visual_specs"][0]["events"][0]["claim_ids"] = ["C1"]
+        with self.assertRaisesRegex(MaterialValidationError, "对应"):
+            self.prepare(content)
+
+    def test_timeline_research_evidence_binding_mismatch_is_rejected(self):
+        content = valid_material_content()
+        content["visual_specs"][0]["events"][0]["evidence_link_ids"] = ["E1", "E2"]
+        with self.assertRaisesRegex(MaterialValidationError, "Research timeline"):
+            self.prepare(content)
+
 
 if __name__ == "__main__":
     unittest.main()
-

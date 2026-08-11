@@ -82,7 +82,34 @@ class MaterialAcquisitionTests(unittest.TestCase):
             self.assertIn("不证明", result["capture"]["what_it_does_not_prove"])
             self.assertTrue(Path(result["local_path"]).exists())
 
+    def test_standard_svg_is_allowed_but_external_script_and_event_are_rejected(self):
+        standard = b'<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>'
+        external = b'<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.example/x"/></svg>'
+        script = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+        event = b'<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            fetch = lambda url, max_bytes: FetchResponse(200, url, "image/svg+xml", standard)
+            self.assertTrue(Path(safe_download_material(self.item, root, self.profile, fetcher=fetch)["local_path"]).exists())
+            for name, payload in (("external", external), ("script", script), ("event", event)):
+                with self.subTest(name=name):
+                    fetch = lambda url, max_bytes, data=payload: FetchResponse(200, url, "image/svg+xml", data)
+                    with self.assertRaisesRegex(AcquisitionError, "SVG"):
+                        safe_download_material(dict(self.item, material_id="M" + name), root, self.profile, fetcher=fetch)
+
+    def test_capture_rejects_invalid_page_and_invalid_image_magic(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            invalid = root / "not-an-image.png"
+            invalid.write_bytes(b"not really an image")
+            with self.assertRaisesRegex(AcquisitionError, "静态"):
+                register_local_capture(self.item, invalid, root / "assets")
+            item = dict(self.item, capture=dict(self.item["capture"], page_number=0))
+            png = root / "good.png"
+            png.write_bytes(b"\x89PNG\r\n\x1a\nfixture")
+            with self.assertRaisesRegex(AcquisitionError, "页码"):
+                register_local_capture(item, png, root / "assets")
+
 
 if __name__ == "__main__":
     unittest.main()
-

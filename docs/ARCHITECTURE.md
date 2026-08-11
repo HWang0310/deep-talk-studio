@@ -33,11 +33,13 @@ flowchart LR
     SD2 --> T["Teleprompter Markdown"]
     SD2 --> MG["Material input Gate：复验 Review + exact Research"]
     MG --> MS["Material Search + actual page inspection"]
-    MS --> MP1["Material Package 0.5 / r1"]
+    MS --> PA["Input + Inspection + Rights provenance artifacts"]
+    PA --> MP1["Material Package 0.5.1 / r1"]
     MP1 --> VG["Research-grounded Visual Spec + SVG"]
     VG --> MR["Independent Material Review"]
     MR -->|危险项可隔离| MPW["r2 reviewed_with_warnings"]
     MR -->|安全通过| MP2["r2 reviewed"]
+    MP1 -.重建并复验.-> MP2
     MR -->|包级问题/无安全方案| MPB["r2 blocked"]
     MS -->|发现冲突或更新| RU["research_update_required：返回 Research"]
 ```
@@ -74,12 +76,12 @@ flowchart LR
 | `.agents/skills/prepare-materials` | 自然语言素材搜索、实际打开、权利依据、原创 Visual 和独立 Review | 完整视频、剪辑或发布 |
 | `material_schema.py` | Material Content / Package / Visual / Review 完整 JSON 契约 | 打开网页或判断现实版权 |
 | `material_profile.py` | B 站 1920×1080、视觉边界、MIME 和大小限制 | 生成候选内容 |
-| `material_validation.py` | 输入 Gate、Cue、Claim/Evidence、provenance、rights、ranking、Visual grounding、digest | 搜索或下载 |
+| `material_validation.py` | 输入 Gate、Cue、Claim/Evidence、actual-open rights、ranking、nested Visual grounding、r1 provenance 重建 | 搜索或下载 |
 | `material_acquisition.py` | 公开 URL、安全静态下载、capture 登记、size/SHA-256 | 绕过限制或下载未知权利素材 |
 | `visual_renderer.py` | timeline/bar/comparison/diagram 的确定性 1920×1080 SVG | 完整动画视频 |
 | `material_review.py` | 10 项独立复核、typed issues、item isolation、package Gate | 扩大 Research |
 | `material_renderer.py` | 普通用户简明素材准备单 | 机器状态解析 |
-| `material_storage.py` | 不可覆盖 Package / Review / Markdown | 云端资产库 |
+| `material_storage.py` | 不可覆盖 Package / Review / provenance artifacts，并在加载 r2 时 canonical revalidation | 云端资产库 |
 | `material_workflow.py` | 串联 Search → provenance → SVG → Review → revisions | 剪辑、字幕或发布 |
 | `migration.py` | 确定性迁移 0.1，并保持未核查状态 | 伪造旧报告已完成 Fact Check |
 | `providers/openai.py` | 两次 Responses API 调用、结构化输出与 tool provenance | 绑定其他模块到 OpenAI SDK |
@@ -129,15 +131,15 @@ V0.4 新增下游 `Script Draft Artifact 0.4` 与 `Script Review Artifact 0.4`�
 - Editor Markdown 包含机器回链和风险提示，Teleprompter Markdown 只含朗读正文；Markdown 都是 JSON 的派生物；
 - Writer 和 Reviewer 都不能启用 Web Search；API 返回任何搜索 provenance 都会失败关闭。
 
-V0.5 新增 `Material Package Artifact 0.5` 与 `Material Review Artifact 0.5`，不改变 Research 或 Script Artifact：
+V0.5.1 的 `Material Package Artifact` 与 `Material Review Artifact` 不改变 Research 或 Script Artifact：
 
 - Material input Gate 重新验证 reviewed Script 的 V0.4.1 Review linkage、内容 digest 和 exact Research revision；
 - Cue anchor 是 Beat 中的短原句，不使用伪音频 timecode；
 - API Search provenance 只能把 URL 标为 `discovered`，actual-open inspection manifest 才能标为 `inspected`；
-- Rights manifest 与 inspection 分离，最终 eligibility 由 code-owned Gate 失败关闭；
+- Rights manifest 与 inspection 分离；safe reuse 必须有素材页和 rights evidence 页的 actual-open record，最终 eligibility 由 code-owned Gate 失败关闭；
 - 新事实触发 `research_update_required`，不进入现有 Script 或 Visual；
-- Visual Spec 只引用 approved timeline/Claim/Evidence，并生成真实静态 SVG；
-- 独立 Review 可隔离危险 item；包级伪造、无安全替代或 Research update 会失败关闭；
+- Visual Spec 的顶层和每个子项都只引用 approved timeline/Claim/Evidence，并生成真实静态 SVG；
+- r1 保存 input/inspection/rights provenance artifacts；r2 只能由精确 r1 + Independent Review 重新导出。独立 Review 可隔离危险 item；包级伪造、无安全替代或 Research update 会失败关闭；
 - Remotion / HyperFrames 仅使用 deterministic dimensions/duration/target hints 作为未来接口，不是 V0.5 runtime。
 
 未来模块的建议输入输出：
@@ -149,7 +151,7 @@ V0.5 新增 `Material Package Artifact 0.5` 与 `Material Review Artifact 0.5`�
 | Fact Check | Research Draft | FactCheck Artifact + 新修订 Research Report |
 | Perspective Analysis | Research Report | Perspective Map JSON |
 | Script Writing | 已批准的 `ready_for_script` Research Revision | Script Draft 0.4 + Script Review 0.4 + Editor / Teleprompter |
-| Material Search | reviewed Script + exact Research + Review Artifact | Material Package 0.5 |
+| Material Search | reviewed Script + exact Research + Review Artifact | Material Package 0.5.1 |
 | Visual Generation | grounded Visual Spec | SVG Assets + hash + target hints |
 | Editing Plan | Script + Material Manifest | Timeline / Shot Plan JSON |
 | Publishing | 审批后的成品和元数据 | Platform Publish Record |

@@ -50,6 +50,7 @@ class VisualRendererTests(unittest.TestCase):
             spec = content["visual_specs"][0]
             spec.update(visual_type=visual_type, events=[])
             if visual_type == "comparison":
+                spec["evidence_link_ids"] = ["E1", "E3"]
                 spec["comparison_items"] = [{
                     "label": "信息层级", "left_text": "已确认事件", "right_text": "原因仍待核查",
                     "claim_ids": ["C1", "C2"], "evidence_link_ids": ["E1", "E3"],
@@ -76,6 +77,59 @@ class VisualRendererTests(unittest.TestCase):
         with self.assertRaisesRegex(MaterialValidationError, "unsupported_data"):
             self.package(content)
 
+    def test_bar_rejects_wrong_evidence_numeric_substring_and_label_value_mismatch(self):
+        content = valid_material_content()
+        spec = content["visual_specs"][0]
+        spec.update(visual_type="bar", events=[], data_points=[{
+            "label": "日期不能当数值", "value": 16, "value_label": "16",
+            "claim_ids": ["C1"], "evidence_link_ids": ["E1"],
+        }])
+        with self.assertRaisesRegex(MaterialValidationError, "unsupported_data"):
+            self.package(content)
+        content = valid_material_content()
+        spec = content["visual_specs"][0]
+        spec.update(visual_type="bar", events=[], data_points=[{
+            "label": "明确日期", "value": 9, "value_label": "999 亿",
+            "claim_ids": ["C1"], "evidence_link_ids": ["E1"],
+        }])
+        with self.assertRaisesRegex(MaterialValidationError, "value_label"):
+            self.package(content)
+
+    def test_comparison_child_refs_and_diagram_nodes_are_grounded(self):
+        content = valid_material_content()
+        spec = content["visual_specs"][0]
+        spec.update(visual_type="comparison", events=[], comparison_items=[{
+            "label": "错误", "left_text": "A", "right_text": "B",
+            "claim_ids": ["C404"], "evidence_link_ids": ["E404"],
+        }])
+        with self.assertRaisesRegex(MaterialValidationError, "不存在"):
+            self.package(content)
+        content = valid_material_content()
+        spec = content["visual_specs"][0]
+        spec.update(visual_type="diagram", events=[], nodes=[
+            {"node_id": "N1", "label": "事实", "claim_ids": ["C1"]},
+        ], edges=[{"from_node": "N1", "to_node": "N404", "label": "错误"}])
+        spec["claim_ids"] = ["C1"]
+        spec["evidence_link_ids"] = ["E1"]
+        with self.assertRaisesRegex(MaterialValidationError, "edge"):
+            self.package(content)
+        content = valid_material_content()
+        spec = content["visual_specs"][0]
+        spec.update(visual_type="diagram", events=[], nodes=[
+            {"node_id": "N1", "label": "事实", "claim_ids": ["C1"]},
+            {"node_id": "N1", "label": "重复", "claim_ids": ["C2"]},
+        ], edges=[])
+        with self.assertRaisesRegex(MaterialValidationError, "唯一"):
+            self.package(content)
+        content = valid_material_content()
+        spec = content["visual_specs"][0]
+        spec.update(visual_type="diagram", events=[], nodes=[
+            {"node_id": "N1", "label": "无依据", "claim_ids": ["C404"]},
+        ], edges=[{"from_node": "N1", "to_node": "N404", "label": "错误"}])
+        spec["claim_ids"] = ["C404"]
+        with self.assertRaisesRegex(MaterialValidationError, "不存在"):
+            self.package(content)
+
     def test_renderer_never_overwrites_existing_visual(self):
         spec = self.package(valid_material_content()).generated_visuals[0]
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -86,4 +140,3 @@ class VisualRendererTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

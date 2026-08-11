@@ -2,6 +2,20 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [0.5.1] - 2026-08-11
+
+### Fixed：Material Gate Hardening
+
+- Rights manifest 新增 `rights_evidence_url`；safe reuse 必须同时有素材页和权利页 actual-open，权利工具引用必须匹配，license URL 必须为可审计的同一权利页。模型权利自称、伪造链接和只有素材页的情形均不能进入 `ready_to_use`。
+- 补齐 timeline、bar、comparison、diagram 的 nested Claim/Evidence grounding；timeline 精确匹配 Research date/Claim/Evidence/label，bar 使用数字边界并验证 value label，diagram node 必须有合法 Research basis。
+- 新增 r1 Material Input / Inspection / Rights provenance artifacts。reviewed r2 在 loader 中重新生成 r1、验证精确 Review Artifact，再确定性导出 r2；篡改 eligibility、rights、provenance、ranking、status 或 review linkage 即使重算 digest 也失败关闭。
+- SVG sanitizer 改为 XML 结构检查，允许标准 namespace，仍拒绝 script、event handler、foreignObject、外部 href 和危险 CSS URL。截图强制 1-based 页码与图片 magic/扩展名一致。
+
+### Validation
+
+- 原 205 项测试继续通过；新增 rights actual-open、nested Visual、canonical loader、SVG 与 capture 边界测试后，完整 suite 为 **219 项通过**。
+- 重跑 A Stable Business、B Contested Public、C Rights / Sparse 评测，并新增 D 未打开权利页、E comparison C404/E404、F 手改 reviewed r2 三个 fail-closed 场景；公开汇总为 `evaluations/v0.5.1-summary.json`。
+
 ## [0.5.0] - 2026-08-11
 
 ### Added：Material Search & Visual Assistance

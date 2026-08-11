@@ -24,7 +24,7 @@
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- V0.4.1 已正式验收；V0.5 Material Search & Visual Assistance 已完成并等待产品复核。不要越过 V0.5 提前实现完整视频、剪辑、字幕、标题封面或发布。
+- V0.4.1 已正式验收；V0.5.1 Material Gate Hardening 已完成并等待产品复核。不要在正式验收前越过 V0.5 进入 Remotion、HyperFrames、完整视频、剪辑、字幕、标题封面或发布。
 - 用户说“今天讲什么”“找几个选题”“换一批”或带分类偏好时，先阅读 `.agents/skills/discover-topics/SKILL.md` 和 `docs/TOPIC_DISCOVERY_CONTRACT.md`，不要把它塞进 `research-topic`。
 - 用户回复候选编号时，读取 latest Candidate Set 的结构化 Research Handoff，直接进入 `research-topic`；不要要求用户再复制标题，也不要把 Discovery Source Seeds 当成事实证据。
 - Topic Candidate Set 0.3 的总分、资格状态、资格理由、推荐标签、展示顺序、首选、统计数、身份、时间和来源 provenance 由程序计算并在读取时重新推导；模型或 Skill 只能给评分理由和轻量预检内容。
@@ -53,12 +53,12 @@
 - Material Search 可以联网找候选，但不是新 Research。冲突、更新或新事实必须写 `research_update_required`，不得静默改稿、改报告或把新数字写进 Visual。
 - 搜索摘要只能是 discovered。只有实际打开并进入 inspection manifest 的 URL 是 inspected；模型不能自报 provenance。
 - Evidence 素材必须绑定有效 Claim/Evidence；context 与 illustration 必须明确，illustration 永远不能冒充证据。
-- Rights/Reuse 状态只能来自实际打开的权利依据。普通新闻、creator 内容和 unknown 只能 reference-only；不得从发布者名称推断许可。
+- Rights/Reuse 状态只能来自实际打开的素材页与 `rights_evidence_url` 权利页；rights manifest 的 tool reference 必须与权利页 inspection 完全相同。普通新闻、creator 内容和 unknown 只能 reference-only；不得从发布者名称推断许可。
 - 自动获取只处理 ready-to-use 的安全静态文件；拒绝登录/付费墙/DRM/反爬绕过、本机内网 URL、危险 MIME、脚本 SVG、超限文件、路径越界和覆盖。
-- 网页/PDF capture 必须记录页码、区域、上下文、caption、能证明和不能证明的内容；视频无明确权利时只保存 reference，不下载。
-- Visual Spec 只能使用 approved Research timeline/Claim/Evidence。数值必须能在绑定 Claim 中找到；生成 SVG 不得伪造新闻、文件、聊天、UI、人物或事件现场。
+- 网页/PDF capture 必须记录从 1 开始的页码、区域、上下文、caption、能证明和不能证明的内容，并验证真实 PNG/JPEG/WebP 格式；视频无明确权利时只保存 reference，不下载。
+- Visual Spec 只能使用 approved Research timeline/Claim/Evidence；所有内部 event/data point/comparison/node 也必须逐项验证。数值采用边界匹配，value label 不能显示不同数值；生成 SVG 不得伪造新闻、文件、聊天、UI、人物或事件现场。
 - Material Reviewer 与 Search 分离，只审已有 Package，不扩大 Research。failed check 必须有 typed issue；issue severity、item eligibility、package Gate 和最终状态由代码拥有。
-- Material Package、Review 和 Assets 不可覆盖，默认位于 gitignored `material_packages/` 与 `material_assets/`。Markdown 只给普通用户阅读，不能当机器接口。
+- Material r1 同时保存 input、inspection、rights provenance artifact；reviewed r2 在读取时必须由精确 r1 和 Review Artifact 重建，任何手改 eligibility、rights/provenance、ranking、package status 或 review linkage 均失败关闭。Material Package、Review 和 Assets 不可覆盖，默认位于 gitignored `material_packages/` 与 `material_assets/`。Markdown 只给普通用户阅读，不能当机器接口。
 
 ## 内容与研究安全
 

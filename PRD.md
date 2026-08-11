@@ -203,6 +203,14 @@ V0.5 从经过 V0.4.1 真实 Review 的 Script 和精确 Research revision 生�
 - [x] 独立 Material Review、item isolation 和 package-level Gate。
 - [x] Skill、Provider、CLI、205 项测试和三类真实评测。
 
+### 7.3 V0.5.1：Material Gate Hardening
+
+- [x] `ready_to_use` 必须同时证明素材页和 `rights_evidence_url` 权利页均被实际打开，且工具记录一致；模型自称、伪造 license URL 或只打开素材页均降级。
+- [x] timeline、bar、comparison、diagram 的内部 Claim/Evidence/Research binding 均确定性校验；数值采用边界匹配，显示数值不能与实际值不一致。
+- [x] r1 保存不可覆盖的输入、inspection、rights provenance artifacts；读取 reviewed r2 时重建 r1、复验 Review Artifact，再确定性重建 r2。
+- [x] 标准 SVG namespace 允许，脚本、事件、foreignObject 和外部资源仍拒绝；截图采用 1-based 页码和真实图片格式检查。
+- [x] 全套回归测试、受控加固场景与公开去内容化评测已更新。
+
 V0.5 不包含完整视频、剪辑时间线、字幕、音乐、标题封面、上传发布和运营分析。
 
 ## 8. V0.1 验收记录

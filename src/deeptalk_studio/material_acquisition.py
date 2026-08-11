@@ -5,6 +5,7 @@ import ipaddress
 import mimetypes
 import shutil
 import socket
+import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, Mapping, Optional
@@ -82,10 +83,37 @@ def _extension(mime_type: str) -> str:
 
 
 def _ensure_static_svg(content: bytes) -> None:
-    lowered = content[:2_000_000].decode("utf-8", errors="ignore").casefold()
-    forbidden = ("<script", "javascript:", "onload=", "onerror=", "<foreignobject", "http://", "https://")
-    if any(token in lowered for token in forbidden):
-        raise AcquisitionError("SVG 包含脚本、事件处理器或外部资源，拒绝保存")
+    try:
+        root = ElementTree.fromstring(content)
+    except ElementTree.ParseError as exc:
+        raise AcquisitionError("SVG 不是可安全解析的 XML") from exc
+    for element in root.iter():
+        local_name = element.tag.rsplit("}", 1)[-1].casefold()
+        if local_name in {"script", "foreignobject"}:
+            raise AcquisitionError("SVG 包含脚本、事件处理器或外部资源，拒绝保存")
+        for name, value in element.attrib.items():
+            attr = name.rsplit("}", 1)[-1].casefold()
+            normalized = str(value).strip().casefold()
+            if attr.startswith("on") or normalized.startswith("javascript:"):
+                raise AcquisitionError("SVG 包含脚本、事件处理器或外部资源，拒绝保存")
+            if attr in {"href", "src"} and normalized:
+                raise AcquisitionError("SVG 包含脚本、事件处理器或外部资源，拒绝保存")
+            if attr == "style" and "url(" in normalized:
+                raise AcquisitionError("SVG 包含脚本、事件处理器或外部资源，拒绝保存")
+        if local_name == "style" and "url(" in (element.text or "").casefold():
+            raise AcquisitionError("SVG 包含脚本、事件处理器或外部资源，拒绝保存")
+
+
+def _capture_mime(source: Path) -> str:
+    header = source.read_bytes()[:32]
+    suffix = source.suffix.casefold()
+    if header.startswith(b"\x89PNG\r\n\x1a\n") and suffix == ".png":
+        return "image/png"
+    if header.startswith(b"\xff\xd8\xff") and suffix in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if header.startswith(b"RIFF") and header[8:12] == b"WEBP" and suffix == ".webp":
+        return "image/webp"
+    raise AcquisitionError("网页/PDF 截图必须是格式与扩展名一致的静态 PNG、JPEG 或 WebP")
 
 
 def safe_download_material(
@@ -137,13 +165,16 @@ def register_local_capture(
     item: Mapping[str, object], source_path: Path, output_root: Path
 ) -> Dict[str, object]:
     source = Path(source_path).resolve()
-    if not source.is_file() or source.suffix.casefold() not in {".png", ".jpg", ".jpeg", ".webp"}:
+    if not source.is_file():
         raise AcquisitionError("网页/PDF 截图必须是现有的静态 PNG、JPEG 或 WebP")
+    mime = _capture_mime(source)
     capture = item.get("capture")
     if not isinstance(capture, dict) or not capture.get("source_context"):
         raise AcquisitionError("截图缺少页面上下文和证明边界")
     if not capture.get("what_it_proves") or not capture.get("what_it_does_not_prove"):
         raise AcquisitionError("截图必须记录能证明什么和不能证明什么")
+    if int(capture.get("page_number", 0)) < 1:
+        raise AcquisitionError("截图页码必须使用从 1 开始的正整数")
     root = Path(output_root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     suffix = ".jpg" if source.suffix.casefold() in {".jpg", ".jpeg"} else source.suffix.casefold()
@@ -155,7 +186,6 @@ def register_local_capture(
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     return {
         "local_path": str(target), "byte_size": size, "sha256": digest,
-        "mime_type": {".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp"}[suffix],
+        "mime_type": mime,
         "source_url": item["page_url"], "capture": dict(capture),
     }
-
