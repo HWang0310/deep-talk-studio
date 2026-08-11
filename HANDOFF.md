@@ -1,9 +1,9 @@
 # DeepTalk Studio 交接
 
 当前版本：V0.5.1 / `0.5.1`
-本轮状态：工程实现、评测与本地验收完成，等待 ChatGPT 正式 Review
+本轮状态：工程实现、评测、本地验收与公开版本发布完成，等待 ChatGPT 正式 Review
 GitHub 仓库：https://github.com/HWang0310/deep-talk-studio
-正式发布：将在本轮最终验证后创建 `v0.5.1`
+正式发布：https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.5.1
 
 ## 1. 本轮任务是什么
 
