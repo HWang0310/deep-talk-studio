@@ -1,6 +1,7 @@
 """Unified source bindings and timing derivation for visual placements."""
 
 import hashlib
+import json
 from copy import deepcopy
 from dataclasses import dataclass
 from decimal import Decimal
@@ -173,3 +174,21 @@ def derive_placement_timing(placements, profiles, user_adjustments=()):
         inf=preview_frame(start,fps); outf=preview_frame(end,fps); p["preview_in_frame"]=inf; p["preview_out_frame"]=outf
         p["preview_in_frame_timecode"]="Preview "+format_preview_frame_timecode(inf,fps); p["preview_out_frame_timecode"]="Preview "+format_preview_frame_timecode(outf,fps)
     return PlacementTimingResult(tuple(result),tuple(conflicts),tuple(adjustments))
+
+
+def _bridge_digest(value):
+    payload=deepcopy(dict(value)); payload.pop("package_digest",None)
+    return hashlib.sha256(json.dumps(payload,ensure_ascii=False,sort_keys=True,separators=(",", ":")).encode()).hexdigest()
+
+
+def build_edit_bridge(root_bindings,placements,conflicts,adjustments,alignment_gaps,*,bridge_id,created_at,revision=1,previous_revision=0):
+    expected_bindings={"narration_media_digest","extracted_audio_digest","timestamp_mapping_digest","chunk_plan_digest","transcript_digest","script_content_digest","research_digest","material_package_digest","material_view_digest","production_plan_digest","motion_manifest_digest","production_qa_digest","alignment_digest","alignment_profile_digest","rough_cut_profile_digest","aligned_preview_profile_digest"}
+    if set(root_bindings)!=expected_bindings or not all(root_bindings.values()): raise EditBridgePlanningError("Edit Bridge root bindings 不完整")
+    for p in placements:
+        if p.get("placement_status")!="ready" and (p.get("preview_in_frame",-1)>=0 or p.get("preview_out_frame",-1)>=0):
+            raise EditBridgePlanningError("非 ready Placement 不得携带 Preview frame")
+    state="warnings" if conflicts or any(p.get("placement_status")!="ready" for p in placements) else "not_run"
+    bridge={"artifact_version":"edit-bridge/1","bridge_id":bridge_id,"revision":revision,"previous_revision":previous_revision,"created_at":created_at,
+      "root_bindings":deepcopy(dict(root_bindings)),"visual_placements":deepcopy(list(placements)),"timing_conflicts":deepcopy(list(conflicts)),
+      "preview_adjustments":deepcopy(list(adjustments)),"alignment_gaps":[{"gap_id":g["gap_id"],"gap_type":g["gap_type"],"reason_code":g["reason_code"]} for g in alignment_gaps],"qa_state":state}
+    bridge["package_digest"]=_bridge_digest(bridge); return bridge
