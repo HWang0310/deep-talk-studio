@@ -18,7 +18,7 @@ class AlignmentProfileSchemaTests(unittest.TestCase):
         profile = load_alignment_profile()
         self.assertEqual(profile["artifact_version"], "alignment-profile/1")
         self.assertEqual(profile["ambiguity_normalized_margin"], 0.08)
-        self.assertEqual(profile["calibration_status"], "candidate")
+        self.assertEqual(profile["calibration_status"], "accepted")
         self.assertEqual(profile["profile_digest"], alignment_profile_digest(profile))
         validate_json_schema(profile, ALIGNMENT_PROFILE_SCHEMA)
 
@@ -46,7 +46,7 @@ class AlignmentProfileSchemaTests(unittest.TestCase):
             ("profile_digest", "0" * 64),
             ("ambiguity_normalized_margin", 0.09),
             ("value_revision", 2),
-            ("calibration_status", "accepted"),
+            ("calibration_status", "candidate"),
         ):
             forged = copy.deepcopy(load_alignment_profile())
             forged[field] = value

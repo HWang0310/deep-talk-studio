@@ -1,0 +1,12 @@
+{
+  "artifact_version": "alignment-profile-evidence/1",
+  "source_candidate_value_revision": 1,
+  "accepted_profile_digest": "014369a0d93e1baacc6066c197d5068daed41c86309bb336511925847aa0f0d3",
+  "calibration_result_digest": "3999ee66e07ace55951e0e27c37fd1ad2e2c0893d36390fa1c8985172c1f8b1f",
+  "required_case_ids": ["A", "B", "C", "D", "E", "F", "S", "T", "U", "AH", "CR1", "CR2", "CR3"],
+  "false_ready_cases": [],
+  "later_recovery_case_ids": ["C", "CR3"],
+  "boundary_risk_protection_case_ids": ["CR2"],
+  "decision": "accepted",
+  "decision_reason": "Approved candidate scores passed deterministic normalization, ambiguity, false-ready, coarse timestamp and chunk-boundary-risk calibration without value changes."
+}

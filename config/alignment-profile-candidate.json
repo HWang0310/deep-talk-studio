@@ -3,7 +3,7 @@
   "algorithm_version": "alignment-algorithm/1",
   "normalization_profile_version": "normalization-profile/1",
   "value_revision": 1,
-  "calibration_status": "candidate",
+  "calibration_status": "accepted",
   "primary_match_score": 4.0,
   "numeric_alias_match_score": 3.0,
   "substitution_score": -2.5,
@@ -22,5 +22,5 @@
   "timestamp_epsilon_seconds": "0.001",
   "source_design_head": "702c63e13d579bb5a651727684a546527c6a8731",
   "source_design_digest": "68f8a10e09390b13b616d361dc8b42074e2af2ec73ee16f41ee74bb2bbe4cc17",
-  "profile_digest": "b670c95e71180ad9461d68ec0c94e640e6a10e1e74379c5a9abeb7ebf63e6570"
+  "profile_digest": "014369a0d93e1baacc6066c197d5068daed41c86309bb336511925847aa0f0d3"
 }

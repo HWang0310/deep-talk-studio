@@ -51,8 +51,8 @@ def _validate_candidate_values(profile: Mapping[str, Any]) -> None:
     for key, expected in locked.items():
         if profile.get(key) != expected:
             raise AlignmentProfileError(f"Alignment Profile candidate 受控字段被更改：{key}")
-    if profile.get("calibration_status") != "candidate":
-        raise AlignmentProfileError("校准证据完成前不得标记 accepted")
+    if profile.get("calibration_status") != "accepted":
+        raise AlignmentProfileError("当前正式 Profile 必须绑定已通过的校准证据")
 
 
 def load_alignment_profile(path: Optional[Path] = None) -> Dict[str, Any]:
