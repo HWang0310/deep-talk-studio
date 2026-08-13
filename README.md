@@ -1,12 +1,12 @@
 # DeepTalk Studio
 
-> 当前开发分支包含 **Unreleased Audio Alignment + Visual Edit Bridge**。它已具备确定性媒体时间、带时间戳转录适配、Script/Transcript 对齐、Beat/Cue 画面标记、统一视觉 Placement、Remotion 粗预览和 A-roll 音频 presentation 保真能力；只有完成真实 Clean A-roll 用户试用后才可讨论正式版本或 V1.0。
+> 当前开发分支包含 **Unreleased Audio Alignment + Visual Edit Bridge + Basic Subtitle V1**。它已能把带时间戳真实转写、真人主画面、真实素材、原创 Motion 和基础字幕合成为完整粗剪预览，并保持 Clean A-roll 原音；只有完成真实 Clean A-roll 用户试用后才可讨论正式版本或 V1.0。
 
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
 当前版本是 **V0.6.1**。研究、独立事实核查、原创写稿、素材准备和制作已连成可验证链路。已审查素材包可由 Remotion 或 HyperFrames 中的一个引擎生成真实 MP4 动画、粗剪视觉预览、PNG 定帧和制作质检报告；四类图表会按内部元素真正运动，不再只是整张 SVG 进场。
 
-Audio Alignment + Visual Edit Bridge 正在 Unreleased 分支接受 Integration Review。正式生产入口会自动找到相互绑定的 approved Research、reviewed Script、reviewed Material、Production Plan/Manifest/QA 和一份 Clean A-roll，然后以仓库固定顺序完成全部阶段；调用方不能自行拼 stage 或 QA。真实文件转录适配器遵循当前 OpenAI 官方 File transcription 契约：文件上限 25 MB；有真实 word timestamps 时优先使用，只有真实 segment timestamps 时明确降为 coarse，两者都没有则失败。大文件只使用版本化 PCM 自然停顿 Chunk Plan，不在 adapter 内任意切分，也不伪造 segment 的词级时间。
+Audio Alignment + Visual Edit Bridge 正在 Unreleased 分支接受 Integration Review。正式生产入口会自动找到相互绑定的 approved Research、reviewed Script、reviewed Material、Production Plan/Manifest/QA 和一份 Clean A-roll，然后以仓库固定顺序完成全部阶段；调用方不能自行拼 stage 或 QA。它会从同一 Timed Transcript 生成版本化字幕工件：真实 word timestamp 可组合为短句，只有 segment timestamp 时保持 coarse，不伪造逐字精度。字幕烧录在 A-roll、图片、视频和 Motion 全部时段，统一预留底部安全区，并进入 canonical QA。大文件只使用版本化 PCM 自然停顿 Chunk Plan，不在 adapter 内任意切分。
 
 ## 现在最简单的用法
 
@@ -50,7 +50,7 @@ Audio Alignment + Visual Edit Bridge 正在 Unreleased 分支接受 Integration 
 
 > 我视频剪好了，帮我把素材卡进去。
 
-`align-video` Skill 会自动使用已审核稿件、素材和 Motion，导入原视频、完成转录与时间对齐，再生成 Edit Bridge 和 Aligned Preview。你不需要另外录音、提取音轨、标记时间点或选择技术参数。真实视频完成这一步并由你看过 Preview 之前，本阶段仍保持 Unreleased。
+`align-video` Skill 会自动使用已审核稿件、素材和 Motion，导入原视频、完成转录、字幕与时间对齐，再生成 Edit Bridge 和已经烧录基础字幕的 Aligned Preview。你不需要另外录音、提取音轨、标记时间点或选择技术参数。真实视频完成这一步并由你看过 Preview 之前，本阶段仍保持 Unreleased。
 
 选题结果会保存在本机：
 
@@ -155,7 +155,7 @@ material_assets/素材包ID/generated/V001.svg
 
 ## 还不能做什么
 
-V0.6.1 生成的是可导入剪辑软件的辅助动画和 rough visual preview，不是含真人口播的最终成片。它不做假主播、TTS、精确音频对齐、自动字幕、BGM/SFX、标题封面、B 站上传或运营分析。来源与权利工程检查也不等于律师意见或最终发布批准。
+正式 v0.6.1 仍只生成辅助动画和 rough visual preview；当前 Unreleased 分支已增加真人时间对齐、完整粗剪和 Basic Subtitle V1，但还没有经过用户真实 Clean A-roll Gate。系统仍不做自动剪口气、假主播、TTS、BGM/SFX、标题封面、B 站上传或运营分析。来源与权利工程检查也不等于律师意见或最终发布批准。
 
 ## 不依赖联网的检查方式
 

@@ -6,113 +6,100 @@
 
 当前开发分支：`agent/audio-alignment-edit-bridge`
 
-本轮：Audio Alignment + Visual Edit Bridge Integration Hardening（Unreleased）。
+本轮：V1 Scope Reconciliation + Basic Subtitle V1（Unreleased）。
 
 ## 1. 本轮任务是什么
 
-按 ChatGPT 已通过的 Hardened Implementation Plan，先修复 Topic Discovery 过期 fixture 基线，再连续完成 Task 1–29，把用户已剪好口气的真人口播视频与 reviewed Script、reviewed Material 和现有 Motion 对齐，输出可导入剪辑软件的 Edit Bridge 和可观看的 Aligned Preview。
-
-本轮只完成 Implementation 与合成证据，不能代替用户真实 Clean A-roll E2E。
+撤销此前临时的全面功能冻结，恢复 V1 目标：把 reviewed Script、用户自行剪好口气的 Clean A-roll、真实素材、原创 Motion 与基础字幕自动合成完整可观看粗剪。本轮只核对 Hook 契约、实现 Basic Subtitle V1 并完成 synthetic 集成验证，不进入真人 E2E，不创建版本。
 
 ## 2. 完成了什么
 
-- 修复 ChatGPT Implementation Review 的 8 项条件：正式入口不再接收 stage lambdas；CLI/Skill 自动发现正式上游；Material 视频字段跨模块保真；Cue OUT 使用完整语义范围；Alignment 绑定 Clean A-roll 总时长；OpenAI segment-only 明确粗粒度；正式 QA validator 由仓库工厂掌握；自然语言修改真正生成新的 Bridge/Preview/Manifest/QA。
-- 新增 `edit_bridge_session.py` 作为唯一具体生产所有者，正式顺序为 import → extract → Mapping → Chunk → provider → Transcript → Alignment → Material Projection → Placement/timing → Bridge → Remotion → audio mux → Manifest → canonical QA。
-- canonical QA 会实际重探测视频、重建所有确定性链路、复验 Production、素材路径/SHA、Preview Manifest 和音频 presentation；不能用调用方 lambda 伪装正式通过。
-- 使用同一正式入口完成真实 MP4 + 真 Remotion 合成 E2E；自然语言修改也已用真实 MP4/mux 验证不可覆盖 r2 流程。
-- Task 0 单独修复 Discovery 测试时钟，不改 72 小时 freshness 生产规则。
-- 完成 Clean A-roll 不可变导入、`ffprobe` 流/PTS/presentation 证据、lossless transcription WAV 派生、Timestamp Mapping 与不可覆盖存储。
-- 完成 24 MiB request cap / 25 MiB hard limit 的确定性 PCM 自然停顿分块；无安全停顿时保留 high boundary risk，不重叠、不删停顿、不用 LLM 拼接。
-- 完成 provider-neutral Timed Transcript 与 OpenAI SDK adapter。当前受控调用使用 `whisper-1` + `verbose_json`；真实 word timestamps 优先，只有真实 segment timestamps 时明确降为 coarse，两者均无则失败；provider 不能写 alignment status 或 Gate。
-- 完成可逆 NFKC/中英文/数字规范化、确定性全局 DP 对齐、重复/缺失/即兴/倒序和 ambiguity evidence。长稿使用行检查点与块内重算，结果与完整参考矩阵逐操作、逐 digest 一致。
-- 完成 Profile calibration、Script Beat → Material Cue → Production Scene 稳定身份链、Alignment 不可覆盖 revision。
-- 完成 Material Production Projection：rights/reuse 不再作制作 Gate，但文件、SHA、格式、grounding、binding 和原 Production QA 仍严格复验。
-- 完成真实图片/截图/视频/Motion 统一 Placement，自动推导 canonical IN/OUT/duration、source clip 双时间轴、overlap/same-start conflict、timing status 和 7 秒 long-still Preview safeguard。
-- 完成 Edit Bridge JSON、普通中文 Markdown、NLE-neutral CSV、Marker package 和不可覆盖 revision。
-- 完成 1920×1080、30fps Remotion Aligned Preview。Clean A-roll 始终是 layer 0，只有 ready Placement 进入画面；视觉中间片强制无音轨。
-- 最终 Preview 只混入原 Clean A-roll 主音轨。AAC/MP3 优先 copy，PCM 等不兼容 codec 转 AAC；正 audio offset、internal gap、audio start/end 均由 `ffprobe`/decode 重验，不 trim、reset、atempo、loudnorm、删静音或 `-shortest`。
-- QA 实际执行 root、transcript、alignment、placement、preview 五组 validator，缺组、validator 异常、未 ready 素材入画、音轨 presentation drift 均 fail-closed；不接受调用者自报 boolean pass。
-- 完成 `align-video` Skill、CLI 普通用户 Gate 和自然语言画面时长修订边界。
+- Hook-aware Script 不新增重复 schema。现有 `audience_promise + ordered Beats + closing` 足以承载结构；Writer/Profile/Review 明确要求 opening hook、value promise、必要的 re-hook / information turn 和 conclusion payoff。
+- 新 Review consistency mapping 为 `0.4.2`；`narrative_structure` 缺失 Hook-aware 结构时生成 blocking `hook_structure`。旧 `0.4.1` reviewed 工件继续兼容读取。
+- 新增版本化 `subtitle-profile/1`、`subtitle-artifact/1`、不可覆盖 JSON/SRT 和显示 normalization。
+- word/token transcript 只组合真实单位边界；segment-only 一段一 cue 且明确 coarse，不做词内插值或 karaoke。
+- 字幕已进入唯一正式 production entrypoint、Edit Bridge root binding、Remotion payload、Preview Manifest、自然语言 revision 重渲染和 repository-owned canonical QA。
+- Remotion 在 A-roll、图片、视频和 Original Motion 全时段显示同一 narration subtitle；统一预留底部安全区，视觉 overlay 不能占用字幕区。
+- Preview 仍只有 Clean A-roll 主音轨；自然语言调整画面后生成新 Bridge/Preview/Manifest/QA revision，字幕绑定、音频起点和内部静音保持不变。
 
 ## 3. 创建 / 修改的重要文件
 
-- 媒体与时间：`narration_media.py`、`narration_schema.py`、`audio_timestamp_mapping.py`、`transcription_chunking.py`、`narration_storage.py`
-- 转录：`transcription/base.py`、`transcription/deterministic.py`、`transcription/openai.py`、`transcript_builder.py`
-- 对齐：`text_normalization.py`、`sequence_alignment.py`、`alignment_builder.py`、`alignment_validation.py`、`alignment_storage.py`
-- 素材与时间线：`material_bridge.py`、`edit_bridge_planner.py`、`edit_bridge_schema.py`、`edit_bridge_validation.py`、`edit_bridge_storage.py`
-- Preview/QA/Workflow：`aligned_preview/`、`renderer_templates/aligned_preview_remotion/`、`edit_bridge_qa.py`、`edit_bridge_workflow.py`
-- 用户入口：`.agents/skills/align-video/`、`cli.py`、`docs/EDIT_BRIDGE_CONTRACT.md`
-- 评测：`evaluations/audio-alignment-edit-bridge/`与相关 `tests/test_alignment_*`、chunk boundary、preview audio sync、OpenAI smoke tests。
-- 状态文档：`README.md`、`PRD.md`、`ROADMAP.md`、`AGENTS.md`、`CHANGELOG.md`、`HANDOFF.md`、`docs/ARCHITECTURE.md`。
+- Subtitle Core：`config/subtitle-profile.json`、`subtitle_profile.py`、`subtitle_builder.py`、`subtitle_storage.py`。
+- Renderer：`renderer_templates/aligned_preview_remotion/src/BasicSubtitles.tsx`、`AlignedPreview.tsx`、`index.css`。
+- Integration / QA：`edit_bridge_session.py`、`edit_bridge_qa.py`、`edit_bridge_schema.py`、`edit_bridge_planner.py`、`aligned_preview/remotion.py`。
+- Hook：`config/script-profile.json`、`script_prompt.py`、`script_review.py`、`schema.py`、`write-script/SKILL.md`、`docs/SCRIPT_CONTRACT.md`。
+- 设计与计划：`docs/superpowers/specs/2026-08-13-v1-scope-reconciliation-basic-subtitle-design.md`、对应 implementation plan。
+- 测试：subtitle profile/builder/storage、renderer、manifest、canonical QA、exact-entrypoint E2E 与自然语言 rerender regressions。
 
 ## 4. 当前架构
 
 ```text
-reviewed Script / approved Research / reviewed Material / QA-ready Motion
-                              +
-                  immutable Clean A-roll
-                              ↓
-Media Probe → Extracted WAV → Timestamp Mapping
-                              ↓
-Natural-pause Chunk Plan → Timed Transcript
-                              ↓
-Reversible Normalization → Deterministic Alignment
-                              ↓
-Beat/Cue/Scene → Unified Visual Placement → Edit Bridge
-                              ↓
-visual-only Remotion Preview → original A-roll audio mux
-                              ↓
-five-group rederivation QA → ALIGNED_PREVIEW.mp4
+Hook-aware reviewed Script + approved Research + reviewed Material + QA-ready Motion
+                                  +
+                         immutable Clean A-roll
+                                  ↓
+Media → Mapping → Chunk → real Timed Transcript
+                                  ├→ Subtitle Artifact / SRT
+                                  └→ deterministic Script Alignment
+                                             ↓
+Material/Motion Placement → Edit Bridge → subtitled visual Remotion render
+                                             ↓
+                      original Clean A-roll audio mux
+                                             ↓
+ Subtitle + roots + placement + preview + audio canonical QA
+                                             ↓
+                           ALIGNED_PREVIEW.mp4
 ```
 
 ## 5. 已经可以运行什么
 
-- 离线 deterministic provider 可完整运行 Media → Mapping → Chunk → Transcript → Alignment → Placement → Bridge → Preview → QA。
-- 真实 `ffmpeg/ffprobe` fixture 已验证正 audio offset、internal gap、AAC copy 和 PCM→AAC conversion。
-- 真实 Remotion 已渲染 1920×1080/30fps 合成 Preview，再混入单一 Clean A-roll 音轨并通过 probe。
-- 用户拖入 mp4/mov 后，`align-video` Skill 可按固定流程处理，不需要用户选 provider、renderer、路径或时间点。
+- 正式入口可从 Timed Transcript 自动生成、保存并烧录 Basic Subtitle V1。
+- 字幕跨 A-roll、真实图片、真实视频和 Original Motion 连续显示。
+- 用户说“这张图短一点/晚一点/一直留真人”后，新完整视频 revision 仍带相同当前字幕。
+- Subtitle/Transcript/Profile/Media/Bridge/Manifest/renderer enablement 可由 QA 重推导，篡改失败关闭。
 
 ## 6. 还不能运行什么
 
-- 尚未收到本期用户真实 Clean A-roll，因此 real-user E2E 仍 pending，不得宣称 V1.0。
-- 当前环境没有可用的 `OPENAI_API_KEY` 与指定的本地 synthetic smoke WAV，因此真实 OpenAI transcription smoke 未运行；这是 environment unavailable，不是 product fail。
-- 不做自动剪口气、字幕、BGM/SFX、标题、封面、发布或 NLE 专属工程导出。
+- 尚未用用户本期真实 Clean A-roll 和真实转录 provider 完成 E2E，因此不得称 V1.0 通过。
+- 当前环境没有授权 `OPENAI_API_KEY` 与真实 smoke media，OpenAI transcription smoke 仍为 environment unavailable。
+- 不做自动剪口气、重录删除、filler word cleanup、BGM/SFX、高级/karaoke 字幕、标题封面、发布、平台上传或 NLE 专属工程导出。
 
 ## 7. 测试、评测与真实渲染
 
-- Integration Hardening 最终全量 unittest：425 collected，422 pass，3 environment/explicit-render gated skip，0 fail。
-- 唯一生产入口真实 Remotion E2E：可用图片、已选范围视频、未选范围视频、QA-ready Motion 与带内部静音 Clean A-roll 同时进入 canonical 上游；H.264，1920×1080，30fps，单一 Clean A-roll 音轨；输出 595,390 bytes，SHA-256 `029e5211071126bc0183eb2dc354b24ebff5089d9d80a8ff724ff7e7ba38b58f`；canonical QA `warnings`，无 blocking issue。未选范围视频保持 `clip_selection_needed` 且未进入 Preview。
-- 自然语言 Revision 快速真实媒体链：Bridge r2、`ALIGNED_PREVIEW-r0002.mp4`、Manifest r2、QA r2 均不可覆盖保存并通过（warnings）。
-- 3 个 skip：真实 OpenAI transcription smoke（key/media environment unavailable）、旧 Remotion + HyperFrames 双引擎 integration 默认关闭、exact-entrypoint Remotion 回归默认显式开启；后者本轮已人工显式运行并成功。
-- A–AI：35/35 pass。CB1–CB7：7/7 pass。PA1–PA7：7/7 pass。更新后的 repeat digest：`fc90d0f29334e6f454f5196e61af24d55a689308ce732770285dc7b7e4d5a41a`。
-- Aligned Preview renderer：ESLint pass，TypeScript typecheck pass，Skill quick validation pass。
-- 最终 synthetic real render：H.264，1920×1080，30fps，1 条 AAC 音轨；audio start `0.353s`，audio end `1.185s`，internal gap 保留；Preview SHA-256 `7f38457c191af470dbf674798dfd5f751191d7d9a34ae3025dbbf4122592e618`，559,166 bytes。
-- scope scan 没有新增 A-roll cleanup、字幕、BGM、发布或自动选 B-roll 实现。
+- 完整 unittest：436 collected，433 pass，3 environment/explicit-render skip，0 fail。
+- Subtitle/Hook/renderer/integration 定向：26 项通过；Script Hook 相关 35 项通过。
+- Remotion ESLint 与 TypeScript typecheck：pass。
+- exact-entrypoint 真实 synthetic Remotion E2E：初版与自然语言 revision 均成功，H.264、1920×1080、30fps、2 秒、单一 Clean A-roll AAC 音轨。
+- 初版 Preview：908,187 bytes，SHA-256 `283b2bace94f3853745f4740fcdfc33b6bb5595b2d3a96def2748f005be19919`。
+- revision Preview：930,296 bytes，SHA-256 `cf13a810249dc897556592cfec7ba47f9ed5b692ee48d50c1b71693a07460b2a`。
+- Subtitle Artifact digest：`6a4465ce947e64c829816ff63d07648773492d0ba2da15adc8f30731eac31963`。
+- 两版 canonical QA：`warnings`，原因是既有 synthetic 未选范围视频继续保持 `clip_selection_needed`；无 blocking failure。
+- 人工抽帧确认：字幕确实烧录、两行内、高对比、底部安全区生效；初版和 revision 都有字幕。
 
 ## 8. 已知 warning / gap
 
-- 真实 provider smoke 仍未运行，原因是当前环境未授权；已有真实 SDK transport 与授权后才执行的完整 smoke test，不会提交 key、媒体或 raw response。
-- `npm audit` 曾报告 2 个上游 low severity dependency warning；本轮保留已审批的锁定 Remotion 4.0.507，没有为清除 low warning 擅自升级 renderer。
-- 真实用户视频可能暴露新的转录差异、剪辑节奏或画面审美问题；这些必须通过 real-user Gate 如实记录，不用 synthetic pass 掩盖。
+- synthetic provider 用确定性 token 单位覆盖精确边界路径，不冒充真实 word timestamp，也不代替真实 OpenAI/真人口音测试。
+- 当前默认中文换行使用确定性字符容量，不做 AI 动态避障；真实长视频可能暴露断句与审美调整需求。
+- `npm audit` 的 2 个上游 low severity warning 仍存在；没有擅自升级锁定 Remotion。
+- 真实用户 E2E 才能发现实际录音中的 ASR 错字、长停顿、语速、字幕断句和素材时机问题。
 
 ## 9. 重要技术决策
 
-- Clean A-roll 是 canonical timeline，V1.0 不自动剪口气。
-- container/stream time、media presentation time 和 extracted-audio time 始终分离，Mapping 可从证据重推导。
-- LLM 不生成 canonical timestamp；segment-only 只能 coarse，不插值伪造 word precision。
-- canonical time 是 decimal seconds；30fps 只是 Preview 派生层。
-- placement status 与 timing status 正交；可靠画面的时长冲突是 warning，不清除 placement。
-- 视觉中间片与音轨 mux 分离，确保 B-roll/Motion 原声永不混入主音轨。
-- 合成/对抗 pass 不是真实用户 E2E pass。
+- Hook 是 Script 内容结构，不是后期特效；不修改既有 Script Draft schema。
+- Subtitle 是 Transcript 的确定性派生物，不从 Script timecode 或 LLM 猜测时间。
+- Basic Subtitle V1 只有一套版本化样式、最多两行、无 karaoke/花哨动画。
+- 视觉安全区全局统一，不让每个 Motion 自行决定字幕位置。
+- Subtitle Artifact 与 SRT 可审查，但用户默认拿到的是烧录字幕的完整 MP4。
+- synthetic pass 不等于 real-user V1 pass。
 
 ## 10. 需要产品经理决定什么
 
-当前不需要用户或 ChatGPT 选择技术参数。下一个决策 Gate 是：真实 Clean A-roll 产生的 `ALIGNED_PREVIEW.mp4` 由用户观看后，ChatGPT Review 对齐、素材插入、Motion 时机、warning/gap 和 QA 是否可以进入正式版本。
+请 ChatGPT Review Hook 最小加固是否满足 V1、Subtitle Artifact/Profile/QA 边界、真实 Remotion 两版合成证据及 warning。Review 通过后再明确允许用户上传本期正式 Clean A-roll，进入最关键的真人 V1 Gate。
 
 ## 11. 建议下一阶段
 
-Implementation Review 所有 hardening 条件已经完成。请 ChatGPT Review 当前开发分支、唯一生产入口、canonical QA、真实 Remotion E2E 和自然语言 revision，然后确认是否允许进入真实用户 Clean A-roll 上传 Gate。
+停止新增功能。ChatGPT 先完成本轮 Implementation Review；通过后，用户只需拖入已经自行剪好口气的正式真人口播 mp4/mov，由同一正式入口完成 real transcription、Alignment、Material/Motion、Basic Subtitle、完整 Rough Cut 与 QA，再由用户观看。
 
 ## 给用户的下一步操作
 
-暂时不需要上传视频。先把本轮完整交接原样发给 ChatGPT Review；Review 通过后再按它的决定进入真实用户 Clean A-roll Gate。
+现在不要上传视频。把 Codex 回复底部的完整交接原样发给 ChatGPT，请它 Review 本轮 Hook + Basic Subtitle V1 实现；只有 ChatGPT 明确通过后再进入真人视频 Gate。

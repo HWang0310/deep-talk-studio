@@ -1,8 +1,8 @@
 # Audio Alignment + Visual Edit Bridge Contract（Unreleased）
 
-本阶段把用户已经剪好口气的真人口播视频作为唯一 canonical timeline。系统不自动剪口气、不改变 reviewed Script / approved Research，不伪造词级时间戳，也不把 B-roll / Motion 原音混入主音轨。
+本阶段把用户已经剪好口气的真人口播视频作为唯一 canonical timeline。系统不自动剪口气、不改变 reviewed Script / approved Research，不伪造词级时间戳，也不把 B-roll / Motion 原音混入主音轨。Basic Subtitle V1 从同一 Timed Transcript 确定性生成并烧录进最终 Aligned Preview。
 
-正式流程只能由 `run_real_edit_bridge_session` 所有：不可变导入 Clean A-roll → 提取保留 presentation 语义的转录音频 → 确定性分块与带时间戳转录 → Script/Transcript 全局对齐 → 复用 Beat/Cue/Scene 身份 → 统一 Visual Placement → Edit Bridge JSON/Markdown/CSV → 纯视觉 Remotion Preview → 原 A-roll 音轨 presentation-preserving mux → repository-owned 五组 canonical QA。provider、时钟、ID 与 renderer 可以注入，但阶段顺序和正式 validator 不可注入。
+正式流程只能由 `run_real_edit_bridge_session` 所有：不可变导入 Clean A-roll → 提取保留 presentation 语义的转录音频 → 确定性分块与带时间戳转录 → Subtitle Artifact/SRT → Script/Transcript 全局对齐 → 复用 Beat/Cue/Scene 身份 → 统一 Visual Placement → Edit Bridge JSON/Markdown/CSV → 烧录字幕的纯视觉 Remotion Preview → 原 A-roll 音轨 presentation-preserving mux → repository-owned 五组 canonical QA。provider、时钟、ID 与 renderer 可以注入，但阶段顺序和正式 validator 不可注入。
 
 关键边界：
 
@@ -13,5 +13,6 @@
 - `placement_status` 与 `timing_status` 正交。可靠 Motion 时长不一致是 warning，不抹掉 placement。
 - 只有 ready Placement 进入 Preview。其余项目保留在 marker package 和 warnings 中。
 - Clean A-roll 音频是唯一主音轨，原正偏移和内部静音必须保留。
+- 字幕只使用真实 Transcript unit boundary。segment-only 保持 coarse；Subtitle/Profile/Transcript digest、renderer enablement 和 Preview Manifest binding 必须由 QA 重推导。
 - Rights/Reuse 提示不进入制作 Gate；来源、身份、事实 grounding、文件 path/SHA/MIME/codec 仍必须通过。
 - synthetic pass 只说明实现和对抗测试通过；真实用户拖入实际 Clean A-roll 并审看成片前，不得声称真实 E2E 或 V1.0 pass。

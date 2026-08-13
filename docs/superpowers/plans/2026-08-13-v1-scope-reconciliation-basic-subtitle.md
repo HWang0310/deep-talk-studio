@@ -25,11 +25,11 @@
 
 **Interfaces:** Existing Script Draft schema stays `0.4`; new reviews emit consistency `0.4.2`; `narrative_structure=fail` plus `hook_structure` becomes blocking while old reviewed `0.4.1` artifacts remain valid.
 
-- [ ] Add a failing review test showing a missing opening/value/re-hook/payoff finding cannot become reviewed.
-- [ ] Add a failing compatibility test showing existing `0.4.1` linkage remains readable after the new mapping.
-- [ ] Add `hook_structure` to the typed issue contract and deterministic blocking mapping.
-- [ ] Update Writer/Profile/Reviewer instructions without adding duplicate Script fields.
-- [ ] Run Script review, validation, storage and workflow tests.
+- [x] Add a failing review test showing a missing opening/value/re-hook/payoff finding cannot become reviewed.
+- [x] Add a failing compatibility test showing existing `0.4.1` linkage remains readable after the new mapping.
+- [x] Add `hook_structure` to the typed issue contract and deterministic blocking mapping.
+- [x] Update Writer/Profile/Reviewer instructions without adding duplicate Script fields.
+- [x] Run Script review, validation, storage and workflow tests.
 
 ### Task 2: Build deterministic subtitle profile and artifact
 
@@ -37,12 +37,12 @@
 
 **Interfaces:** `build_subtitle_artifact(transcript, media, profile, subtitle_id, created_at) -> dict`; `validate_subtitle_artifact(...)`; `render_srt(...)`; immutable storage returns JSON/SRT paths.
 
-- [ ] Add failing profile validation tests for version, geometry, two-line capacity and digest.
-- [ ] Add failing word-level tests with hand-derived cue IN/OUT and display text.
-- [ ] Add failing segment-only tests proving coarse one-segment cues and no fabricated word timing.
-- [ ] Add failing tests for empty text, overlap/out-of-bounds, transcript revision/digest changes and artifact tampering.
-- [ ] Implement minimal deterministic grouping, safe normalization, schema validation, digest and SRT.
-- [ ] Add immutable save/load tests and run the targeted suite.
+- [x] Add failing profile validation tests for version, geometry, two-line capacity and digest.
+- [x] Add failing word-level tests with hand-derived cue IN/OUT and display text.
+- [x] Add failing segment-only tests proving coarse one-segment cues and no fabricated word timing.
+- [x] Add failing tests for empty text, overlap/out-of-bounds, transcript revision/digest changes and artifact tampering.
+- [x] Implement minimal deterministic grouping, safe normalization, schema validation, digest and SRT.
+- [x] Add immutable save/load tests and run the targeted suite.
 
 ### Task 3: Bind subtitle roots into Edit Bridge and Preview
 
@@ -50,11 +50,11 @@
 
 **Interfaces:** Edit Bridge root bindings add `subtitle_artifact_digest` and `subtitle_profile_digest`; renderer project records subtitle-enabled state and artifact digest; Preview Manifest binds current Subtitle/Transcript/Profile.
 
-- [ ] Add failing Bridge validation tests for missing or changed subtitle roots.
-- [ ] Add failing renderer staging tests proving subtitle payload is required on the formal path.
-- [ ] Add failing Manifest/QA tests for subtitle tamper, transcript mismatch and renderer disabled.
-- [ ] Implement root binding, renderer project metadata, Manifest binding and canonical revalidation.
-- [ ] Run Bridge, renderer, Manifest and QA targeted tests.
+- [x] Add failing Bridge validation tests for missing or changed subtitle roots.
+- [x] Add failing renderer staging tests proving subtitle payload is required on the formal path.
+- [x] Add failing Manifest/QA tests for subtitle tamper, transcript mismatch and renderer disabled.
+- [x] Implement root binding, renderer project metadata, Manifest binding and canonical revalidation.
+- [x] Run Bridge, renderer, Manifest and QA targeted tests.
 
 ### Task 4: Render Basic Subtitle V1 with a global safe area
 
@@ -62,10 +62,10 @@
 
 **Interfaces:** Remotion props contain controlled subtitle cues/profile. The active cue is selected by current frame; visual overlays use one content-safe region; subtitles occupy one reserved lower region for every source kind.
 
-- [ ] Add a failing renderer contract test for actual cue rendering and no karaoke behavior.
-- [ ] Add a failing safe-area test proving Motion/visual overlays cannot occupy the subtitle region.
-- [ ] Implement a separate frame-driven subtitle component with at most two lines and a high-contrast plate.
-- [ ] Run ESLint and TypeScript typecheck.
+- [x] Add a failing renderer contract test for actual cue rendering and no karaoke behavior.
+- [x] Add a failing safe-area test proving Motion/visual overlays cannot occupy the subtitle region.
+- [x] Implement a separate frame-driven subtitle component with at most two lines and a high-contrast plate.
+- [x] Run ESLint and TypeScript typecheck.
 
 ### Task 5: Integrate the single production entrypoint and revisions
 
@@ -73,11 +73,11 @@
 
 **Interfaces:** Formal run creates Subtitle after Transcript, saves JSON/SRT, passes it into Bridge/renderer/QA; load/revise rehydrates and revalidates the same subtitle and produces a new burned-in Preview revision.
 
-- [ ] Add failing exact-entrypoint tests for subtitle creation, storage and root binding.
-- [ ] Add failing natural-language revision test showing the new Preview still binds and enables current subtitles.
-- [ ] Add regression assertions for image/video/Motion Placement and unchanged Clean A-roll audio.
-- [ ] Implement orchestration with no new stage lambdas or caller-owned QA.
-- [ ] Run session, revision, audio and integrated tests.
+- [x] Add failing exact-entrypoint tests for subtitle creation, storage and root binding.
+- [x] Add failing natural-language revision test showing the new Preview still binds and enables current subtitles.
+- [x] Add regression assertions for image/video/Motion Placement and unchanged Clean A-roll audio.
+- [x] Implement orchestration with no new stage lambdas or caller-owned QA.
+- [x] Run session, revision, audio and integrated tests.
 
 ### Task 6: Verify real synthetic Remotion E2E
 
@@ -85,10 +85,10 @@
 
 **Interfaces:** The existing exact `run_real_edit_bridge_session` test renders one actual 1920x1080/30fps Preview with image, ranged video, unranged-video gap, Motion, burned subtitles and one Clean A-roll audio stream.
 
-- [ ] Run the exact-entrypoint test with real Remotion enabled.
-- [ ] Inspect ffprobe, output digest/size, Manifest bindings and canonical QA.
-- [ ] Verify subtitle cues continue over A-roll/image/Motion periods and overlay safe area is deterministic.
-- [ ] Record real provider as unavailable unless an authorized key/media is present; do not fake it.
+- [x] Run the exact-entrypoint test with real Remotion enabled.
+- [x] Inspect ffprobe, output digest/size, Manifest bindings and canonical QA.
+- [x] Verify subtitle cues continue over A-roll/image/Motion periods and overlay safe area is deterministic.
+- [x] Record real provider as unavailable unless an authorized key/media is present; do not fake it.
 
 ### Task 7: Synchronize project records and push Unreleased branch
 
@@ -96,8 +96,8 @@
 
 **Interfaces:** User handoff is self-contained; official Release remains v0.6.1.
 
-- [ ] Run full unittest, subtitle targeted suite, renderer lint/typecheck, Skill validation, scope scan and sensitive-data scan.
-- [ ] Update docs with exact capability, limitations, warnings, provider status and real-user E2E pending status.
+- [x] Run full unittest, subtitle targeted suite, renderer lint/typecheck, Skill validation, scope scan and sensitive-data scan.
+- [x] Update docs with exact capability, limitations, warnings, provider status and real-user E2E pending status.
 - [ ] Inspect Git diff, commit scoped changes and push `agent/audio-alignment-edit-bridge`.
 - [ ] Verify remote branch, main/tag/Release unchanged and stop before real-user video.
 
@@ -109,4 +109,3 @@
 - Segment precision is explicitly coarse and cannot pass as word precision.
 - Natural-language visual revisions preserve the subtitle binding while producing immutable new video revisions.
 - The exact formal production entrypoint, not a fixture-only shortcut, owns the integrated verification.
-

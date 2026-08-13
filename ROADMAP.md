@@ -95,18 +95,18 @@
 - timeline、bar、comparison、diagram、document/screenshot、static image 与 A-roll placeholder 映射；
 - timeline、bar、comparison、diagram 按内部元素真正运动，两套 renderer 消费同一 payload；
 - render-time SHA/path/MIME/eligibility、非数字 Display Text grounding、raw PDF/capture boundary 与 check→issue→gate fail-closed；
-- 字幕、BGM、标题、封面和发布仍保留到后续。
+- Basic Subtitle V1 已纳入当前 Unreleased V1 路径；BGM、标题、封面和发布仍保留到后续。
 
 ## V0.7：第一轮真实用户端到端试用（Material + Motion 与 canonical lineage 均已通过）
 
 - 用一期真实内容从选题跑到可导入剪辑软件的素材包；
-- 收集普通用户的阻塞点，再决定是优先做音频对齐、字幕还是发布辅助；
+- 收集普通用户对完整粗剪、字幕和画面时机的阻塞点，再决定后续发布辅助优先级；
 - 不默认自动发布。
 - 2026-08-13 已完成真实 Topic → Research → Script → Material Review → Motion Production QA；没有使用 fixture，稿件与 Research 均为已审核正式版本。
 - 本轮暴露并修复 timeline safe area、diagram 长中文与 edge label、comparison 错误标题与强制左右栏问题；新预览已通过 Production QA 和 ChatGPT 实际观看核验。
 - 当前保留 5 个历史 reference-only 素材位和真人口播音频时间码；ChatGPT 已通过 Preview 与 canonical lineage Review。
 
-## Unreleased：Audio Alignment + Visual Edit Bridge（Integration hardening complete, ChatGPT Review pending）
+## Unreleased：Audio Alignment + Visual Edit Bridge + Basic Subtitle V1（synthetic integration complete, ChatGPT Review pending）
 
 - 以用户先行剪好口气的 immutable Clean A-roll 为 canonical timeline；不自动删停顿、废句或重录。
 - Speech-to-Text provider 与确定性 Alignment Core 解耦，按真实 timestamp granularity 对齐 reviewed Script Beat、Material Cue 和现有 Production Scene。
@@ -117,7 +117,8 @@
 - Design 已从 Conditional Pass 升级为正式通过；presentation timestamp mapping、frame-rate-neutral canonical timecode、placement/conflict 正交语义和长 still Preview exposure safeguard 均为 approved contract。
 - Implementation Plan Conditional Pass 后新增独立的版本化 PCM natural-pause chunk Task，风险由 Provider/Transcript/Alignment/QA 全链路保留；总计 29 个依赖有序的 TDD Tasks。
 - Preview audio mux 已复验 Clean A-roll audio presentation start、internal gaps、codec conversion timing 与 audio/video 关系；A–AI、CB1–CB7、PA1–PA7 与真实合成渲染已通过。
-- Implementation 已完成，但尚未用用户本期真实 Clean A-roll 执行 E2E；用户观看 `ALIGNED_PREVIEW.mp4` 与 ChatGPT 最终 Review 前，不得宣称 V1.0。
+- Hook-aware Script contract 已最小加固，不改变 Script schema；Basic Subtitle V1 已接入唯一正式入口、自然语言重渲染、Remotion 与 canonical QA。
+- 两版真实 synthetic Remotion 粗剪已验证烧录字幕、Material/Motion Placement、单一 Clean A-roll 音轨和 revision binding；尚未用用户本期真实 Clean A-roll 执行 E2E，用户观看正式 `ALIGNED_PREVIEW.mp4` 与 ChatGPT 最终 Review 前不得宣称 V1.0。
 
 ## 暂不承诺
 

@@ -11,7 +11,7 @@
      → 素材建议 → 可视化 → 剪辑方案 → 发布辅助
 ```
 
-当前 Unreleased 产品方向是 Audio Alignment + Visual Edit Bridge：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统将 reviewed Script、Material Cue、真实图片/截图/视频和原创 Motion 对齐到真实口播时间，自动生成基本 rough cut；Design 已正式通过，Implementation Plan 已完成 Conditional Pass 两项加固，尚未实现产品代码。自动 A-roll cleanup 不属于当前阶段。
+当前 Unreleased 产品方向是 Audio Alignment + Visual Edit Bridge + Basic Subtitle V1：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统将 reviewed Script、Material Cue、真实图片/截图/视频、原创 Motion 和 Timed Transcript 字幕对齐到真实口播时间，自动生成已烧录基础字幕的完整 rough cut。实现与合成验证已完成，真实用户 Clean A-roll Gate 尚未开始；自动 A-roll cleanup 不属于当前阶段。
 
 该 Design 的 canonical 时间以 Clean A-roll presentation timeline 的 decimal seconds 表示；不同容器/音轨通过可验证的 Timestamp Mapping 对齐，30fps 只属于 Preview 派生。可靠 placement 可以带 timing warning 进入 rough cut，而位置歧义不会自动预览；异常长的静态画面只限制 Preview exposure，不覆盖其 canonical semantic window。
 
@@ -268,6 +268,10 @@ V0.5 的成功不是“搜到很多图”，而是：编辑能知道画面放在
 V0.6 的成功不是“渲染命令返回 0”，而是真实文件的尺寸、帧率、时长、大小和 SHA 与计划一致，不合法素材和未支持数字没有混入画面，缺口被说清楚。
 
 ## 10. Unreleased：Audio Alignment + Visual Edit Bridge
+
+V1.0 目标输出是 `reviewed Script + Clean A-roll + Real Material + Original Motion + Basic Subtitle → 完整可观看粗剪`，而不是让用户自行回剪辑软件拼三层素材。Hook 主要在 Script 阶段完成：现有 `audience_promise + ordered Beats + closing` 继续作为结构，独立 Review 的 `narrative_structure` 明确阻断缺失 opening hook、value promise、必要 re-hook / information turn 或 conclusion payoff 的新稿，不新增重复 Script schema。
+
+Basic Subtitle V1 只从真实 Timed Transcript 生成：word/token 使用真实单位边界组织短句；segment-only 保留粗粒度整段时间，不伪造 karaoke/word precision。版本化 `subtitle-profile/1` 固定 1920×1080 两行高对比安全区；字幕跨 A-roll、图片、视频和 Motion 连续烧录。Subtitle Artifact、Transcript、Media、Profile、Bridge、Renderer enablement 与 Preview Manifest 全部进入 canonical QA；时间链、binding 或 digest 篡改为 blocking failure。
 
 本阶段接收用户已经剪好口气的真人口播视频，不自动删停顿或改稿。Clean A-roll 是唯一 canonical timeline 和唯一主音轨。
 

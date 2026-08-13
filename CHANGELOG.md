@@ -4,6 +4,16 @@
 
 ## [Unreleased] - 2026-08-13
 
+### V1 scope reconciliation + Basic Subtitle V1
+
+- “全面冻结功能”临时边界已撤销，恢复 `reviewed Script + Clean A-roll + Real Material + Original Motion + Basic Subtitle → 完整可观看粗剪` 的 V1 产品目标；仍不扩展 A-roll cleanup、BGM/SFX、标题封面、发布或 NLE 专属导出。
+- Hook-aware Script 复用现有 `audience_promise`、有序 Beats 与 `closing`，不升级 Script Draft schema；新 Review consistency mapping `0.4.2` 将缺失 opening hook、value promise、必要 re-hook / information turn 或 conclusion payoff 记录为 blocking `hook_structure`，旧 `0.4.1` Review Artifact 保持可读。
+- 新增 `subtitle-profile/1`、`subtitle-artifact/1`、不可覆盖 JSON/SRT 存储和确定性显示 normalization。word/token 只组合真实 unit boundaries；segment-only 一段一 cue 并保持 coarse，不伪造 word/karaoke precision。
+- Subtitle digest/Profile digest 进入 Edit Bridge root bindings；Remotion 在 A-roll、图片、视频与 Original Motion 全部时段烧录两行基础字幕，并为视觉 overlay 统一保留字幕安全区。
+- 唯一正式 production entrypoint、自然语言 Bridge revision、Aligned Preview Manifest 与 repository-owned canonical QA 均绑定同一 Subtitle/Transcript/Profile；Transcript revision 改变、字幕篡改或 renderer 未启用字幕都会 fail closed。
+- 完整 unittest 为 436 项，433 pass、3 environment/explicit-render skip；字幕定向 26 项通过，renderer lint/typecheck 通过。exact-entrypoint 真实 synthetic Remotion E2E 同时生成初版与自然语言修订版：H.264、1920×1080、30fps、2 秒、单一 Clean A-roll AAC 音轨，SHA-256 分别为 `283b2bace94f3853745f4740fcdfc33b6bb5595b2d3a96def2748f005be19919` 与 `cf13a810249dc897556592cfec7ba47f9ed5b692ee48d50c1b71693a07460b2a`，两版 canonical QA 均为 warnings（预期未选视频缺口，无 blocking failure）。
+- 本阶段继续 Unreleased；没有修改 reviewed Script、approved Research、reviewed Material 历史、main、v0.6.1 tag 或 Release。真实 provider 与真实用户 Clean A-roll E2E 仍 pending。
+
 ### Audio Alignment + Visual Edit Bridge implementation
 
 - 完成 Implementation Review 后的 Integration Hardening：新增唯一具体生产入口，自动解析最新匹配的 approved Research、reviewed Script、reviewed Material 与已通过 Production roots，并按固定顺序运行 Media → Mapping → Chunk → Transcript → Alignment → Placement → Bridge → Remotion → audio mux → canonical QA；旧 stage-lambda harness 不再是正式路径。

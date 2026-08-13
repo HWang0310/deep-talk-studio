@@ -26,7 +26,7 @@
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- V0.5.1 与 V0.6.1 已正式验收；第一轮真实 E2E Material + Motion、Preview Hardening 与 canonical lineage 均已通过。Audio Alignment + Visual Edit Bridge 当前为 Unreleased Integration Review 阶段；唯一正式路径是 `resolve_real_edit_bridge_session` → `run_real_edit_bridge_session` → repository-owned canonical QA，禁止恢复 stage-lambda 正式入口或 caller-owned QA。未经真实用户 Clean A-roll E2E 不得声称 V1.0 通过。不要扩展自动 A-roll cleanup、假主播、TTS、字幕、BGM、标题封面或发布。
+- V0.5.1 与 V0.6.1 已正式验收；第一轮真实 E2E Material + Motion、Preview Hardening 与 canonical lineage 均已通过。Audio Alignment + Visual Edit Bridge + Basic Subtitle V1 当前为 Unreleased Integration Review 阶段；唯一正式路径是 `resolve_real_edit_bridge_session` → `run_real_edit_bridge_session` → repository-owned canonical QA。字幕必须来自 Timed Transcript，segment-only 不得伪装 word precision，Preview 必须烧录并绑定当前 Subtitle Artifact。未经真实用户 Clean A-roll E2E 不得声称 V1.0 通过。不要扩展自动 A-roll cleanup、假主播、TTS、BGM、标题封面或发布。
 - 用户说“今天讲什么”“找几个选题”“换一批”或带分类偏好时，先阅读 `.agents/skills/discover-topics/SKILL.md` 和 `docs/TOPIC_DISCOVERY_CONTRACT.md`，不要把它塞进 `research-topic`。
 - 用户回复候选编号时，读取 latest Candidate Set 的结构化 Research Handoff，直接进入 `research-topic`；不要要求用户再复制标题，也不要把 Discovery Source Seeds 当成事实证据。
 - Topic Candidate Set 0.3 的总分、资格状态、资格理由、推荐标签、展示顺序、首选、统计数、身份、时间和来源 provenance 由程序计算并在读取时重新推导；模型或 Skill 只能给评分理由和轻量预检内容。

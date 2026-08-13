@@ -1,6 +1,6 @@
 # DeepTalk Studio 架构
 
-Audio Alignment + Visual Edit Bridge 的 Unreleased 合同见 `docs/EDIT_BRIDGE_CONTRACT.md`。该链把 Clean A-roll 容器/stream、媒体 presentation、提取音频 timeline 分开建模；Provider 只贡献时间化转录，Core 独占 Alignment/Placement/Gate，renderer 只消费通过重验证的 ready Placement。
+Audio Alignment + Visual Edit Bridge + Basic Subtitle V1 的 Unreleased 合同见 `docs/EDIT_BRIDGE_CONTRACT.md`。该链把 Clean A-roll 容器/stream、媒体 presentation、提取音频 timeline 分开建模；Provider 只贡献时间化转录，Core 独占 Subtitle/Alignment/Placement/Gate，renderer 只消费通过重验证的 ready Placement 和同一绑定 Subtitle Artifact。
 
 ## 设计目标
 
@@ -75,6 +75,8 @@ flowchart LR
 | `script_storage.py` | 不可覆盖稿件、Review Artifact 和 latest 指针 | 云端内容库 |
 | `script_revisions.py` | 新稿件 revision 与版本比较 | 偷换 Research revision |
 | `script_workflow.py` | 串联 approved report → Writer → Reviewer → outputs | Web Search 或 Fact Check |
+| `subtitle_builder.py` | 从 Timed Transcript 生成并重验 Basic Subtitle V1 cue、精度与 digest | 猜测口播、改写语义或伪造 word time |
+| `subtitle_profile.py` / `subtitle_storage.py` | 单一版本化字幕安全区与不可覆盖 JSON/SRT | 多主题选择或反向解析 SRT 为机器状态 |
 | `.agents/skills/prepare-materials` | 自然语言素材搜索、实际打开、权利依据、原创 Visual 和独立 Review | 完整视频、剪辑或发布 |
 | `material_schema.py` | Material Content / Package / Visual / Review 完整 JSON 契约 | 打开网页或判断现实版权 |
 | `material_profile.py` | B 站 1920×1080、视觉边界、MIME 和大小限制 | 生成候选内容 |
@@ -165,7 +167,7 @@ V0.6.1 收口为 `Production Plan 0.6.1 scene_payload → Renderer Adapter → M
 | Material Search | reviewed Script + exact Research + Review Artifact | Material Package 0.5.1 |
 | Visual Generation | grounded Visual Spec | SVG Assets + hash + target hints |
 | Motion Production | reviewed Material Package + Script + Research | Production Plan 0.6.1 + MP4/PNG + Manifest + typed QA |
-| Editing Plan | Script + Motion Asset Manifest | Final Timeline / Shot Plan JSON |
+| Editing Plan | Script + Timed Transcript + Motion Asset Manifest | Subtitle Artifact + Edit Bridge + subtitled Rough Cut |
 | Publishing | 审批后的成品和元数据 | Platform Publish Record |
 
 ## 安全边界

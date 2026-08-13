@@ -2,7 +2,7 @@
 
 ## 范围
 
-V0.6 将已审查 Material Package 转换为辅助动画、粗剪视觉预览和定帧图。它不生成假主播、TTS、最终口播剪辑、字幕、BGM、标题封面或发布任务。
+正式 V0.6.1 将已审查 Material Package 转换为辅助动画、粗剪视觉预览和定帧图，不生成字幕。当前 Unreleased Edit Bridge 层在其后消费 QA-ready Motion，并从 Timed Transcript 生成 Basic Subtitle V1；这不修改 V0.6.1 Production Plan 或 Release。
 
 ## Canonical Input Gate
 
