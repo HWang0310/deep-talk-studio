@@ -27,4 +27,14 @@ production_assets/**
 !production_assets/.gitkeep
 production_projects/**
 !production_projects/.gitkeep
+narration_media/**
+!narration_media/.gitkeep
+alignment_packages/**
+!alignment_packages/.gitkeep
+edit_bridge_packages/**
+!edit_bridge_packages/.gitkeep
+edit_bridge_assets/**
+!edit_bridge_assets/.gitkeep
+edit_bridge_projects/**
+!edit_bridge_projects/.gitkeep
 .cache/
