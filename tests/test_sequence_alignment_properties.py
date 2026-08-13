@@ -26,6 +26,9 @@ class SequenceAlignmentPropertyTests(unittest.TestCase):
         one = align_sequences(tokens(left), timed_tokens(right), load_alignment_profile())
         two = align_sequences(tokens(left), timed_tokens(right), load_alignment_profile())
         self.assertEqual(one.digest, two.digest)
+        reference = _align_sequences_full_reference(tokens(left), timed_tokens(right), load_alignment_profile())
+        self.assertEqual(one.operations, reference.operations)
+        self.assertEqual(one.digest, reference.digest)
 
 
 if __name__ == "__main__":

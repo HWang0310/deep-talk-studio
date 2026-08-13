@@ -138,6 +138,87 @@ def _full_dp(script, transcript, profile):
     return tuple(operations), scores[n][m]
 
 
+def _score_row(script, transcript, profile, initial):
+    """Advance one or more rows while retaining only the current score row."""
+    deletion = _operation_score("script_deletion", profile)
+    insertion = _operation_score("transcript_insertion", profile)
+    previous = list(initial)
+    for left in script:
+        current = [previous[0] + deletion]
+        for j, right in enumerate(transcript, 1):
+            kind = _match_kind(left, right)
+            diagonal = _operation_score(kind, profile)
+            choice = _best_candidate((
+                (previous[j - 1] + diagonal, kind, (0, 0), j - 1, diagonal),
+                (current[j - 1] + insertion, "transcript_insertion", (0, 0), j - 1, insertion),
+                (previous[j] + deletion, "script_deletion", (0, 0), j, deletion),
+            ))
+            current.append(choice[0])
+        previous = current
+    return previous
+
+
+def _checkpoint_dp(script, transcript, profile, stride=64):
+    """Exact global DP with bounded row checkpoints and deterministic replay.
+
+    Checkpoint rows retain scores only. Backtrace recomputes one bounded block at
+    a time using the exact reference recurrence and tie-break, so operations and
+    digest are identical to `_full_dp` without retaining the full long-form
+    matrix.
+    """
+    n, m = len(script), len(transcript)
+    insertion = _operation_score("transcript_insertion", profile)
+    initial = [Decimal(j) * insertion for j in range(m + 1)]
+    checkpoints = {0: initial}
+    row = initial
+    for start in range(0, n, stride):
+        end = min(n, start + stride)
+        row = _score_row(script[start:end], transcript, profile, row)
+        checkpoints[end] = row
+    total = checkpoints[n][m]
+    operations = []
+    i, j = n, m
+    while i or j:
+        if i == 0:
+            operations.append(AlignmentOperation("transcript_insertion", -1, j - 1, float(insertion)))
+            j -= 1
+            continue
+        block_start = ((i - 1) // stride) * stride
+        block_script = script[block_start:i]
+        block_n = len(block_script)
+        deletion = _operation_score("script_deletion", profile)
+        scores = [list(checkpoints[block_start])]
+        back = [[None for _ in range(m + 1)] for _ in range(block_n + 1)]
+        for local_i, left in enumerate(block_script, 1):
+            current = [scores[local_i - 1][0] + deletion]
+            back[local_i][0] = (local_i - 1, 0, "script_deletion", deletion)
+            for column, right in enumerate(transcript, 1):
+                kind = _match_kind(left, right)
+                diagonal = _operation_score(kind, profile)
+                choice = _best_candidate((
+                    (scores[local_i - 1][column - 1] + diagonal, kind, (local_i - 1, column - 1), column - 1, diagonal),
+                    (current[column - 1] + insertion, "transcript_insertion", (local_i, column - 1), column - 1, insertion),
+                    (scores[local_i - 1][column] + deletion, "script_deletion", (local_i - 1, column), column, deletion),
+                ))
+                current.append(choice[0]);back[local_i][column] = (*choice[2], choice[1], choice[4])
+            scores.append(current)
+        local_i = block_n
+        while local_i > 0:
+            previous_i, previous_j, kind, delta = back[local_i][j]
+            global_i = block_start + local_i
+            if kind == "transcript_insertion":
+                script_index, transcript_index = -1, j - 1
+            elif kind == "script_deletion":
+                script_index, transcript_index = global_i - 1, -1
+            else:
+                script_index, transcript_index = global_i - 1, j - 1
+            operations.append(AlignmentOperation(kind, script_index, transcript_index, float(delta)))
+            local_i, j = previous_i, previous_j
+        i = block_start
+    operations.reverse()
+    return tuple(operations), total
+
+
 def _window_candidates(script, transcript, profile):
     n, m = len(script), len(transcript)
     if n > m:
@@ -219,12 +300,13 @@ def _trace_digest(operations, windows, gaps, ambiguity, total):
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def _align(script_tokens, transcript_tokens, profile):
+def _align(script_tokens, transcript_tokens, profile, *, reference=False):
     if not script_tokens or not transcript_tokens:
         raise SequenceAlignmentError("Script/Transcript token stream 不能为空")
     if not _REQUIRED_PROFILE.issubset(profile) or profile["algorithm_version"] != "alignment-algorithm/1":
         raise SequenceAlignmentError("Alignment Profile 与 algorithm/1 不匹配")
-    operations, total = _full_dp(script_tokens, transcript_tokens, profile)
+    cells=len(script_tokens)*len(transcript_tokens)
+    operations, total = _full_dp(script_tokens, transcript_tokens, profile) if reference or cells<=4096 else _checkpoint_dp(script_tokens, transcript_tokens, profile)
     windows = _window_candidates(script_tokens, transcript_tokens, profile)
     ambiguity = "ambiguous_match" if len(windows) > 1 else "none"
     gaps = _group_gaps(operations, script_tokens, transcript_tokens)
@@ -243,13 +325,11 @@ def _align(script_tokens, transcript_tokens, profile):
 
 
 def align_sequences(script_tokens, transcript_tokens, profile) -> AlignmentTrace:
-    # algorithm/1 reserves checkpoint recomputation as a memory optimization. The
-    # canonical result is deliberately delegated to the full reference today.
     return _align(tuple(script_tokens), tuple(transcript_tokens), profile)
 
 
 def _align_sequences_full_reference(script_tokens, transcript_tokens, profile) -> AlignmentTrace:
-    return _align(tuple(script_tokens), tuple(transcript_tokens), profile)
+    return _align(tuple(script_tokens), tuple(transcript_tokens), profile,reference=True)
 
 
 def rederive_alignment_trace(script_tokens, transcript_tokens, profile) -> AlignmentTrace:
