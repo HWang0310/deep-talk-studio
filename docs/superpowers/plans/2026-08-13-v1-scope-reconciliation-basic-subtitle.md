@@ -99,7 +99,7 @@
 - [x] Run full unittest, subtitle targeted suite, renderer lint/typecheck, Skill validation, scope scan and sensitive-data scan.
 - [x] Update docs with exact capability, limitations, warnings, provider status and real-user E2E pending status.
 - [x] Inspect Git diff, commit scoped changes and push `agent/audio-alignment-edit-bridge`.
-- [ ] Verify remote branch, main/tag/Release unchanged and stop before real-user video.
+- [x] Verify remote branch, main/tag/Release unchanged and stop before real-user video.
 
 ## Self-review
 
