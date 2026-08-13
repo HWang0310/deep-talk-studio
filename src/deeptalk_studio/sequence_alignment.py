@@ -165,8 +165,8 @@ def _window_candidates(script, transcript, profile):
                 transcript_token_start=start, transcript_token_end=start + n,
                 transcript_unit_start=first.source_unit_id,
                 transcript_unit_end=last.source_unit_id,
-                actual_start_seconds=str(first.media_start_seconds or ""),
-                actual_end_seconds=str(last.media_end_seconds or ""),
+                actual_start_seconds=(str(first.media_start_seconds) if first.media_start_seconds is not None else ""),
+                actual_end_seconds=(str(last.media_end_seconds) if last.media_end_seconds is not None else ""),
                 score=float(score), normalized_margin=float(margin),
             )
         )
@@ -195,7 +195,8 @@ def _group_gaps(operations, script, transcript):
             selected = [transcript[item.transcript_token_index] for item in group]
             char_start = char_end = 0
             units = tuple(dict.fromkeys(token.source_unit_id for token in selected if token.source_unit_id))
-            start, end = str(selected[0].media_start_seconds or ""), str(selected[-1].media_end_seconds or "")
+            start = str(selected[0].media_start_seconds) if selected[0].media_start_seconds is not None else ""
+            end = str(selected[-1].media_end_seconds) if selected[-1].media_end_seconds is not None else ""
             gap_type, reason = "ad_lib_transcript_span", "transcript_tokens_without_script"
         output.append(AlignmentGap(
             gap_id=f"GAP{len(output) + 1:04d}", gap_type=gap_type,
