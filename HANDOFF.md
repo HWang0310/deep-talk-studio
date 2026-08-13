@@ -23,7 +23,7 @@
 - Task 0 单独修复 Discovery 测试时钟，不改 72 小时 freshness 生产规则。
 - 完成 Clean A-roll 不可变导入、`ffprobe` 流/PTS/presentation 证据、lossless transcription WAV 派生、Timestamp Mapping 与不可覆盖存储。
 - 完成 24 MiB request cap / 25 MiB hard limit 的确定性 PCM 自然停顿分块；无安全停顿时保留 high boundary risk，不重叠、不删停顿、不用 LLM 拼接。
-- 完成 provider-neutral Timed Transcript 与 OpenAI SDK adapter。当前官方 capability 使用 `whisper-1` + `verbose_json` + word timestamps；provider 不能写 alignment status 或 Gate。
+- 完成 provider-neutral Timed Transcript 与 OpenAI SDK adapter。当前受控调用使用 `whisper-1` + `verbose_json`；真实 word timestamps 优先，只有真实 segment timestamps 时明确降为 coarse，两者均无则失败；provider 不能写 alignment status 或 Gate。
 - 完成可逆 NFKC/中英文/数字规范化、确定性全局 DP 对齐、重复/缺失/即兴/倒序和 ambiguity evidence。长稿使用行检查点与块内重算，结果与完整参考矩阵逐操作、逐 digest 一致。
 - 完成 Profile calibration、Script Beat → Material Cue → Production Scene 稳定身份链、Alignment 不可覆盖 revision。
 - 完成 Material Production Projection：rights/reuse 不再作制作 Gate，但文件、SHA、格式、grounding、binding 和原 Production QA 仍严格复验。
@@ -83,10 +83,8 @@ five-group rederivation QA → ALIGNED_PREVIEW.mp4
 - Integration Hardening 最终全量 unittest：424 collected，421 pass，3 environment/explicit-render gated skip，0 fail。
 - 唯一生产入口真实 Remotion E2E：H.264，1920×1080，30fps，单一 Clean A-roll 音轨；输出 768,717 bytes，SHA-256 `f36604535f4b0ea464860b1a54452789990339de57bd63cd2a5146661e9f8b12`；canonical QA `warnings`，无 blocking issue。
 - 自然语言 Revision 快速真实媒体链：Bridge r2、`ALIGNED_PREVIEW-r0002.mp4`、Manifest r2、QA r2 均不可覆盖保存并通过（warnings）。
-- 最终全量 unittest：407 collected，405 pass，2 environment-gated skip，0 fail。
-- skip 1：真实 OpenAI transcription smoke，因 key/media environment unavailable。
-- skip 2：旧的 Remotion + HyperFrames 双引擎 integration 默认关闭；本阶段已另行真实运行 Remotion 合成渲染。
-- A–AI：35/35 pass。CB1–CB7：7/7 pass。PA1–PA7：7/7 pass。repeat digest：`11d117ff24f309cb0c7a0b6705e00371b5f82280154f3efe9e59b92ffda49a87`。
+- 3 个 skip：真实 OpenAI transcription smoke（key/media environment unavailable）、旧 Remotion + HyperFrames 双引擎 integration 默认关闭、exact-entrypoint Remotion 回归默认显式开启；后者本轮已人工显式运行并成功。
+- A–AI：35/35 pass。CB1–CB7：7/7 pass。PA1–PA7：7/7 pass。更新后的 repeat digest：`fc90d0f29334e6f454f5196e61af24d55a689308ce732770285dc7b7e4d5a41a`。
 - Aligned Preview renderer：ESLint pass，TypeScript typecheck pass，Skill quick validation pass。
 - 最终 synthetic real render：H.264，1920×1080，30fps，1 条 AAC 音轨；audio start `0.353s`，audio end `1.185s`，internal gap 保留；Preview SHA-256 `7f38457c191af470dbf674798dfd5f751191d7d9a34ae3025dbbf4122592e618`，559,166 bytes。
 - scope scan 没有新增 A-roll cleanup、字幕、BGM、发布或自动选 B-roll 实现。
