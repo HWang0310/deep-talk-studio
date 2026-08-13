@@ -96,6 +96,8 @@ def build_visual_placements(alignment,material_view,production_plan,motion_manif
         scenes={s["scene_id"]:s for s in production_plan.get("scenes",[])}
         for asset in motion_manifest.get("assets",[]):
             scene=scenes.get(asset.get("scene_id")); asset_path=asset.get("local_path") or asset.get("output_path","")
+            if asset.get("asset_kind") and asset.get("asset_kind")!="motion_clip":continue
+            if scene is not None and "source_visual_ids" in scene and not scene.get("source_visual_ids"):continue
             asset_ready=asset.get("qa_status")=="ready" if production_qa is None else True
             if not scene or not asset_ready or not _verified(asset_path,asset.get("byte_size",0),asset.get("sha256",""),allowed_roots):
                 raise EditBridgePlanningError("Motion Asset 身份、QA 或 SHA 无效")

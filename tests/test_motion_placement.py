@@ -17,6 +17,15 @@ class MotionPlacementTests(unittest.TestCase):
             self.assertEqual(p["placement_status"],"ready")
             self.assertEqual(p["natural_duration_seconds"],"6")
 
+    def test_rough_preview_hero_and_nonvisual_scene_motion_are_not_overlays(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);path=root/"motion.mp4";path.write_bytes(b"motion")
+            import hashlib
+            plan,manifest=production_motion(path,6,hashlib.sha256(b"motion").hexdigest())
+            plan["scenes"][0]["source_visual_ids"]=[]
+            manifest["assets"][0]["asset_kind"]="rough_preview"
+            self.assertEqual(build_visual_placements(alignment(),{"items":[]},plan,manifest,media(),[root]),())
+
     def test_manifest_sha_tamper_rejects_motion(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp); path=root/"motion.mp4"; path.write_bytes(b"motion")
