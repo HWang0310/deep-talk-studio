@@ -3,7 +3,7 @@ import hashlib
 import json
 import re
 import unicodedata
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 
 class SubtitleArtifactError(ValueError):

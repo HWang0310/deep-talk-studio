@@ -23,7 +23,7 @@ class ScriptProvider:
   duration=Decimal(str(extracted["duration_seconds"]));step=duration/Decimal(len(phrases)+1)
   units=tuple(ProviderTimedUnit(0,index,step*index,step*(index+1),phrase) for index,phrase in enumerate(phrases))
   metadata={"source":"integrated-production-entrypoint","chunk_plan_digest":plan.digest}
-  return ProviderTranscript("deterministic",model,"fixture/1","",language,"word",units,boundary_risks_from_plan(plan),metadata,canonical_digest(metadata),plan.digest)
+  return ProviderTranscript("deterministic",model,"fixture/1","",language,"token",units,boundary_risks_from_plan(plan),metadata,canonical_digest(metadata),plan.digest)
 
 @unittest.skipUnless(os.getenv("DEEPTALK_RUN_ALIGNED_E2E")=="1","set DEEPTALK_RUN_ALIGNED_E2E=1 for real Remotion E2E")
 class AudioAlignmentIntegratedE2E(unittest.TestCase):
