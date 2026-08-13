@@ -4,8 +4,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
+from deeptalk_studio.cli import main as cli_main
 from deeptalk_studio.quality import calculate_quality_summary
 from tests.fixtures import (
     approved_report_data,
@@ -19,6 +25,7 @@ from tests.fixtures import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+FROZEN_DISCOVERY_NOW = datetime(2026, 8, 10, 12, 0, tzinfo=timezone.utc)
 
 
 def run_cli(*args, env=None):
@@ -34,6 +41,23 @@ def run_cli(*args, env=None):
         capture_output=True,
         text=True,
         check=False,
+    )
+
+
+def run_cli_with_frozen_discovery_clock(*args):
+    """Exercise the real CLI while keeping Discovery freshness deterministic."""
+
+    stdout = StringIO()
+    stderr = StringIO()
+    with patch(
+        "deeptalk_studio.discovery._default_clock",
+        return_value=FROZEN_DISCOVERY_NOW,
+    ), redirect_stdout(stdout), redirect_stderr(stderr):
+        returncode = cli_main(args)
+    return SimpleNamespace(
+        returncode=returncode,
+        stdout=stdout.getvalue(),
+        stderr=stderr.getvalue(),
     )
 
 
@@ -240,7 +264,7 @@ class CliTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            prepared = run_cli(
+            prepared = run_cli_with_frozen_discovery_clock(
                 "prepare-discovery",
                 str(input_path),
                 "--inspection-manifest",
@@ -248,7 +272,12 @@ class CliTests(unittest.TestCase):
                 "--output",
                 str(discovery_root),
             )
-            selected = run_cli("select-topic", "1", "--output", str(discovery_root))
+            selected = run_cli_with_frozen_discovery_clock(
+                "select-topic", "1", "--output", str(discovery_root)
+            )
+            candidate_set = json.loads(
+                next(discovery_root.rglob("DISC-*.json")).read_text(encoding="utf-8")
+            )
 
         self.assertEqual(prepared.returncode, 0, prepared.stderr)
         self.assertIn("候选选题已生成", prepared.stdout)
@@ -256,6 +285,12 @@ class CliTests(unittest.TestCase):
         self.assertEqual(selected.returncode, 0, selected.stderr)
         self.assertIn("已选择", selected.stdout)
         self.assertIn("research_question", selected.stdout)
+        statuses = {
+            candidate["title"]: candidate["eligibility_status"]
+            for candidate in candidate_set["candidates"]
+        }
+        self.assertEqual(statuses["近 72 小时的科技政策新进展"], "eligible")
+        self.assertEqual(statuses["已经没有新进展的旧话题"], "rejected")
 
     def test_discovery_without_api_key_gives_simple_codex_guidance(self):
         result = run_cli("discover", "今天讲什么？", env={"OPENAI_API_KEY": ""})
