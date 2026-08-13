@@ -1,0 +1,11 @@
+{
+  "artifact_version": "aligned-preview-profile/1",
+  "width": 1920,
+  "height": 1080,
+  "aspect_ratio": "16:9",
+  "fps": 30,
+  "frame_rounding": "ceil",
+  "out_frame_semantics": "exclusive",
+  "audio_policy": "single_clean_aroll_audio",
+  "profile_digest": "f6484fdad81c1dde41b8ccdd5f6d13a872b27b186b28de9981a394420b6ab46a"
+}
