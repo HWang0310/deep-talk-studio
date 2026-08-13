@@ -8,6 +8,8 @@
 
 本轮：Real E2E Preview Hardening，开发分支 `agent/real-e2e-preview-hardening`。没有 tag，没有新 Release。
 
+核心修复提交：`1394b90`（`fix: harden real E2E motion preview layouts`）。
+
 ## 1. 本轮任务是什么
 
 根据 ChatGPT 对第一轮真实 E2E Motion Preview 的 Review，仅修复 Diagram 长中文与 edge label 可读性、Comparison 错误标题与强制左右栏，并把此前 timeline safe-area 修复正式提交到 GitHub development branch。使用同一 reviewed Script、approved Research 和 reviewed Material Package 重新生成不可覆盖的真实 Production，不进入 Audio Alignment 等下一阶段。
