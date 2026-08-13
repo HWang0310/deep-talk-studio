@@ -80,7 +80,7 @@ five-group rederivation QA → ALIGNED_PREVIEW.mp4
 
 ## 7. 测试、评测与真实渲染
 
-- Integration Hardening 最终全量 unittest：424 collected，421 pass，3 environment/explicit-render gated skip，0 fail。
+- Integration Hardening 最终全量 unittest：425 collected，422 pass，3 environment/explicit-render gated skip，0 fail。
 - 唯一生产入口真实 Remotion E2E：可用图片、已选范围视频、未选范围视频、QA-ready Motion 与带内部静音 Clean A-roll 同时进入 canonical 上游；H.264，1920×1080，30fps，单一 Clean A-roll 音轨；输出 595,390 bytes，SHA-256 `029e5211071126bc0183eb2dc354b24ebff5089d9d80a8ff724ff7e7ba38b58f`；canonical QA `warnings`，无 blocking issue。未选范围视频保持 `clip_selection_needed` 且未进入 Preview。
 - 自然语言 Revision 快速真实媒体链：Bridge r2、`ALIGNED_PREVIEW-r0002.mp4`、Manifest r2、QA r2 均不可覆盖保存并通过（warnings）。
 - 3 个 skip：真实 OpenAI transcription smoke（key/media environment unavailable）、旧 Remotion + HyperFrames 双引擎 integration 默认关闭、exact-entrypoint Remotion 回归默认显式开启；后者本轮已人工显式运行并成功。
