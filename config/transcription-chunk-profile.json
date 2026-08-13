@@ -8,6 +8,7 @@
   "hop_ms": 10,
   "safe_pause_min_ms": 300,
   "safe_pause_threshold_dbfs": -42,
+  "safe_pause_threshold_mean_square": 67744,
   "fallback_interval_ms": 300,
   "risk_guard_ms": 1000,
   "overlap_ms": 0,

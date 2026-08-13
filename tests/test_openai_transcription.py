@@ -4,6 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from deeptalk_studio.transcription.openai import (
+    OpenAISDKTranscriptionTransport,
     OpenAITranscriptionProvider,
     TranscriptionCapabilityError,
     TranscriptionEnvironmentError,
@@ -83,6 +84,19 @@ class OpenAITranscriptionTests(unittest.TestCase):
         provider = OpenAITranscriptionProvider(api_key="test", transport=FakeTransport())
         with self.assertRaisesRegex(TranscriptionCapabilityError, "时间戳"):
             provider.transcribe(self.audio, self.plan, "zh", "gpt-transcribe")
+
+    def test_default_sdk_transport_converts_typed_response_without_leaking_key(self):
+        class Response:
+            def model_dump(self):
+                return {"words": [{"word": "测试", "start": 0, "end": 0.2}], "request_id": "req-real-shape"}
+        class Transcriptions:
+            def create(self, **kwargs):
+                self.kwargs = kwargs
+                return Response()
+        transport = OpenAISDKTranscriptionTransport(api_key="secret", client_factory=lambda **_: type("Client", (), {"audio": type("Audio", (), {"transcriptions": Transcriptions()})()})())
+        with tempfile.NamedTemporaryFile(suffix=".wav") as handle:
+            result = transport.create(handle.name, "whisper-1", "verbose_json", ["word"])
+        self.assertEqual(result["request_id"], "req-real-shape")
 
     def test_chunk_local_time_is_preserved_and_risk_is_projected_only_once(self):
         result = OpenAITranscriptionProvider(

@@ -66,6 +66,7 @@ class TranscriptionChunkingTests(unittest.TestCase):
     def test_default_request_cap_is_below_provider_hard_limit(self):
         profile = load_transcription_chunk_profile()
         self.assertLess(profile["request_cap_bytes"], profile["provider_hard_limit_bytes"])
+        self.assertEqual(profile["safe_pause_threshold_mean_square"], 67744)
 
     def test_nominal_mid_sentence_boundary_moves_to_natural_pause(self):
         amplitudes = [12000] * 150 + [0] * 350 + [12000] * 1100

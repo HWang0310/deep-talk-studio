@@ -106,7 +106,7 @@
 - 本轮暴露并修复 timeline safe area、diagram 长中文与 edge label、comparison 错误标题与强制左右栏问题；新预览已通过 Production QA 和 ChatGPT 实际观看核验。
 - 当前保留 5 个历史 reference-only 素材位和真人口播音频时间码；ChatGPT 已通过 Preview 与 canonical lineage Review。
 
-## Unreleased：Audio Alignment + Visual Edit Bridge（Hardened Implementation Plan Review Candidate）
+## Unreleased：Audio Alignment + Visual Edit Bridge（Implementation complete, real-user E2E pending）
 
 - 以用户先行剪好口气的 immutable Clean A-roll 为 canonical timeline；不自动删停顿、废句或重录。
 - Speech-to-Text provider 与确定性 Alignment Core 解耦，按真实 timestamp granularity 对齐 reviewed Script Beat、Material Cue 和现有 Production Scene。
@@ -115,7 +115,8 @@
 - 历史 rights/reuse 信息保持兼容读取，但不作为新制作 Gate；文件、SHA、格式、安全、grounding、binding 与 QA 仍严格验证。
 - Design 已从 Conditional Pass 升级为正式通过；presentation timestamp mapping、frame-rate-neutral canonical timecode、placement/conflict 正交语义和长 still Preview exposure safeguard 均为 approved contract。
 - Implementation Plan Conditional Pass 后新增独立的版本化 PCM natural-pause chunk Task，风险由 Provider/Transcript/Alignment/QA 全链路保留；总计 29 个依赖有序的 TDD Tasks。
-- Preview audio mux 计划改为复验 Clean A-roll audio presentation start、internal gaps、codec conversion timing 与 audio/video 关系；尚未开始产品代码，等待 ChatGPT 最终 Plan Review。
+- Preview audio mux 已复验 Clean A-roll audio presentation start、internal gaps、codec conversion timing 与 audio/video 关系；A–AI、CB1–CB7、PA1–PA7 与真实合成渲染已通过。
+- Implementation 已完成，但尚未用用户本期真实 Clean A-roll 执行 E2E；用户观看 `ALIGNED_PREVIEW.mp4` 与 ChatGPT 最终 Review 前，不得宣称 V1.0。
 
 ## 暂不承诺
 

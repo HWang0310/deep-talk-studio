@@ -1,7 +1,7 @@
 """OpenAI file-transcription adapter with evidenced chunk-local timestamps."""
 
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, List, Mapping, Protocol, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, Sequence, Tuple
 
 from ..narration_media import canonical_digest
 from ..transcription_chunking import TranscriptionChunkPlan
@@ -45,6 +45,40 @@ class OpenAITranscriptionTransport(Protocol):
         timestamp_granularities: Sequence[str],
     ) -> Mapping[str, Any]:
         ...
+
+
+class OpenAISDKTranscriptionTransport:
+    """Thin official-SDK transport; Core still owns every timestamp decision."""
+
+    def __init__(self, *, api_key: str, client_factory: Optional[Callable[..., Any]] = None):
+        if not api_key:
+            raise TranscriptionEnvironmentError("OpenAI API key 不可用")
+        if client_factory is None:
+            try:
+                from openai import OpenAI
+            except ImportError as exc:
+                raise TranscriptionEnvironmentError("OpenAI Python SDK 未安装") from exc
+            client_factory = OpenAI
+        self._client = client_factory(api_key=api_key)
+
+    def create(self, file_path, model, response_format, timestamp_granularities):
+        try:
+            with open(file_path, "rb") as audio_file:
+                response = self._client.audio.transcriptions.create(
+                    model=model,
+                    file=audio_file,
+                    response_format=response_format,
+                    timestamp_granularities=list(timestamp_granularities),
+                )
+        except Exception as exc:
+            raise TranscriptionEnvironmentError("OpenAI transcription SDK 调用失败") from exc
+        if isinstance(response, Mapping):
+            return dict(response)
+        if hasattr(response, "model_dump"):
+            value = response.model_dump()
+            if isinstance(value, Mapping):
+                return dict(value)
+        raise TranscriptionCapabilityError("OpenAI SDK response 无法转换为时间化转录")
 
 
 def _decimal(value: Any, field: str) -> Decimal:

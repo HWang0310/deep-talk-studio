@@ -266,3 +266,14 @@ V0.4 的成功不是“AI 写得像一个知名博主”，而是：编辑能快
 V0.5 的成功不是“搜到很多图”，而是：编辑能知道画面放在哪里、为什么放、它能证明什么、能否复用；未知版权不会混入 ready-to-use，原创图没有虚构数据，发现新事实会回到 Research，而不是悄悄改稿。
 
 V0.6 的成功不是“渲染命令返回 0”，而是真实文件的尺寸、帧率、时长、大小和 SHA 与计划一致，不合法素材和未支持数字没有混入画面，缺口被说清楚。
+
+## 10. Unreleased：Audio Alignment + Visual Edit Bridge
+
+本阶段接收用户已经剪好口气的真人口播视频，不自动删停顿或改稿。Clean A-roll 是唯一 canonical timeline 和唯一主音轨。
+
+- 导入时固化原文件、SHA、流和 presentation timing，转录只使用带真实 timestamp 的 provider evidence。
+- Script Beat、Material Cue、Production Scene 身份链保持不变；LLM 不生成 canonical timestamp，segment-only 不伪装 word precision。
+- 图片、截图、视频和 Motion 共用 Placement contract，自动推导可追溯的 IN/OUT/duration；缺失或不确定项保留 warning，不伪造 ready。
+- Edit Bridge 同时输出机器 JSON、普通中文 Markdown、NLE-neutral CSV 和 Aligned Preview，全部不可覆盖。
+- Preview 是 1920×1080、30fps 派生视图；纯视觉中间片无音轨，最终只保留原 Clean A-roll audio presentation timeline。
+- 实现、对抗评测与合成渲染通过不等于真实用户 E2E 通过。只有用户真实视频产生 QA-gated Preview，由用户观看并完成 ChatGPT Review 后，才能讨论正式版本。

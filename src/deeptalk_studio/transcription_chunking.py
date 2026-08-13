@@ -35,6 +35,7 @@ TRANSCRIPTION_CHUNK_PROFILE_SCHEMA = _object(
         "hop_ms": _integer(1),
         "safe_pause_min_ms": _integer(1),
         "safe_pause_threshold_dbfs": {"type": "integer"},
+        "safe_pause_threshold_mean_square": _integer(),
         "fallback_interval_ms": _integer(1),
         "risk_guard_ms": _integer(1),
         "overlap_ms": _integer(),
@@ -170,10 +171,6 @@ def _window_energies(
     return values
 
 
-def _safe_threshold_energy(dbfs: int) -> int:
-    return int((32767 * (10 ** (dbfs / 20))) ** 2)
-
-
 def _choose_boundary(
     frames: Sequence[Tuple[int, ...]], nominal: int, rate: int, profile: Mapping[str, Any]
 ) -> Tuple[int, str, str, str, int, int]:
@@ -184,7 +181,9 @@ def _choose_boundary(
     hop = max(1, _samples(profile["hop_ms"], rate))
     minimum = _samples(profile["safe_pause_min_ms"], rate)
     energies = _window_energies(frames, start, end, window, hop)
-    threshold = _safe_threshold_energy(profile["safe_pause_threshold_dbfs"])
+    # The approved dBFS label is human provenance; comparison uses its locked
+    # integer mean-square equivalent so platform float math cannot move a cut.
+    threshold = int(profile["safe_pause_threshold_mean_square"])
     qualifying = [(position, energy) for position, energy in energies if energy <= threshold]
     runs: List[List[Tuple[int, int]]] = []
     for item in qualifying:

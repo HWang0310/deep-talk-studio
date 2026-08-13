@@ -4,6 +4,15 @@
 
 ## [Unreleased] - 2026-08-13
 
+### Audio Alignment + Visual Edit Bridge implementation
+
+- 完成批准计划 Task 0 与 Task 1–29：稳定 Discovery 冻结时间基线，并实现不可变 Clean A-roll 导入、媒体 presentation 证据、lossless transcription audio、可重推导 Timestamp Mapping、确定性自然停顿 Chunk Plan 与 boundary-risk 全链路保存。
+- 新增 provider-neutral Transcript、当前 OpenAI `whisper-1` word timestamp adapter、可逆中英文 normalization、确定性 Script/Transcript 对齐、校准 Profile、Beat/Cue timeline 与不可覆盖 Alignment revision。
+- 新增 reviewed Material production projection、图片/视频/Motion 统一 Placement、frame-rate-neutral IN/OUT/duration、冲突与 7 秒 long-still Preview safeguard，以及 Edit Bridge JSON/Markdown/CSV/revision。
+- 新增 1920×1080/30fps Remotion Aligned Preview：Clean A-roll 为 layer 0，仅 ready 画面进入；纯视觉中间片无音轨，最终只混入原 Clean A-roll 主音轨。AAC/MP3 优先 copy，PCM 等不兼容 codec 转 AAC，正 presentation offset 与内部静音均重新 probe 并验证。
+- 新增五组 QA/Gate、普通用户 `align-video` Skill/CLI、A–AI、CB1–CB7、PA1–PA7 与 property/invariant 评测。合成真实 Remotion/ffmpeg Preview 已通过；真实 OpenAI provider smoke 因本机没有授权环境而诚实跳过。
+- 本阶段保持 Unreleased；没有修改 reviewed Script、approved Research 或 reviewed Material 历史，没有创建 V1.0、tag 或 Release。下一步停在真实用户 Clean A-roll E2E Gate。
+
 ### Audio Alignment + Visual Edit Bridge design
 
 - 根据 Implementation Plan Conditional Pass 加固两个 blocker：新增 `transcription-chunk-profile/1` 独立 Task 7，并将 Provider protocol 顺延为 Task 8，以确定性 PCM RMS natural-pause 搜索取代任意按大小硬切，让 fallback boundary risk 贯穿 Provider、Timed Transcript、Alignment、Bridge 和 QA。

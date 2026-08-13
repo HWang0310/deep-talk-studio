@@ -4,6 +4,8 @@ from deeptalk_studio.aligned_preview.remotion import RemotionAlignedPreviewRende
 from tests.edit_bridge_fixtures import media
 
 class AlignedPreviewAdapterTests(unittest.TestCase):
+ def test_renderer_exposes_real_visual_render_boundary(self):
+  self.assertTrue(callable(getattr(RemotionAlignedPreviewRenderer(),"render_visual",None)))
  def test_only_ready_placements_are_staged(self):
   with tempfile.TemporaryDirectory() as temp:
    root=Path(temp); ar=root/"a.mp4"; ar.write_bytes(b"aroll"); image=root/"i.png"; image.write_bytes(b"image")
@@ -12,6 +14,8 @@ class AlignedPreviewAdapterTests(unittest.TestCase):
    bridge={"bridge_id":"EB1","revision":1,"visual_placements":[p("VP0001","ready",image,b"image"),p("VP0002","missing_asset",root/"missing.png",b"")]}
    project=RemotionAlignedPreviewRenderer().prepare_project(bridge,m,[root],root/"projects")
    self.assertEqual(set(project.staged_placement_ids),{"VP0000","VP0001"});self.assertNotIn("VP0002",project.payload_text)
+   self.assertTrue((project.project_dir/"package.json").is_file())
+   RemotionAlignedPreviewRenderer().validate_project(project)
  def test_tampered_ready_asset_fails_closed(self):
   with tempfile.TemporaryDirectory() as temp:
    root=Path(temp);ar=root/"a.mp4";ar.write_bytes(b"aroll");m=media(str(ar));m.update(byte_size=5,sha256=hashlib.sha256(b"aroll").hexdigest())
