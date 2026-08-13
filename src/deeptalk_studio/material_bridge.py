@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import subprocess
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Mapping
@@ -31,10 +32,23 @@ def _validate_local(item: Mapping[str, Any], asset_root: Path) -> str:
         return "rejected"
     if hashlib.sha256(path.read_bytes()).hexdigest() != item.get("sha256"):
         return "rejected"
-    try:
-        _validate_file_type(path)
-    except ProductionValidationError:
-        return "rejected"
+    if item.get("asset_type") == "video_clip_reference":
+        if path.suffix.casefold() not in {".mp4", ".mov", ".m4v"}:
+            return "rejected"
+        try:
+            probe = subprocess.run(
+                ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_type", "-of", "json", str(path)],
+                check=True, capture_output=True, text=True,
+            )
+            if not json.loads(probe.stdout).get("streams"):
+                return "rejected"
+        except (OSError, subprocess.CalledProcessError, json.JSONDecodeError):
+            return "rejected"
+    else:
+        try:
+            _validate_file_type(path)
+        except ProductionValidationError:
+            return "rejected"
     if path.suffix.casefold() == ".pdf":
         return "missing_asset"
     return "ready"
@@ -73,6 +87,8 @@ def build_material_production_view(package_path, script, report, profile, asset_
         items.append({
             "source_kind": "material", "source_id": item["material_id"],
             "cue_ids": list(item["cue_ids"]), "title": item["title"], "caption": item["caption"],
+            "asset_type": item["asset_type"], "capture": deepcopy(item["capture"]),
+            "video_reference": deepcopy(item["video_reference"]),
             "source_url": item["source_url"], "normalized_source_url": item["normalized_source_url"],
             "provenance_status": item["provenance_status"],
             "historical_eligibility_status": item["eligibility_status"],
@@ -86,6 +102,8 @@ def build_material_production_view(package_path, script, report, profile, asset_
         items.append({
             "source_kind": "generated_visual", "source_id": visual["visual_id"],
             "cue_ids": [], "title": visual["title"], "caption": visual["title"],
+            "asset_type": f"generated_{visual['visual_type']}", "capture": {},
+            "video_reference": {"title": "", "start_seconds": 0, "end_seconds": 0, "usage_reason": ""},
             "source_url": "", "normalized_source_url": "", "provenance_status": "inspected",
             "historical_eligibility_status": visual["eligibility_status"],
             "rights_status": "not_applicable", "rights_basis": "DeepTalk Studio generated visual",

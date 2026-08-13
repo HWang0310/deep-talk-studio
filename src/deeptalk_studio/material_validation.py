@@ -331,7 +331,9 @@ def prepare_material_package(
                 rights_status = "unknown"
         video = item["video_reference"]
         if item["asset_type"] == "video_clip_reference":
-            if not video["title"].strip() or not video["usage_reason"].strip() or video["end_seconds"] <= video["start_seconds"]:
+            unselected = video["start_seconds"] == 0 and video["end_seconds"] == 0
+            selected = video["start_seconds"] >= 0 and video["end_seconds"] > video["start_seconds"]
+            if not video["title"].strip() or not video["usage_reason"].strip() or not (unselected or selected):
                 raise MaterialValidationError("视频引用必须保留标题、有效起止秒数和使用理由")
         if rights_status in SAFE_REUSE_STATUSES and provenance_status == "inspected":
             eligibility = "ready_to_use"
