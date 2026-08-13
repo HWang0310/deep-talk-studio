@@ -6,7 +6,7 @@
 
 当前开发分支：`agent/audio-alignment-edit-bridge`
 
-本轮：Audio Alignment + Visual Edit Bridge Implementation（Unreleased）。
+本轮：Audio Alignment + Visual Edit Bridge Integration Hardening（Unreleased）。
 
 ## 1. 本轮任务是什么
 
@@ -16,6 +16,10 @@
 
 ## 2. 完成了什么
 
+- 修复 ChatGPT Implementation Review 的 8 项条件：正式入口不再接收 stage lambdas；CLI/Skill 自动发现正式上游；Material 视频字段跨模块保真；Cue OUT 使用完整语义范围；Alignment 绑定 Clean A-roll 总时长；OpenAI segment-only 明确粗粒度；正式 QA validator 由仓库工厂掌握；自然语言修改真正生成新的 Bridge/Preview/Manifest/QA。
+- 新增 `edit_bridge_session.py` 作为唯一具体生产所有者，正式顺序为 import → extract → Mapping → Chunk → provider → Transcript → Alignment → Material Projection → Placement/timing → Bridge → Remotion → audio mux → Manifest → canonical QA。
+- canonical QA 会实际重探测视频、重建所有确定性链路、复验 Production、素材路径/SHA、Preview Manifest 和音频 presentation；不能用调用方 lambda 伪装正式通过。
+- 使用同一正式入口完成真实 MP4 + 真 Remotion 合成 E2E；自然语言修改也已用真实 MP4/mux 验证不可覆盖 r2 流程。
 - Task 0 单独修复 Discovery 测试时钟，不改 72 小时 freshness 生产规则。
 - 完成 Clean A-roll 不可变导入、`ffprobe` 流/PTS/presentation 证据、lossless transcription WAV 派生、Timestamp Mapping 与不可覆盖存储。
 - 完成 24 MiB request cap / 25 MiB hard limit 的确定性 PCM 自然停顿分块；无安全停顿时保留 high boundary risk，不重叠、不删停顿、不用 LLM 拼接。
@@ -76,6 +80,9 @@ five-group rederivation QA → ALIGNED_PREVIEW.mp4
 
 ## 7. 测试、评测与真实渲染
 
+- Integration Hardening 最终全量 unittest：424 collected，421 pass，3 environment/explicit-render gated skip，0 fail。
+- 唯一生产入口真实 Remotion E2E：H.264，1920×1080，30fps，单一 Clean A-roll 音轨；输出 768,717 bytes，SHA-256 `f36604535f4b0ea464860b1a54452789990339de57bd63cd2a5146661e9f8b12`；canonical QA `warnings`，无 blocking issue。
+- 自然语言 Revision 快速真实媒体链：Bridge r2、`ALIGNED_PREVIEW-r0002.mp4`、Manifest r2、QA r2 均不可覆盖保存并通过（warnings）。
 - 最终全量 unittest：407 collected，405 pass，2 environment-gated skip，0 fail。
 - skip 1：真实 OpenAI transcription smoke，因 key/media environment unavailable。
 - skip 2：旧的 Remotion + HyperFrames 双引擎 integration 默认关闭；本阶段已另行真实运行 Remotion 合成渲染。
@@ -106,13 +113,8 @@ five-group rederivation QA → ALIGNED_PREVIEW.mp4
 
 ## 11. 建议下一阶段
 
-保持同一份 reviewed Script、approved Research、reviewed Material Package 与现有 Motion，等用户拖入已剪好口气的本期真人口播 mp4/mov。执行真实 import → transcription → alignment → placements → Edit Bridge → Aligned Preview → QA，然后只请用户观看 Preview。
+Implementation Review 所有 hardening 条件已经完成。请 ChatGPT Review 当前开发分支、唯一生产入口、canonical QA、真实 Remotion E2E 和自然语言 revision，然后确认是否允许进入真实用户 Clean A-roll 上传 Gate。
 
 ## 给用户的下一步操作
 
-把已经剪好口气的正式真人口播视频拖进来。
-mp4 / mov 都可以。
-
-不需要另外录音。
-不需要自己提取音轨。
-不需要标记时间点。
+暂时不需要上传视频。先把本轮完整交接原样发给 ChatGPT Review；Review 通过后再按它的决定进入真实用户 Clean A-roll Gate。

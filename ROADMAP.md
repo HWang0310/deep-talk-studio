@@ -106,12 +106,13 @@
 - 本轮暴露并修复 timeline safe area、diagram 长中文与 edge label、comparison 错误标题与强制左右栏问题；新预览已通过 Production QA 和 ChatGPT 实际观看核验。
 - 当前保留 5 个历史 reference-only 素材位和真人口播音频时间码；ChatGPT 已通过 Preview 与 canonical lineage Review。
 
-## Unreleased：Audio Alignment + Visual Edit Bridge（Implementation complete, real-user E2E pending）
+## Unreleased：Audio Alignment + Visual Edit Bridge（Integration hardening complete, ChatGPT Review pending）
 
 - 以用户先行剪好口气的 immutable Clean A-roll 为 canonical timeline；不自动删停顿、废句或重录。
 - Speech-to-Text provider 与确定性 Alignment Core 解耦，按真实 timestamp granularity 对齐 reviewed Script Beat、Material Cue 和现有 Production Scene。
 - 将 A-roll、真实图片/截图、真实视频和 QA-ready Motion 放入统一 Visual Placement timeline，自动推导 IN、OUT、duration 与基础 layout。
 - 输出不可覆盖的 Edit Bridge JSON、普通中文 Markdown、NLE-neutral CSV 和 `ALIGNED_PREVIEW.mp4`。
+- 唯一具体生产入口和 repository-owned canonical QA 已完成；word/segment 真实时间戳安全降级、完整 Cue 语义 OUT、Material 图片/视频字段保真、自然语言 Preview revision 已通过回归与真实合成入口验证。
 - 历史 rights/reuse 信息保持兼容读取，但不作为新制作 Gate；文件、SHA、格式、安全、grounding、binding 与 QA 仍严格验证。
 - Design 已从 Conditional Pass 升级为正式通过；presentation timestamp mapping、frame-rate-neutral canonical timecode、placement/conflict 正交语义和长 still Preview exposure safeguard 均为 approved contract。
 - Implementation Plan Conditional Pass 后新增独立的版本化 PCM natural-pause chunk Task，风险由 Provider/Transcript/Alignment/QA 全链路保留；总计 29 个依赖有序的 TDD Tasks。

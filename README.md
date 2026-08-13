@@ -6,7 +6,7 @@ DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目�
 
 当前版本是 **V0.6.1**。研究、独立事实核查、原创写稿、素材准备和制作已连成可验证链路。已审查素材包可由 Remotion 或 HyperFrames 中的一个引擎生成真实 MP4 动画、粗剪视觉预览、PNG 定帧和制作质检报告；四类图表会按内部元素真正运动，不再只是整张 SVG 进场。
 
-Audio Alignment + Visual Edit Bridge 正在 Unreleased 分支按批准计划实现。真实文件转录适配器遵循当前 OpenAI 官方 File transcription 契约：文件上限 25 MB；需要 word timestamp 时使用 `whisper-1`、`verbose_json` 和 `timestamp_granularities=["word"]`。大文件只使用版本化 PCM 自然停顿 Chunk Plan，不在 adapter 内任意切分，也不伪造 segment 的词级时间。
+Audio Alignment + Visual Edit Bridge 正在 Unreleased 分支接受 Integration Review。正式生产入口会自动找到相互绑定的 approved Research、reviewed Script、reviewed Material、Production Plan/Manifest/QA 和一份 Clean A-roll，然后以仓库固定顺序完成全部阶段；调用方不能自行拼 stage 或 QA。真实文件转录适配器遵循当前 OpenAI 官方 File transcription 契约：文件上限 25 MB；有真实 word timestamps 时优先使用，只有真实 segment timestamps 时明确降为 coarse，两者都没有则失败。大文件只使用版本化 PCM 自然停顿 Chunk Plan，不在 adapter 内任意切分，也不伪造 segment 的词级时间。
 
 ## 现在最简单的用法
 

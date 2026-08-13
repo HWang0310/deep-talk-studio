@@ -1,7 +1,7 @@
 """Resolve approved upstream artifacts and run one concrete aligned-edit session."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass,replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
@@ -235,3 +235,62 @@ def run_real_edit_bridge_session(
     paths.update(preview_manifest=manifest_path, qa=qa_path, preview=preview_path)
     artifacts = {"media":media,"extracted":extracted,"mapping":mapping,"chunk_plan":chunk_plan,"transcript":transcript,"alignment":alignment,"material_view":material_view,"timing":timing,"bridge":bridge,"preview_manifest":preview_manifest,"mux":mux,"qa_context":context}
     return RealEditBridgeSessionResult(artifacts, paths, preview_path, qa)
+
+
+def load_real_edit_bridge_session_result(session_root, *, renderer=None):
+    """Rehydrate a finished session for an ordinary-language immutable revision."""
+    from .aligned_preview.remotion import RemotionAlignedPreviewRenderer
+    from .alignment_profile import load_alignment_profile
+    from .alignment_storage import load_script_alignment
+    from .edit_bridge_planner import build_visual_placements,derive_placement_timing
+    from .edit_bridge_qa import CanonicalEditBridgeQAContext
+    from .edit_bridge_storage import load_edit_bridge
+    from .material_bridge import build_material_production_view
+    from .material_profile import load_material_profile
+    from .narration_storage import load_narration_bundle
+    from .rough_cut_profile import load_aligned_preview_profile,load_rough_cut_profile
+    from .transcription_chunking import load_transcription_chunk_profile,plan_transcription_chunks
+    session=Path(session_root).resolve();root=session/"DeepTalk-Aligned-Edit"
+    if not root.is_dir():raise RealEditBridgeSessionError("还没有可以修改的对齐粗剪")
+    inputs=resolve_real_edit_bridge_session(session);bundle=load_narration_bundle(next((root/"artifacts").rglob("narration-media.json")))
+    if not all((bundle.extracted_audio,bundle.mapping,bundle.transcript)):raise RealEditBridgeSessionError("上一轮时间工件不完整")
+    chunk_profile=load_transcription_chunk_profile();chunk_plan=plan_transcription_chunks(bundle.extracted_audio,bundle.mapping,chunk_profile)
+    alignment=load_script_alignment(sorted((root/"alignment").rglob("script-alignment-r*.json"))[-1])
+    material_profile=load_material_profile();material_view=build_material_production_view(inputs.material_package_path,inputs.script,inputs.report,material_profile,inputs.material_asset_root)
+    material_package=_json(inputs.material_package_path);cues=material_package["cue_sheet"];alignment_profile=load_alignment_profile()
+    rough=load_rough_cut_profile(material_profile);preview_profile=load_aligned_preview_profile();timing_profiles=(rough,preview_profile,bundle.media["presentation_duration_seconds"])
+    allowed=tuple(Path(path).resolve() for path in inputs.allowed_roots)+(root,)
+    raw=build_visual_placements(alignment,material_view,inputs.production_plan,inputs.motion_manifest,bundle.media,allowed,inputs.production_qa);timing=derive_placement_timing(raw,timing_profiles)
+    bridge=load_edit_bridge(sorted((root/"bridge").rglob("edit-bridge-r*.json"))[-1]);preview_path=root/"outputs"/"ALIGNED_PREVIEW.mp4"
+    revised_previews=sorted((root/"outputs").glob("ALIGNED_PREVIEW-r*.mp4"))
+    if revised_previews:preview_path=revised_previews[-1]
+    revision=int(bridge["revision"])
+    manifest_path=(root/"outputs"/"aligned-preview-manifest.json") if revision==1 else (root/"outputs"/f"aligned-preview-manifest-r{revision:04d}.json")
+    qa_path=(root/"outputs"/"edit-bridge-qa.json") if revision==1 else (root/"outputs"/f"edit-bridge-qa-r{revision:04d}.json")
+    manifest=_json(manifest_path);qa=_json(qa_path)
+    context=CanonicalEditBridgeQAContext(bundle.media,bundle.extracted_audio,bundle.mapping,chunk_plan,chunk_profile,bundle.transcript,inputs.script,alignment_profile,cues,alignment,material_view,inputs.material_package_path,inputs.report,material_profile,inputs.material_asset_root,inputs.production_plan,inputs.motion_manifest,inputs.production_qa,tuple(bridge["visual_placements"]),timing_profiles,timing,bridge,preview_profile,manifest,preview_path,tuple(manifest["used_placement_ids"]),allowed,None,renderer or RemotionAlignedPreviewRenderer())
+    artifacts={"media":bundle.media,"extracted":bundle.extracted_audio,"mapping":bundle.mapping,"chunk_plan":chunk_plan,"transcript":bundle.transcript,"alignment":alignment,"material_view":material_view,"timing":timing,"bridge":bridge,"preview_manifest":manifest,"qa_context":context}
+    return RealEditBridgeSessionResult(artifacts,{"bridge":sorted((root/"bridge").rglob("edit-bridge-r*.json"))[-1],"preview":preview_path},preview_path,qa)
+
+
+def revise_real_edit_bridge_session(previous,feedback,*,clock,renderer=None):
+    """Apply one uniquely resolved feedback and emit Bridge/Preview/QA revision."""
+    from .aligned_preview.remotion import RemotionAlignedPreviewRenderer,build_aligned_preview_manifest,mux_clean_aroll_audio
+    from .edit_bridge_qa import run_canonical_edit_bridge_qa
+    from .edit_bridge_storage import create_bridge_revision,resolve_adjustment_target,save_edit_bridge
+    resolution=resolve_adjustment_target(previous.artifacts["bridge"],feedback)
+    if not resolution.unique:raise RealEditBridgeSessionError("这句话可能指向多个画面，请直接说出其中一个画面名称："+"、".join(resolution.candidates))
+    context=previous.artifacts["qa_context"];selected=renderer or context.preview_renderer or RemotionAlignedPreviewRenderer();now=clock()
+    revised=create_bridge_revision(previous.artifacts["bridge"],resolution.adjustment,created_at=now,fps=context.preview_profile["fps"])
+    project=selected.prepare_project(revised,context.media,context.allowed_roots,Path(previous.preview_path).parents[1]/"preview-projects")
+    selected.validate_project(project);revision=revised["revision"];visual=selected.render_visual(project,Path(previous.preview_path).parent/f"ALIGNED_PREVIEW_VISUAL-r{revision:04d}.mp4")
+    preview=Path(previous.preview_path).parent/f"ALIGNED_PREVIEW-r{revision:04d}.mp4";mux=mux_clean_aroll_audio(visual.output_path,context.media,preview)
+    manifest=build_aligned_preview_manifest(preview,revised,context.preview_profile,context.media,project.staged_placement_ids)
+    revised_context=replace(context,placements=tuple(revised["visual_placements"]),bridge=revised,preview_manifest=manifest,preview_path=preview,preview_used_placement_ids=project.staged_placement_ids,preview_project=project,preview_renderer=selected,previous_bridge=previous.artifacts["bridge"],revision_adjustment=resolution.adjustment)
+    qa=run_canonical_edit_bridge_qa(revised_context)
+    if qa["package_gate_status"]=="fail":raise RealEditBridgeSessionError("画面调整后的正式 QA 未通过")
+    bridge_root=Path(previous.paths["bridge"]).parent.parent;bridge_paths=save_edit_bridge(revised,bridge_root)
+    manifest_path=preview.parent/f"aligned-preview-manifest-r{revision:04d}.json";manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    qa_path=preview.parent/f"edit-bridge-qa-r{revision:04d}.json";qa_path.write_text(json.dumps(qa,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+    artifacts=dict(previous.artifacts);artifacts.update(bridge=revised,preview_manifest=manifest,mux=mux,qa_context=revised_context)
+    return RealEditBridgeSessionResult(artifacts,{"bridge":bridge_paths.json_path,"preview":preview,"preview_manifest":manifest_path,"qa":qa_path},preview,qa)

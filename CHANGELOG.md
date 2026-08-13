@@ -6,6 +6,13 @@
 
 ### Audio Alignment + Visual Edit Bridge implementation
 
+- 完成 Implementation Review 后的 Integration Hardening：新增唯一具体生产入口，自动解析最新匹配的 approved Research、reviewed Script、reviewed Material 与已通过 Production roots，并按固定顺序运行 Media → Mapping → Chunk → Transcript → Alignment → Placement → Bridge → Remotion → audio mux → canonical QA；旧 stage-lambda harness 不再是正式路径。
+- Material Production View 现在保留 `asset_type`、`capture` 与 `video_reference`，真实图片、有范围视频、无范围视频分别确定性进入 `real_image`、ready `real_video`、`clip_selection_needed`；未经选择的公开视频不会自动猜选段。
+- Cue OUT 从短 anchor 扩展到下一 Cue anchor 或 Beat 结束的完整语义范围；Alignment 总时长改为绑定 Clean A-roll presentation duration，不能再由最后一个 spoken unit 截短。
+- OpenAI adapter 保持 real word timestamps 优先；只有 real segment timestamps 时明确标记 `segment/coarse`，两者都没有则 capability fail，不做插值。
+- 正式 QA 改为 repository-owned canonical factory，自行重探测 Media、重建 Mapping/Chunk/Alignment/Material/Placement/Bridge，并核验 Preview Manifest、SHA 和音频 presentation；调用方不能再传自定义 lambda 充当正式 QA。
+- 自然语言“短一点/长一点/早一点/晚一点/一直留真人”会真正改变 Preview effective timing 或 overlay suppression，并创建不可覆盖的 Bridge/Preview/Manifest/QA revision；reviewed Script、approved Research 和 canonical semantic window 不变。
+- 真实 Remotion exact-entrypoint E2E 生成 1920×1080/30fps H.264 + 单一 Clean A-roll audio 的 `ALIGNED_PREVIEW.mp4`，SHA-256 `f36604535f4b0ea464860b1a54452789990339de57bd63cd2a5146661e9f8b12`，768,717 bytes，canonical QA `warnings`（仅未就绪素材提示，无 blocking failure）。
 - 完成批准计划 Task 0 与 Task 1–29：稳定 Discovery 冻结时间基线，并实现不可变 Clean A-roll 导入、媒体 presentation 证据、lossless transcription audio、可重推导 Timestamp Mapping、确定性自然停顿 Chunk Plan 与 boundary-risk 全链路保存。
 - 新增 provider-neutral Transcript、当前 OpenAI `whisper-1` word timestamp adapter、可逆中英文 normalization、确定性 Script/Transcript 对齐、校准 Profile、Beat/Cue timeline 与不可覆盖 Alignment revision。
 - 新增 reviewed Material production projection、图片/视频/Motion 统一 Placement、frame-rate-neutral IN/OUT/duration、冲突与 7 秒 long-still Preview safeguard，以及 Edit Bridge JSON/Markdown/CSV/revision。

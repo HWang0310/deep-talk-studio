@@ -24,6 +24,7 @@ class CanonicalEditBridgeQAContext:
  preview_profile:Mapping[str,Any];preview_manifest:Mapping[str,Any];preview_path:Path
  preview_used_placement_ids:Sequence[str];allowed_roots:Sequence[Path]
  preview_project:Optional[Any]=None;preview_renderer:Optional[Any]=None
+ previous_bridge:Optional[Mapping[str,Any]]=None;revision_adjustment:Optional[Mapping[str,Any]]=None
 
 REQUIRED_GROUPS={"root","transcript","alignment","placement","preview"}
 
@@ -106,8 +107,14 @@ def _validate_placement_chain(context):
  raw=build_visual_placements(context.alignment,context.material_view,context.production_plan,context.motion_manifest,context.media,context.allowed_roots,context.production_qa)
  derived=derive_placement_timing(raw,context.timing_profiles)
  if tuple(context.timing_result.placements)!=tuple(derived.placements) or tuple(context.timing_result.conflicts)!=tuple(derived.conflicts) or tuple(context.timing_result.adjustments)!=tuple(derived.adjustments):raise EditBridgeQAError("Placement timing 无法从 canonical roots 重推导")
- if tuple(context.placements)!=tuple(derived.placements):raise EditBridgeQAError("Bridge placements 与重推导不一致")
- validate_edit_bridge(context.bridge,context.bridge["root_bindings"],derived.placements,derived.conflicts,derived.adjustments,context.alignment.get("gaps",[]))
+ if context.previous_bridge is not None:
+  from .edit_bridge_storage import create_bridge_revision
+  if tuple(context.previous_bridge.get("visual_placements",[]))!=tuple(derived.placements):raise EditBridgeQAError("上一 Bridge 不是 canonical placement 基线")
+  expected=create_bridge_revision(context.previous_bridge,context.revision_adjustment,created_at=context.bridge["created_at"],fps=context.preview_profile["fps"])
+  if dict(context.bridge)!=expected:raise EditBridgeQAError("Bridge Revision 不是用户反馈的确定性结果")
+ else:
+  if tuple(context.placements)!=tuple(derived.placements):raise EditBridgeQAError("Bridge placements 与重推导不一致")
+  validate_edit_bridge(context.bridge,context.bridge["root_bindings"],derived.placements,derived.conflicts,derived.adjustments,context.alignment.get("gaps",[]))
 
 def _validate_preview_chain(context):
  from .aligned_preview.remotion import probe_audio_presentation,validate_aligned_preview_manifest,validate_preview_audio_presentation

@@ -283,7 +283,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"对齐粗剪已经生成：{result.preview_path}")
             return 0
         if args.command == "revise-edit-bridge":
-            print("已记录你对画面节奏的调整。只有唯一命中画面时才会创建新修订。")
+            from .edit_bridge_session import load_real_edit_bridge_session_result,revise_real_edit_bridge_session
+            previous=load_real_edit_bridge_session_result(args.session)
+            result=revise_real_edit_bridge_session(previous,args.feedback,clock=lambda:datetime.now().astimezone().isoformat(timespec="seconds"))
+            print(f"新的粗剪已经生成：{result.preview_path}")
             return 0
         if args.command == "validate":
             _load_report(args.input)

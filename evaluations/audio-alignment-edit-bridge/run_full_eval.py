@@ -12,7 +12,7 @@ GROUPS={
 }
 def run():
  cases=json.loads((ROOT/"evaluations/audio-alignment-edit-bridge/case-manifest.json").read_text())
- modules=sorted(set(GROUPS[value] for value in cases.values()))+["tests.test_alignment_invariants","tests.test_transcription_chunk_boundary_eval","tests.test_preview_audio_sync_eval"]
+ modules=sorted(set(GROUPS[value] for value in cases.values()))+["tests.test_alignment_invariants","tests.test_transcription_chunk_boundary_eval","tests.test_preview_audio_sync_eval","tests.test_real_edit_bridge_session","tests.test_canonical_edit_bridge_qa","tests.test_openai_transcription"]
  result=subprocess.run([sys.executable,"-m","unittest",*modules,"-v"],cwd=ROOT,env={**__import__("os").environ,"PYTHONPATH":str(ROOT/"src")+":"+str(ROOT)},capture_output=True,text=True)
  if result.returncode:raise RuntimeError((result.stderr or result.stdout)[-4000:])
  payload={"executed_test_modules":modules,"cases":{key:"pass" for key in cases},"cb_cases":{f"CB{i}":"pass" for i in range(1,8)},"pa_cases":{f"PA{i}":"pass" for i in range(1,8)},"status":"pass"}
