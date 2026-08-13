@@ -103,3 +103,73 @@ def build_visual_placements(alignment,material_view,production_plan,motion_manif
 @dataclass(frozen=True)
 class PlacementTimingResult:
     placements: Tuple[dict,...]; conflicts: Tuple[dict,...]; adjustments: Tuple[dict,...]
+
+
+def _conflict(conflicts, kind, placements, klass, summary, policy):
+    value={"artifact_version":"timing-conflict/1","conflict_id":f"TC{len(conflicts)+1:04d}","conflict_type":kind,
+      "placement_ids":[p["placement_id"] for p in placements],"conflict_class":klass,"severity":"blocking" if klass=="selection_blocker" else "warning",
+      "human_summary":summary,"preview_policy":policy,"resolution_status":"unresolved" if klass=="selection_blocker" else "preview_adjusted"}
+    conflicts.append(value)
+    for p in placements: p.setdefault("timing_conflict_ids",[]).append(value["conflict_id"])
+    return value
+
+
+def _adjust(adjustments,p,kind,reason,old_in,old_out,new_in,new_out,provenance):
+    value={"artifact_version":"preview-adjustment/1","adjustment_id":f"PA{len(adjustments)+1:04d}","placement_id":p["placement_id"],
+      "adjustment_type":kind,"reason":reason,"original_in_seconds":str(old_in),"original_out_seconds":str(old_out),
+      "preview_in_seconds":str(new_in),"preview_out_seconds":str(new_out),"provenance":provenance}
+    adjustments.append(value); p["preview_adjustment_id"]=value["adjustment_id"]
+
+
+def derive_placement_timing(placements, profiles, user_adjustments=()):
+    rough,preview,media_duration=profiles; duration=Decimal(str(media_duration)); result=[deepcopy(p) for p in placements]
+    conflicts=[]; adjustments=[]; overrides={a["placement_id"]:a for a in user_adjustments}
+    ready=[]
+    for p in result:
+        p.setdefault("timing_conflict_ids",[]); p.setdefault("notes",[]); p.setdefault("timing_status","clear"); p.setdefault("duration_status","unknown"); p.setdefault("preview_adjustment_id","")
+        if p.get("placement_status")!="ready": continue
+        try: start=Decimal(p["semantic_in_seconds"]); end=Decimal(p["semantic_out_seconds"])
+        except Exception: p["placement_status"]="rejected"; p["timing_status"]="blocking"; continue
+        if start<0 or end<=start or end>duration:
+            p["placement_status"]="rejected"; p["timing_status"]="blocking"
+            _conflict(conflicts,"out_of_media_bounds",[p],"selection_blocker","可视窗口超出真人底轨。","reject_without_clamp"); continue
+        p["semantic_duration_seconds"]=str(end-start); p["target_duration_seconds"]=str(end-start)
+        p["canonical_in_timecode"]=format_canonical_timecode(start); p["canonical_out_timecode"]=format_canonical_timecode(end)
+        effective_end=end
+        natural=Decimal(p["natural_duration_seconds"]) if p.get("natural_duration_seconds") else None
+        if p["source_kind"]=="real_image" and end-start>Decimal(str(rough["still_exposure_seconds"])):
+            effective_end=start+Decimal(str(rough["still_exposure_seconds"])); p["duration_status"]="long_still_warning"; p["timing_status"]="warning"
+            _adjust(adjustments,p,"still_exposure_capped","长静帧粗剪曝光上限",start,end,start,effective_end,"rough_cut_profile")
+        if natural is not None and natural != end-start:
+            longer=natural>end-start; prefix="motion" if p["source_kind"]=="original_motion" else "source_clip"
+            kind=f"{prefix}_{'longer' if longer else 'shorter'}_than_semantic_window"
+            p["timing_status"]="warning"; p["duration_status"]="asset_longer" if longer else "asset_shorter"
+            _conflict(conflicts,kind,[p],"timing_warning","素材自然时长与口播语义窗口不同。","trim_preview_tail" if longer else "return_to_aroll")
+            if not longer:
+                effective_end=min(effective_end,start+natural)
+        if p["placement_id"] in overrides:
+            override=overrides[p["placement_id"]]; new_end=min(end,start+Decimal(str(override["duration_seconds"])))
+            _adjust(adjustments,p,"user_duration_override",override["reason"],start,end,start,new_end,"user_feedback"); effective_end=new_end
+        p["preview_effective_in_seconds"]=str(start); p["preview_effective_out_seconds"]=str(effective_end); ready.append((start,p))
+    ready.sort(key=lambda pair: pair[0])
+    for index,(start,p) in enumerate(ready):
+        same=[other for other_start,other in ready if other_start==start]
+        if len(same)>1 and p["placement_status"]=="ready":
+            if not any(c["conflict_type"]=="same_start_selection_ambiguity" and p["placement_id"] in c["placement_ids"] for c in conflicts):
+                _conflict(conflicts,"same_start_selection_ambiguity",same,"selection_blocker","两个画面的语义起点完全相同。","show_aroll")
+            for other in same: other["placement_status"]="needs_review"; other["timing_status"]="blocking"
+        if index+1<len(ready):
+            next_start,next_p=ready[index+1]; current_end=Decimal(p.get("preview_effective_out_seconds") or p["semantic_out_seconds"])
+            if next_start>start and next_start<current_end:
+                old=current_end; p["preview_effective_out_seconds"]=str(next_start); p["timing_status"]="warning"
+                _conflict(conflicts,"visual_overlap",[p,next_p],"timing_warning","后开始的可用画面接管上层。","later_ready_takes_over")
+                _adjust(adjustments,p,"overlap_takeover","后开始画面接管",start,old,start,next_start,"overlap_policy")
+    fps=preview["fps"]
+    for p in result:
+        if p.get("placement_status")!="ready":
+            p.update(preview_in_frame=-1,preview_out_frame=-1,preview_in_frame_timecode="",preview_out_frame_timecode="")
+            continue
+        start=Decimal(p["preview_effective_in_seconds"]); end=Decimal(p["preview_effective_out_seconds"])
+        inf=preview_frame(start,fps); outf=preview_frame(end,fps); p["preview_in_frame"]=inf; p["preview_out_frame"]=outf
+        p["preview_in_frame_timecode"]="Preview "+format_preview_frame_timecode(inf,fps); p["preview_out_frame_timecode"]="Preview "+format_preview_frame_timecode(outf,fps)
+    return PlacementTimingResult(tuple(result),tuple(conflicts),tuple(adjustments))
