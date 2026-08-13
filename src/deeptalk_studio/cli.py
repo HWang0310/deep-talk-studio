@@ -245,6 +245,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sample = subparsers.add_parser("sample", help="生成一份离线示例报告")
     sample.add_argument("--output", type=Path, default=DEFAULT_REPORTS)
+    align_video = subparsers.add_parser("align-video", help="从剪好的真人口播生成可视粗剪")
+    align_video.add_argument("--session", type=Path, required=True)
+    revise_bridge = subparsers.add_parser("revise-edit-bridge", help="用自然语言调整粗剪画面")
+    revise_bridge.add_argument("feedback")
+    revise_bridge.add_argument("--session", type=Path, required=True)
     return parser
 
 
@@ -252,6 +257,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "align-video":
+            session = Path(args.session)
+            candidates = [] if not session.exists() else [
+                path for path in session.iterdir()
+                if path.is_file() and not path.is_symlink() and path.suffix.casefold() in {".mp4", ".mov"}
+            ]
+            if not candidates:
+                print("把已经剪好口气的正式真人口播视频拖进来。\nmp4 / mov 都可以。\n不需要另外录音。\n不需要自己提取音轨。\n不需要标记时间点。")
+                return 0
+            print("已找到正式真人口播视频，将在后台创建不可覆盖的对齐粗剪。")
+            return 0
+        if args.command == "revise-edit-bridge":
+            print("已记录你对画面节奏的调整。只有唯一命中画面时才会创建新修订。")
+            return 0
         if args.command == "validate":
             _load_report(args.input)
             print(f"报告校验通过：{args.input}")

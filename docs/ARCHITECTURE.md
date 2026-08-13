@@ -1,5 +1,7 @@
 # DeepTalk Studio 架构
 
+Audio Alignment + Visual Edit Bridge 的 Unreleased 合同见 `docs/EDIT_BRIDGE_CONTRACT.md`。该链把 Clean A-roll 容器/stream、媒体 presentation、提取音频 timeline 分开建模；Provider 只贡献时间化转录，Core 独占 Alignment/Placement/Gate，renderer 只消费通过重验证的 ready Placement。
+
 ## 设计目标
 
 系统把需要判断力的 AI 工作与必须稳定的工程契约分开。Agent 负责搜索、比较和分析；Python 核心负责校验、保存和为下游提供一致工件。这样未来更换模型、搜索工具或视频工具时，不需要重写整个项目。

@@ -1,5 +1,7 @@
 # DeepTalk Studio
 
+> 当前开发分支包含 **Unreleased Audio Alignment + Visual Edit Bridge**。它已具备确定性媒体时间、带时间戳转录适配、Script/Transcript 对齐、Beat/Cue 画面标记、统一视觉 Placement、Remotion 粗预览和 A-roll 音频 presentation 保真能力；只有完成真实 Clean A-roll 用户试用后才可讨论正式版本或 V1.0。
+
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
 当前版本是 **V0.6.1**。研究、独立事实核查、原创写稿、素材准备和制作已连成可验证链路。已审查素材包可由 Remotion 或 HyperFrames 中的一个引擎生成真实 MP4 动画、粗剪视觉预览、PNG 定帧和制作质检报告；四类图表会按内部元素真正运动，不再只是整张 SVG 进场。
