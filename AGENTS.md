@@ -96,9 +96,13 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ./scripts/deeptalk prepare-materials <report.json> <reviewed-script.json> <content.json> --inspection-manifest <inspection.json> --rights-manifest <rights.json>
 ./scripts/deeptalk review-materials <report.json> <reviewed-script.json> <package.json> <review.json>
 ./scripts/deeptalk produce-assets <report.json> <reviewed-script.json> <reviewed-package.json> --renderer auto
+./scripts/deeptalk align-video --session <current-session-directory>
+PYTHONPATH=src:. python3 evaluations/audio-alignment-edit-bridge/run_full_eval.py --verify-repeat
+npm --prefix renderer_templates/aligned_preview_remotion run lint
+npm --prefix renderer_templates/aligned_preview_remotion run typecheck
 ```
 
-修改 `.agents/skills/research-topic`、`.agents/skills/discover-topics`、`.agents/skills/write-script`、`.agents/skills/prepare-materials` 或 `.agents/skills/produce-video-assets` 后，还要运行 Skill Creator 的 `quick_validate.py`。若本机脚本缺少 PyYAML，可在临时目录安装依赖运行，不能把临时依赖提交到仓库。
+修改 `.agents/skills/research-topic`、`.agents/skills/discover-topics`、`.agents/skills/write-script`、`.agents/skills/prepare-materials`、`.agents/skills/produce-video-assets` 或 `.agents/skills/align-video` 后，还要运行 Skill Creator 的 `quick_validate.py`。若本机脚本缺少 PyYAML，可在临时目录安装依赖运行，不能把临时依赖提交到仓库。
 
 ## 每轮结束前必须完成
 

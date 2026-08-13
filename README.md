@@ -46,6 +46,12 @@ Audio Alignment + Visual Edit Bridge 正在 Unreleased 分支按批准计划实�
 
 `produce-video-assets` Skill 会自动找到最新合法输入，选择一个制作引擎，运行预览、渲染和 QA，并只告诉你生成了什么、哪些可用、哪些还需要真人口播或手工补画面。
 
+当你已经把真人口播的口气剪好，只需要把 mp4/mov 拖进 Codex，然后说：
+
+> 我视频剪好了，帮我把素材卡进去。
+
+`align-video` Skill 会自动使用已审核稿件、素材和 Motion，导入原视频、完成转录与时间对齐，再生成 Edit Bridge 和 Aligned Preview。你不需要另外录音、提取音轨、标记时间点或选择技术参数。真实视频完成这一步并由你看过 Preview 之前，本阶段仍保持 Unreleased。
+
 选题结果会保存在本机：
 
 ```text
