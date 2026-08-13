@@ -21,7 +21,7 @@ Read `references/script-contract.md` completely before writing or revising. Load
 
 1. Read only the approved Research JSON and Script Profile. Do not browse, search, open external pages, or use Discovery Seeds as evidence.
 2. Use `handoff_to_script_agent.recommended_angle` and `central_tension`. Cover every `must_keep_claim_id` where the structure allows. Never affirm an `avoid_claim`. Put unresolved `follow_up_research` in `research_gaps`; do not fill it from memory.
-3. Write natural oral Chinese with a real question, evidence contrast, story movement, fair alternative explanation, original analysis, and a non-mechanical closing. Avoid report prose and fixed “首先、其次、最后” templates.
+3. Write natural oral Chinese with a Research-grounded opening hook and value promise, a mid-script re-hook / information turn when needed, story movement, fair alternative explanation, original analysis, and a conclusion payoff that resolves the opening promise. Never invent or exaggerate facts for a hook. Avoid report prose and fixed “首先、其次、最后” templates.
 4. Keep every Beat typed as `fact`, `attribution`, `analysis`, `transition`, or `question`. Facts use verified confirmed Claims. Statements, media reports, commentary, and unverified material use natural attribution. Analysis keeps its basis Claims and never masquerades as fact.
 5. Never place Claim IDs, Evidence IDs, URLs, debug labels, or source numbers in narration. Never imitate a named creator; translate a style request into high-level traits such as shorter sentences, denser information, or stronger narrative movement.
 6. Respect an explicit duration such as 8, 10, or 15 minutes. Default to about 12 minutes. This is an estimate, not measured playback time.
@@ -30,7 +30,7 @@ Read `references/script-contract.md` completely before writing or revising. Load
 ## Independent Script Review
 
 1. Start a separate review pass after the Draft exists. Read only the approved Research Report and Script Draft. Do not browse or reuse the Writer's self-assessment.
-2. Check unsupported facts, attribution, evidence-strength inflation, unverified-as-fact, avoid Claims, must-keep coverage, high-risk wording, uncertainty, analysis/fact separation, research-gap invention, perspective fairness, oral naturalness, repetition, density, AI report tone, originality risk, and usability.
+2. Check the opening hook, value promise, necessary re-hook / information turn and conclusion payoff, plus unsupported facts, attribution, evidence-strength inflation, unverified-as-fact, avoid Claims, must-keep coverage, high-risk wording, uncertainty, analysis/fact separation, research-gap invention, perspective fairness, oral naturalness, repetition, density, AI report tone, originality risk, and usability. Missing Hook-aware structure must be a blocking `hook_structure` issue under `narrative_structure`.
 3. Output only review content: issues, checks, reasons, and fixes. Every failed check needs its matching typed issue; factual safety failures need the matching blocking issue. Do not use `not_applicable` for factual safety checks. The Python core owns issue IDs, severity, blocking count, gate status, review linkage, and final Script status.
 4. Apply and save the Review Artifact plus the next immutable Script revision. If blocking issues exist, keep `draft` and explain simply that the script still has factual-boundary problems. Do not present it as reviewed.
 

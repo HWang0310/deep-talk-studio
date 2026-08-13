@@ -25,13 +25,15 @@ BLOCKING_ISSUE_TYPES = {
     "analysis_as_fact",
     "research_gap_filled",
     "perspective_distortion",
+    "hook_structure",
 }
 
 # V0.4.1: a reviewer check is not merely explanatory text.  Every failure must
 # be represented by a typed issue, and safety-critical checks must produce a
 # blocking issue.  The mapping is deliberately small and deterministic rather
 # than attempting to infer editorial intent from natural language.
-REVIEW_CONSISTENCY_VERSION = "0.4.1"
+REVIEW_CONSISTENCY_VERSION = "0.4.2"
+SUPPORTED_REVIEW_CONSISTENCY_VERSIONS = {"0.4.1", REVIEW_CONSISTENCY_VERSION}
 CHECK_ISSUE_TYPES = {
     "factual_grounding": {"unsupported_fact", "unverified_as_fact"},
     "attribution_integrity": {"attribution_error"},
@@ -42,7 +44,7 @@ CHECK_ISSUE_TYPES = {
     "analysis_fact_separation": {"analysis_as_fact"},
     "perspective_fairness": {"perspective_distortion"},
     "research_gap_integrity": {"research_gap_filled"},
-    "narrative_structure": {"narrative_structure", "repetition"},
+    "narrative_structure": {"narrative_structure", "repetition", "hook_structure"},
     "oral_naturalness": {"oral_naturalness", "ai_report_tone"},
     "information_density": {"information_density", "repetition"},
     "original_expression": {"originality_risk", "long_quote"},
@@ -266,7 +268,7 @@ def validate_script_review_artifact(
         raise ScriptValidationError("Script Review report_revision 与 Research Report 不一致")
     if not artifact.get("reviewed_content_digest"):
         raise ScriptValidationError("Script Review 缺少 reviewed_content_digest")
-    if artifact.get("review_consistency_version") != REVIEW_CONSISTENCY_VERSION:
+    if artifact.get("review_consistency_version") not in SUPPORTED_REVIEW_CONSISTENCY_VERSIONS:
         raise ScriptValidationError("Script Review consistency mapping 版本不一致")
     if artifact["reviewed_content_digest"] != script_content_digest(script_data):
         raise ScriptValidationError("Script Review content digest 与稿件不一致")

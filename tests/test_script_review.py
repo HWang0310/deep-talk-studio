@@ -44,7 +44,7 @@ class ScriptReviewTests(unittest.TestCase):
         result = self.review()
 
         self.assertEqual(result.artifact["artifact_version"], "0.4")
-        self.assertEqual(result.artifact["review_consistency_version"], "0.4.1")
+        self.assertEqual(result.artifact["review_consistency_version"], "0.4.2")
         self.assertEqual(result.artifact["gate_status"], "pass")
         self.assertEqual(result.artifact["blocking_issue_count"], 0)
         self.assertEqual(result.script.revision, 2)
@@ -261,6 +261,36 @@ class ScriptReviewTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ScriptValidationError, "对应 issue"):
             self.review(content)
+
+    def test_missing_hook_structure_is_blocking_under_narrative_review(self):
+        content = valid_script_review_content()
+        check = next(
+            item for item in content["checks"]
+            if item["check_name"] == "narrative_structure"
+        )
+        check["outcome"] = "fail"
+        check["reason"] = "开场没有价值承诺，中段没有信息转折，结尾也没有兑现开场问题。"
+        content["issues"] = [{
+            "issue_type": "hook_structure",
+            "beat_ids": ["B001"],
+            "claim_ids": [],
+            "explanation": "Hook-aware 结构不完整。",
+            "suggested_fix": "用研究支持的问题重写开场，并让结尾兑现观众承诺。",
+        }]
+
+        result = self.review(content)
+
+        self.assertEqual(result.artifact["review_consistency_version"], "0.4.2")
+        self.assertEqual(result.artifact["gate_status"], "fail")
+        self.assertEqual(result.artifact["issues"][0]["severity"], "blocking")
+        self.assertEqual(result.script.status, "draft")
+
+    def test_legacy_041_review_artifact_remains_valid(self):
+        result = self.review()
+        legacy = dict(result.artifact)
+        legacy["review_consistency_version"] = "0.4.1"
+
+        validate_script_review_artifact(legacy, self.report, self.script)
 
     def test_critical_check_cannot_be_marked_not_applicable(self):
         content = valid_script_review_content()

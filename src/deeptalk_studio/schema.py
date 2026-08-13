@@ -713,6 +713,7 @@ SCRIPT_REVIEW_ISSUE_TYPES = [
     "originality_risk",
     "long_quote",
     "script_usability",
+    "hook_structure",
 ]
 
 SCRIPT_REVIEW_CHECK_SCHEMA = _object(
@@ -765,7 +766,7 @@ SCRIPT_REVIEW_JSON_SCHEMA = _object(
         "blocking_issue_count": _integer(),
         "gate_status": _enum(["pass", "fail"]),
         "reviewed_content_digest": _string(),
-        "review_consistency_version": _enum(["0.4.1"]),
+        "review_consistency_version": _enum(["0.4.1", "0.4.2"]),
     },
     optional=("reviewed_content_digest", "review_consistency_version"),
 )
