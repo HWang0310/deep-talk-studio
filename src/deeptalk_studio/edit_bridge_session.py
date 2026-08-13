@@ -163,6 +163,9 @@ def run_real_edit_bridge_session(
     from .rough_cut_profile import load_aligned_preview_profile, load_rough_cut_profile
     from .transcript_builder import build_timed_transcript, validate_timed_transcript
     from .transcription_chunking import load_transcription_chunk_profile, plan_transcription_chunks, validate_transcription_chunk_plan
+    from .subtitle_builder import build_subtitle_artifact
+    from .subtitle_profile import load_subtitle_profile
+    from .subtitle_storage import save_subtitle_artifact
 
     root = Path(inputs.output_root).resolve()
     if root.exists():
@@ -183,6 +186,8 @@ def run_real_edit_bridge_session(
     provider_result = provider.transcribe(extracted, chunk_plan, "zh", "whisper-1")
     transcript = build_timed_transcript(provider_result, media, extracted, mapping, chunk_plan, transcript_id=id_factory("TRANSCRIPT"), created_at=now)
     validate_timed_transcript(transcript, media, extracted, mapping, chunk_plan)
+    subtitle_profile = load_subtitle_profile()
+    subtitle = build_subtitle_artifact(transcript, media, subtitle_profile, subtitle_id=id_factory("SUBTITLE"), created_at=now)
     material_profile = load_material_profile()
     material_view = build_material_production_view(inputs.material_package_path, inputs.script, inputs.report, material_profile, inputs.material_asset_root)
     material_package = json.loads(inputs.material_package_path.read_text(encoding="utf-8"))
@@ -204,15 +209,16 @@ def run_real_edit_bridge_session(
         "motion_manifest_digest": inputs.motion_manifest["manifest_digest"], "production_qa_digest": inputs.production_qa["qa_digest"],
         "alignment_digest": alignment["artifact_digest"], "alignment_profile_digest": alignment_profile["profile_digest"],
         "rough_cut_profile_digest": rough_profile["profile_digest"], "aligned_preview_profile_digest": preview_profile["profile_digest"],
+        "subtitle_artifact_digest": subtitle["artifact_digest"], "subtitle_profile_digest": subtitle_profile["profile_digest"],
     }
     bridge = build_edit_bridge(bindings, timing.placements, timing.conflicts, timing.adjustments, alignment["gaps"], bridge_id=id_factory("BRIDGE"), created_at=now)
     validate_edit_bridge(bridge, bindings, timing.placements, timing.conflicts, timing.adjustments, alignment["gaps"])
-    project = renderer.prepare_project(bridge, media, allowed_roots, root / "preview-projects")
+    project = renderer.prepare_project(bridge, media, subtitle, subtitle_profile, allowed_roots, root / "preview-projects")
     renderer.validate_project(project)
     visual = renderer.render_visual(project, root / "outputs" / "ALIGNED_PREVIEW_VISUAL.mp4")
     preview_path = root / "outputs" / "ALIGNED_PREVIEW.mp4"
     mux = mux_clean_aroll_audio(visual.output_path, media, preview_path)
-    preview_manifest = build_aligned_preview_manifest(preview_path, bridge, preview_profile, media, project.staged_placement_ids)
+    preview_manifest = build_aligned_preview_manifest(preview_path, bridge, preview_profile, media, project.staged_placement_ids, subtitle, subtitle_profile, project.subtitles_enabled)
     context = CanonicalEditBridgeQAContext(
         media, extracted, mapping, chunk_plan, chunk_profile, transcript,
         inputs.script, alignment_profile, cues, alignment,
@@ -222,6 +228,7 @@ def run_real_edit_bridge_session(
         preview_profile, preview_manifest, preview_path, project.staged_placement_ids,
         allowed_roots, project, renderer,
     )
+    context = replace(context, subtitle_artifact=subtitle, subtitle_profile=subtitle_profile)
     qa = run_canonical_edit_bridge_qa(context)
     if qa["package_gate_status"] == "fail":
         raise RealEditBridgeSessionError("正式 Edit Bridge QA 未通过")
@@ -229,11 +236,12 @@ def run_real_edit_bridge_session(
     narration_paths = save_narration_bundle(NarrationBundle(media, extracted, mapping, transcript), root / "artifacts")
     paths.update(media=narration_paths.media, extracted=narration_paths.extracted_audio, mapping=narration_paths.mapping, transcript=narration_paths.transcript)
     alignment_paths = save_script_alignment(alignment, root / "alignment"); paths.update(alignment=alignment_paths.json_path)
+    subtitle_paths = save_subtitle_artifact(subtitle, root / "subtitles"); paths.update(subtitle=subtitle_paths.json, subtitle_srt=subtitle_paths.srt)
     bridge_paths = save_edit_bridge(bridge, root / "bridge"); paths.update(bridge=bridge_paths.json_path, markers=bridge_paths.csv_path)
     manifest_path = root / "outputs" / "aligned-preview-manifest.json"; manifest_path.write_text(json.dumps(preview_manifest, ensure_ascii=False, indent=2)+"\n", encoding="utf-8")
     qa_path = root / "outputs" / "edit-bridge-qa.json"; qa_path.write_text(json.dumps(qa, ensure_ascii=False, indent=2)+"\n", encoding="utf-8")
     paths.update(preview_manifest=manifest_path, qa=qa_path, preview=preview_path)
-    artifacts = {"media":media,"extracted":extracted,"mapping":mapping,"chunk_plan":chunk_plan,"transcript":transcript,"alignment":alignment,"material_view":material_view,"timing":timing,"bridge":bridge,"preview_manifest":preview_manifest,"mux":mux,"qa_context":context}
+    artifacts = {"media":media,"extracted":extracted,"mapping":mapping,"chunk_plan":chunk_plan,"transcript":transcript,"subtitle":subtitle,"subtitle_profile":subtitle_profile,"alignment":alignment,"material_view":material_view,"timing":timing,"bridge":bridge,"preview_manifest":preview_manifest,"mux":mux,"qa_context":context}
     return RealEditBridgeSessionResult(artifacts, paths, preview_path, qa)
 
 
@@ -250,10 +258,13 @@ def load_real_edit_bridge_session_result(session_root, *, renderer=None):
     from .narration_storage import load_narration_bundle
     from .rough_cut_profile import load_aligned_preview_profile,load_rough_cut_profile
     from .transcription_chunking import load_transcription_chunk_profile,plan_transcription_chunks
+    from .subtitle_profile import load_subtitle_profile
+    from .subtitle_storage import load_subtitle_artifact
     session=Path(session_root).resolve();root=session/"DeepTalk-Aligned-Edit"
     if not root.is_dir():raise RealEditBridgeSessionError("还没有可以修改的对齐粗剪")
     inputs=resolve_real_edit_bridge_session(session);bundle=load_narration_bundle(next((root/"artifacts").rglob("narration-media.json")))
     if not all((bundle.extracted_audio,bundle.mapping,bundle.transcript)):raise RealEditBridgeSessionError("上一轮时间工件不完整")
+    subtitle_profile=load_subtitle_profile();subtitle=load_subtitle_artifact(root/"subtitles"/"subtitle-r0001.json",bundle.transcript,bundle.media,subtitle_profile)
     chunk_profile=load_transcription_chunk_profile();chunk_plan=plan_transcription_chunks(bundle.extracted_audio,bundle.mapping,chunk_profile)
     alignment=load_script_alignment(sorted((root/"alignment").rglob("script-alignment-r*.json"))[-1])
     material_profile=load_material_profile();material_view=build_material_production_view(inputs.material_package_path,inputs.script,inputs.report,material_profile,inputs.material_asset_root)
@@ -268,8 +279,8 @@ def load_real_edit_bridge_session_result(session_root, *, renderer=None):
     manifest_path=(root/"outputs"/"aligned-preview-manifest.json") if revision==1 else (root/"outputs"/f"aligned-preview-manifest-r{revision:04d}.json")
     qa_path=(root/"outputs"/"edit-bridge-qa.json") if revision==1 else (root/"outputs"/f"edit-bridge-qa-r{revision:04d}.json")
     manifest=_json(manifest_path);qa=_json(qa_path)
-    context=CanonicalEditBridgeQAContext(bundle.media,bundle.extracted_audio,bundle.mapping,chunk_plan,chunk_profile,bundle.transcript,inputs.script,alignment_profile,cues,alignment,material_view,inputs.material_package_path,inputs.report,material_profile,inputs.material_asset_root,inputs.production_plan,inputs.motion_manifest,inputs.production_qa,tuple(bridge["visual_placements"]),timing_profiles,timing,bridge,preview_profile,manifest,preview_path,tuple(manifest["used_placement_ids"]),allowed,None,renderer or RemotionAlignedPreviewRenderer())
-    artifacts={"media":bundle.media,"extracted":bundle.extracted_audio,"mapping":bundle.mapping,"chunk_plan":chunk_plan,"transcript":bundle.transcript,"alignment":alignment,"material_view":material_view,"timing":timing,"bridge":bridge,"preview_manifest":manifest,"qa_context":context}
+    context=CanonicalEditBridgeQAContext(bundle.media,bundle.extracted_audio,bundle.mapping,chunk_plan,chunk_profile,bundle.transcript,inputs.script,alignment_profile,cues,alignment,material_view,inputs.material_package_path,inputs.report,material_profile,inputs.material_asset_root,inputs.production_plan,inputs.motion_manifest,inputs.production_qa,tuple(bridge["visual_placements"]),timing_profiles,timing,bridge,preview_profile,manifest,preview_path,tuple(manifest["used_placement_ids"]),allowed,None,renderer or RemotionAlignedPreviewRenderer(),subtitle_artifact=subtitle,subtitle_profile=subtitle_profile)
+    artifacts={"media":bundle.media,"extracted":bundle.extracted_audio,"mapping":bundle.mapping,"chunk_plan":chunk_plan,"transcript":bundle.transcript,"subtitle":subtitle,"subtitle_profile":subtitle_profile,"alignment":alignment,"material_view":material_view,"timing":timing,"bridge":bridge,"preview_manifest":manifest,"qa_context":context}
     return RealEditBridgeSessionResult(artifacts,{"bridge":sorted((root/"bridge").rglob("edit-bridge-r*.json"))[-1],"preview":preview_path},preview_path,qa)
 
 
@@ -282,10 +293,10 @@ def revise_real_edit_bridge_session(previous,feedback,*,clock,renderer=None):
     if not resolution.unique:raise RealEditBridgeSessionError("这句话可能指向多个画面，请直接说出其中一个画面名称："+"、".join(resolution.candidates))
     context=previous.artifacts["qa_context"];selected=renderer or context.preview_renderer or RemotionAlignedPreviewRenderer();now=clock()
     revised=create_bridge_revision(previous.artifacts["bridge"],resolution.adjustment,created_at=now,fps=context.preview_profile["fps"])
-    project=selected.prepare_project(revised,context.media,context.allowed_roots,Path(previous.preview_path).parents[1]/"preview-projects")
+    project=selected.prepare_project(revised,context.media,context.subtitle_artifact,context.subtitle_profile,context.allowed_roots,Path(previous.preview_path).parents[1]/"preview-projects")
     selected.validate_project(project);revision=revised["revision"];visual=selected.render_visual(project,Path(previous.preview_path).parent/f"ALIGNED_PREVIEW_VISUAL-r{revision:04d}.mp4")
     preview=Path(previous.preview_path).parent/f"ALIGNED_PREVIEW-r{revision:04d}.mp4";mux=mux_clean_aroll_audio(visual.output_path,context.media,preview)
-    manifest=build_aligned_preview_manifest(preview,revised,context.preview_profile,context.media,project.staged_placement_ids)
+    manifest=build_aligned_preview_manifest(preview,revised,context.preview_profile,context.media,project.staged_placement_ids,context.subtitle_artifact,context.subtitle_profile,project.subtitles_enabled)
     revised_context=replace(context,placements=tuple(revised["visual_placements"]),bridge=revised,preview_manifest=manifest,preview_path=preview,preview_used_placement_ids=project.staged_placement_ids,preview_project=project,preview_renderer=selected,previous_bridge=previous.artifacts["bridge"],revision_adjustment=resolution.adjustment)
     qa=run_canonical_edit_bridge_qa(revised_context)
     if qa["package_gate_status"]=="fail":raise RealEditBridgeSessionError("画面调整后的正式 QA 未通过")

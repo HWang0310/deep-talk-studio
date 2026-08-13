@@ -1,4 +1,5 @@
 import unittest
+import copy
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -7,6 +8,9 @@ from deeptalk_studio.edit_bridge_qa import (
     build_canonical_edit_bridge_qa_inputs,
     run_canonical_edit_bridge_qa,
 )
+from deeptalk_studio.subtitle_builder import build_subtitle_artifact
+from deeptalk_studio.subtitle_profile import load_subtitle_profile
+from tests.test_subtitle_builder import media, transcript
 
 
 class CanonicalEditBridgeQATests(unittest.TestCase):
@@ -50,6 +54,22 @@ class CanonicalEditBridgeQATests(unittest.TestCase):
                 qa = run_canonical_edit_bridge_qa(self.context())
                 self.assertEqual(qa["package_gate_status"], "fail")
                 self.assertIn(issue_type, {item["issue_type"] for item in qa["issues"]})
+
+    def test_subtitle_tamper_is_a_blocking_canonical_transcript_failure(self):
+        profile = load_subtitle_profile()
+        subtitle = build_subtitle_artifact(transcript(), media(), profile, subtitle_id="SUB1", created_at="now")
+        subtitle = copy.deepcopy(subtitle); subtitle["cues"][0]["text"] = "被篡改"
+        context = SimpleNamespace(
+            mapping={}, media=media(), extracted={}, chunk_plan=object(), chunk_profile={},
+            transcript=transcript(), subtitle_artifact=subtitle, subtitle_profile=profile,
+            placements=(), preview_used_placement_ids=(),
+        )
+        with patch("deeptalk_studio.audio_timestamp_mapping.validate_timestamp_mapping"), patch(
+            "deeptalk_studio.transcription_chunking.validate_transcription_chunk_plan"
+        ), patch("deeptalk_studio.transcript_builder.validate_timed_transcript"):
+            qa = run_canonical_edit_bridge_qa(context)
+        self.assertEqual(qa["package_gate_status"], "fail")
+        self.assertIn("invalid_transcript_chain", {item["issue_type"] for item in qa["issues"]})
 
 
 if __name__ == "__main__":

@@ -56,7 +56,8 @@ EDIT_BRIDGE_SCHEMA = _object({
         "production_plan_digest": _D, "motion_manifest_digest": _D, "production_qa_digest": _D,
         "alignment_digest": _D, "alignment_profile_digest": _D,
         "rough_cut_profile_digest": _D, "aligned_preview_profile_digest": _D,
-    }),
+        "subtitle_artifact_digest": _D, "subtitle_profile_digest": _D,
+    }, optional=("subtitle_artifact_digest", "subtitle_profile_digest")),
     "visual_placements": _array(VISUAL_PLACEMENT_SCHEMA), "timing_conflicts": _array(TIMING_CONFLICT_SCHEMA),
     "preview_adjustments": _array(PREVIEW_ADJUSTMENT_SCHEMA), "alignment_gaps": _array(_object({
         "gap_id": _string(), "gap_type": _string(), "reason_code": _string(),

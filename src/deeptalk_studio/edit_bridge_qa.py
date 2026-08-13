@@ -25,6 +25,7 @@ class CanonicalEditBridgeQAContext:
  preview_used_placement_ids:Sequence[str];allowed_roots:Sequence[Path]
  preview_project:Optional[Any]=None;preview_renderer:Optional[Any]=None
  previous_bridge:Optional[Mapping[str,Any]]=None;revision_adjustment:Optional[Mapping[str,Any]]=None
+ subtitle_artifact:Optional[Mapping[str,Any]]=None;subtitle_profile:Optional[Mapping[str,Any]]=None
 
 REQUIRED_GROUPS={"root","transcript","alignment","placement","preview"}
 
@@ -83,8 +84,10 @@ def _validate_root_chain(context):
   "alignment_digest":_root_digest(context.alignment,"artifact_digest"),
   "alignment_profile_digest":_root_digest(context.alignment_profile,"profile_digest"),
   "rough_cut_profile_digest":_root_digest(context.timing_profiles[0],"profile_digest"),
-  "aligned_preview_profile_digest":_root_digest(context.preview_profile,"profile_digest"),
+ "aligned_preview_profile_digest":_root_digest(context.preview_profile,"profile_digest"),
  }
+ if context.subtitle_artifact is not None and context.subtitle_profile is not None:
+  expected.update(subtitle_artifact_digest=_root_digest(context.subtitle_artifact,"artifact_digest"),subtitle_profile_digest=_root_digest(context.subtitle_profile,"profile_digest"))
  if dict(context.bridge.get("root_bindings",{}))!=expected:raise EditBridgeQAError("Edit Bridge canonical root binding 不一致")
 
 def _validate_transcript_chain(context):
@@ -94,6 +97,9 @@ def _validate_transcript_chain(context):
  validate_timestamp_mapping(context.mapping,context.media,context.extracted)
  validate_transcription_chunk_plan(context.chunk_plan,context.extracted,context.mapping,context.chunk_profile)
  validate_timed_transcript(context.transcript,context.media,context.extracted,context.mapping,context.chunk_plan)
+ if context.subtitle_artifact is None or context.subtitle_profile is None:raise EditBridgeQAError("正式 Preview 缺少 Subtitle roots")
+ from .subtitle_builder import validate_subtitle_artifact
+ validate_subtitle_artifact(context.subtitle_artifact,context.transcript,context.media,context.subtitle_profile)
 
 def _validate_alignment_chain(context):
  from .alignment_validation import validate_script_alignment
@@ -120,10 +126,13 @@ def _validate_preview_chain(context):
  from .aligned_preview.remotion import probe_audio_presentation,validate_aligned_preview_manifest,validate_preview_audio_presentation
  validate_aligned_preview_manifest(context.preview_manifest,context.preview_path)
  if context.preview_manifest.get("bridge_digest")!=context.bridge.get("package_digest") or context.preview_manifest.get("profile_digest")!=context.preview_profile.get("profile_digest"):raise EditBridgeQAError("Preview Manifest root binding 不一致")
+ if not context.preview_manifest.get("subtitles_enabled") or context.preview_manifest.get("subtitle_artifact_digest")!=context.subtitle_artifact.get("artifact_digest") or context.preview_manifest.get("subtitle_transcript_digest")!=context.transcript.get("transcript_digest") or context.preview_manifest.get("subtitle_profile_digest")!=context.subtitle_profile.get("profile_digest"):raise EditBridgeQAError("Preview Subtitle binding 或 renderer enablement 不一致")
  if list(context.preview_manifest.get("used_placement_ids",[]))!=list(context.preview_used_placement_ids):raise EditBridgeQAError("Preview 使用画面清单不一致")
  source=probe_audio_presentation(context.media["immutable_local_path"]);preview=probe_audio_presentation(context.preview_path)
  validate_preview_audio_presentation(source,preview,max(source.tolerance_seconds,preview.tolerance_seconds,1/30))
- if context.preview_renderer is not None and context.preview_project is not None:context.preview_renderer.validate_project(context.preview_project)
+ if context.preview_renderer is not None and context.preview_project is not None:
+  context.preview_renderer.validate_project(context.preview_project)
+  if not context.preview_project.subtitles_enabled or context.preview_project.subtitle_artifact_digest!=context.subtitle_artifact.get("artifact_digest"):raise EditBridgeQAError("Renderer project 未启用当前字幕")
 
 def build_canonical_edit_bridge_qa_inputs(context):
  """Create the only formal QA input set; callers cannot replace validators."""

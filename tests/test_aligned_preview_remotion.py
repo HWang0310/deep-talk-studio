@@ -11,5 +11,10 @@ class AlignedPreviewRemotionTests(unittest.TestCase):
   self.assertIn("width={1920}",root);self.assertIn("height={1080}",root);self.assertIn("fps={30}",root);self.assertIn("Math.ceil",root)
  def test_package_versions_are_locked(self):
   package=json.loads((ROOT/"renderer_templates/aligned_preview_remotion/package.json").read_text());self.assertEqual(package["dependencies"]["remotion"],"4.0.507")
+ def test_basic_subtitles_are_frame_driven_and_visuals_respect_reserved_region(self):
+  subtitle=(ROOT/"renderer_templates/aligned_preview_remotion/src/BasicSubtitles.tsx").read_text()
+  source=TEMPLATE.read_text()
+  self.assertIn("useCurrentFrame",subtitle);self.assertIn("subtitle-region",subtitle)
+  self.assertNotIn("karaoke",subtitle.casefold());self.assertIn("content-safe-region",source)
 
 if __name__=="__main__":unittest.main()

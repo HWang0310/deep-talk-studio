@@ -2,7 +2,7 @@ import copy,unittest
 from deeptalk_studio.edit_bridge_planner import EditBridgePlanningError,build_edit_bridge
 from deeptalk_studio.edit_bridge_validation import EditBridgeValidationError,validate_edit_bridge
 
-def bindings(): return {k:k[0]*64 for k in ("narration_media_digest","extracted_audio_digest","timestamp_mapping_digest","chunk_plan_digest","transcript_digest","script_content_digest","research_digest","material_package_digest","material_view_digest","production_plan_digest","motion_manifest_digest","production_qa_digest","alignment_digest","alignment_profile_digest","rough_cut_profile_digest","aligned_preview_profile_digest")}
+def bindings(): return {k:k[0]*64 for k in ("narration_media_digest","extracted_audio_digest","timestamp_mapping_digest","chunk_plan_digest","transcript_digest","script_content_digest","research_digest","material_package_digest","material_view_digest","production_plan_digest","motion_manifest_digest","production_qa_digest","alignment_digest","alignment_profile_digest","rough_cut_profile_digest","aligned_preview_profile_digest","subtitle_artifact_digest","subtitle_profile_digest")}
 
 class EditBridgeValidationTests(unittest.TestCase):
  def setUp(self):

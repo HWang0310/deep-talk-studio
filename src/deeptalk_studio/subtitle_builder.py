@@ -46,11 +46,12 @@ def _should_join(current, unit, profile):
 
 
 def _cue(units, order, precision):
+    text = normalize_subtitle_text("".join(str(item["spoken_text"]) for item in units))
     return {
         "cue_id": f"SUBC{order:06d}", "order": order,
         "in_seconds": str(units[0]["media_start_seconds"]),
         "out_seconds": str(units[-1]["media_end_seconds"]),
-        "text": normalize_subtitle_text("".join(str(item["spoken_text"]) for item in units)),
+        "text": text,
         "timing_precision": "segment" if precision == "segment" else "word",
         "source_unit_ids": [str(item["unit_id"]) for item in units],
     }
@@ -114,6 +115,8 @@ def validate_subtitle_artifact(artifact, transcript, media, profile):
             raise SubtitleArtifactError("segment-only 字幕伪造了 word precision")
         if cue["text"] != normalize_subtitle_text("".join(str(unit["spoken_text"]) for unit in units)):
             raise SubtitleArtifactError("Subtitle text 不可从 Transcript 重建")
+        if len(cue["text"]) > int(profile["max_lines"]) * int(profile["max_chars_per_line"]):
+            raise SubtitleArtifactError("Subtitle cue 超过两行确定性容量")
         previous = end
     if not artifact["cues"] or artifact.get("artifact_digest") != _digest(artifact):
         raise SubtitleArtifactError("Subtitle Artifact digest 或 cues 无效")

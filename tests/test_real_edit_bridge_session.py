@@ -38,7 +38,7 @@ class RealEditBridgeSessionTests(unittest.TestCase):
         for concrete in (
             "import_narration_media", "extract_transcription_audio",
             "plan_transcription_chunks", "build_timed_transcript",
-            "build_script_alignment", "build_visual_placements",
+            "build_script_alignment", "build_subtitle_artifact", "build_visual_placements",
             "mux_clean_aroll_audio", "run_canonical_edit_bridge_qa",
         ):
             self.assertIn(concrete, source)

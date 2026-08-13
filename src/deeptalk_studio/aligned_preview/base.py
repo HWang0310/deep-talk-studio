@@ -5,7 +5,7 @@ from typing import Tuple
 
 @dataclass(frozen=True)
 class AlignedPreviewProject:
- project_dir:Path; payload_path:Path; staged_placement_ids:Tuple[str,...]; staged_assets:Tuple[Path,...]; payload_text:str
+ project_dir:Path; payload_path:Path; staged_placement_ids:Tuple[str,...]; staged_assets:Tuple[Path,...]; payload_text:str; subtitles_enabled:bool=False; subtitle_artifact_digest:str=""
 @dataclass(frozen=True)
 class AlignedPreviewRender:
  output_path:Path; command_summary:str; sha256:str; byte_size:int

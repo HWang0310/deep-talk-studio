@@ -192,8 +192,9 @@ def _bridge_digest(value):
 
 
 def build_edit_bridge(root_bindings,placements,conflicts,adjustments,alignment_gaps,*,bridge_id,created_at,revision=1,previous_revision=0):
-    expected_bindings={"narration_media_digest","extracted_audio_digest","timestamp_mapping_digest","chunk_plan_digest","transcript_digest","script_content_digest","research_digest","material_package_digest","material_view_digest","production_plan_digest","motion_manifest_digest","production_qa_digest","alignment_digest","alignment_profile_digest","rough_cut_profile_digest","aligned_preview_profile_digest"}
-    if set(root_bindings)!=expected_bindings or not all(root_bindings.values()): raise EditBridgePlanningError("Edit Bridge root bindings 不完整")
+    legacy_bindings={"narration_media_digest","extracted_audio_digest","timestamp_mapping_digest","chunk_plan_digest","transcript_digest","script_content_digest","research_digest","material_package_digest","material_view_digest","production_plan_digest","motion_manifest_digest","production_qa_digest","alignment_digest","alignment_profile_digest","rough_cut_profile_digest","aligned_preview_profile_digest"}
+    subtitle_bindings={"subtitle_artifact_digest","subtitle_profile_digest"}
+    if set(root_bindings) not in {frozenset(legacy_bindings),frozenset(legacy_bindings|subtitle_bindings)} or not all(root_bindings.values()): raise EditBridgePlanningError("Edit Bridge root bindings 不完整")
     for p in placements:
         if p.get("placement_status")!="ready" and (p.get("preview_in_frame",-1)>=0 or p.get("preview_out_frame",-1)>=0):
             raise EditBridgePlanningError("非 ready Placement 不得携带 Preview frame")

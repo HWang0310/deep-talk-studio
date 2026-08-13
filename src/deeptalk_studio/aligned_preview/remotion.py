@@ -19,7 +19,7 @@ def _stage(source,target,roots,size,digest):
 class RemotionAlignedPreviewRenderer:
  def __init__(self,browser_executable=None):
   self.browser_executable=browser_executable
- def prepare_project(self,bridge,media,allowed_roots,project_root):
+ def prepare_project(self,bridge,media,subtitle_artifact,subtitle_profile,allowed_roots,project_root):
   if not re.fullmatch(r"[A-Za-z0-9._-]+",bridge["bridge_id"]):raise AlignedPreviewError("Bridge ID 无效")
   target=Path(project_root).resolve()/bridge["bridge_id"]/f"r{bridge['revision']:04d}"
   if target.exists():raise AlignedPreviewError("Aligned Preview project 已存在")
@@ -28,15 +28,19 @@ class RemotionAlignedPreviewRenderer:
   shutil.copytree(template,target,ignore=shutil.ignore_patterns("node_modules",".git"))
   public=target/"public/assets";public.mkdir(parents=True,exist_ok=True)
   ar_name="VP0000"+Path(media["immutable_local_path"]).suffix.lower();staged=[_stage(media["immutable_local_path"],public/ar_name,allowed_roots,media["byte_size"],media["sha256"])]
-  payload={"media_duration_seconds":media["presentation_duration_seconds"],"placements":[{"placement_id":"VP0000","source_kind":"clean_aroll","asset_path":f"assets/{ar_name}","preview_in_frame":0,"preview_out_frame":None}]};ids=["VP0000"]
+  if subtitle_artifact.get("narration_media_id")!=media.get("media_id") or subtitle_artifact.get("narration_media_sha256")!=media.get("sha256") or subtitle_artifact.get("profile_digest")!=subtitle_profile.get("profile_digest") or not subtitle_artifact.get("cues"):
+   raise AlignedPreviewError("Subtitle Artifact 与 Preview roots 不一致")
+  payload={"media_duration_seconds":media["presentation_duration_seconds"],"subtitle_artifact_digest":subtitle_artifact["artifact_digest"],"subtitle_profile":subtitle_profile,"subtitle_cues":subtitle_artifact["cues"],"subtitles_enabled":True,"placements":[{"placement_id":"VP0000","source_kind":"clean_aroll","asset_path":f"assets/{ar_name}","preview_in_frame":0,"preview_out_frame":None}]};ids=["VP0000"]
   for p in bridge.get("visual_placements",[]):
    if p.get("placement_status")!="ready" or not p.get("preview_enabled",True):continue
    suffix=Path(p["local_path"]).suffix.lower();name=p["placement_id"]+suffix;staged.append(_stage(p["local_path"],public/name,allowed_roots,p["byte_size"],p["sha256"]));ids.append(p["placement_id"])
    payload["placements"].append({"placement_id":p["placement_id"],"source_kind":p["source_kind"],"asset_path":f"assets/{name}","preview_in_frame":p["preview_in_frame"],"preview_out_frame":p["preview_out_frame"],"source_clip_in_seconds":p.get("source_clip_in_seconds","")})
   text=json.dumps(payload,ensure_ascii=False,indent=2)+"\n";payload_path=target/"public/bridge.json";payload_path.write_text(text,encoding="utf-8")
-  return AlignedPreviewProject(target,payload_path,tuple(ids),tuple(staged),text)
+  return AlignedPreviewProject(target,payload_path,tuple(ids),tuple(staged),text,True,subtitle_artifact["artifact_digest"])
  def validate_project(self,project):
   if not project.payload_path.is_file() or json.loads(project.payload_text)!=json.loads(project.payload_path.read_text()):raise AlignedPreviewError("Aligned Preview project payload 无效")
+  payload=json.loads(project.payload_text)
+  if not project.subtitles_enabled or not payload.get("subtitles_enabled") or payload.get("subtitle_artifact_digest")!=project.subtitle_artifact_digest or not payload.get("subtitle_cues"):raise AlignedPreviewError("Aligned Preview 没有启用当前字幕")
  def render_visual(self,project,output_path):
   """Install the locked project and execute a real visual-only Remotion render."""
   self.validate_project(project);output=Path(output_path).resolve()
@@ -100,8 +104,8 @@ def mux_clean_aroll_audio(visual_path,media,output_path):
  _run(command);preview=probe_audio_presentation(output);tol=max(src.tolerance_seconds,preview.tolerance_seconds,1/30);validate_preview_audio_presentation(src,preview,tol)
  summary="ffmpeg presentation-preserving stream copy" if codec_copy else "ffmpeg presentation-preserving AAC conversion"
  return AudioMuxResult(output,summary,preview.audio_stream_count,float(json.loads(_run(["ffprobe","-v","error","-show_entries","format=duration","-of","json",str(output)]).stdout)["format"]["duration"]),preview.audio_start_seconds,preview.audio_end_seconds,preview.internal_gaps,tol,codec_copy,hashlib.sha256(output.read_bytes()).hexdigest(),output.stat().st_size)
-def build_aligned_preview_manifest(path,bridge,profile,media,used_placement_ids):
- value={"artifact_version":"aligned-preview-manifest/1","bridge_id":bridge["bridge_id"],"bridge_digest":bridge["package_digest"],"profile_digest":profile["profile_digest"],"media_id":media["media_id"],"media_sha256":media["sha256"],"source_presentation_evidence_digest":media["presentation_evidence"]["evidence_digest"],"used_placement_ids":list(used_placement_ids),"output_sha256":hashlib.sha256(Path(path).read_bytes()).hexdigest(),"output_byte_size":Path(path).stat().st_size}
+def build_aligned_preview_manifest(path,bridge,profile,media,used_placement_ids,subtitle_artifact,subtitle_profile,subtitles_enabled):
+ value={"artifact_version":"aligned-preview-manifest/1","bridge_id":bridge["bridge_id"],"bridge_digest":bridge["package_digest"],"profile_digest":profile["profile_digest"],"media_id":media["media_id"],"media_sha256":media["sha256"],"source_presentation_evidence_digest":media["presentation_evidence"]["evidence_digest"],"used_placement_ids":list(used_placement_ids),"subtitle_artifact_digest":subtitle_artifact["artifact_digest"],"subtitle_transcript_digest":subtitle_artifact["transcript_digest"],"subtitle_profile_digest":subtitle_profile["profile_digest"],"subtitles_enabled":bool(subtitles_enabled),"output_sha256":hashlib.sha256(Path(path).read_bytes()).hexdigest(),"output_byte_size":Path(path).stat().st_size}
  value["manifest_digest"]=hashlib.sha256(json.dumps(value,sort_keys=True,separators=(",", ":")).encode()).hexdigest();return value
 def validate_aligned_preview_manifest(manifest,path):
  value=dict(manifest);digest=value.pop("manifest_digest",None)
