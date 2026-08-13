@@ -266,7 +266,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if not candidates:
                 print("把已经剪好口气的正式真人口播视频拖进来。\nmp4 / mov 都可以。\n不需要另外录音。\n不需要自己提取音轨。\n不需要标记时间点。")
                 return 0
-            print("已找到正式真人口播视频，将在后台创建不可覆盖的对齐粗剪。")
+            api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+            if not api_key:
+                print("真人口播视频已经找到，但当前转写服务尚未授权。请在 Codex 中直接把视频拖进来，我会继续完成对齐。", file=sys.stderr)
+                return 2
+            from .edit_bridge_session import resolve_real_edit_bridge_session, run_real_edit_bridge_session
+            from .transcription.openai import OpenAISDKTranscriptionTransport, OpenAITranscriptionProvider
+            import uuid
+            resolved = resolve_real_edit_bridge_session(session)
+            provider = OpenAITranscriptionProvider(api_key=api_key, transport=OpenAISDKTranscriptionTransport(api_key=api_key))
+            result = run_real_edit_bridge_session(
+                resolved, provider,
+                clock=lambda: datetime.now().astimezone().isoformat(timespec="seconds"),
+                id_factory=lambda kind: f"{kind}-{uuid.uuid4().hex}",
+            )
+            print(f"对齐粗剪已经生成：{result.preview_path}")
             return 0
         if args.command == "revise-edit-bridge":
             print("已记录你对画面节奏的调整。只有唯一命中画面时才会创建新修订。")

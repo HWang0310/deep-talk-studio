@@ -65,7 +65,7 @@ def _semantic(p,cue):
       canonical_in_timecode=format_canonical_timecode(start),canonical_out_timecode=format_canonical_timecode(end),target_duration_seconds=str(end-start),confidence=cue.get("confidence","none"))
 
 
-def build_visual_placements(alignment,material_view,production_plan,motion_manifest,media,allowed_roots):
+def build_visual_placements(alignment,material_view,production_plan,motion_manifest,media,allowed_roots,production_qa=None):
     result=[]
     for item in material_view.get("items",[]):
         p=_base_fields(); p.update(placement_id=f"VP{len(result)+1:04d}",track_order=len(result)+1,source_id=item["source_id"],
@@ -86,18 +86,25 @@ def build_visual_placements(alignment,material_view,production_plan,motion_manif
         else: p.update(placement_status="ready",layout_mode="full_screen_broll",duration_status="natural")
         result.append(p)
     if motion_manifest:
-        if motion_manifest.get("qa_status")!="ready": raise EditBridgePlanningError("Motion Manifest QA 未通过")
+        if production_qa is None:
+            if motion_manifest.get("qa_status")!="ready": raise EditBridgePlanningError("Motion Manifest QA 未通过")
+        else:
+            from .production_qa import validate_motion_manifest,validate_production_qa
+            validate_motion_manifest(motion_manifest,production_plan)
+            validate_production_qa(production_qa,production_plan,motion_manifest)
+            if production_qa.get("package_gate_status") not in {"pass","warnings"}:raise EditBridgePlanningError("Production QA 未通过")
         scenes={s["scene_id"]:s for s in production_plan.get("scenes",[])}
         for asset in motion_manifest.get("assets",[]):
-            scene=scenes.get(asset.get("scene_id"))
-            if not scene or asset.get("qa_status")!="ready" or not _verified(asset.get("local_path",""),asset.get("byte_size",0),asset.get("sha256",""),allowed_roots):
+            scene=scenes.get(asset.get("scene_id")); asset_path=asset.get("local_path") or asset.get("output_path","")
+            asset_ready=asset.get("qa_status")=="ready" if production_qa is None else True
+            if not scene or not asset_ready or not _verified(asset_path,asset.get("byte_size",0),asset.get("sha256",""),allowed_roots):
                 raise EditBridgePlanningError("Motion Asset 身份、QA 或 SHA 无效")
-            cue=_cue(alignment,(scene.get("cue_ids") or [""])[0]); p=_base_fields(); _semantic(p,cue)
+            cue=_cue(alignment,scene.get("cue_id") or (scene.get("cue_ids") or [""])[0]); p=_base_fields(); _semantic(p,cue)
             p.update(placement_id=f"VP{len(result)+1:04d}",track_order=len(result)+1,source_kind="original_motion",source_id=asset["scene_id"],
-              scene_id=asset["scene_id"],safe_filename=Path(asset["local_path"]).name,visual_role="motion",asset_type="original_motion",
+              scene_id=asset["scene_id"],safe_filename=Path(asset_path).name,visual_role="motion",asset_type="original_motion",
               natural_duration_seconds=str(asset["duration_seconds"]),layout_mode="full_screen_visual",layout_source="production_plan",
               placement_status="ready" if cue and cue.get("placement_status")=="aligned" else "needs_review",duration_status="natural",
-              local_path=asset["local_path"],byte_size=asset["byte_size"],sha256=asset["sha256"])
+              local_path=asset_path,byte_size=asset["byte_size"],sha256=asset["sha256"])
             result.append(p)
     return tuple(result)
 

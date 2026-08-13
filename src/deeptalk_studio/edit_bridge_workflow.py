@@ -16,23 +16,10 @@ class EditBridgeWorkflowResult:
 class FullEditBridgeWorkflowResult:
  artifact_paths:Mapping[str,Path];artifacts:Mapping[str,object]
 
-FULL_STAGE_ORDER=("import_media","extract_audio","build_mapping","plan_chunks","transcribe","build_transcript","build_alignment","build_bridge","render_preview","run_qa")
-
-def run_full_edit_bridge_workflow(stages,output_root):
- """Execute the approved chain in one owner-controlled order.
-
- Stage callables are injected so unit tests and provider/renderer adapters remain
- isolated; production wiring supplies the concrete Tasks 3–26 callables.
- """
- if set(stages)!=set(FULL_STAGE_ORDER):raise ValueError("完整 Edit Bridge Workflow 缺少或多出 stage")
- root=Path(output_root);root.mkdir(parents=True,exist_ok=True);paths={};artifacts={};previous=None
- for index,name in enumerate(FULL_STAGE_ORDER,1):
-  value=stages[name](previous)
-  target=root/f"{index:02d}-{name}.json"
-  if target.exists():raise ValueError("完整 Edit Bridge Workflow 不覆盖已有 stage")
-  serial=value if isinstance(value,(dict,list,str,int,float,bool)) or value is None else {"repr":repr(value)}
-  target.write_text(json.dumps(serial,ensure_ascii=False,sort_keys=True,indent=2)+"\n",encoding="utf-8");paths[name]=target;artifacts[name]=value;previous=value
- return FullEditBridgeWorkflowResult(paths,artifacts)
+def run_full_edit_bridge_workflow(inputs,provider,*,clock,id_factory,renderer=None):
+ """Compatibility name for the one concrete repository-owned production path."""
+ from .edit_bridge_session import run_real_edit_bridge_session
+ return run_real_edit_bridge_session(inputs,provider,clock=clock,id_factory=id_factory,renderer=renderer)
 
 def run_edit_bridge_workflow(inputs,output_root):
  if inputs.media_kind not in {"video","audio"}:raise ValueError("Clean A-roll 类型无效")

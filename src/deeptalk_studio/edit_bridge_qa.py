@@ -41,6 +41,7 @@ def run_edit_bridge_qa(inputs):
   except Exception:outcome=False
   check(item.group,item.check_name,outcome,item.issue_type,item.severity)
  by_id={p["placement_id"]:p for p in inputs.placements};used_ready=all(pid in by_id and by_id[pid].get("placement_status")=="ready" for pid in inputs.preview_used_placement_ids)
+ used_ready=used_ready or all(pid=="VP0000" or (pid in by_id and by_id[pid].get("placement_status")=="ready" and by_id[pid].get("preview_enabled",True)) for pid in inputs.preview_used_placement_ids)
  check("preview","preview_uses_ready_only",used_ready,"preview_used_unready_asset")
  unready=[p for p in inputs.placements if p.get("placement_status")!="ready"]
  if unready:issues.append({"issue_id":f"EBI{len(issues)+1:04d}","issue_type":"partial_placement_unready","scope":"placement","severity":"warning"})
@@ -102,11 +103,11 @@ def _validate_placement_chain(context):
  from .edit_bridge_validation import validate_edit_bridge
  from .material_bridge import validate_material_production_view
  validate_material_production_view(context.material_view,context.material_package_path,context.script,context.report,context.material_profile,context.material_asset_root)
- raw=build_visual_placements(context.alignment,context.material_view,context.production_plan,context.motion_manifest,context.media,context.allowed_roots)
+ raw=build_visual_placements(context.alignment,context.material_view,context.production_plan,context.motion_manifest,context.media,context.allowed_roots,context.production_qa)
  derived=derive_placement_timing(raw,context.timing_profiles)
  if tuple(context.timing_result.placements)!=tuple(derived.placements) or tuple(context.timing_result.conflicts)!=tuple(derived.conflicts) or tuple(context.timing_result.adjustments)!=tuple(derived.adjustments):raise EditBridgeQAError("Placement timing 无法从 canonical roots 重推导")
  if tuple(context.placements)!=tuple(derived.placements):raise EditBridgeQAError("Bridge placements 与重推导不一致")
- validate_edit_bridge(context.bridge,context.bridge["root_bindings"],derived.placements,derived.conflicts,derived.adjustments,context.alignment.get("alignment_gaps",[]))
+ validate_edit_bridge(context.bridge,context.bridge["root_bindings"],derived.placements,derived.conflicts,derived.adjustments,context.alignment.get("gaps",[]))
 
 def _validate_preview_chain(context):
  from .aligned_preview.remotion import probe_audio_presentation,validate_aligned_preview_manifest,validate_preview_audio_presentation
