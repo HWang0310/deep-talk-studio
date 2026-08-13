@@ -4,102 +4,100 @@
 
 仓库：https://github.com/HWang0310/deep-talk-studio
 
-正式发布：https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.6.1
-
-本轮：Real E2E Preview Hardening canonical lineage 修复，新开发分支 `agent/real-e2e-preview-hardening-mainline`。没有 tag，没有新 Release。
-
-canonical-lineage 核心修复提交：`71fafe7`（`fix: harden real E2E motion preview layouts`）。旧审计分支 `agent/real-e2e-preview-hardening` 与旧提交 `1394b90` 保留未删除。
+本轮：Audio Alignment + Visual Edit Bridge Design Review Candidate，保持 Unreleased。
 
 ## 1. 本轮任务是什么
 
-修复 Git canonical lineage blocker：旧 hardening 分支来自一条与远端 canonical main 无共同祖先、但 V0.6.1 基线 tree 完全相同的复制历史。本轮保持 main、v0.6.1 tag、旧分支和旧提交不动，从远端 canonical main `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d` 创建新分支并迁移完全相同的 Preview Hardening scoped changes。不进入 Audio Alignment 等下一阶段。
+从已通过 Review 的 `agent/real-e2e-preview-hardening-mainline` HEAD `f087b6c295a9e015357e4433b103428b16a5e6be` 建立 `agent/audio-alignment-edit-bridge`，检查现有 Script、Material、Production、Schema、Storage、renderer、Skill 与 eval 边界，只完成新阶段 Design Spec、自审、提交和推送。
+
+本轮明确不写 implementation plan、不开发、不运行 transcription、不渲染 Aligned Preview、不创建 Release。
 
 ## 2. 完成了什么
 
-- Timeline：两端 marker、日期与事件文字统一进入安全区。
-- Diagram：4 个真实中文节点使用 360×170 node box 和安全换行容器；edge label 使用独立不透明背景 plate 和固定上方 offset，不再与线重叠。
-- Core 新增长度容量 Gate：diagram node/edge、comparison label/fact 超出固定容量时在 renderer 前失败，不截断、不缩写、不改写 approved text。
-- Comparison：Planner 不再生成“两个解释”，改为受控中性标题“要点对照”；SAFE、SB-53、NASA 分别成为独立 card，机制名只显示一次，两条 grounded fact 保存在同卡。
-- Display Text：仅增加固定 allowlist 短语“要点对照”；任意事实文本仍无法声明为 `machine_editorial`。
-- Remotion 与 HyperFrames 保持同一 Production Plan / payload 语义，renderer 不重新解释 Research。
-- 使用完全相同的正式输入生成新 Production `PROD-20260813T133848055707`，旧 preview 保留未覆盖。
-- Preview 已由 ChatGPT 实际观看并确认 Timeline、Diagram、Comparison 三个视觉问题通过；第一轮 Material + Motion 阶段正式通过。
-- 旧核心 fix tree 与新核心 fix tree 都是 `6711ec90e881430d25c232b572368010e6961527`，patch-id 也相同，证明 canonical lineage 迁移没有遗漏产品代码、测试或安全 Gate。
+- 定义 Clean A-roll 是 immutable canonical timeline；视频默认支持 MP4/MOV/M4V，纯音频作为无完整 Preview 的兼容路径。
+- 定义 Narration Media、lossless Extracted Audio、Timed Transcript、Script Alignment、Beat/Cue Timeline、Visual Placement、Edit Bridge、Preview Manifest 与 QA 的版本化边界。
+- 设计 provider-neutral transcription adapter：确定性测试 provider + 可配置真实 provider；provider/LLM 都不能决定 canonical timecode、status 或 Gate。
+- 设计 span-preserving 中文/英文 normalization、确定性动态规划、歧义/漏读/即兴/重排检测和版本化 Profile/threshold。
+- 复用 Script Beat → Material Cue → Production Scene 身份，不建立第二套 Scene。
+- 将 A-roll、真实图片/截图、真实视频和 QA-ready Motion 纳入统一 placement model，自动推导 IN/OUT/duration 与默认 layout。
+- 分开真实视频的 narration timeline 与 source clip timeline；无 clip range 时保留插入位置并诚实标记 `clip_selection_needed`。
+- 定义 Motion/视频 duration conflict 与 overlap；Preview 允许确定性临时裁切，但不改源文件或 canonical decision。
+- 定义 JSON、普通中文 Markdown、NLE-neutral CSV 和 1920×1080/30fps `ALIGNED_PREVIEW.mp4`。
+- 明确历史 rights/reuse 继续兼容读取但不再阻塞新制作；缺文件、SHA/MIME/codec/path/grounding/binding 问题仍严格失败。
+- 覆盖产品要求的 A–Z adversarial cases、partial recovery、immutable revision 和真实真人视频 E2E 边界。
 
-## 3. 创建 / 修改了哪些重要文件
+## 3. 创建 / 修改的重要文件
 
-- Core：`production_planner.py`、`production_validation.py`。
-- Renderer：Remotion `ProductionComposition.tsx`、HyperFrames adapter。
-- Regression：Production planner、validation、renderer 三组测试。
-- 设计与计划：`docs/superpowers/specs/2026-08-13-real-e2e-preview-hardening-design.md`、`docs/superpowers/plans/2026-08-13-real-e2e-preview-hardening.md`。
-- 契约与记录：Production Contract/Evals、两套 adapter 文档、CHANGELOG、ROADMAP、HANDOFF。
-- ignored runtime：新 Production Plan、Project、8 个 MP4 clips、rough preview、hero still、Manifest、QA。
+- Design Spec：`docs/superpowers/specs/2026-08-13-audio-alignment-edit-bridge-design.md`
+- 项目状态：`AGENTS.md`、`PRD.md`、`ROADMAP.md`、`CHANGELOG.md`
+- 本交接：`HANDOFF.md`
 
-## 4. 当前架构是什么
+没有修改 Python、renderer templates、schemas、tests、Skills 或 runtime artifacts。
+
+## 4. 当前设计架构
 
 ```text
-same approved Research + reviewed Script + reviewed Material Package
-→ canonical input/binding Gate
-→ Core scene_payload + Display Text + layout capacity Gate
-→ single selected Remotion renderer
-→ real project validation + preview + render
-→ ffprobe + byte/SHA/source binding Manifest
-→ Production QA
-→ human frame review
+Clean A-roll → immutable Media + lossless audio derivative
+→ provider-neutral Timed Transcript
+→ deterministic Script sequence alignment
+→ stable Beat timeline → Cue anchor timeline
+→ existing Production Scene + material compatibility projection
+→ unified Visual Placement (A-roll / real image / real video / motion)
+→ Edit Bridge JSON + Markdown + CSV
+→ Remotion Aligned Preview
+→ ffprobe/SHA/binding Alignment + Edit Bridge QA
 ```
 
-Comparison/Diagram 的事实和 binding 由 Core 独占；两个 renderer 只消费统一布局语义。
+所有 canonical 秒数只来自 provider 真实 timestamp boundary 和 deterministic mapping。segment-only 不插值词级时间，降级为 coarse。
 
 ## 5. 已经可以运行什么
 
-- 2–6 项 comparison 生成最多三列的独立 mechanism cards，每项保留 label 与两条 grounded facts。
-- 最多 6 个 diagram nodes 使用安全换行；edge label 与连接线通过背景 plate 分离。
-- 超过布局容量的长文本 fail closed，不生成视觉溢出的项目。
-- 对同一正式内容创建不可覆盖 Production revision，并完整执行 validation、preview、render、ffprobe、Manifest 和 QA。
+仍然可以运行此前已验收的 Topic Discovery → Research → Script → Material → Motion Production。Design 文档可供 ChatGPT 完整 Review。
+
+本轮没有新增可运行产品能力。
 
 ## 6. 还不能运行什么
 
-- 不含真人 A-roll、真实音频时间码、字幕、BGM/SFX、标题封面或平台发布。
-- 5 个 reference-only 来源仍不会进入成片，只保留真人口播占位。
-- 本轮没有实现 Audio Alignment + Edit Bridge。
+- 不能导入/转录 Clean A-roll；
+- 不能生成 Beat/Cue 真实时间码；
+- 不能生成 Edit Bridge Package 或 `ALIGNED_PREVIEW.mp4`；
+- 没有 Audio Alignment Skill/CLI/provider/renderer；
+- 不做自动 A-roll cleanup、字幕、BGM/SFX、NLE 工程导出、标题封面或发布。
 
-## 7. 已知问题
+## 7. 已知问题与开放风险
 
-- 新 Production 仍诚实记录 6 个 gap：5 个 reference-only 画面位，1 个真实语音时间码。
-- rough preview 只验证辅助画面，不代表最终真人视频节奏。
-- 空 Remotion 模板在未注入 plan/profile/asset-map 前不能独立 typecheck；真实新 Production 注入文件后 lint、typecheck、compositions 全部通过。
+- 真实 provider 的模型、SDK 和 timestamp 能力会变化；实现 OpenAI adapter 时必须查询当日官方文档。
+- 中文 ASR token boundary 不统一；设计使用自己的可逆 normalization，segment 内不伪造词级精度。
+- 历史 rights 与 eligibility 紧耦合；设计用只读 material production projection 拆分 rights 与非 rights Gate，不改旧包。
+- 真实 B-roll 常缺内部 clip range；首版不自动猜“最佳几秒”。
+- VFR、非零 PTS 和多种音视频编码需要真实媒体 adversarial eval。
+- 阈值虽已给出确定值，仍需在 A–Z eval 中校准；若变化必须发布新 Profile，不改写旧工件。
 
 ## 8. 重要技术决策
 
-- 不把真实三项机制强行解释为左右阵营；沿用 payload 的 label/left/right 字段，但 renderer 将其解释为一个 card 的标题和两条事实。
-- 保留“两个解释”仅用于已存在历史工件的 allowlist 兼容，Planner 不再生成；新中性短语“要点对照”受同一白名单约束。
-- capacity Gate 使用确定性 East Asian width 单位，避免依赖浏览器测量；安全优先于自动缩小到不可读字号。
-- 不修改 Script、Research 或 Material；新旧 Plan 的 Script digest 与 Material digest 完全相同。
-- 不创建 v0.6.2，正式 Release 仍为 v0.6.1。
-- 不使用 unrelated-history merge，不 force push main，不改写 tag；从 `origin/main` 建立新 lineage 后 cherry-pick 已审 scoped commits。
+- Clean A-roll 是后续唯一 canonical timeline；任何新剪辑产生全新 Media → Transcript → Alignment → Bridge → Preview 链。
+- LLM 只可生成可读 gap 解释，不能生成机器时间码或 Gate。
+- 第一版只有 word/token timestamp 可进入精细 Preview；segment-only 保存 coarse 结果但不覆盖 A-roll。
+- ready overlay 的 IN 是 anchor 实际说话起点，OUT 来自真实 semantic window，不硬编码五秒。
+- 默认 layout：真实图片/视频全屏 B-roll；信息 Motion 全屏；没有视觉时保持真人。
+- rights/reuse 完全退出新制作资格 Gate，但不放松获取限制、文件完整性、Research grounding 或 Display Text grounding。
+- Preview adjustment 是 rough cut 临时决策，必须记录且不能冒充最终剪辑决定。
+- 产品版本仍为 Unreleased；Artifact `*/1` 只是 contract 第一版，不代表达到 V1.0。
 
-## 9. 哪些问题需要产品经理决定
+## 9. 需要产品经理 Review 的问题
 
-- 请 Review canonical lineage 修复：新分支 merge-base、ahead/behind、tree/patch 等价和测试结果。
-- lineage 通过后，正式安排 Audio Alignment + Edit Bridge；本轮不要回溯扩展范围。
+- Artifact、module 和 root binding 是否完整；
+- normalization、deterministic alignment、ambiguity 与 threshold 规则是否满足产品精度边界；
+- segment-only 不进入首版 Preview 是否符合预期；
+- Material rights compatibility projection 是否正确保留非版权 Gate；
+- IN/OUT/duration、layout、video source range 与 timing conflict policy 是否适合作为首版；
+- QA 的 pass/warnings/fail 与 partial recovery 是否正确；
+- A–Z adversarial eval 是否足以进入下一轮 implementation planning。
 
-## 10. 建议下一阶段做什么
+## 10. 建议下一阶段
 
-等待 ChatGPT 确认 canonical lineage。确认后由 ChatGPT 给出 Audio Alignment + Edit Bridge 的正式产品规格：把真人录音时间码绑定 Script Beat、Material Cue 与 Motion Scene，减少剪辑软件中的人工定位。
-
-## 验证结果
-
-- TDD red：新回归最初准确失败于“两个解释”、无 layout capacity Gate、旧左右栏、单行 diagram 与无 label plate。
-- 定向 Production 回归：36 项通过。
-- 完整项目：272 项；271 项执行通过，1 项真实双 renderer integration 按默认规则跳过。
-- 真实 Remotion project：environment、npm ci、lint、typecheck、compositions、Studio preview 六项 checks 全部 pass。
-- 新 Production：8 clips + 1 rough preview + 1 hero still，10 个工件全部 ready；Production QA pass，0 issue。
-- rough preview：H.264、1920×1080、30 fps、74.048 秒，SHA-256 `fe14987736b3f676d81f24124d3feae15a3640d86e13c8a199f6cdffb3140544`。
-- 人工画面检查：timeline 两端在 safe area；4 个 diagram node text 在 box 内，3 个 edge label plate 与线分离；comparison 标题为“要点对照”，三张 mechanism card 一眼可分，每张两条事实完整。
-- 权利复验：renderer asset map 为空；7 个外部来源仍为 reference_only，没有任何来源页面或截图进入项目。
-- canonical main 与正式 v0.6.1 commit 均为 `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`；旧分支无 merge-base 的 blocker 已在新分支解除。
-- 新分支 merge-base 为 canonical main；迁移前后核心 tree 与 patch-id 完全相同。完整测试与 GitHub compare 在推送前后再次复验。
+等待 ChatGPT Design Review。只有 Review 明确通过并发来新的正式指令后，才创建 TDD implementation plan；当前不要实现 Audio Alignment + Visual Edit Bridge。
 
 ## 给用户的下一步操作
 
-用户不需要做任何技术操作。Codex 聊天回复会直接附完整的 ChatGPT lineage 交接文字，不需要用户来本文件复制。
+用户不需要检查文件或 GitHub。Codex 本轮聊天回复会直接附上完整的 ChatGPT Design Review 交接，用户只需整段复制给 ChatGPT。

@@ -97,14 +97,23 @@
 - render-time SHA/path/MIME/eligibility、非数字 Display Text grounding、raw PDF/capture boundary 与 check→issue→gate fail-closed；
 - 字幕、BGM、标题、封面和发布仍保留到后续。
 
-## V0.7：第一轮真实用户端到端试用（Material + Motion 正式通过，等待 lineage Review）
+## V0.7：第一轮真实用户端到端试用（Material + Motion 与 canonical lineage 均已通过）
 
 - 用一期真实内容从选题跑到可导入剪辑软件的素材包；
 - 收集普通用户的阻塞点，再决定是优先做音频对齐、字幕还是发布辅助；
 - 不默认自动发布。
 - 2026-08-13 已完成真实 Topic → Research → Script → Material Review → Motion Production QA；没有使用 fixture，稿件与 Research 均为已审核正式版本。
 - 本轮暴露并修复 timeline safe area、diagram 长中文与 edge label、comparison 错误标题与强制左右栏问题；新预览已通过 Production QA 和 ChatGPT 实际观看核验。
-- 当前保留 5 个 reference-only 素材位和真人口播音频时间码；预览通过后的正式下一方向是 Audio Alignment + Edit Bridge，本轮未开始实现。
+- 当前保留 5 个历史 reference-only 素材位和真人口播音频时间码；ChatGPT 已通过 Preview 与 canonical lineage Review。
+
+## Unreleased：Audio Alignment + Visual Edit Bridge（Design Review Candidate）
+
+- 以用户先行剪好口气的 immutable Clean A-roll 为 canonical timeline；不自动删停顿、废句或重录。
+- Speech-to-Text provider 与确定性 Alignment Core 解耦，按真实 timestamp granularity 对齐 reviewed Script Beat、Material Cue 和现有 Production Scene。
+- 将 A-roll、真实图片/截图、真实视频和 QA-ready Motion 放入统一 Visual Placement timeline，自动推导 IN、OUT、duration 与基础 layout。
+- 输出不可覆盖的 Edit Bridge JSON、普通中文 Markdown、NLE-neutral CSV 和 `ALIGNED_PREVIEW.mp4`。
+- 历史 rights/reuse 信息保持兼容读取，但不作为新制作 Gate；文件、SHA、格式、安全、grounding、binding 与 QA 仍严格验证。
+- 当前只完成 Design Spec，尚未编写 implementation plan 或代码；等待 ChatGPT Design Review。
 
 ## 暂不承诺
 

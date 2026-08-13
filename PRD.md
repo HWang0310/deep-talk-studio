@@ -11,6 +11,8 @@
      → 素材建议 → 可视化 → 剪辑方案 → 发布辅助
 ```
 
+当前 Unreleased 产品设计方向是 Audio Alignment + Visual Edit Bridge：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统将 reviewed Script、Material Cue、真实图片/截图/视频和原创 Motion 对齐到真实口播时间，自动生成基本 rough cut；本轮只有 Design Review Candidate，尚未实现。自动 A-roll cleanup 不属于当前阶段。
+
 ## 2. 用户与协作角色
 
 主要用户不是工程师，只提供主题、做内容判断和最终确认。产品必须把技术步骤隐藏在简单操作背后。

@@ -4,6 +4,14 @@
 
 ## [Unreleased] - 2026-08-13
 
+### Audio Alignment + Visual Edit Bridge design
+
+- 完成 repository inspection 与 Design Review Candidate：把 immutable Clean A-roll 定义为 canonical timeline，设计 Narration Media、Extracted Audio、Timed Transcript、Script Alignment、Visual Placement、Edit Bridge 和 Aligned Preview 契约。
+- 设计 provider-neutral Speech-to-Text boundary、保留原文 span 的中英文 normalization、确定性序列对齐、版本化 threshold/Profile、Beat/Cue anchor 映射和可重推导 Gate；LLM 与 provider 均不能自报 canonical timecode 或 pass。
+- 将真实图片、截图、真实视频、现有 Motion 与 A-roll 纳入同一 placement model，定义真实 IN/OUT/duration、layout、source clip 双时间轴、timing conflict 和 preview-only adjustment。
+- 明确历史 rights/reuse 字段继续兼容读取但不再成为新制作 Gate；文件存在、SHA、MIME/codec、path、grounding、binding 与 Production QA 保持严格。
+- 设计 26 个指定 adversarial cases、不可覆盖 revision、partial recovery 和真实 Clean A-roll E2E 边界；本轮没有 implementation、implementation plan、真实转录、渲染或新 Release。
+
 ### Real user trial
 
 - 第一轮真实用户链路已从 Topic Discovery 继续跑通到 reviewed Research、reviewed Script、reviewed Material Package 和 Production QA；全程未使用 fixture，也未改写已审核稿件。
