@@ -18,6 +18,7 @@ VISUAL_PLACEMENT_SCHEMA = _object({
     "preview_in_frame": {"type": "integer"}, "preview_out_frame": {"type": "integer"},
     "preview_in_frame_timecode": _T, "preview_out_frame_timecode": _T,
     "preview_adjustment_id": _string(allow_empty=True),
+    "preview_enabled": {"type": "boolean"},
     "layout_mode": _enum(["full_screen_aroll", "full_screen_broll", "full_screen_visual", "picture_in_picture", "split_screen", "side_card"]),
     "layout_source": _enum(["profile_default", "production_plan", "user_adjustment"]),
     "audio_policy": _enum(["clean_aroll_primary", "mute_source_keep_aroll"]),

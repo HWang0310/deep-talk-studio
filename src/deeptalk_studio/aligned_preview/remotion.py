@@ -30,7 +30,7 @@ class RemotionAlignedPreviewRenderer:
   ar_name="VP0000"+Path(media["immutable_local_path"]).suffix.lower();staged=[_stage(media["immutable_local_path"],public/ar_name,allowed_roots,media["byte_size"],media["sha256"])]
   payload={"media_duration_seconds":media["presentation_duration_seconds"],"placements":[{"placement_id":"VP0000","source_kind":"clean_aroll","asset_path":f"assets/{ar_name}","preview_in_frame":0,"preview_out_frame":None}]};ids=["VP0000"]
   for p in bridge.get("visual_placements",[]):
-   if p.get("placement_status")!="ready":continue
+   if p.get("placement_status")!="ready" or not p.get("preview_enabled",True):continue
    suffix=Path(p["local_path"]).suffix.lower();name=p["placement_id"]+suffix;staged.append(_stage(p["local_path"],public/name,allowed_roots,p["byte_size"],p["sha256"]));ids.append(p["placement_id"])
    payload["placements"].append({"placement_id":p["placement_id"],"source_kind":p["source_kind"],"asset_path":f"assets/{name}","preview_in_frame":p["preview_in_frame"],"preview_out_frame":p["preview_out_frame"],"source_clip_in_seconds":p.get("source_clip_in_seconds","")})
   text=json.dumps(payload,ensure_ascii=False,indent=2)+"\n";payload_path=target/"public/bridge.json";payload_path.write_text(text,encoding="utf-8")

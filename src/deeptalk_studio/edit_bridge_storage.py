@@ -2,6 +2,7 @@
 import hashlib,json,re
 from copy import deepcopy
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 from typing import Any,Mapping,Tuple
 from .edit_bridge_renderer import render_edit_bridge_csv,render_edit_bridge_markdown
@@ -34,9 +35,24 @@ def resolve_adjustment_target(bridge,feedback):
   if score:matches.append((score,p))
  matches.sort(key=lambda x:-x[0]); best=[p for score,p in matches if matches and score==matches[0][0]]
  if len(best)!=1:return AdjustmentResolution(False,{},tuple((p.get("safe_filename") or p.get("source_kind","画面")) for p in best[:3]))
- direction="shorter" if any(w in feedback for w in ("短","太长")) else "later" if "晚" in feedback else "earlier"
+ direction=("suppress" if any(w in feedback for w in ("留真人","不要画面","只要真人")) else
+  "shorter" if any(w in feedback for w in ("短","太长")) else
+  "longer" if any(w in feedback for w in ("长一点","多留")) else
+  "later" if any(w in feedback for w in ("晚","后一点")) else "earlier")
  return AdjustmentResolution(True,{"placement_id":best[0]["placement_id"],"adjustment_type":direction,"reason":feedback},())
 def create_bridge_revision(previous,adjustment,*,created_at):
  result=deepcopy(dict(previous));result["revision"]=int(previous["revision"])+1;result["previous_revision"]=int(previous["revision"]);result["created_at"]=created_at
- result.setdefault("preview_adjustments",[]).append({"artifact_version":"preview-adjustment/1","adjustment_id":f"PA{len(result.get('preview_adjustments',[]))+1:04d}","placement_id":adjustment["placement_id"],"adjustment_type":adjustment["adjustment_type"],"reason":adjustment["reason"],"original_in_seconds":"","original_out_seconds":"","preview_in_seconds":"","preview_out_seconds":"","provenance":"user_feedback"})
+ placement=next((p for p in result.get("visual_placements",[]) if p.get("placement_id")==adjustment["placement_id"]),None)
+ if placement is None:raise EditBridgeStorageError("调整目标已不在当前 Bridge")
+ start=Decimal(str(placement["preview_effective_in_seconds"]));end=Decimal(str(placement["preview_effective_out_seconds"]));duration=end-start
+ new_start,new_end=start,end;kind=adjustment["adjustment_type"]
+ if kind=="shorter":new_end=start+max(Decimal("0.5"),duration*Decimal("0.75"))
+ elif kind=="longer":new_end=min(Decimal(str(placement.get("semantic_out_seconds") or end)),end+max(Decimal("0.5"),duration*Decimal("0.25")))
+ elif kind=="later":new_start=min(end-Decimal("0.5"),start+min(Decimal("1"),duration*Decimal("0.25")))
+ elif kind=="earlier":new_start=max(Decimal(str(placement.get("semantic_in_seconds") or 0)),start-min(Decimal("1"),duration*Decimal("0.25")))
+ elif kind=="suppress":placement["preview_enabled"]=False
+ else:raise EditBridgeStorageError("不支持的画面调整意图")
+ placement["preview_effective_in_seconds"]=str(new_start);placement["preview_effective_out_seconds"]=str(new_end);placement["layout_source"]="user_adjustment"
+ adjustment_id=f"PA{len(result.get('preview_adjustments',[]))+1:04d}";placement["preview_adjustment_id"]=adjustment_id
+ result.setdefault("preview_adjustments",[]).append({"artifact_version":"preview-adjustment/1","adjustment_id":adjustment_id,"placement_id":adjustment["placement_id"],"adjustment_type":kind,"reason":adjustment["reason"],"original_in_seconds":str(start),"original_out_seconds":str(end),"preview_in_seconds":str(new_start),"preview_out_seconds":str(new_end),"provenance":"user_feedback"})
  result["package_digest"]=_digest(result);return result

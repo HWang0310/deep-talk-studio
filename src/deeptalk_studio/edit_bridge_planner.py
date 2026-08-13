@@ -30,6 +30,7 @@ def _base_fields():
         "source_clip_in_seconds":"","source_clip_out_seconds":"","preview_effective_in_seconds":"","preview_effective_out_seconds":"",
         "preview_in_frame":-1,"preview_out_frame":-1,"preview_in_frame_timecode":"","preview_out_frame_timecode":"",
         "preview_adjustment_id":"","layout_mode":"full_screen_broll","layout_source":"profile_default",
+        "preview_enabled":True,
         "audio_policy":"mute_source_keep_aroll","placement_status":"unplaced","timing_status":"clear",
         "duration_status":"unknown","confidence":"none","notes":[],"timing_conflict_ids":[],
         "local_path":"","byte_size":0,"sha256":"",
@@ -127,7 +128,7 @@ def derive_placement_timing(placements, profiles, user_adjustments=()):
     conflicts=[]; adjustments=[]; overrides={a["placement_id"]:a for a in user_adjustments}
     ready=[]
     for p in result:
-        p.setdefault("timing_conflict_ids",[]); p.setdefault("notes",[]); p.setdefault("timing_status","clear"); p.setdefault("duration_status","unknown"); p.setdefault("preview_adjustment_id","")
+        p.setdefault("timing_conflict_ids",[]); p.setdefault("notes",[]); p.setdefault("timing_status","clear"); p.setdefault("duration_status","unknown"); p.setdefault("preview_adjustment_id",""); p.setdefault("preview_enabled",True)
         if p.get("placement_status")!="ready": continue
         try: start=Decimal(p["semantic_in_seconds"]); end=Decimal(p["semantic_out_seconds"])
         except Exception: p["placement_status"]="rejected"; p["timing_status"]="blocking"; continue
@@ -167,7 +168,7 @@ def derive_placement_timing(placements, profiles, user_adjustments=()):
                 _adjust(adjustments,p,"overlap_takeover","后开始画面接管",start,old,start,next_start,"overlap_policy")
     fps=preview["fps"]
     for p in result:
-        if p.get("placement_status")!="ready":
+        if p.get("placement_status")!="ready" or not p.get("preview_enabled",True):
             p.update(preview_in_frame=-1,preview_out_frame=-1,preview_in_frame_timecode="",preview_out_frame_timecode="")
             continue
         start=Decimal(p["preview_effective_in_seconds"]); end=Decimal(p["preview_effective_out_seconds"])
