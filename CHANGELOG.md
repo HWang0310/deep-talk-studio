@@ -12,7 +12,7 @@
 - OpenAI adapter 保持 real word timestamps 优先；只有 real segment timestamps 时明确标记 `segment/coarse`，两者都没有则 capability fail，不做插值。
 - 正式 QA 改为 repository-owned canonical factory，自行重探测 Media、重建 Mapping/Chunk/Alignment/Material/Placement/Bridge，并核验 Preview Manifest、SHA 和音频 presentation；调用方不能再传自定义 lambda 充当正式 QA。
 - 自然语言“短一点/长一点/早一点/晚一点/一直留真人”会真正改变 Preview effective timing 或 overlay suppression，并创建不可覆盖的 Bridge/Preview/Manifest/QA revision；reviewed Script、approved Research 和 canonical semantic window 不变。
-- 真实 Remotion exact-entrypoint E2E 生成 1920×1080/30fps H.264 + 单一 Clean A-roll audio 的 `ALIGNED_PREVIEW.mp4`，SHA-256 `f36604535f4b0ea464860b1a54452789990339de57bd63cd2a5146661e9f8b12`，768,717 bytes，canonical QA `warnings`（仅未就绪素材提示，无 blocking failure）。
+- 真实 Remotion exact-entrypoint E2E 同时覆盖可用图片、已选范围视频、未选范围视频、QA-ready Motion 与带内部静音的 Clean A-roll；生成 1920×1080/30fps H.264 + 单一 Clean A-roll audio 的 `ALIGNED_PREVIEW.mp4`，SHA-256 `029e5211071126bc0183eb2dc354b24ebff5089d9d80a8ff724ff7e7ba38b58f`，595,390 bytes，canonical QA `warnings`（未选视频保持 `clip_selection_needed` 且未入画，无 blocking failure）。
 - 完成批准计划 Task 0 与 Task 1–29：稳定 Discovery 冻结时间基线，并实现不可变 Clean A-roll 导入、媒体 presentation 证据、lossless transcription audio、可重推导 Timestamp Mapping、确定性自然停顿 Chunk Plan 与 boundary-risk 全链路保存。
 - 新增 provider-neutral Transcript、当前 OpenAI `whisper-1` word timestamp adapter、可逆中英文 normalization、确定性 Script/Transcript 对齐、校准 Profile、Beat/Cue timeline 与不可覆盖 Alignment revision。
 - 新增 reviewed Material production projection、图片/视频/Motion 统一 Placement、frame-rate-neutral IN/OUT/duration、冲突与 7 秒 long-still Preview safeguard，以及 Edit Bridge JSON/Markdown/CSV/revision。
