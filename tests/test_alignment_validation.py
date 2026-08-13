@@ -5,7 +5,7 @@ import unittest
 
 from deeptalk_studio.alignment_builder import build_script_alignment
 from deeptalk_studio.alignment_validation import AlignmentValidationError, validate_script_alignment
-from tests.alignment_fixtures import NOW, cue_fixture, mapping_fixture, profile_fixture, script_fixture, transcript_fixture
+from tests.alignment_fixtures import NOW, cue_fixture, mapping_fixture, media_fixture, profile_fixture, script_fixture, transcript_fixture
 
 
 def digest_without(value, field="artifact_digest"):
@@ -20,14 +20,15 @@ class AlignmentValidationTests(unittest.TestCase):
         self.transcript = transcript_fixture()
         self.mapping = mapping_fixture()
         self.profile = profile_fixture()
+        self.media = media_fixture()
         self.cues = cue_fixture()
         self.artifact = build_script_alignment(
             self.script, self.transcript, self.mapping, self.profile, self.cues,
-            alignment_id="AL001", created_at=NOW,
+            alignment_id="AL001", created_at=NOW, media=self.media,
         )
 
     def validate(self, value):
-        return validate_script_alignment(value, self.script, self.transcript, self.mapping, self.profile, self.cues)
+        return validate_script_alignment(value, self.script, self.transcript, self.mapping, self.profile, self.cues, self.media)
 
     def test_valid_artifact_is_fully_rederived(self):
         self.assertIsNone(self.validate(self.artifact))
@@ -60,7 +61,7 @@ class AlignmentValidationTests(unittest.TestCase):
         script = copy.deepcopy(self.script)
         script["beats"][0]["narration"] += "新文字"
         with self.assertRaises(AlignmentValidationError):
-            validate_script_alignment(self.artifact, script, self.transcript, self.mapping, self.profile, self.cues)
+            validate_script_alignment(self.artifact, script, self.transcript, self.mapping, self.profile, self.cues, self.media)
 
 
 if __name__ == "__main__":

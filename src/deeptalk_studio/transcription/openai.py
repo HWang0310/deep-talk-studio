@@ -23,7 +23,7 @@ OPENAI_TRANSCRIPTION_CAPABILITIES = {
     "endpoint": "/v1/audio/transcriptions",
     "word_timestamp_model": "whisper-1",
     "response_format": "verbose_json",
-    "timestamp_granularities": ["word"],
+    "timestamp_granularities": ["word", "segment"],
     "file_limit": "25 MB",
 }
 
@@ -132,6 +132,8 @@ class OpenAITranscriptionProvider:
         response_digests = []
         request_ids = []
         provider_order = 0
+        selected_granularity = "word"
+        observed_granularities = set()
         for chunk in chunk_plan.chunks:
             try:
                 response = self._transport.create(
@@ -144,22 +146,41 @@ class OpenAITranscriptionProvider:
             if not isinstance(response, Mapping):
                 raise TranscriptionCapabilityError("OpenAI transcription response 不是对象")
             words = response.get("words")
-            if not isinstance(words, list) or not words:
-                raise TranscriptionCapabilityError("OpenAI response 缺少真实 word 时间戳")
+            segments = response.get("segments")
+            if isinstance(words, list) and words:
+                timed_values = words
+                granularity = "word"
+                text_field = "word"
+            elif isinstance(segments, list) and segments:
+                timed_values = segments
+                granularity = "segment"
+                text_field = "text"
+                selected_granularity = "segment"
+            else:
+                raise TranscriptionCapabilityError(
+                    "OpenAI response 缺少真实 word 或 segment 时间戳"
+                )
+            observed_granularities.add(granularity)
+            if len(observed_granularities) > 1:
+                raise TranscriptionCapabilityError(
+                    "OpenAI 各 chunk 的 timestamp granularity 不一致"
+                )
             response_digests.append(canonical_digest(dict(response)))
             request_ids.append(str(response.get("request_id") or ""))
-            for word in words:
-                if not isinstance(word, Mapping):
-                    raise TranscriptionCapabilityError("OpenAI word timestamp 结构无效")
-                start = _decimal(word.get("start"), "word.start")
-                end = _decimal(word.get("end"), "word.end")
+            for value in timed_values:
+                if not isinstance(value, Mapping):
+                    raise TranscriptionCapabilityError(
+                        f"OpenAI {granularity} timestamp 结构无效"
+                    )
+                start = _decimal(value.get("start"), f"{granularity}.start")
+                end = _decimal(value.get("end"), f"{granularity}.end")
                 units.append(
                     ProviderTimedUnit(
                         chunk_index=chunk.chunk_index,
                         provider_order=provider_order,
                         local_start_seconds=start,
                         local_end_seconds=end,
-                        spoken_text=str(word.get("word") or ""),
+                        spoken_text=str(value.get(text_field) or ""),
                         boundary_risk_ids=_intersecting_risks(
                             chunk_plan, chunk.chunk_index, start, end
                         ),
@@ -172,6 +193,7 @@ class OpenAITranscriptionProvider:
             "request_ids": request_ids,
             "response_digests": response_digests,
             "chunk_plan_digest": chunk_plan.digest,
+            "selected_timestamp_granularity": selected_granularity,
             "used_previous_chunk_prompt": False,
             "used_overlap": False,
         }
@@ -181,7 +203,7 @@ class OpenAITranscriptionProvider:
             provider_model_version="",
             provider_request_id=",".join(value for value in request_ids if value),
             language=language,
-            timestamp_granularity="word",
+            timestamp_granularity=selected_granularity,
             units=tuple(units),
             boundary_risks=boundary_risks_from_plan(chunk_plan),
             raw_metadata=metadata,

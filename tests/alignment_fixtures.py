@@ -55,6 +55,14 @@ def mapping_fixture():
     return {"mapping_id": "MAP-align", "mapping_digest": "p" * 64}
 
 
+def media_fixture(duration="30"):
+    return {
+        "media_id": "NM-align",
+        "sha256": "m" * 64,
+        "presentation_duration_seconds": duration,
+    }
+
+
 def cue_fixture():
     return [
         {"cue_id": "VC001", "beat_id": "B001", "placement_anchor": "事件发生"},

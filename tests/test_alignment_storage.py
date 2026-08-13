@@ -5,14 +5,14 @@ from pathlib import Path
 
 from deeptalk_studio.alignment_builder import build_script_alignment
 from deeptalk_studio.alignment_storage import AlignmentStorageError, load_script_alignment, save_script_alignment
-from tests.alignment_fixtures import NOW, cue_fixture, mapping_fixture, profile_fixture, script_fixture, transcript_fixture
+from tests.alignment_fixtures import NOW, cue_fixture, mapping_fixture, media_fixture, profile_fixture, script_fixture, transcript_fixture
 
 
 class AlignmentStorageTests(unittest.TestCase):
     def setUp(self):
         self.artifact = build_script_alignment(
             script_fixture(), transcript_fixture(), mapping_fixture(), profile_fixture(), cue_fixture(),
-            alignment_id="AL001", created_at=NOW,
+            alignment_id="AL001", created_at=NOW, media=media_fixture(),
         )
 
     def test_json_and_readable_markdown_save_exclusively(self):

@@ -4,6 +4,7 @@ import hashlib
 import json
 from copy import deepcopy
 from dataclasses import asdict
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Mapping, Sequence
 
 from .sequence_alignment import align_sequences
@@ -182,33 +183,12 @@ def _cue_records(cues, beats, beat_records, transcript, transcript_tokens):
         if len(starts) == 1:
             anchor_start = starts[0]
             anchor_end = anchor_start + len(anchor)
-            token_indices = [
+            anchor_token_indices = [
                 index for index, token in enumerate(record["_tokens"])
                 if token.original_start_char >= anchor_start and token.original_end_char <= anchor_end
             ]
-            matched_transcript_indices = [
-                record["_pairs"][index] + record["_transcript_offset"]
-                for index in token_indices if index in record["_pairs"]
-            ]
-            matched_ids = list(dict.fromkeys(
-                transcript_tokens[index].source_unit_id for index in matched_transcript_indices
-                if transcript_tokens[index].source_unit_id
-            ))
-            units = [unit_by_id[unit_id] for unit_id in matched_ids]
-            risk_ids = list(dict.fromkeys(risk for unit in units for risk in unit.get("boundary_risk_ids", [])))
-            if units and len(matched_transcript_indices) == len(token_indices):
-                actual_start, actual_end = units[0]["media_start_seconds"], units[-1]["media_end_seconds"]
-                granularity = transcript["timestamp_granularity"]
-                if risk_ids:
-                    status, confidence = "needs_review", "low"
-                elif granularity == "segment":
-                    status, confidence = "coarse", "low"
-                elif record["alignment_status"] == "needs_review":
-                    status, confidence = "needs_review", "low"
-                elif record["alignment_status"] == "aligned" and granularity in {"word", "token"}:
-                    status, confidence = "aligned", "high"
-            if risk_ids:
-                deviation.append("chunk_boundary_risk")
+            if not anchor_token_indices:
+                deviation.append("anchor_not_tokenized")
         elif len(starts) > 1:
             deviation.append("ambiguous_anchor")
         else:
@@ -230,15 +210,62 @@ def _cue_records(cues, beats, beat_records, transcript, transcript_tokens):
         later = [other for other in ordered[index + 1:] if other["beat_id"] == cue["beat_id"] and other["anchor_char_start"] > cue["anchor_char_start"]]
         if later:
             cue["semantic_char_end"] = later[0]["anchor_char_start"]
+    # Map the finalized semantic char windows. IN is the first real timed unit
+    # for the anchor; OUT is the last uniquely matched unit in the whole span.
+    for cue in ordered:
+        if cue["deviation_codes"]:
+            continue
+        record=record_by_id[cue["beat_id"]]
+        beat_start=record["intended_char_start"]
+        local_anchor_start=cue["anchor_char_start"]-beat_start
+        local_anchor_end=cue["anchor_char_end"]-beat_start
+        local_semantic_end=cue["semantic_char_end"]-beat_start
+        anchor_tokens=[i for i,t in enumerate(record["_tokens"]) if t.original_start_char>=local_anchor_start and t.original_end_char<=local_anchor_end]
+        semantic_tokens=[i for i,t in enumerate(record["_tokens"]) if t.original_start_char>=local_anchor_start and t.original_end_char<=local_semantic_end]
+        if not anchor_tokens or not semantic_tokens or any(i not in record["_pairs"] for i in semantic_tokens):
+            cue["deviation_codes"].append("semantic_span_unmatched");continue
+        mapped=[record["_pairs"][i]+record["_transcript_offset"] for i in semantic_tokens]
+        anchor_mapped=[record["_pairs"][i]+record["_transcript_offset"] for i in anchor_tokens if i in record["_pairs"]]
+        if not anchor_mapped or mapped!=sorted(mapped) or len(set(mapped))!=len(mapped):
+            cue["deviation_codes"].append("semantic_span_ambiguous");continue
+        unit_ids=list(dict.fromkeys(transcript_tokens[i].source_unit_id for i in mapped if transcript_tokens[i].source_unit_id))
+        anchor_unit_id=transcript_tokens[anchor_mapped[0]].source_unit_id
+        if not unit_ids or not anchor_unit_id:
+            cue["deviation_codes"].append("semantic_span_unmatched");continue
+        units=[unit_by_id[unit_id] for unit_id in unit_ids];anchor_unit=unit_by_id[anchor_unit_id]
+        cue["matched_transcript_unit_ids"]=unit_ids
+        cue["actual_start_seconds"]=anchor_unit["media_start_seconds"]
+        cue["actual_end_seconds"]=units[-1]["media_end_seconds"]
+        cue["timestamp_granularity"]=transcript["timestamp_granularity"]
+        risks=list(dict.fromkeys(risk for unit in units for risk in unit.get("boundary_risk_ids",[])))
+        cue["boundary_risk_ids"]=risks
+        if risks:
+            cue["deviation_codes"].append("chunk_boundary_risk");cue["placement_status"]="needs_review";cue["confidence"]="low"
+        elif transcript["timestamp_granularity"]=="segment":
+            cue["placement_status"]="coarse";cue["confidence"]="low"
+        elif record["alignment_status"]=="aligned":
+            cue["placement_status"]="aligned";cue["confidence"]="high"
+        else:
+            cue["placement_status"]="needs_review";cue["confidence"]="low"
     return ordered
 
 
-def build_script_alignment(script, transcript, mapping, profile, cues, *, alignment_id, created_at):
+def build_script_alignment(script, transcript, mapping, profile, cues, *, alignment_id, created_at, media):
     script = _data(script)
     transcript = _data(transcript)
     mapping = _data(mapping)
+    media = _data(media)
     if mapping.get("mapping_id") != transcript.get("timestamp_mapping_id") or mapping.get("mapping_digest") != transcript.get("timestamp_mapping_digest"):
         raise AlignmentBuildError("Timestamp Mapping 与 Transcript 绑定不一致")
+    if media.get("media_id")!=transcript.get("narration_media_id") or media.get("sha256")!=transcript.get("narration_media_sha256"):
+        raise AlignmentBuildError("Clean A-roll Media 与 Transcript 绑定不一致")
+    try:
+        presentation_duration = Decimal(str(media["presentation_duration_seconds"]))
+        last_spoken_end = Decimal(str(transcript["timed_units"][-1]["media_end_seconds"]))
+    except (KeyError, IndexError, InvalidOperation) as exc:
+        raise AlignmentBuildError("Clean A-roll Media 缺少可信的成片时长") from exc
+    if presentation_duration <= 0 or presentation_duration < last_spoken_end:
+        raise AlignmentBuildError("Clean A-roll Media 时长不能短于最后一个真实转写单位")
     beats = script.get("beats", [])
     if not beats or not alignment_id or not created_at:
         raise AlignmentBuildError("Script Alignment 缺少必要输入")
@@ -271,7 +298,7 @@ def build_script_alignment(script, transcript, mapping, profile, cues, *, alignm
         "script_content_digest": _script_digest(script),
         "narration_media_id": transcript["narration_media_id"],
         "narration_media_sha256": transcript["narration_media_sha256"],
-        "presentation_duration_seconds": transcript["timed_units"][-1]["media_end_seconds"],
+        "presentation_duration_seconds": str(media["presentation_duration_seconds"]),
         "timestamp_mapping_id": mapping["mapping_id"], "timestamp_mapping_digest": mapping["mapping_digest"],
         "transcript_id": transcript["transcript_id"], "transcript_digest": transcript["transcript_digest"],
         "transcription_chunk_plan_digest": transcript["transcription_chunk_plan_digest"],

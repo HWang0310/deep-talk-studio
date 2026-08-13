@@ -80,6 +80,42 @@ class OpenAITranscriptionTests(unittest.TestCase):
         self.assertTrue(all(call["response_format"] == "verbose_json" for call in transport.calls))
         self.assertTrue(all(call["timestamp_granularities"] == ["word"] for call in transport.calls))
 
+    def test_real_segments_fall_back_to_coarse_provider_units(self):
+        responses = []
+        for index, chunk in enumerate(self.plan.chunks):
+            duration = chunk.extracted_end_seconds - chunk.extracted_start_seconds
+            responses.append({
+                "segments": [{
+                    "text": f"第{index}段完整话语",
+                    "start": 0,
+                    "end": float(min(duration, Decimal("0.2"))),
+                }],
+                "request_id": f"req-segment-{index}",
+            })
+        result = OpenAITranscriptionProvider(
+            api_key="test", transport=FakeTransport(responses)
+        ).transcribe(self.audio, self.plan, "zh", "whisper-1")
+        self.assertEqual(result.timestamp_granularity, "segment")
+        self.assertTrue(all(unit.spoken_text.endswith("完整话语") for unit in result.units))
+        self.assertEqual(result.raw_metadata["selected_timestamp_granularity"], "segment")
+
+    def test_words_are_preferred_when_response_also_contains_segments(self):
+        responses = self._responses()
+        for response in responses:
+            response["segments"] = [{"text": "不得选我", "start": 0, "end": 0.1}]
+        result = OpenAITranscriptionProvider(
+            api_key="test", transport=FakeTransport(responses)
+        ).transcribe(self.audio, self.plan, "zh", "whisper-1")
+        self.assertEqual(result.timestamp_granularity, "word")
+        self.assertTrue(all(unit.spoken_text != "不得选我" for unit in result.units))
+
+    def test_response_without_words_or_segments_fails_closed(self):
+        malformed = FakeTransport([{"text": "没有真实时间戳"}] * len(self.plan.chunks))
+        with self.assertRaisesRegex(TranscriptionCapabilityError, "word 或 segment"):
+            OpenAITranscriptionProvider(api_key="test", transport=malformed).transcribe(
+                self.audio, self.plan, "zh", "whisper-1"
+            )
+
     def test_model_without_timestamps_fails_instead_of_fabricating_precision(self):
         provider = OpenAITranscriptionProvider(api_key="test", transport=FakeTransport())
         with self.assertRaisesRegex(TranscriptionCapabilityError, "时间戳"):

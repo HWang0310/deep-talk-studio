@@ -13,7 +13,7 @@ class AlignmentValidationError(ValueError):
 
 def validate_script_alignment(
     artifact: Mapping[str, Any], script, transcript, mapping,
-    profile: Mapping[str, Any], cues: Sequence[Mapping[str, Any]],
+    profile: Mapping[str, Any], cues: Sequence[Mapping[str, Any]], media,
 ) -> None:
     try:
         validate_json_schema(dict(artifact), SCRIPT_ALIGNMENT_SCHEMA)
@@ -22,6 +22,7 @@ def validate_script_alignment(
     expected = build_script_alignment(
         script, transcript, mapping, profile, cues,
         alignment_id=artifact["alignment_id"], created_at=artifact["created_at"],
+        media=media,
     )
     if dict(artifact) != expected:
         raise AlignmentValidationError("Script Alignment 与受控输入的重推导结果不一致")

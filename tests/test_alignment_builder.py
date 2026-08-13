@@ -2,7 +2,8 @@ import unittest
 
 from deeptalk_studio.alignment_builder import build_script_alignment
 from tests.alignment_fixtures import (
-    NOW, cue_fixture, mapping_fixture, profile_fixture, script_fixture, transcript_fixture,
+    NOW, cue_fixture, mapping_fixture, media_fixture, profile_fixture, script_fixture,
+    transcript_fixture,
 )
 
 
@@ -11,7 +12,7 @@ class AlignmentBuilderTests(unittest.TestCase):
         return build_script_alignment(
             script_fixture(), transcript or transcript_fixture(), mapping_fixture(),
             profile_fixture(), cue_fixture() if cues is None else cues,
-            alignment_id="AL001", created_at=NOW,
+            alignment_id="AL001", created_at=NOW, media=media_fixture(),
         )
 
     def test_exact_anchor_reuses_existing_beat_and_cue_identity(self):
