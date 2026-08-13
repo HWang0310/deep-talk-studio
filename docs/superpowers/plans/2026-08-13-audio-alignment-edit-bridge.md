@@ -18,9 +18,11 @@
 - segment-only timestamp 只能形成 coarse placement，不做 word/token 线性插值，也不进入首版 Preview。
 - rights/reuse 继续保留作历史信息，但不参与新制作 Gate；path、MIME/codec、SHA、grounding、binding、integrity 与 QA 仍 fail closed。
 - `placement_status` 与 `timing_status` 正交：可靠 placement 可带 timing warning 进入 Preview；selection ambiguity 不自动 Preview。
+- 大文件 transcription request 只能按版本化 PCM 能量策略切分；没有安全停顿时必须保存 `boundary_risk`，风险保护区内的单位、Beat 与 Cue 不得成为无风险 high-confidence ready。
 - 真实视频没有 source clip range 时只能 `clip_selection_needed`，不得自动猜“最佳几秒”；ready B-roll 静音、不 loop、不 stretch，结束后回 A-roll。
 - still exposure 首版继承 Material Profile 0.5 的 `default_cue_duration_seconds = 7`，保存来源 version/digest；只改 Preview effective OUT，不改 canonical semantic OUT。
 - Aligned Preview 固定 H.264、1920×1080、30fps；Clean A-roll 原音是唯一主音轨，不加字幕、BGM、SFX、标题、封面或发布能力。
+- Preview 必须保持 Clean A-roll 的 audio presentation start、internal gaps 与 audio/video presentation relationship；总时长相同不能替代同步验证。
 - Runtime 根 `narration_media/`、`alignment_packages/`、`edit_bridge_packages/`、`edit_bridge_assets/`、`edit_bridge_projects/` 全部 gitignored，工件与输出均不可覆盖。
 - synthetic/adversarial pass 不是正式产品验收；完整实现后必须停在真实用户 Clean A-roll Gate。
 
@@ -36,6 +38,7 @@
 | `src/deeptalk_studio/narration_storage.py` | Media/Audio/Mapping/Transcript immutable storage |
 | `src/deeptalk_studio/transcription/base.py` | provider-neutral protocol 与 raw result types |
 | `src/deeptalk_studio/transcription/deterministic.py` | 离线 deterministic provider |
+| `src/deeptalk_studio/transcription_chunking.py` | `transcription-chunk-profile/1`、PCM natural-pause boundary、risk/evidence/digest |
 | `src/deeptalk_studio/transcription/openai.py` | 当前 OpenAI adapter、chunk evidence、capability boundary |
 | `src/deeptalk_studio/transcript_builder.py` | ProviderTranscript → canonical Timed Transcript |
 | `src/deeptalk_studio/text_normalization.py` | NFKC/casefold/数字 alias/token span preservation |
@@ -64,7 +67,7 @@
 
 ## Dependency order
 
-`1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17 → 18 → 19 → 20 → 21 → 22 → 23 → 24 → 25 → 26 → 27 → 28`。Task 18 可在 Task 17 完成后与 Task 19 的模板编码分开执行，但合并验证仍按上述顺序。
+`1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12 → 13 → 14 → 15 → 16 → 17 → 18 → 19 → 20 → 21 → 22 → 23 → 24 → 25 → 26 → 27 → 28 → 29`。Task 19 可在 Task 18 完成后与 Task 20 的模板编码分开执行，但合并验证仍按上述顺序。
 
 ### Task 1: Strict narration schemas and canonical time utilities
 
@@ -76,7 +79,7 @@
 
 **Interfaces:**
 - Consumes: existing `schema._object/_array/_enum/_string/_integer/_number` and `validation.validate_json_schema`.
-- Produces: `NARRATION_MEDIA_SCHEMA`, `EXTRACTED_AUDIO_SCHEMA`, `AUDIO_TIMESTAMP_MAPPING_SCHEMA`, `TIMED_TRANSCRIPT_SCHEMA`; `format_canonical_timecode(seconds: Decimal) -> str`, `preview_frame(seconds: Decimal, fps: int = 30) -> int`, `format_preview_frame_timecode(frame: int, fps: int = 30) -> str`.
+- Produces: `NARRATION_MEDIA_SCHEMA`, `EXTRACTED_AUDIO_SCHEMA`, `AUDIO_TIMESTAMP_MAPPING_SCHEMA`, `TIMED_TRANSCRIPT_SCHEMA` including bound chunk-plan records, `boundary_risks[]` and timed-unit `boundary_risk_ids[]`; `format_canonical_timecode(seconds: Decimal) -> str`, `preview_frame(seconds: Decimal, fps: int = 30) -> int`, `format_preview_frame_timecode(frame: int, fps: int = 30) -> str`.
 
 - [ ] **Step 1: Write failing schema/time tests**
 
@@ -108,7 +111,7 @@ def format_canonical_timecode(seconds: Decimal) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d}.{ms:03d}"
 ```
 
-Include every Design field, fixed `artifact_version` enum, `additionalProperties: false`, non-negative durations, stream/presentation evidence, dual extracted/media transcript boundaries, digests and continuous integer revision/order fields. Do not add frame fields to Timed Transcript.
+Include every Design field, fixed `artifact_version` enum, `additionalProperties: false`, non-negative durations, stream/presentation evidence, dual extracted/media transcript boundaries, bound chunk index/digest/start-end samples, high-risk extracted/media guard intervals, risk IDs, digests and continuous integer revision/order fields. Do not add frame fields to Timed Transcript.
 
 - [ ] **Step 4: Run green tests**
 
@@ -340,7 +343,71 @@ git add .gitignore narration_media/.gitkeep src/deeptalk_studio/narration_storag
 git commit -m "feat: store narration artifacts immutably"
 ```
 
-### Task 7: Provider-neutral transcription protocol and deterministic provider
+### Task 7: Deterministic transcription chunk profile and boundary planner
+
+**Files:**
+- Create: `src/deeptalk_studio/transcription_chunking.py`
+- Create: `config/transcription-chunk-profile.json`
+- Test: `tests/test_transcription_chunking.py`
+- Test: `tests/test_transcription_chunking_properties.py`
+
+**Interfaces:**
+- Consumes: Task 4 lossless PCM/WAV Extracted Audio Artifact and Task 5 Mapping.
+- Produces: `TRANSCRIPTION_CHUNK_PROFILE_SCHEMA`, `TranscriptionChunk`, `TranscriptionChunkPlan`; `load_transcription_chunk_profile() -> dict`; `plan_transcription_chunks(extracted_audio, mapping, profile) -> TranscriptionChunkPlan`; `validate_transcription_chunk_plan(plan, extracted_audio, mapping, profile) -> None`.
+
+**Versioned policy `transcription-chunk-profile/1`:**
+- Provider hard limit remains 25 MB; request cap is 24 MiB including a canonical 44-byte PCM WAV header.
+- Derive the nominal end sample from bytes-per-frame; the final chunk may end at the source sample count without boundary search.
+- For every non-final nominal boundary, search only the PCM interval `[nominal_end - 12.0 seconds, nominal_end]`.
+- Convert channels to a per-frame mean-square value without resampling; analyze 20 ms RMS windows at 10 ms hops with sample indices rounded half-up and recorded in the Profile.
+- A safe pause is a contiguous run of at least 300 ms whose every analysis window is at or below `-42 dBFS`; silence uses `-inf`.
+- Represent each candidate by the sample-aligned midpoint of its qualifying run. Rank candidates by `(distance_to_nominal_samples ascending, run_peak_dbfs ascending, boundary_sample ascending)`; this favors the latest safe pause without nondeterministic floating-point ties.
+- No overlap and no previous-chunk prompt are used in Profile revision 1. The boundary planner never calls a model or reads Transcript text.
+- If no safe pause exists, evaluate every 300 ms interval in the same bounded window and choose the deterministic best-available valley by `(interval_p95_dbfs ascending, distance_to_nominal_samples ascending, boundary_sample ascending)`. Mark it `boundary_risk=high`, reason `no_safe_pause_fallback`, and create a `[boundary - 1.0s, boundary + 1.0s]` extracted-time guard clipped to the source interval.
+- A safe-pause boundary records `boundary_risk=none` and no guard. Every chunk record includes index, start/end sample, sample rate, extracted start/end seconds, Mapping-derived media start/end, selection mode, search interval, candidate score/evidence digest, chunk PCM/file digest and bound Profile digest.
+- The planner only chooses API file boundaries. It does not delete silence, shorten pauses, trim/stretch audio, join speech across the boundary or change the immutable Extracted Audio Artifact.
+
+- [ ] **Step 1: Write failing natural-pause/fallback tests**
+
+```python
+def test_nominal_mid_sentence_boundary_moves_to_natural_pause():
+    plan = plan_transcription_chunks(self.pcm_with_pause, self.mapping, load_transcription_chunk_profile())
+    self.assertNotEqual(plan.chunks[0].end_sample, self.nominal_end_sample)
+    self.assertEqual(plan.boundaries[0].selection_mode, "safe_pause")
+    self.assertEqual(plan.boundaries[0].boundary_risk, "none")
+
+def test_no_pause_uses_deterministic_risk_guard():
+    first = plan_transcription_chunks(self.continuous_pcm, self.mapping, self.profile)
+    second = plan_transcription_chunks(self.continuous_pcm, self.mapping, self.profile)
+    self.assertEqual(first.digest, second.digest)
+    self.assertEqual(first.boundaries[0].boundary_risk, "high")
+    self.assertEqual(first.boundaries[0].guard_duration_seconds, Decimal("2.0"))
+```
+
+- [ ] **Step 2: Run red tests**
+
+Run: `PYTHONPATH=src python3 -m unittest tests.test_transcription_chunking tests.test_transcription_chunking_properties -v`
+
+Expected: FAIL because chunk profile/planner do not exist.
+
+- [ ] **Step 3: Implement sample-exact planning, real chunk writes and revalidation**
+
+Use integer PCM sample/frame arithmetic and `Decimal` only for readable seconds. Write each request WAV exclusively from the original sample interval; verify each file is <=24 MiB and that concatenating its sample intervals covers `[0, sample_count)` exactly once. Map chunk start/end to media presentation seconds through Task 5 Mapping, bind all evidence/digests and re-run the PCM analysis in the validator. Do not modify the source derivative and do not implement ASR overlap/stitching.
+
+- [ ] **Step 4: Run green tests with real synthetic PCM/WAV**
+
+Run: `PYTHONPATH=src python3 -m unittest tests.test_transcription_chunking tests.test_transcription_chunking_properties tests.test_audio_timestamp_mapping -v`
+
+Expected: PASS for safe pause, nominal boundary inside speech, no-pause fallback/risk guard, exact non-overlapping sample coverage, monotonic extracted/media timelines, nonzero Mapping offset, identical PCM/Profile boundaries/digests and profile/evidence/chunk tamper rejection.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/deeptalk_studio/transcription_chunking.py config/transcription-chunk-profile.json tests/test_transcription_chunking.py tests/test_transcription_chunking_properties.py
+git commit -m "feat: plan evidenced transcription chunks"
+```
+
+### Task 8: Provider-neutral transcription protocol and deterministic provider
 
 **Files:**
 - Create: `src/deeptalk_studio/transcription/__init__.py`
@@ -349,14 +416,14 @@ git commit -m "feat: store narration artifacts immutably"
 - Test: `tests/test_transcription_provider.py`
 
 **Interfaces:**
-- Consumes: Extracted Audio Artifact.
-- Produces: `ProviderTimedUnit`, `ProviderTranscript`, `TranscriptionProvider.transcribe(extracted_audio_artifact, language, configured_model) -> ProviderTranscript`, `DeterministicTranscriptionProvider`.
+- Consumes: Extracted Audio Artifact and validated Task 7 `TranscriptionChunkPlan`.
+- Produces: `ProviderTimedUnit`, `ProviderBoundaryRisk`, `ProviderTranscript`, `TranscriptionProvider.transcribe(extracted_audio_artifact, chunk_plan, language, configured_model) -> ProviderTranscript`, `DeterministicTranscriptionProvider`.
 
 - [ ] **Step 1: Write failing protocol tests**
 
 ```python
 def test_deterministic_provider_returns_declared_real_granularity_only(self):
-    result = DeterministicTranscriptionProvider(self.units, granularity="segment").transcribe(self.audio, "zh", "fixture")
+    result = DeterministicTranscriptionProvider(self.units, granularity="segment").transcribe(self.audio, self.chunk_plan, "zh", "fixture")
     self.assertEqual(result.timestamp_granularity, "segment")
     self.assertFalse(hasattr(result.units[0], "interpolated_words"))
 ```
@@ -369,13 +436,13 @@ Expected: FAIL because transcription protocol is missing.
 
 - [ ] **Step 3: Implement immutable provider result dataclasses/protocol**
 
-Require raw extracted start/end, spoken text, order, optional provider confidence, request/model metadata and raw-response digest. Reject provider-produced media timestamps, alignment status, Gate and canonical confidence fields.
+Require raw chunk-local extracted start/end, spoken text, order, optional provider confidence, request/model metadata, `chunk_index`, intersecting `boundary_risk_ids` and raw-response digest. `ProviderBoundaryRisk` copies extracted guard interval, risk level/reason and chunk-plan digest from the validated plan; deterministic fixtures can inject it for downstream tests. Reject provider-produced media timestamps, alignment status, Gate and canonical confidence fields.
 
 - [ ] **Step 4: Run green protocol tests**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_transcription_provider -v`
 
-Expected: PASS for word/token/segment fixtures, provider overlap preservation, empty/negative/reordered unit rejection at builder boundary.
+Expected: PASS for word/token/segment fixtures, provider overlap preservation, boundary-risk references and empty/negative/reordered/unknown-risk unit rejection at builder boundary.
 
 - [ ] **Step 5: Commit**
 
@@ -384,7 +451,7 @@ git add src/deeptalk_studio/transcription tests/test_transcription_provider.py
 git commit -m "feat: add provider neutral timed transcription"
 ```
 
-### Task 8: OpenAI transcription adapter with explicit capability fallback
+### Task 9: OpenAI transcription adapter with explicit capability fallback
 
 **Files:**
 - Create: `src/deeptalk_studio/transcription/openai.py`
@@ -392,7 +459,7 @@ git commit -m "feat: add provider neutral timed transcription"
 - Modify: `README.md`
 
 **Interfaces:**
-- Consumes: Task 7 protocol; injected `OpenAITranscriptionTransport.create(file_path, model, response_format, timestamp_granularities) -> Mapping`.
+- Consumes: Task 8 protocol, validated Task 7 `TranscriptionChunkPlan`; injected `OpenAITranscriptionTransport.create(file_path, model, response_format, timestamp_granularities) -> Mapping`.
 - Produces: `OpenAITranscriptionProvider`; `OPENAI_TRANSCRIPTION_CAPABILITIES`; normalized `ProviderTranscript`.
 
 **Official capability record (verified 2026-08-13):**
@@ -406,13 +473,13 @@ git commit -m "feat: add provider neutral timed transcription"
 ```python
 def test_whisper_word_response_normalizes_without_provider_owned_status(self):
     provider = OpenAITranscriptionProvider(api_key="test", transport=self.transport)
-    result = provider.transcribe(self.audio, "zh", "whisper-1")
+    result = provider.transcribe(self.audio, self.chunk_plan, "zh", "whisper-1")
     self.assertEqual(result.timestamp_granularity, "word")
     self.assertNotIn("alignment_status", result.raw_metadata)
 
 def test_model_without_timestamps_fails_instead_of_fabricating_precision(self):
     with self.assertRaisesRegex(TranscriptionCapabilityError, "时间戳"):
-        provider.transcribe(self.audio, "zh", "gpt-transcribe")
+        provider.transcribe(self.audio, self.chunk_plan, "zh", "gpt-transcribe")
 ```
 
 - [ ] **Step 2: Run red test**
@@ -421,15 +488,15 @@ Run: `PYTHONPATH=src python3 -m unittest tests.test_openai_transcription -v`
 
 Expected: FAIL because adapter is missing.
 
-- [ ] **Step 3: Implement adapter and >25 MB deterministic request chunks**
+- [ ] **Step 3: Implement adapter over the validated deterministic Chunk Plan**
 
-Default to `whisper-1` word timestamps. Split oversized WAV at exact sample boundaries into <=24 MiB temporary WAV chunks, no overlap/time stretch; add exact `chunk_start_sample / sample_rate` to provider boundaries and preserve all request IDs only in provider audit metadata. Use injected transport in tests, redact keys/errors, delete temporary chunks, and distinguish `TranscriptionEnvironmentError` (network/key/API unavailable) from invalid provider response. Segment responses normalize as segment units; untimed responses raise capability error.
+Default to `whisper-1` word timestamps and send only request files from the validated Task 7 Chunk Plan; the adapter cannot choose or move boundaries. Preserve each response in chunk-local extracted seconds and bind request ID/raw digest/chunk digest/index. For validation and risk intersection, project the local bounds with exact `chunk_start_sample / sample_rate`, but do not overwrite them with global seconds: Task 10 exclusively owns canonical full-timeline reconstruction, preventing an offset from being applied twice. Copy the plan's intersecting high-risk guard IDs to Provider units; preserve any boundary-area duplicate/omission for Alignment rather than hiding it. Profile revision 1 sends no previous-chunk prompt and uses no overlap/stitching. Use injected transport in tests, redact keys/errors, delete temporary chunks, and distinguish `TranscriptionEnvironmentError` (network/key/API unavailable) from invalid provider response. Segment responses normalize as segment units; untimed responses raise capability error.
 
 - [ ] **Step 4: Run green adapter tests without network**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_openai_transcription -v`
 
-Expected: PASS for SDK-shaped word response, segment coarse response, >25 MB chunk offsets, malformed/overlap response, key redaction, supported-format check and non-timestamp model refusal. No API call occurs.
+Expected: PASS for SDK-shaped word response, segment coarse response, >25 MB validated chunk-local offsets, exact projected global order, risk-ID propagation, malformed/overlap response, key redaction, supported-format check and non-timestamp model refusal. No API call occurs.
 
 - [ ] **Step 5: Commit**
 
@@ -438,23 +505,28 @@ git add src/deeptalk_studio/transcription/openai.py tests/test_openai_transcript
 git commit -m "feat: adapt evidenced OpenAI word timestamps"
 ```
 
-### Task 9: Timed Transcript builder and validation
+### Task 10: Timed Transcript builder and validation
 
 **Files:**
 - Create: `src/deeptalk_studio/transcript_builder.py`
 - Test: `tests/test_timed_transcript.py`
 
 **Interfaces:**
-- Consumes: ProviderTranscript + Media/Extracted/Mapping.
-- Produces: `build_timed_transcript(...) -> dict`; `validate_timed_transcript(transcript, media, extracted, mapping) -> None`.
+- Consumes: ProviderTranscript + validated Transcription Chunk Plan + Media/Extracted/Mapping.
+- Produces: `build_timed_transcript(provider_result, media, extracted, mapping, chunk_plan, *, transcript_id, created_at) -> dict`; `validate_timed_transcript(transcript, media, extracted, mapping, chunk_plan) -> None`.
 
 - [ ] **Step 1: Write failing transcript tests**
 
 ```python
 def test_builder_maps_every_real_provider_boundary(self):
-    artifact = build_timed_transcript(self.provider_result, self.media, self.audio, self.mapping, transcript_id="TR001", created_at=NOW)
+    artifact = build_timed_transcript(self.provider_result, self.media, self.audio, self.mapping, self.chunk_plan, transcript_id="TR001", created_at=NOW)
     self.assertEqual(artifact["timed_units"][0]["media_start_seconds"], "0.375")
-    validate_timed_transcript(artifact, self.media, self.audio, self.mapping)
+    validate_timed_transcript(artifact, self.media, self.audio, self.mapping, self.chunk_plan)
+
+def test_high_risk_chunk_guard_survives_canonical_transcript_build():
+    artifact = build_timed_transcript(self.risky_provider_result, self.media, self.audio, self.mapping, self.chunk_plan, transcript_id="TR002", created_at=NOW)
+    self.assertEqual(artifact["boundary_risks"][0]["risk_level"], "high")
+    self.assertIn(artifact["boundary_risks"][0]["risk_id"], artifact["timed_units"][0]["boundary_risk_ids"])
 ```
 
 - [ ] **Step 2: Run red test**
@@ -465,13 +537,13 @@ Expected: FAIL because builder is missing.
 
 - [ ] **Step 3: Implement builder/revalidator**
 
-Assign continuous unit IDs/order, preserve provider extracted boundaries, map each boundary through Task 5, derive metadata/transcript digests, and validate non-empty/monotonic/non-overlapping units, derivative bounds, media bounds, exact Mapping binding and truthful granularity. A segment stays one segment; no client word split with fabricated timestamps.
+Assign continuous unit IDs/order by `(chunk_index, provider_order)`, add each provider boundary to that chunk's exact extracted start sample/sample rate, and require every reconstructed unit to remain inside its chunk before mapping it through Task 5. Do not reconcile text across chunks: no overlap exists, so any provider duplicate/omission is preserved for deterministic Alignment. Copy validated chunk-plan digest, chunk records and high-risk guards into the canonical Transcript; every unit whose extracted interval intersects a guard receives its risk ID. Derive metadata/transcript digests and validate non-empty/monotonic/non-overlapping units, exact sample coverage provenance, derivative/media bounds, Mapping binding and truthful granularity. A segment stays one segment; no client word split with fabricated timestamps.
 
 - [ ] **Step 4: Run green transcript tests**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_timed_transcript tests.test_audio_timestamp_mapping -v`
 
-Expected: PASS for word/segment and nonzero mapping; fail for SHA/digest/granularity/order/overlap/boundary tamper.
+Expected: PASS for word/segment, monotonic multi-chunk reconstruction, nonzero mapping and risk propagation; fail for SHA/digest/granularity/chunk/order/overlap/boundary/risk-reference tamper.
 
 - [ ] **Step 5: Commit**
 
@@ -480,7 +552,7 @@ git add src/deeptalk_studio/transcript_builder.py tests/test_timed_transcript.py
 git commit -m "feat: build canonical timed transcripts"
 ```
 
-### Task 10: Span-preserving Chinese and mixed-text normalization
+### Task 11: Span-preserving Chinese and mixed-text normalization
 
 **Files:**
 - Create: `src/deeptalk_studio/text_normalization.py`
@@ -522,7 +594,7 @@ git add src/deeptalk_studio/text_normalization.py tests/test_text_normalization.
 git commit -m "feat: normalize narration with reversible spans"
 ```
 
-### Task 11: Strict alignment schemas and candidate profiles
+### Task 12: Strict alignment schemas and candidate profiles
 
 **Files:**
 - Create: `src/deeptalk_studio/alignment_schema.py`
@@ -552,7 +624,7 @@ Expected: FAIL because schemas/profile do not exist.
 
 - [ ] **Step 3: Implement profile as explicit candidate, not accepted calibration**
 
-Encode Design candidate scores/floors `+4/+3/-2.5/-2/-1.5`, `0.08`, `0.85/0.88`, `0.55/0.65`, 8 tokens and epsilon 0.001. Schema requires `calibration_status = candidate | accepted`, immutable value revision, source Design HEAD and digest. Define full Beat/Cue/gap/trace/artifact contract and reject model-owned threshold/status fields.
+Encode Design candidate scores/floors `+4/+3/-2.5/-2/-1.5`, `0.08`, `0.85/0.88`, `0.55/0.65`, 8 tokens and epsilon 0.001. Schema requires `calibration_status = candidate | accepted`, immutable value revision, source Design HEAD and digest. Define full Beat/Cue/gap/trace/artifact contract including Chunk Plan/profile digests, Beat/Cue risk IDs and `chunk_boundary_risk` deviation; reject model-owned threshold/status/risk fields.
 
 - [ ] **Step 4: Run green profile tests**
 
@@ -567,7 +639,7 @@ git add src/deeptalk_studio/alignment_schema.py src/deeptalk_studio/alignment_pr
 git commit -m "feat: define candidate alignment profile"
 ```
 
-### Task 12: Deterministic global sequence alignment
+### Task 13: Deterministic global sequence alignment
 
 **Files:**
 - Create: `src/deeptalk_studio/sequence_alignment.py`
@@ -611,7 +683,7 @@ git add src/deeptalk_studio/sequence_alignment.py tests/test_sequence_alignment.
 git commit -m "feat: align script and transcript deterministically"
 ```
 
-### Task 13: Beat and Cue timeline builder
+### Task 14: Beat and Cue timeline builder
 
 **Files:**
 - Create: `src/deeptalk_studio/alignment_builder.py`
@@ -640,13 +712,13 @@ Expected: FAIL because builder is missing.
 
 - [ ] **Step 3: Implement Beat status and Cue local mapping**
 
-Derive match score/coverage/similarity/status/confidence from Profile and trace. Build Beat actual windows from first/last real units; needs_review only retains canonical window when candidate is unique; unmatched has null time. Locate each `placement_anchor` uniquely in its bound Beat char span, map it through the same token-unit path, derive semantic span to next Cue/Beat end, and emit exact `aligned/needs_review/coarse/unplaced` without new IDs.
+Derive match score/coverage/similarity/status/confidence from Profile and trace. Build Beat actual windows from first/last real units; needs_review only retains canonical window when candidate is unique; unmatched has null time. A Beat/Cue whose matched Transcript units or candidate window intersects a high-risk chunk guard receives `chunk_boundary_risk` and cannot be `aligned/high` or ready until deterministic alignment shows a unique, gap-free candidate whose normalized Script span fully covers both guard sides; any duplicate, deletion, insertion, truncated anchor or competing window in the guard forces `needs_review`/`unplaced`. Locate each `placement_anchor` uniquely in its bound Beat char span, map it through the same token-unit path, derive semantic span to next Cue/Beat end, and emit exact `aligned/needs_review/coarse/unplaced` without new IDs.
 
 - [ ] **Step 4: Run green timeline tests**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_alignment_builder tests.test_cue_timeline -v`
 
-Expected: PASS for exact/missing/duplicate anchor, Beat needs_review, unique candidate, timestamp monotonicity, segment coarse, Beat boundary, same-Beat multiple Cues and semantic spans.
+Expected: PASS for exact/missing/duplicate anchor, Beat needs_review, unique candidate, timestamp monotonicity, segment coarse, Beat boundary, same-Beat multiple Cues, semantic spans, high-risk boundary false-omission/repetition protection and post-boundary recovery.
 
 - [ ] **Step 5: Commit**
 
@@ -655,7 +727,7 @@ git add src/deeptalk_studio/alignment_builder.py tests/alignment_fixtures.py tes
 git commit -m "feat: build beat and cue timelines"
 ```
 
-### Task 14: Alignment validator and immutable storage
+### Task 15: Alignment validator and immutable storage
 
 **Files:**
 - Create: `src/deeptalk_studio/alignment_validation.py`
@@ -688,7 +760,7 @@ Expected: FAIL because validator/storage are missing.
 
 - [ ] **Step 3: Implement canonical re-build comparison and immutable saves**
 
-Re-run normalization, DP, ambiguity, Beat/Cue derivation and digest; compare every machine field. Check Script content digest, Media/Mapping/Transcript/Profile bindings, Beat order, timestamps and real unit boundaries. Save `script-alignment-rNNNN.json/.md` exclusively; Markdown may describe gaps but cannot become machine input.
+Re-run normalization, DP, ambiguity, chunk-risk intersection, Beat/Cue derivation and digest; compare every machine field. Check Script content digest, Media/Mapping/Transcript/Chunk Plan/Profile bindings, Beat order, timestamps, risk guards and real unit boundaries. Save `script-alignment-rNNNN.json/.md` exclusively; Markdown may describe gaps and boundary risk but cannot hide them or become machine input.
 
 - [ ] **Step 4: Run green validation/storage tests**
 
@@ -703,7 +775,7 @@ git add .gitignore alignment_packages/.gitkeep src/deeptalk_studio/alignment_val
 git commit -m "feat: revalidate and store script alignments"
 ```
 
-### Task 15: Candidate Profile calibration with A–AI alignment cases
+### Task 16: Candidate Profile calibration with A–AI alignment cases
 
 **Files:**
 - Create: `evaluations/audio-alignment-edit-bridge/run_alignment_calibration.py`
@@ -734,13 +806,13 @@ Expected: FAIL while Profile is candidate and evidence is absent.
 
 - [ ] **Step 3: Encode alignment-sensitive A–F, S, T, AH fixtures and execute**
 
-Require A all aligned; C later Beat recovery; D/T/AH no arbitrary selection; E no false ready; F inversion exposed; S coarse/no interpolation. Also run B/U normalization tolerance. If the Design candidate values pass, change only `calibration_status` to `accepted` and record cases/profile/output digests. If they fail, create Profile `value_revision=2` with explicit old/new values and reason in evidence, rerun the same suite, and never mutate revision 1 evidence.
+Require A all aligned; C later Beat recovery; D/T/AH no arbitrary selection; E no false ready; F inversion exposed; S coarse/no interpolation. Add chunk-risk calibration CR1–CR3：CR1 a safe-pause boundary may align normally；CR2 duplicate or omission inside a high-risk guard must force every intersecting Beat/Cue to `needs_review` or `unmatched`, never high-confidence ready；CR3 unaffected later Beats recover after the guard. Also run B/U normalization tolerance. If the Design candidate values pass, change only `calibration_status` to `accepted` and record cases/profile/output digests. If they fail, create Profile `value_revision=2` with explicit old/new values and reason in evidence, rerun the same suite, and never mutate revision 1 evidence.
 
 - [ ] **Step 4: Run green calibration and deterministic repeat**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_alignment_calibration -v && PYTHONPATH=src python3 evaluations/audio-alignment-edit-bridge/run_alignment_calibration.py --verify-repeat`
 
-Expected: PASS; two runs have identical case results and trace digests, with zero false-ready in D/E/F/S/T/AH.
+Expected: PASS; two runs have identical case results and trace digests, with zero false-ready in D/E/F/S/T/AH/CR2 and later-Beat recovery in C/CR3.
 
 - [ ] **Step 5: Commit**
 
@@ -749,7 +821,7 @@ git add config/alignment-profile-candidate.json evaluations/audio-alignment-edit
 git commit -m "test: calibrate deterministic alignment profile"
 ```
 
-### Task 16: Material compatibility production projection
+### Task 17: Material compatibility production projection
 
 **Files:**
 - Create: `src/deeptalk_studio/material_bridge.py`
@@ -791,7 +863,7 @@ git add src/deeptalk_studio/material_bridge.py tests/test_material_bridge.py
 git commit -m "feat: project reviewed materials for production"
 ```
 
-### Task 17: Edit Bridge schemas and versioned Rough Cut profiles
+### Task 18: Edit Bridge schemas and versioned Rough Cut profiles
 
 **Files:**
 - Create: `src/deeptalk_studio/edit_bridge_schema.py`
@@ -837,7 +909,7 @@ git add src/deeptalk_studio/edit_bridge_schema.py src/deeptalk_studio/rough_cut_
 git commit -m "feat: define edit bridge and rough cut profiles"
 ```
 
-### Task 18: Unified visual placement source bindings
+### Task 19: Unified visual placement source bindings
 
 **Files:**
 - Create: `src/deeptalk_studio/edit_bridge_planner.py`
@@ -882,7 +954,7 @@ git add src/deeptalk_studio/edit_bridge_planner.py tests/test_visual_placement.p
 git commit -m "feat: bind unified visual placements"
 ```
 
-### Task 19: IN/OUT/duration/conflict and Preview adjustment planner
+### Task 20: IN/OUT/duration/conflict and Preview adjustment planner
 
 **Files:**
 - Modify: `src/deeptalk_studio/edit_bridge_planner.py`
@@ -926,7 +998,7 @@ git add src/deeptalk_studio/edit_bridge_planner.py tests/test_duration_conflicts
 git commit -m "feat: derive visual timing and preview policy"
 ```
 
-### Task 20: Edit Bridge builder, validator and canonical outputs
+### Task 21: Edit Bridge builder, validator and canonical outputs
 
 **Files:**
 - Modify: `src/deeptalk_studio/edit_bridge_planner.py`
@@ -958,7 +1030,7 @@ Expected: FAIL because Bridge builder/validator/renderers are missing.
 
 - [ ] **Step 3: Implement exact root binding and re-derivation**
 
-Bind Media/Audio/Mapping/Transcript/Script/Research/Material/View/Production/Motion/Alignment/Profile IDs/revisions/digests. Re-run placement/timing and compare machine fields, asset bindings and package digest. CSV uses Python `csv` with RFC4180 quoting and the approved fixed columns. Markdown groups placed/warning/unplaced items by safe filename/caption/Beat context and excludes absolute paths, token matrices, Claim IDs, traceback and raw ffmpeg commands.
+Bind Media/Audio/Mapping/Transcription Chunk Plan/Profile/Transcript/Script/Research/Material/View/Production/Motion/Alignment/Profile IDs/revisions/digests. Preserve unresolved chunk-boundary risks and affected Beat/Cue IDs in canonical JSON and readable warnings; do not let Markdown/CSV summary erase them. Re-run placement/timing and compare machine fields, asset bindings and package digest. CSV uses Python `csv` with RFC4180 quoting and the approved fixed columns. Markdown groups placed/warning/unplaced items by safe filename/caption/Beat context and excludes absolute paths, token matrices, Claim IDs, traceback and raw ffmpeg commands.
 
 - [ ] **Step 4: Run green Bridge/output tests**
 
@@ -973,7 +1045,7 @@ git add src/deeptalk_studio/edit_bridge_planner.py src/deeptalk_studio/edit_brid
 git commit -m "feat: build and render canonical edit bridges"
 ```
 
-### Task 21: Immutable Bridge revisions and natural-language user adjustments
+### Task 22: Immutable Bridge revisions and natural-language user adjustments
 
 **Files:**
 - Create: `src/deeptalk_studio/edit_bridge_storage.py`
@@ -1022,7 +1094,7 @@ git add .gitignore edit_bridge_packages/.gitkeep edit_bridge_assets/.gitkeep edi
 git commit -m "feat: preserve edit bridge revisions"
 ```
 
-### Task 22: Renderer-neutral Aligned Preview adapter and staging Gate
+### Task 23: Renderer-neutral Aligned Preview adapter and staging Gate
 
 **Files:**
 - Create: `src/deeptalk_studio/aligned_preview/__init__.py`
@@ -1066,7 +1138,7 @@ git add src/deeptalk_studio/aligned_preview tests/test_aligned_preview_adapter.p
 git commit -m "feat: stage aligned preview projects safely"
 ```
 
-### Task 23: Remotion Aligned Preview composition
+### Task 24: Remotion Aligned Preview composition
 
 **Files:**
 - Create: `renderer_templates/aligned_preview_remotion/package.json`
@@ -1081,7 +1153,7 @@ git commit -m "feat: stage aligned preview projects safely"
 - Test: `tests/test_aligned_preview_remotion.py`
 
 **Interfaces:**
-- Consumes: staged `bridge.json` and assets from Task 22.
+- Consumes: staged `bridge.json` and assets from Task 23.
 - Produces: `AlignedPreview` composition at 1920×1080, 30fps, media-duration frames, visual-only MP4.
 
 - [ ] **Step 1: Write failing template contract test**
@@ -1117,16 +1189,17 @@ git add renderer_templates/aligned_preview_remotion tests/test_aligned_preview_r
 git commit -m "feat: compose aligned aroll visual preview"
 ```
 
-### Task 24: Clean A-roll audio mux and Preview Manifest
+### Task 25: Clean A-roll audio mux and Preview Manifest
 
 **Files:**
 - Modify: `src/deeptalk_studio/aligned_preview/remotion.py`
 - Test: `tests/test_preview_audio_mux.py`
 - Test: `tests/test_preview_manifest.py`
+- Test: `tests/test_preview_audio_presentation.py`
 
 **Interfaces:**
-- Consumes: visual-only render + immutable Clean A-roll + Bridge/Profile.
-- Produces: `mux_clean_aroll_audio(visual_path, media, output_path) -> AudioMuxResult`; `build_aligned_preview_manifest(...) -> dict`.
+- Consumes: visual-only render + immutable Clean A-roll + Media presentation evidence + Bridge/Profile.
+- Produces: `mux_clean_aroll_audio(visual_path, media, output_path) -> AudioMuxResult`; `probe_audio_presentation(path: Path) -> AudioPresentationEvidence`; `validate_preview_audio_presentation(source, preview, tolerance) -> None`; `build_aligned_preview_manifest(...) -> dict`.
 
 - [ ] **Step 1: Write failing audio preservation tests**
 
@@ -1136,32 +1209,41 @@ def test_mux_keeps_single_aroll_audio_without_edit_filters(self):
     self.assertEqual(result.audio_stream_count, 1)
     self.assertNotRegex(result.command_summary, r"trim|loudnorm|silenceremove|atempo")
     self.assertLessEqual(abs(result.duration_seconds - self.media_duration), 1 / 30)
+
+def test_positive_audio_presentation_offset_is_not_reset_to_zero(self):
+    result = mux_clean_aroll_audio(self.visual, self.media_audio_at_0375, self.output)
+    self.assertAlmostEqual(result.audio_presentation_start_seconds, 0.375, delta=result.tolerance_seconds)
+    self.assertNotAlmostEqual(result.audio_presentation_start_seconds, 0.0, delta=result.tolerance_seconds)
 ```
 
 - [ ] **Step 2: Run red tests**
 
-Run: `PYTHONPATH=src python3 -m unittest tests.test_preview_audio_mux tests.test_preview_manifest -v`
+Run: `PYTHONPATH=src python3 -m unittest tests.test_preview_audio_mux tests.test_preview_manifest tests.test_preview_audio_presentation -v`
 
 Expected: FAIL because mux/Manifest functions are missing.
 
 - [ ] **Step 3: Implement copy-first mux boundary**
 
-Map visual video + canonical Clean A-roll audio only. Attempt codec copy when MP4-compatible; otherwise convert audio only to AAC and record conversion. Never trim, normalize, time-stretch, mix source B-roll audio or add silence. Probe final H.264/1920×1080/30fps/audio stream/duration, calculate size/SHA, bind Bridge/Profile/renderer/command digest in Manifest.
+The mux consumes the Clean A-roll `presentation_evidence`, not Extracted Audio sample 0. Preferred path maps the original Clean A-roll audio stream with its container presentation semantics so Preview audio presentation time equals Clean A-roll audio presentation time. A source whose video begins at 0 and audible audio begins at +0.375 must remain silent until Preview +0.375; raw nonzero/negative PTS already normalized by an edit list must use the normalized presentation time. Preserve every evidenced internal presentation gap and never concatenate speech across it.
+
+Attempt codec copy when MP4-compatible. If conversion is required, decode the complete presented audio interval and encode AAC while preserving the same presentation offset through verified container timing metadata or an explicit presentation-aligned derivative. An explicit leading-silence representation is allowed only when it is evidence-derived and produces the same audible presentation timeline; it is not silence removal/addition for editorial purposes. Re-probe source and Preview packets/frames to derive audio presentation start/end, mapped audible duration, internal-gap intervals, codec conversion delay/timing evidence and the audio/video presentation relationship. Validate each value within `max(1/30, source_audio_time_base_tick, preview_audio_time_base_tick, source_codec_frame_duration, preview_codec_frame_duration)`; overall duration alone is insufficient.
+
+Never force audio PTS to zero, trim, normalize, time-stretch, remove silence, collapse gaps, mix source B-roll audio or use `-shortest` to hide disagreement. Probe final H.264/1920×1080/30fps/single-audio-stream/duration, calculate size/SHA, and bind Bridge/Profile/source presentation digest/conversion evidence/renderer/command digest in Manifest.
 
 - [ ] **Step 4: Run green real-media mux tests**
 
-Run: `PYTHONPATH=src python3 -m unittest tests.test_preview_audio_mux tests.test_preview_manifest -v`
+Run: `PYTHONPATH=src python3 -m unittest tests.test_preview_audio_mux tests.test_preview_manifest tests.test_preview_audio_presentation -v`
 
-Expected: PASS for AAC copy, incompatible-codec conversion, single audio track, duration tolerance and Manifest tamper; source B-roll audio never appears.
+Expected: PASS on real ffmpeg fixtures for video 0/audio +0.375, normalized nonzero/negative raw PTS, preserved internal gap, AAC copy and incompatible-codec→AAC conversion. Fail for source presentation evidence tamper, conversion timing drift, same overall duration with audio incorrectly reset to 0, collapsed gap, extra audio track or Manifest tamper; source B-roll audio never appears.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/deeptalk_studio/aligned_preview/remotion.py tests/test_preview_audio_mux.py tests/test_preview_manifest.py
+git add src/deeptalk_studio/aligned_preview/remotion.py tests/test_preview_audio_mux.py tests/test_preview_manifest.py tests/test_preview_audio_presentation.py
 git commit -m "feat: mux canonical aroll audio into preview"
 ```
 
-### Task 25: Alignment + Edit Bridge QA and fail-closed Gate
+### Task 26: Alignment + Edit Bridge QA and fail-closed Gate
 
 **Files:**
 - Create: `src/deeptalk_studio/edit_bridge_qa.py`
@@ -1179,6 +1261,11 @@ def test_unready_asset_used_by_preview_is_package_fail(self):
     qa = run_edit_bridge_qa(self.inputs_with_unready_preview_asset)
     self.assertEqual(qa["package_gate_status"], "fail")
     self.assertIn("preview_used_unready_asset", {i["issue_type"] for i in qa["issues"]})
+
+def test_same_duration_but_audio_reset_to_zero_is_sync_fail(self):
+    qa = run_edit_bridge_qa(self.inputs_with_shifted_preview_audio)
+    self.assertEqual(qa["package_gate_status"], "fail")
+    self.assertIn("preview_audio_presentation_mismatch", {i["issue_type"] for i in qa["issues"]})
 ```
 
 - [ ] **Step 2: Run red tests**
@@ -1189,13 +1276,13 @@ Expected: FAIL because QA is missing.
 
 - [ ] **Step 3: Implement five typed check groups and deterministic Gate**
 
-Root checks re-probe Media and all exact revisions/digests. Transcript checks rederive Mapping/units. Alignment checks rerun normalization/DP/status. Placement checks re-read files and rebuild time/layout/audio/conflicts/adjustments. Preview checks ffprobe actual file and Manifest/binding/used placements. Map each failed check to stable issue type/scope/severity. Invalid root/mapping/transcript or tampered/unready asset actually used is fail; valid roots with isolated needs_review/coarse/missing/clip selection/timing/long-still is warnings; all ready/valid is pass.
+Root checks re-probe Media and all exact revisions/digests. Transcript checks rederive Chunk Plan, Mapping, units and boundary-risk propagation. Alignment checks rerun normalization/DP/status and reject boundary-area duplicate/omission that became false high-confidence ready. Placement checks re-read files and rebuild time/layout/audio/conflicts/adjustments. Preview checks ffprobe actual file and Manifest/binding/used placements, then rederive source Clean A-roll audio presentation start, Preview audio presentation start, mapped audible duration, internal-gap intervals when present, codec copy/conversion timing evidence and Preview audio/video presentation relationship. Equal overall duration never compensates for audio start/gap drift. Map each failed check to stable issue type/scope/severity. Invalid root/mapping/transcript, omitted/tampered boundary-risk evidence, boundary-risk false-ready, audio presentation reset/drift, or tampered/unready asset actually used is fail. A valid, fully exposed boundary risk whose affected placement remains needs_review/unplaced is a warning and preserves all unaffected results; valid roots with other isolated needs_review/coarse/missing/clip selection/timing/long-still are also warnings; all ready/valid is pass.
 
 - [ ] **Step 4: Run green QA/tamper tests**
 
 Run: `PYTHONPATH=src python3 -m unittest tests.test_edit_bridge_qa tests.test_edit_bridge_qa_tamper -v`
 
-Expected: PASS for partial success and full pass; detect Mapping, Transcript binding, alignment status, placement status, timecode, adjustment, asset SHA, Preview Manifest and Gate/issue tamper.
+Expected: PASS for partial success and full pass; detect Chunk Plan/risk, Mapping, Transcript binding, alignment status, placement status, timecode, adjustment, asset SHA, Preview Manifest, positive audio-offset reset, internal-gap collapse, conversion timing drift and Gate/issue tamper.
 
 - [ ] **Step 5: Commit**
 
@@ -1204,7 +1291,7 @@ git add src/deeptalk_studio/edit_bridge_qa.py tests/test_edit_bridge_qa.py tests
 git commit -m "feat: gate alignment and edit bridge outputs"
 ```
 
-### Task 26: Partial-success workflow orchestration
+### Task 27: Partial-success workflow orchestration
 
 **Files:**
 - Create: `src/deeptalk_studio/edit_bridge_workflow.py`
@@ -1233,7 +1320,7 @@ Expected: FAIL because workflow is missing.
 
 - [ ] **Step 3: Implement orchestration without owning algorithms/Gate**
 
-Call Tasks 3–25 in root order, persist every successful immutable artifact, isolate local material failures, render only when video A-roll and at least base layer are valid, and always write JSON/MD/CSV/QA when roots permit. Audio-only produces marker package + warning and no full Preview. A changed A-roll starts new downstream chain. No provider/renderer choice is exposed to ordinary user.
+Call Tasks 3–26 in root order, persist every successful immutable artifact including Chunk Plan/risk evidence, isolate local material failures, render only when video A-roll and at least base layer are valid, and always write JSON/MD/CSV/QA when roots permit. Audio-only produces marker package + warning and no full Preview. A changed A-roll starts new downstream chain. No provider/renderer choice is exposed to ordinary user.
 
 - [ ] **Step 4: Run green workflow tests**
 
@@ -1248,7 +1335,7 @@ git add src/deeptalk_studio/edit_bridge_workflow.py tests/test_edit_bridge_workf
 git commit -m "feat: orchestrate aligned rough cut workflow"
 ```
 
-### Task 27: CLI, Skill and ordinary-user UX
+### Task 28: CLI, Skill and ordinary-user UX
 
 **Files:**
 - Modify: `src/deeptalk_studio/cli.py`
@@ -1262,7 +1349,7 @@ git commit -m "feat: orchestrate aligned rough cut workflow"
 - Test: `tests/test_align_video_skill.py`
 
 **Interfaces:**
-- Consumes: Task 26 workflow and Task 21 revision resolver.
+- Consumes: Task 27 workflow and Task 22 revision resolver.
 - Produces: internal `align-video`/`revise-edit-bridge` CLI commands and natural-language Skill routing.
 
 - [ ] **Step 1: Write failing UX tests**
@@ -1300,7 +1387,7 @@ git add src/deeptalk_studio/cli.py .agents/skills/align-video AGENTS.md README.m
 git commit -m "feat: add ordinary user aligned video workflow"
 ```
 
-### Task 28: Full A–AI eval, real provider smoke Gate and real-user E2E stop
+### Task 29: Full A–AI eval, real provider smoke Gate and real-user E2E stop
 
 **Files:**
 - Create: `evaluations/audio-alignment-edit-bridge/run_full_eval.py`
@@ -1313,6 +1400,8 @@ git commit -m "feat: add ordinary user aligned video workflow"
 - Create: `tests/test_alignment_preview_eval.py`
 - Create: `tests/test_alignment_revision_eval.py`
 - Create: `tests/test_alignment_invariants.py`
+- Create: `tests/test_transcription_chunk_boundary_eval.py`
+- Create: `tests/test_preview_audio_sync_eval.py`
 - Create: `tests/test_openai_transcription_smoke.py`
 - Modify: `PRD.md`
 - Modify: `ROADMAP.md`
@@ -1320,7 +1409,7 @@ git commit -m "feat: add ordinary user aligned video workflow"
 - Modify: `HANDOFF.md`
 
 **Interfaces:**
-- Consumes: completed Tasks 1–27.
+- Consumes: completed Tasks 1–28.
 - Produces: deterministic A–AI result groups, provider smoke record, full verification record and real-user Gate; it does not claim real-user E2E pass.
 
 - [ ] **Step 1: Write failing manifest coverage/invariant tests**
@@ -1333,17 +1422,17 @@ def test_every_approved_case_has_one_owned_test_group(self):
 
 - [ ] **Step 2: Run red grouped eval tests**
 
-Run: `PYTHONPATH=src python3 -m unittest tests.test_alignment_media_eval tests.test_alignment_transcript_eval tests.test_alignment_material_eval tests.test_alignment_placement_eval tests.test_alignment_preview_eval tests.test_alignment_revision_eval tests.test_alignment_invariants -v`
+Run: `PYTHONPATH=src python3 -m unittest tests.test_alignment_media_eval tests.test_alignment_transcript_eval tests.test_alignment_material_eval tests.test_alignment_placement_eval tests.test_alignment_preview_eval tests.test_alignment_revision_eval tests.test_alignment_invariants tests.test_transcription_chunk_boundary_eval tests.test_preview_audio_sync_eval -v`
 
 Expected: FAIL until every A–AI case and invariant has an executable owner.
 
 - [ ] **Step 3: Complete grouped synthetic/adversarial evidence**
 
-Assign A–AI across media/timebase, transcript/alignment, material bridge, placement, duration/conflict, preview/QA and revision files. Property tests assert stable digests, monotonic/in-bounds mapped time, fps-neutral canonical time, unplaced null timestamps, warning-ready orthogonality, selection-blocker exclusion, ready-only Preview back-links, long-still semantic preservation and single-field tamper detection. Run real ffmpeg fixtures for L/M/AA–AE and actual probe/decode; do not commit user media or large binaries.
+Assign A–AI across media/timebase, transcript/alignment, material bridge, placement, duration/conflict, preview/QA and revision files. Add CB1–CB7 covering natural-pause selection, nominal mid-sentence avoidance, no-pause deterministic fallback/risk, monotonic reconstructed extracted timeline, nonzero media Mapping, duplicate/omission false-ready prevention and repeat-stable boundary/digest. Add PA1–PA7 covering +0.375 audio presentation start, raw PTS versus normalized presentation, internal gap preservation, AAC copy, incompatible-codec conversion, presentation metadata tamper and same-duration-but-audio-reset failure. Property tests assert stable digests, monotonic/in-bounds mapped time, fps-neutral canonical time, unplaced null timestamps, timing-warning readiness, boundary-risk false-ready prevention, selection-blocker exclusion, ready-only Preview back-links, long-still semantic preservation, audio presentation equivalence and single-field tamper detection. Run real ffmpeg fixtures for L/M/AA–AE/PA1–PA5 and actual probe/decode; do not commit user media or large binaries.
 
 - [ ] **Step 4: Define and run the explicit real-provider smoke only when authorized**
 
-`tests/test_openai_transcription_smoke.py` is skipped unless `DEEPTALK_RUN_OPENAI_TRANSCRIPTION_SMOKE=1`, `OPENAI_API_KEY` exists and `DEEPTALK_TRANSCRIPTION_SMOKE_MEDIA` points to a local synthetic <25 MB WAV. It invokes `whisper-1` word timestamps, records provider/model/granularity/request metadata and validates Mapping → Timed Transcript; it never prints key/path/raw audio and never commits response/media. API/network/key failure is recorded as environment unavailable, distinct from product validation failure. Run during implementation:
+`tests/test_openai_transcription_smoke.py` is skipped unless `DEEPTALK_RUN_OPENAI_TRANSCRIPTION_SMOKE=1`, `OPENAI_API_KEY` exists and `DEEPTALK_TRANSCRIPTION_SMOKE_MEDIA` points to a local synthetic <25 MB WAV. It invokes `whisper-1` word timestamps, records provider/model/granularity/request metadata and validates Mapping → Chunk Plan → Timed Transcript, including exact chunk-relative reconstruction and boundary-risk propagation; it never prints key/path/raw audio and never commits response/media. API/network/key failure is recorded as environment unavailable, distinct from product validation failure. Run during implementation:
 
 `DEEPTALK_RUN_OPENAI_TRANSCRIPTION_SMOKE=1 PYTHONPATH=src python3 -m unittest tests.test_openai_transcription_smoke -v`
 
@@ -1389,10 +1478,13 @@ git commit -m "test: verify audio alignment edit bridge"
 
 ## Plan self-review checklist
 
-- [ ] **Spec coverage:** map Design §§1–32 and review requirements A–AI to Tasks 1–28; no approved schema, Gate, source kind, output or recovery path lacks an owner.
+- [ ] **Spec coverage:** map Design §§1–32, A–AI and Conditional Pass CB1–CB7/PA1–PA7 to Tasks 1–29; no approved schema, Gate, source kind, output or recovery path lacks an owner.
 - [ ] **Placeholder scan:** search the Plan with the repository text-search tool for the forbidden placeholder phrases listed by the Writing Plans workflow and require no implementation step to contain one.
 - [ ] **Type/interface consistency:** run `rg -n "Produces:|Consumes:|def |->" docs/superpowers/plans/2026-08-13-audio-alignment-edit-bridge.md`; verify every consumed new function/type is produced by an earlier Task.
 - [ ] **Test-first consistency:** each implementation Task has a failing-test step, exact red command/expected failure, minimal implementation, exact green command and commit boundary.
 - [ ] **Dependency order:** no Task imports a module introduced later; renderer template follows validated Bridge/Profile and QA follows real Preview Manifest.
+- [ ] **Chunk-boundary consistency:** Profile, PCM evidence, Chunk Plan, Provider units, Timed Transcript, Alignment and QA use the same risk IDs/guard intervals/digests; no summary drops a risk.
+- [ ] **Media-presentation consistency:** container/stream, media presentation and extracted timelines stay distinct through Mapping, transcription reconstruction and Preview audio mux.
+- [ ] **Preview audio sync consistency:** source and Preview audio presentation start, duration, gaps and audio/video relationship are re-probed; equal overall duration is never the only proof.
 - [ ] **Scope:** no A-roll cleanup, subtitles, BGM/SFX, title/cover, auto publishing, NLE-specific exporter, auto B-roll selection or copyright approval UX.
 - [ ] **Real E2E Gate:** synthetic, real-media fixture and provider smoke completion explicitly stop before real-user acceptance.

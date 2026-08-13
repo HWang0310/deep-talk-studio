@@ -11,9 +11,11 @@
      → 素材建议 → 可视化 → 剪辑方案 → 发布辅助
 ```
 
-当前 Unreleased 产品方向是 Audio Alignment + Visual Edit Bridge：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统将 reviewed Script、Material Cue、真实图片/截图/视频和原创 Motion 对齐到真实口播时间，自动生成基本 rough cut；Design 已正式通过并完成 Implementation Plan，尚未实现产品代码。自动 A-roll cleanup 不属于当前阶段。
+当前 Unreleased 产品方向是 Audio Alignment + Visual Edit Bridge：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统将 reviewed Script、Material Cue、真实图片/截图/视频和原创 Motion 对齐到真实口播时间，自动生成基本 rough cut；Design 已正式通过，Implementation Plan 已完成 Conditional Pass 两项加固，尚未实现产品代码。自动 A-roll cleanup 不属于当前阶段。
 
 该 Design 的 canonical 时间以 Clean A-roll presentation timeline 的 decimal seconds 表示；不同容器/音轨通过可验证的 Timestamp Mapping 对齐，30fps 只属于 Preview 派生。可靠 placement 可以带 timing warning 进入 rough cut，而位置歧义不会自动预览；异常长的静态画面只限制 Preview exposure，不覆盖其 canonical semantic window。
+
+大于 provider 文件限制的转录请求只在原 PCM 的版本化自然停顿位置分块；无安全停顿时必须保留 boundary risk，并阻止边界异常成为虚假高置信 placement。最终 Aligned Preview 还必须保持 Clean A-roll 的 audio presentation start、内部 gap 与 audio/video 时间关系，不能只以总时长相同证明同步。
 
 ## 2. 用户与协作角色
 

@@ -6,6 +6,8 @@
 
 ### Audio Alignment + Visual Edit Bridge design
 
+- 根据 Implementation Plan Conditional Pass 加固两个 blocker：新增 `transcription-chunk-profile/1` 独立 Task 7，并将 Provider protocol 顺延为 Task 8，以确定性 PCM RMS natural-pause 搜索取代任意按大小硬切，让 fallback boundary risk 贯穿 Provider、Timed Transcript、Alignment、Bridge 和 QA。
+- Preview audio mux 计划新增 presentation timing 等价契约与真实媒体回归：正 audio offset、normalized raw PTS、internal gap、AAC copy/convert 和“总时长正确但声音被提前”均须由 QA 重新探测；总任务数由 28 调整为 29。
 - ChatGPT 最终 Design Review 已通过；新增 `docs/superpowers/plans/2026-08-13-audio-alignment-edit-bridge.md`，将 approved contract 拆为 28 个有明确文件、接口、红/绿测试命令和 commit boundary 的 TDD Tasks。
 - Plan 单独规划真实 ffmpeg/ffprobe 媒体 fixtures、可重算 Timestamp Mapping、provider-neutral/OpenAI transcription、span-preserving normalization、等价全局 DP、Profile calibration、Material production projection、统一 Visual Placement、duration/conflict policy、Remotion Aligned Preview、Clean A-roll audio mux、QA/Gate、CLI/Skill、A–AI eval、real provider smoke 与 real-user E2E Gate。
 - Planning 阶段只查询 OpenAI 官方 Speech-to-Text/API 文档并固化当前 capability boundary；没有调用转录 API、没有上传媒体、没有修改产品代码、没有 render 或创建 Release。
