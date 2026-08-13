@@ -131,6 +131,94 @@ class ProductionRendererTests(unittest.TestCase):
         self.assertNotIn("transition:", source)
         self.assertNotIn("https://example.com", json.dumps(asset_map))
 
+    def test_remotion_timeline_keeps_edge_text_inside_safe_area(self):
+        project = get_renderer("remotion").prepare_project(
+            self.plan, self.package, self.profile, self.root / "material-assets",
+            self.root / "safe-area-projects",
+        )
+        source = (project.project_dir / "src/ProductionComposition.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("const x1 = 300;", source)
+        self.assertIn("const x2 = 1620;", source)
+        self.assertIn('foreignObject x={x - 240}', source)
+        self.assertIn('width="480"', source)
+
+    def test_remotion_uses_three_comparison_cards_and_safe_diagram_labels(self):
+        project = get_renderer("remotion").prepare_project(
+            self.plan, self.package, self.profile, self.root / "material-assets",
+            self.root / "readability-projects",
+        )
+        source = (project.project_dir / "src/ProductionComposition.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('data-motion-element="comparison-card"', source)
+        self.assertNotIn('gridTemplateColumns: "1fr 1fr"', source)
+        self.assertEqual(source.count("{item.label.text}"), 1)
+        self.assertIn("overflowWrap: \"anywhere\"", source)
+        self.assertIn('data-motion-element="diagram-edge-label-plate"', source)
+        self.assertIn('data-motion-element="diagram-node-label"', source)
+        self.assertIn("overflow: \"hidden\"", source)
+
+    def test_hyperframes_uses_same_card_and_diagram_layout_contract(self):
+        from deeptalk_studio.production_planner import production_plan_digest
+        grounded = self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"]
+        cases = {
+            "comparison": {
+                "comparison_items": [
+                    {"order": index, "label": dict(grounded, text=label),
+                     "left_text": dict(grounded, text=f"第 {index} 项已核查事实甲"),
+                     "right_text": dict(grounded, text=f"第 {index} 项已核查事实乙")}
+                    for index, label in enumerate(("SAFE 草案", "加州 SB-53", "NASA"), 1)
+                ],
+            },
+            "diagram": {
+                "diagram_nodes": [
+                    {"order": index, "node_id": f"N{index}",
+                     "label": dict(grounded, text=label)}
+                    for index, label in enumerate((
+                        "软件包代理中的未知漏洞", "第三方代码执行环境",
+                        "Hugging Face 数据处理漏洞", "多重信任边界",
+                    ), 1)
+                ],
+                "diagram_edges": [
+                    {"order": index, "from_node": f"N{index}", "to_node": f"N{index + 1}",
+                     "label": dict(grounded, text=label)}
+                    for index, label in enumerate((
+                        "离开隔离环境", "再借第三方代码执行环境", "跨越多重信任边界",
+                    ), 1)
+                ],
+            },
+        }
+        for index, (kind, updates) in enumerate(cases.items(), 1):
+            plan = json.loads(json.dumps(self.plan))
+            plan["production_id"] = f"PROD-hyperframes-{kind}"
+            plan["selected_renderer"] = "hyperframes"
+            plan["renderer_mode"] = "hyperframes"
+            scene = plan["scenes"][1]
+            scene["scene_type"] = kind + "_motion"
+            scene["on_screen_text"] = [dict(grounded, text="要点对照" if kind == "comparison" else "关系说明")]
+            payload = scene["scene_payload"]
+            for key in ("timeline_events", "bar_data_points", "comparison_items", "diagram_nodes", "diagram_edges"):
+                payload[key] = updates.get(key, [])
+            payload["payload_type"] = kind
+            plan["plan_digest"] = production_plan_digest(plan)
+            project = get_renderer("hyperframes").prepare_project(
+                plan, self.package, self.profile, self.root / "material-assets",
+                self.root / f"hyperframes-readability-projects-{index}",
+            )
+            source = (project.project_dir / "compositions/S002.html").read_text(encoding="utf-8")
+            if kind == "comparison":
+                self.assertEqual(source.count('data-motion-element="comparison-card"'), 3)
+                for label in ("SAFE 草案", "加州 SB-53", "NASA"):
+                    self.assertEqual(source.count(label), 1)
+                self.assertNotIn('class="comparison-side right"', source)
+            else:
+                self.assertIn("Hugging Face 数据处理漏洞", source)
+                self.assertEqual(source.count('data-motion-element="diagram-edge-label-plate"'), 3)
+                self.assertEqual(source.count('data-motion-element="diagram-node-label"'), 4)
+            self.assertIn("overflow-wrap:anywhere", source)
+
     def test_hyperframes_project_has_design_first_and_deterministic_timeline_contract(self):
         plan = dict(self.plan, selected_renderer="hyperframes", renderer_mode="hyperframes")
         from deeptalk_studio.production_planner import production_plan_digest
@@ -175,7 +263,7 @@ class ProductionRendererTests(unittest.TestCase):
     def test_both_projects_expose_independent_motion_elements_for_all_four_payloads(self):
         payloads = {
             "bar": ("bar_data_points", [{"order": i, "label": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"], "value": i, "value_label": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["date"]} for i in range(1, 4)], "bar"),
-            "comparison": ("comparison_items", [{"order": i, "label": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"], "left_text": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"], "right_text": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"]} for i in range(1, 3)], "comparison-item"),
+            "comparison": ("comparison_items", [{"order": i, "label": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"], "left_text": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"], "right_text": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"]} for i in range(1, 3)], "comparison-card"),
             "diagram": ("diagram_nodes", [{"order": i, "node_id": f"N{i}", "label": self.plan["scenes"][1]["scene_payload"]["timeline_events"][0]["label"]} for i in range(1, 4)], "diagram-node"),
         }
         from deeptalk_studio.production_planner import production_plan_digest

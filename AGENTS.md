@@ -25,7 +25,7 @@
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- V0.5.1 已正式验收；V0.6.1 Motion Semantics & Production Gate Hardening 已完成并等待 ChatGPT 正式验收 V0.6。不要自行扩展假主播、TTS、最终剪辑、字幕、BGM、标题封面或发布。
+- V0.5.1 与 V0.6.1 已正式验收；第一轮真实 E2E milestone pass，Real E2E Preview Hardening 已完成并等待用户预览确认。不要自行开始 Audio Alignment + Edit Bridge，也不要扩展假主播、TTS、最终剪辑、字幕、BGM、标题封面或发布。
 - 用户说“今天讲什么”“找几个选题”“换一批”或带分类偏好时，先阅读 `.agents/skills/discover-topics/SKILL.md` 和 `docs/TOPIC_DISCOVERY_CONTRACT.md`，不要把它塞进 `research-topic`。
 - 用户回复候选编号时，读取 latest Candidate Set 的结构化 Research Handoff，直接进入 `research-topic`；不要要求用户再复制标题，也不要把 Discovery Source Seeds 当成事实证据。
 - Topic Candidate Set 0.3 的总分、资格状态、资格理由、推荐标签、展示顺序、首选、统计数、身份、时间和来源 provenance 由程序计算并在读取时重新推导；模型或 Skill 只能给评分理由和轻量预检内容。

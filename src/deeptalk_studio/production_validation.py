@@ -18,7 +18,7 @@ ALLOWED_PRODUCTION_MIME_EXTENSIONS = {
 }
 
 MACHINE_EDITORIAL_ALLOWLIST = frozenset({
-    "发生了什么", "关键时间点", "数据对比", "两个解释", "关系说明",
+    "发生了什么", "关键时间点", "数据对比", "两个解释", "要点对照", "关系说明",
     "真人口播", "辅助画面待补", "资料画面", "页面截图",
 })
 

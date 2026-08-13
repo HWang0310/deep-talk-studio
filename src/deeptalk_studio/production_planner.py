@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import unicodedata
 from copy import deepcopy
 from typing import Any, Dict, Mapping
 
@@ -23,6 +24,13 @@ MATERIAL_SCENE_TYPES = {
     "document_screenshot": "screenshot_pan", "webpage_screenshot": "screenshot_pan",
     "product_ui": "screenshot_pan", "photo": "image_pan_zoom",
     "archive": "image_pan_zoom",
+}
+
+DISPLAY_CAPACITY_UNITS = {
+    "comparison label": 32,
+    "comparison fact": 72,
+    "Diagram node": 52,
+    "Diagram edge": 40,
 }
 
 
@@ -62,11 +70,25 @@ def _empty_payload(payload_type: str) -> dict:
     }
 
 
+def _display_units(text: str) -> int:
+    return sum(
+        2 if unicodedata.east_asian_width(character) in {"W", "F"} else 1
+        for character in str(text)
+    )
+
+
+def _require_display_capacity(text: str, field: str) -> None:
+    if _display_units(text) > DISPLAY_CAPACITY_UNITS[field]:
+        raise ProductionValidationError(
+            f"{field} 文字超过确定性安全布局容量，不能进入 Renderer"
+        )
+
+
 def _visual_payload(visual: Mapping[str, Any], report: ResearchReport) -> tuple:
     visual_type = visual["visual_type"]
     headings = {
         "timeline": "关键时间点", "bar": "数据对比",
-        "comparison": "两个解释", "diagram": "关系说明",
+        "comparison": "要点对照", "diagram": "关系说明",
     }
     payload = _empty_payload(visual_type)
     if visual_type == "timeline":
@@ -107,7 +129,12 @@ def _visual_payload(visual: Mapping[str, Any], report: ResearchReport) -> tuple:
     elif visual_type == "comparison":
         if len(visual["comparison_items"]) < 2:
             raise ProductionValidationError("Comparison Motion 至少需要 2 个已绑定条目")
+        if len(visual["comparison_items"]) > 6:
+            raise ProductionValidationError("Comparison Motion 最多支持 6 个安全可读卡片")
         for index, item in enumerate(visual["comparison_items"], 1):
+            _require_display_capacity(item["label"], "comparison label")
+            _require_display_capacity(item["left_text"], "comparison fact")
+            _require_display_capacity(item["right_text"], "comparison fact")
             fields = {
                 key: _factual(item[key], item["claim_ids"], item["evidence_link_ids"])
                 for key in ("label", "left_text", "right_text")
@@ -116,11 +143,14 @@ def _visual_payload(visual: Mapping[str, Any], report: ResearchReport) -> tuple:
                 validate_display_text(entry, report)
             payload["comparison_items"].append({"order": index, **fields})
     elif visual_type == "diagram":
+        if len(visual["nodes"]) > 6:
+            raise ProductionValidationError("Diagram Motion 最多支持 6 个安全可读节点")
         evidence_by_claim = {}
         for link in report.evidence_links:
             evidence_by_claim.setdefault(link["claim_id"], []).append(link["id"])
         nodes_by_id = {node["node_id"]: node for node in visual["nodes"]}
         for index, node in enumerate(visual["nodes"], 1):
+            _require_display_capacity(node["label"], "Diagram node")
             evidence = []
             for claim_id in node["claim_ids"]:
                 evidence.extend(evidence_by_claim.get(claim_id, []))
@@ -130,6 +160,7 @@ def _visual_payload(visual: Mapping[str, Any], report: ResearchReport) -> tuple:
                 "order": index, "node_id": node["node_id"], "label": label,
             })
         for index, edge in enumerate(visual["edges"], 1):
+            _require_display_capacity(edge["label"], "Diagram edge")
             endpoint_claims = list(dict.fromkeys(
                 nodes_by_id[edge["from_node"]]["claim_ids"]
                 + nodes_by_id[edge["to_node"]]["claim_ids"]

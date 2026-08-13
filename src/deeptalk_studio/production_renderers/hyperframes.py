@@ -83,11 +83,11 @@ body {{ font-family:"{font['body']}",serif; }} .scene {{ position:absolute; inse
 .source-note {{ position:absolute; right:96px; top:76px; color:{color['muted']}; font:22px "{font['data']}"; }}
 .aroll {{ position:absolute; inset:100px 96px; display:flex; align-items:center; justify-content:center; background:{color['surface']}; font:900 86px "{font['display']}"; }}
 .scene-asset {{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }}
-.timeline {{ position:absolute; left:180px; right:180px; top:500px; height:360px; }} .timeline-baseline {{ position:absolute; top:40px; left:0; right:0; height:8px; background:{color['muted']}; }}
-.timeline-marker {{ position:absolute; top:18px; width:360px; margin-left:-180px; text-align:center; }} .marker-dot {{ width:44px; height:44px; margin:0 auto; border-radius:50%; background:{color['accent']}; }} .marker-date {{ margin-top:-100px; color:{color['accent']}; font:28px "{font['data']}"; }} .marker-label {{ margin-top:86px; font-size:30px; line-height:1.35; }}
+.timeline {{ position:absolute; left:300px; right:300px; top:500px; height:360px; }} .timeline-baseline {{ position:absolute; top:40px; left:0; right:0; height:8px; background:{color['muted']}; }}
+.timeline-marker {{ position:absolute; top:18px; width:480px; margin-left:-240px; text-align:center; }} .marker-dot {{ width:44px; height:44px; margin:0 auto; border-radius:50%; background:{color['accent']}; }} .marker-date {{ margin-top:-100px; color:{color['accent']}; font:28px "{font['data']}"; }} .marker-label {{ margin-top:86px; font-size:30px; line-height:1.35; overflow-wrap:anywhere; }}
 .bar-chart {{ position:absolute; left:180px; right:180px; bottom:150px; height:610px; border-bottom:5px solid {color['muted']}; display:flex; align-items:flex-end; justify-content:space-around; }} .bar-item {{ width:240px; text-align:center; display:flex; flex-direction:column; align-items:center; }} .bar-column {{ width:150px; background:{color['accent']}; border-radius:10px 10px 0 0; }} .bar-value,.bar-label {{ font-size:29px; margin:10px 0; }}
-.comparison {{ position:absolute; left:120px; right:120px; top:210px; bottom:100px; display:flex; flex-direction:column; gap:24px; }} .comparison-item {{ display:grid; grid-template-columns:1fr 1fr; gap:34px; }} .comparison-side {{ padding:26px; background:{color['surface']}; border-left:8px solid {color['accent']}; font-size:31px; line-height:1.4; }} .comparison-side.right {{ border-color:{color['muted']}; }}
-.diagram {{ position:absolute; inset:0; }} .diagram line {{ stroke:{color['muted']}; stroke-width:6; }} .diagram rect {{ fill:{color['surface']}; stroke:{color['accent']}; stroke-width:5; }} .diagram text {{ fill:{color['foreground']}; font:29px "{font['body']}"; text-anchor:middle; }}
+.comparison {{ position:absolute; left:100px; right:100px; top:220px; bottom:120px; display:grid; gap:28px; }} .comparison-card {{ min-width:0; padding:28px; display:flex; flex-direction:column; background:{color['surface']}; border-top:8px solid {color['accent']}; border-radius:18px; overflow:hidden; }} .comparison-label {{ font:900 34px "{font['display']}"; margin-bottom:24px; overflow-wrap:anywhere; }} .comparison-fact {{ flex:1; padding:20px 18px; background:{color['background']}; border-left:6px solid {color['accent']}; font-size:27px; line-height:1.45; overflow:hidden; overflow-wrap:anywhere; }} .comparison-fact + .comparison-fact {{ margin-top:18px; border-color:{color['muted']}; }}
+.diagram {{ position:absolute; inset:0; }} .diagram line {{ stroke:{color['muted']}; stroke-width:6; }} .diagram .node-box {{ fill:{color['surface']}; stroke:{color['accent']}; stroke-width:5; }} .diagram .edge-label-plate {{ fill:{color['background']}; stroke:{color['muted']}; stroke-width:2; }} .diagram-node-label,.diagram-edge-label {{ height:100%; display:flex; align-items:center; justify-content:center; text-align:center; color:{color['foreground']}; font:28px/1.3 "{font['body']}"; overflow:hidden; overflow-wrap:anywhere; word-break:break-word; }} .diagram-edge-label {{ font-size:23px; line-height:1.25; }}
 .capture-highlight {{ position:absolute; left:180px; right:180px; bottom:130px; height:180px; border:4px solid {color['accent']}; }}
 """
 
@@ -116,18 +116,26 @@ def _scene_markup(scene: Mapping[str, Any], asset_map: Mapping[str, str], *, pre
             for point in points
         ) + '</div>'
     elif kind == "comparison":
-        body = '<div class="comparison">' + "".join(
-            f'<div class="comparison-item" data-motion-element="comparison-item"><div class="comparison-side left"><strong>{_e(item["label"]["text"])}</strong><br>{_e(item["left_text"]["text"])}</div><div class="comparison-side right"><strong>{_e(item["label"]["text"])}</strong><br>{_e(item["right_text"]["text"])}</div></div>'
+        items = payload["comparison_items"]
+        columns = min(3, len(items))
+        body = f'<div class="comparison" style="grid-template-columns:repeat({columns},minmax(0,1fr));grid-auto-rows:minmax(0,1fr)">' + "".join(
+            f'<div class="comparison-card" data-motion-element="comparison-card"><div class="comparison-label">{_e(item["label"]["text"])}</div><div class="comparison-fact" data-motion-element="comparison-fact">{_e(item["left_text"]["text"])}</div><div class="comparison-fact" data-motion-element="comparison-fact">{_e(item["right_text"]["text"])}</div></div>'
             for item in payload["comparison_items"]
         ) + '</div>'
     elif kind == "diagram":
         nodes = payload["diagram_nodes"]
-        positions = {node["node_id"]: (330 + index * (1260 / max(1, len(nodes) - 1)), 550 + (120 if index % 2 else -120)) for index, node in enumerate(nodes)}
+        columns = len(nodes) if len(nodes) <= 4 else 3
+        positions = {}
+        for index, node in enumerate(nodes):
+            row, column = divmod(index, columns)
+            x = 960 if columns == 1 else 300 + column * (1320 / (columns - 1))
+            y = 430 + (index % 2) * 240 if len(nodes) <= 4 else 390 + row * 330
+            positions[node["node_id"]] = (x, y)
         edges = "".join(
-            f'<g id="diagram-edge-{edge["order"]}-{scene_id}" data-motion-element="diagram-edge"><line x1="{positions[edge["from_node"]][0]:.2f}" y1="{positions[edge["from_node"]][1]:.2f}" x2="{positions[edge["to_node"]][0]:.2f}" y2="{positions[edge["to_node"]][1]:.2f}"/><text x="{(positions[edge["from_node"]][0] + positions[edge["to_node"]][0]) / 2:.2f}" y="{(positions[edge["from_node"]][1] + positions[edge["to_node"]][1]) / 2 - 18:.2f}">{_e(edge["label"]["text"])}</text></g>' for edge in payload["diagram_edges"]
+            f'<g id="diagram-edge-{edge["order"]}-{scene_id}" data-motion-element="diagram-edge"><line x1="{positions[edge["from_node"]][0]:.2f}" y1="{positions[edge["from_node"]][1]:.2f}" x2="{positions[edge["to_node"]][0]:.2f}" y2="{positions[edge["to_node"]][1]:.2f}"/><rect class="edge-label-plate" data-motion-element="diagram-edge-label-plate" x="{(positions[edge["from_node"]][0] + positions[edge["to_node"]][0]) / 2 - 160:.2f}" y="{min(positions[edge["from_node"]][1], positions[edge["to_node"]][1]) - 168:.2f}" width="320" height="76" rx="16"/><foreignObject x="{(positions[edge["from_node"]][0] + positions[edge["to_node"]][0]) / 2 - 150:.2f}" y="{min(positions[edge["from_node"]][1], positions[edge["to_node"]][1]) - 161:.2f}" width="300" height="62"><div class="diagram-edge-label">{_e(edge["label"]["text"])}</div></foreignObject></g>' for edge in payload["diagram_edges"]
         )
         rendered_nodes = "".join(
-            f'<g id="diagram-node-{node["order"]}-{scene_id}" data-motion-element="diagram-node"><rect x="{positions[node["node_id"]][0] - 150:.2f}" y="{positions[node["node_id"]][1] - 65:.2f}" width="300" height="130" rx="18"/><text x="{positions[node["node_id"]][0]:.2f}" y="{positions[node["node_id"]][1] + 10:.2f}">{_e(node["label"]["text"])}</text></g>' for node in nodes
+            f'<g id="diagram-node-{node["order"]}-{scene_id}" data-motion-element="diagram-node"><rect class="node-box" x="{positions[node["node_id"]][0] - 180:.2f}" y="{positions[node["node_id"]][1] - 85:.2f}" width="360" height="170" rx="18"/><foreignObject data-motion-element="diagram-node-label" x="{positions[node["node_id"]][0] - 158:.2f}" y="{positions[node["node_id"]][1] - 63:.2f}" width="316" height="126"><div class="diagram-node-label">{_e(node["label"]["text"])}</div></foreignObject></g>' for node in nodes
         )
         body = f'<svg class="diagram" width="1920" height="1080">{edges}{rendered_nodes}</svg>'
     elif kind == "image":
@@ -153,7 +161,7 @@ def _scene_timeline(scene: Mapping[str, Any], offset: float = 0.0) -> str:
         commands.append(f'tl.from("#content-{scene_id} .bar-column", {{ scaleY: 0, transformOrigin: "center bottom", duration: 0.62, stagger: 0.18, ease: "power3.out" }}, {offset + 0.35:.3f});')
         commands.append(f'tl.from("#content-{scene_id} .bar-value, #content-{scene_id} .bar-label", {{ opacity: 0, y: 16, duration: 0.3, stagger: 0.09, ease: "sine.out" }}, {offset + 0.78:.3f});')
     elif kind == "comparison":
-        commands.append(f'tl.from("#content-{scene_id} .comparison-item", {{ opacity: 0, x: 42, duration: 0.46, stagger: 0.2, ease: "power3.out" }}, {offset + 0.34:.3f});')
+        commands.append(f'tl.from("#content-{scene_id} .comparison-card", {{ opacity: 0, x: 42, duration: 0.46, stagger: 0.2, ease: "power3.out" }}, {offset + 0.34:.3f});')
     elif kind == "diagram":
         for node in payload["diagram_nodes"]:
             commands.append(f'tl.from("#diagram-node-{node["order"]}-{scene_id}", {{ opacity: 0, scale: 0.82, transformOrigin: "center", duration: 0.38, ease: "back.out(1.4)" }}, {offset + 0.28 + (node["order"] - 1) * 0.24:.3f});')
