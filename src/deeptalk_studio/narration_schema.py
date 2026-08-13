@@ -124,6 +124,28 @@ EXTRACTED_AUDIO_SCHEMA = _object(
         "sample_width_bytes": _integer(1),
         "sample_count": _integer(1),
         "duration_seconds": _decimal_string(),
+        "source_time_base": _string(),
+        "first_included_source_pts": _signed_integer(),
+        "last_included_source_pts": _signed_integer(),
+        "first_extracted_sample_index": _integer(),
+        "last_extracted_sample_index": _integer(),
+        "source_audio_presentation_start_seconds": _decimal_string(),
+        "source_audio_presentation_end_seconds": _decimal_string(),
+        "resampler_delay_samples": _integer(),
+        "applied_timeline_operations": {
+            "type": "array",
+            "items": _enum(
+                [
+                    "presentation_decode",
+                    "aac_priming_excluded",
+                    "trailing_padding_excluded",
+                    "internal_gap_preserved",
+                    "deterministic_resample",
+                    "deterministic_channel_conversion",
+                ]
+            ),
+            "uniqueItems": True,
+        },
         "extraction_profile_version": _enum(["audio-extraction-profile/1"]),
         "extraction_profile_digest": _digest(),
         "ffmpeg_version": _string(),
@@ -131,7 +153,8 @@ EXTRACTED_AUDIO_SCHEMA = _object(
         "timestamp_mapping_id": _string(),
         "timestamp_mapping_digest": _digest(),
         "artifact_digest": _digest(),
-    }
+    },
+    optional=("timestamp_mapping_id", "timestamp_mapping_digest"),
 )
 
 

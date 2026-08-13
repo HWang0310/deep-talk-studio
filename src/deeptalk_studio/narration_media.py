@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import unicodedata
+import wave
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -215,6 +216,13 @@ class NarrationMediaResult:
     probe: MediaProbeEvidence
 
 
+@dataclass(frozen=True)
+class ExtractedAudioResult:
+    artifact: Dict[str, Any]
+    immutable_path: Path
+    command_arguments: Tuple[str, ...]
+
+
 def probe_narration_media(path: Path) -> MediaProbeEvidence:
     path = Path(path)
     streams_raw = _ffprobe_json(path, "-show_format", "-show_streams")
@@ -390,3 +398,169 @@ def import_narration_media(
     artifact["artifact_digest"] = canonical_digest(artifact)
     validate_json_schema(artifact, NARRATION_MEDIA_SCHEMA, "media")
     return NarrationMediaResult(artifact=artifact, immutable_path=target, probe=probe)
+
+
+def audio_extraction_profile(*, sample_rate: int = 48000, channels: int = 1) -> Dict[str, Any]:
+    if sample_rate <= 0 or channels <= 0:
+        raise NarrationMediaError("音频提取采样率和声道数必须大于 0")
+    profile = {
+        "profile_version": "audio-extraction-profile/1",
+        "output_codec": "pcm_s16le",
+        "sample_rate": sample_rate,
+        "channels": channels,
+        "preserve_presentation_gaps": True,
+        "editorial_filters": [],
+    }
+    profile["profile_digest"] = canonical_digest(profile)
+    return profile
+
+
+def _wav_metadata(path: Path) -> Tuple[int, int, int, int]:
+    try:
+        with wave.open(str(path), "rb") as handle:
+            return (
+                handle.getframerate(),
+                handle.getnchannels(),
+                handle.getsampwidth(),
+                handle.getnframes(),
+            )
+    except (OSError, wave.Error) as exc:
+        raise NarrationMediaError("派生音频不是有效 WAV/PCM") from exc
+
+
+def _has_internal_silence(path: Path) -> bool:
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-v",
+                "info",
+                "-nostdin",
+                "-i",
+                str(path),
+                "-af",
+                "silencedetect=noise=-60dB:d=0.05",
+                "-f",
+                "null",
+                "-",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise NarrationMediaError("无法验证派生音频静音区") from exc
+    starts = [Decimal(value) for value in re.findall(r"silence_start: ([0-9.]+)", result.stderr)]
+    ends = [Decimal(value) for value in re.findall(r"silence_end: ([0-9.]+)", result.stderr)]
+    duration = Decimal(_decimal_text(_ffprobe_json(path, "-show_entries", "format=duration").get("format", {}).get("duration")))
+    return any(start > Decimal("0.02") and end < duration - Decimal("0.02") for start, end in zip(starts, ends))
+
+
+def extract_transcription_audio(
+    media: Mapping[str, Any],
+    output_path: Path,
+    *,
+    profile: Mapping[str, Any],
+    created_at: str,
+) -> ExtractedAudioResult:
+    from .narration_schema import EXTRACTED_AUDIO_SCHEMA
+
+    validate_json_schema(dict(media), NARRATION_MEDIA_SCHEMA, "media")
+    if profile.get("profile_version") != "audio-extraction-profile/1":
+        raise NarrationMediaError("不支持的音频提取 Profile")
+    expected_profile = audio_extraction_profile(
+        sample_rate=_int(profile.get("sample_rate")), channels=_int(profile.get("channels"))
+    )
+    if dict(profile) != expected_profile:
+        raise NarrationMediaError("音频提取 Profile 已被修改")
+    audio_stream = media["audio_stream"]
+    if not audio_stream["present"]:
+        raise NarrationMediaError("这个视频没有音轨，无法进行对齐")
+    source = Path(str(media["immutable_local_path"]))
+    if source.is_symlink() or not source.is_file():
+        raise NarrationMediaError("不可读取 immutable Clean A-roll")
+    if sha256_file(source) != media["sha256"]:
+        raise NarrationMediaError("Clean A-roll SHA 已变化")
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.exists():
+        raise NarrationMediaError(f"不会覆盖已有派生音频：{output_path.name}")
+    command = (
+        "ffmpeg",
+        "-v",
+        "error",
+        "-nostdin",
+        "-n",
+        "-i",
+        str(source),
+        "-map",
+        f"0:{audio_stream['stream_index']}",
+        "-vn",
+        "-ac",
+        str(profile["channels"]),
+        "-ar",
+        str(profile["sample_rate"]),
+        "-c:a",
+        "pcm_s16le",
+        str(output_path),
+    )
+    try:
+        subprocess.run(list(command), check=True, capture_output=True, text=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise NarrationMediaError("无法派生 lossless transcription audio") from exc
+    sample_rate, channels, sample_width, sample_count = _wav_metadata(output_path)
+    operations = ["presentation_decode"]
+    if audio_stream["initial_padding_samples"] or audio_stream["skip_samples"]:
+        operations.append("aac_priming_excluded")
+    if audio_stream["trailing_padding_samples"] or audio_stream["discard_padding_samples"]:
+        operations.append("trailing_padding_excluded")
+    if _has_internal_silence(output_path):
+        operations.append("internal_gap_preserved")
+    if sample_rate != audio_stream["sample_rate"]:
+        operations.append("deterministic_resample")
+    if channels != audio_stream["channels"]:
+        operations.append("deterministic_channel_conversion")
+    source_start = str(media["presentation_evidence"]["audio_presentation_start_seconds"])
+    source_end = str(media["presentation_evidence"]["audio_presentation_end_seconds"])
+    first_pts = _int(audio_stream["start_pts"])
+    last_pts = first_pts + _int(audio_stream["duration_ts"])
+    artifact = {
+        "artifact_version": "extracted-audio/1",
+        "audio_id": f"AUDIO-{media['media_id']}",
+        "revision": 1,
+        "created_at": created_at,
+        "narration_media_id": media["media_id"],
+        "narration_media_sha256": media["sha256"],
+        "source_stream_index": audio_stream["stream_index"],
+        "immutable_local_path": str(output_path.resolve()),
+        "sha256": sha256_file(output_path),
+        "byte_size": output_path.stat().st_size,
+        "codec": "pcm_s16le",
+        "sample_rate": sample_rate,
+        "channels": channels,
+        "sample_width_bytes": sample_width,
+        "sample_count": sample_count,
+        "duration_seconds": format(Decimal(sample_count) / Decimal(sample_rate), "f"),
+        "source_time_base": audio_stream["time_base"],
+        "first_included_source_pts": first_pts,
+        "last_included_source_pts": last_pts,
+        "first_extracted_sample_index": 0,
+        "last_extracted_sample_index": sample_count,
+        "source_audio_presentation_start_seconds": source_start,
+        "source_audio_presentation_end_seconds": source_end,
+        "resampler_delay_samples": 0,
+        "applied_timeline_operations": operations,
+        "extraction_profile_version": profile["profile_version"],
+        "extraction_profile_digest": profile["profile_digest"],
+        "ffmpeg_version": subprocess.run(
+            ["ffmpeg", "-version"], check=True, capture_output=True, text=True
+        ).stdout.splitlines()[0],
+        "command_arguments_digest": canonical_digest(list(command[1:-1])),
+    }
+    artifact["artifact_digest"] = canonical_digest(artifact)
+    validate_json_schema(artifact, EXTRACTED_AUDIO_SCHEMA, "audio")
+    return ExtractedAudioResult(
+        artifact=artifact,
+        immutable_path=output_path,
+        command_arguments=command,
+    )
