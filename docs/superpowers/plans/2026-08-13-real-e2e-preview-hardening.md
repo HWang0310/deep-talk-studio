@@ -67,4 +67,4 @@
 - [x] Verify validation, preview, render, ffprobe, Manifest, QA, SHA and source bindings.
 - [x] Extract and inspect frames for timeline, diagram and comparison; confirm reference-only sources remain unstaged.
 - [x] Update project records with results and remaining gaps.
-- [ ] Stage only scoped files, commit on `agent/real-e2e-preview-hardening`, push to GitHub, and verify remote branch/commit without tagging or releasing.
+- [x] Stage only scoped files, commit on `agent/real-e2e-preview-hardening`, push to GitHub, and verify remote branch/commit without tagging or releasing.
