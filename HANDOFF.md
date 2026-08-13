@@ -4,100 +4,106 @@
 
 仓库：https://github.com/HWang0310/deep-talk-studio
 
-本轮：Audio Alignment + Visual Edit Bridge Design Review Candidate，保持 Unreleased。
+本轮：Audio Alignment + Visual Edit Bridge Design Contract Hardening，保持 Unreleased。
 
 ## 1. 本轮任务是什么
 
-从已通过 Review 的 `agent/real-e2e-preview-hardening-mainline` HEAD `f087b6c295a9e015357e4433b103428b16a5e6be` 建立 `agent/audio-alignment-edit-bridge`，检查现有 Script、Material、Production、Schema、Storage、renderer、Skill 与 eval 边界，只完成新阶段 Design Spec、自审、提交和推送。
+ChatGPT 对 Design HEAD `f9cb70315ea02dbe83353d7c4eee97800dcddccf` 给出 Conditional Pass。本轮继续在 `agent/audio-alignment-edit-bridge` 修复四个 Design blocker：媒体 presentation 时间映射、frame-rate-neutral canonical timecode、placement status 与 timing conflict 正交关系、长静态画面 Preview exposure safeguard。
 
-本轮明确不写 implementation plan、不开发、不运行 transcription、不渲染 Aligned Preview、不创建 Release。
+本轮只修改 Design Spec 与必要状态文档，不写 implementation plan、不开发、不新增 Skill、不 transcription、不 render、不创建 PR/tag/Release。
 
 ## 2. 完成了什么
 
-- 定义 Clean A-roll 是 immutable canonical timeline；视频默认支持 MP4/MOV/M4V，纯音频作为无完整 Preview 的兼容路径。
-- 定义 Narration Media、lossless Extracted Audio、Timed Transcript、Script Alignment、Beat/Cue Timeline、Visual Placement、Edit Bridge、Preview Manifest 与 QA 的版本化边界。
-- 设计 provider-neutral transcription adapter：确定性测试 provider + 可配置真实 provider；provider/LLM 都不能决定 canonical timecode、status 或 Gate。
-- 设计 span-preserving 中文/英文 normalization、确定性动态规划、歧义/漏读/即兴/重排检测和版本化 Profile/threshold。
-- 复用 Script Beat → Material Cue → Production Scene 身份，不建立第二套 Scene。
-- 将 A-roll、真实图片/截图、真实视频和 QA-ready Motion 纳入统一 placement model，自动推导 IN/OUT/duration 与默认 layout。
-- 分开真实视频的 narration timeline 与 source clip timeline；无 clip range 时保留插入位置并诚实标记 `clip_selection_needed`。
-- 定义 Motion/视频 duration conflict 与 overlap；Preview 允许确定性临时裁切，但不改源文件或 canonical decision。
-- 定义 JSON、普通中文 Markdown、NLE-neutral CSV 和 1920×1080/30fps `ALIGNED_PREVIEW.mp4`。
-- 明确历史 rights/reuse 继续兼容读取但不再阻塞新制作；缺文件、SHA/MIME/codec/path/grounding/binding 问题仍严格失败。
-- 覆盖产品要求的 A–Z adversarial cases、partial recovery、immutable revision 和真实真人视频 E2E 边界。
+- 将 container/stream PTS、Clean A-roll media presentation timeline 和 extracted-audio timeline 明确拆分。
+- 新增 `audio-timestamp-mapping/1`：使用 `media_time = extracted_time × scale + offset`，scale 首版固定 1，offset 由真实 PTS/edit/skip/discard/extraction evidence 确定，可非零。
+- 明确 AAC encoder priming/padding、edit list、非零/负 PTS、audio presentation 晚启动、VFR 与正常 duration 微差策略；不再要求 PCM 与 container duration 精确到一个 sample。
+- canonical machine time 改为 decimal seconds，人类时间码为 `HH:MM:SS.mmm`；30fps frame/timecode 只存在于 Preview 派生字段。
+- 将 placement uncertainty 与 timing conflict 拆成两个维度：位置可靠的 Motion/B-roll duration mismatch 或 overlap 保持 `placement_status=ready`，以 timing warning 进入 Rough Cut；真正的 anchor/same-start selection ambiguity 才 needs_review。
+- 长 still semantic window 保留为 canonical 事实窗口；Preview exposure 使用 `rough-cut-duration-profile/1`，首版继承 Material Profile 0.5 已版本化的 7 秒默认 Cue duration，超长时 cap Preview exposure 并记录 warning/adjustment。
+- 补充 AA–AI adversarial cases 与 property checks，覆盖 timestamp mapping、fps/VFR、status/conflict、same-start ambiguity 和长 still。
 
 ## 3. 创建 / 修改的重要文件
 
-- Design Spec：`docs/superpowers/specs/2026-08-13-audio-alignment-edit-bridge-design.md`
-- 项目状态：`AGENTS.md`、`PRD.md`、`ROADMAP.md`、`CHANGELOG.md`
-- 本交接：`HANDOFF.md`
+- 核心 Design：`docs/superpowers/specs/2026-08-13-audio-alignment-edit-bridge-design.md`
+- 状态同步：`AGENTS.md`、`CHANGELOG.md`、`HANDOFF.md`、`PRD.md`、`ROADMAP.md`
 
-没有修改 Python、renderer templates、schemas、tests、Skills 或 runtime artifacts。
+没有修改 `src/`、`tests/`、`renderer_templates/`、`scripts/`、`.agents/skills/` 或 `docs/superpowers/plans/`。
 
 ## 4. 当前设计架构
 
 ```text
-Clean A-roll → immutable Media + lossless audio derivative
-→ provider-neutral Timed Transcript
-→ deterministic Script sequence alignment
-→ stable Beat timeline → Cue anchor timeline
-→ existing Production Scene + material compatibility projection
-→ unified Visual Placement (A-roll / real image / real video / motion)
-→ Edit Bridge JSON + Markdown + CSV
-→ Remotion Aligned Preview
-→ ffprobe/SHA/binding Alignment + Edit Bridge QA
+container/stream PTS + edit/codec evidence
+→ Clean A-roll media presentation timeline
+→ immutable extracted audio
+→ versioned Timestamp Mapping
+→ provider Timed Transcript boundaries
+→ mapped media-presentation timestamps
+→ deterministic Script/Beat/Cue alignment
+→ reliable placement status + independent timing status
+→ canonical semantic seconds / HH:MM:SS.mmm
+→ Preview-only 30fps frames + exposure/conflict adjustments
+→ Edit Bridge + Aligned Preview + QA
 ```
 
-所有 canonical 秒数只来自 provider 真实 timestamp boundary 和 deterministic mapping。segment-only 不插值词级时间，降级为 coarse。
+## 5. 时间映射契约
 
-## 5. 已经可以运行什么
+- container/stream PTS 可以非零或负；canonical media presentation 起点始终是实际播放的 0 秒。
+- extracted audio 从自身 sample 0 开始，可能与 media presentation 0 有确定性 offset。
+- Mapping scale 首版必须为 1；offset 只能来自首个 derivative sample 的 source presentation PTS 与 media presentation origin。
+- Mapping 保存首末 PTS/sample、edit/skip/discard、time base、evidence digest 和动态 tolerance，validator 重新推导。
+- Transcript 的 extracted boundary 与映射后的 media boundary 都保存，最终 Alignment 只使用后者。
 
-仍然可以运行此前已验收的 Topic Discovery → Research → Script → Material → Motion Production。Design 文档可供 ChatGPT 完整 Review。
+## 6. Canonical 与 Preview 时间
 
-本轮没有新增可运行产品能力。
+- canonical machine truth：decimal seconds。
+- canonical readable timecode：`HH:MM:SS.mmm`，与 source fps/VFR 无关。
+- Preview profile：1920×1080、30fps；只生成 `preview_in_frame/out_frame` 与带 Preview 前缀的 frame timecode。
+- frame snap adjustment 不反写 canonical seconds/timecode。
 
-## 6. 还不能运行什么
+## 7. Placement / Conflict / Duration 语义
 
-- 不能导入/转录 Clean A-roll；
-- 不能生成 Beat/Cue 真实时间码；
-- 不能生成 Edit Bridge Package 或 `ALIGNED_PREVIEW.mp4`；
-- 没有 Audio Alignment Skill/CLI/provider/renderer；
-- 不做自动 A-roll cleanup、字幕、BGM/SFX、NLE 工程导出、标题封面或发布。
+- placement status 只表示 narration placement、对象选择和素材 binding 是否可靠。
+- timing status 独立为 clear/warning/blocking。
+- 已可靠 Motion/B-roll 的自然时长不匹配或可靠 Visual overlap：placement 仍 ready，timing warning，Package Gate warnings，可执行 preview-only crop/early-return/takeover。
+- canonical 同时开始且没有 track priority：selection blocker，相关 placement needs_review，不按内部 ID 自动选。
+- still semantic duration 超过 7 秒：semantic OUT 不变，placement 仍 ready，Preview exposure cap、duration warning 和 adjustment 全部记录。
 
-## 7. 已知问题与开放风险
+## 8. QA / Gate 更新
 
-- 真实 provider 的模型、SDK 和 timestamp 能力会变化；实现 OpenAI adapter 时必须查询当日官方文档。
-- 中文 ASR token boundary 不统一；设计使用自己的可逆 normalization，segment 内不伪造词级精度。
-- 历史 rights 与 eligibility 紧耦合；设计用只读 material production projection 拆分 rights 与非 rights Gate，不改旧包。
-- 真实 B-roll 常缺内部 clip range；首版不自动猜“最佳几秒”。
-- VFR、非零 PTS 和多种音视频编码需要真实媒体 adversarial eval。
-- 阈值虽已给出确定值，仍需在 A–Z eval 中校准；若变化必须发布新 Profile，不改写旧工件。
+QA 新增重推导：
 
-## 8. 重要技术决策
+- presentation origin/duration 与 raw stream timebase/PTS/edit evidence；
+- Mapping scale/offset/start/end/sample count/dynamic tolerance/digest；
+- extracted 与 media Transcript boundary；
+- decimal seconds 与 `HH:MM:SS.mmm`；
+- Preview-only frame mapping；
+- placement/timing/duration status 的正交一致性；
+- long-still cap、selection blocker 与所有 preview adjustment。
 
-- Clean A-roll 是后续唯一 canonical timeline；任何新剪辑产生全新 Media → Transcript → Alignment → Bridge → Preview 链。
-- LLM 只可生成可读 gap 解释，不能生成机器时间码或 Gate。
-- 第一版只有 word/token timestamp 可进入精细 Preview；segment-only 保存 coarse 结果但不覆盖 A-roll。
-- ready overlay 的 IN 是 anchor 实际说话起点，OUT 来自真实 semantic window，不硬编码五秒。
-- 默认 layout：真实图片/视频全屏 B-roll；信息 Motion 全屏；没有视觉时保持真人。
-- rights/reuse 完全退出新制作资格 Gate，但不放松获取限制、文件完整性、Research grounding 或 Display Text grounding。
-- Preview adjustment 是 rough cut 临时决策，必须记录且不能冒充最终剪辑决定。
-- 产品版本仍为 Unreleased；Artifact `*/1` 只是 contract 第一版，不代表达到 V1.0。
+Mapping 无法重算、scale 非 1、mapped timestamp 越界是 fail。可靠 timing warning、long-still cap 或局部 selection blocker使 package 为 warnings；其他 placement 继续保留。
 
-## 9. 需要产品经理 Review 的问题
+## 9. 已经可以运行什么
 
-- Artifact、module 和 root binding 是否完整；
-- normalization、deterministic alignment、ambiguity 与 threshold 规则是否满足产品精度边界；
-- segment-only 不进入首版 Preview 是否符合预期；
-- Material rights compatibility projection 是否正确保留非版权 Gate；
-- IN/OUT/duration、layout、video source range 与 timing conflict policy 是否适合作为首版；
-- QA 的 pass/warnings/fail 与 partial recovery 是否正确；
-- A–Z adversarial eval 是否足以进入下一轮 implementation planning。
+现有 Topic → Research → Script → Material → Motion 仍可运行。本轮只产出可供 ChatGPT Review 的 hardened Design。
 
-## 10. 建议下一阶段
+本轮没有新增可运行能力。
 
-等待 ChatGPT Design Review。只有 Review 明确通过并发来新的正式指令后，才创建 TDD implementation plan；当前不要实现 Audio Alignment + Visual Edit Bridge。
+## 10. 还不能运行什么
+
+- 尚不能导入、映射或转录 Clean A-roll；
+- 尚不能运行 deterministic alignment；
+- 尚不能生成 Edit Bridge 或 Aligned Preview；
+- 尚无实现计划、代码、测试或 Skill；
+- 不做 A-roll cleanup、字幕、BGM/SFX、NLE 工程、标题封面或发布。
+
+## 11. 自审与开放风险
+
+Spec Self-Review 已通过 placeholder、internal consistency、timebase、schema、Gate/status、Preview/canonical 区分和 adversarial coverage 七项检查。开放风险仍包括真实媒体 edit-list/codec 组合、provider timestamp 能力和 7 秒 still cap 的真实 E2E 校准；任何 calibration 变化必须形成新版本 Profile，不能改写旧 Artifact。
+
+## 12. 建议下一阶段
+
+等待 ChatGPT 最终 Design Review。只有 ChatGPT 明确将 Conditional Pass 升级为通过并另行发出任务后，才允许创建 implementation plan；当前不得实现。
 
 ## 给用户的下一步操作
 
-用户不需要检查文件或 GitHub。Codex 本轮聊天回复会直接附上完整的 ChatGPT Design Review 交接，用户只需整段复制给 ChatGPT。
+用户不需要检查文件或 GitHub。Codex 聊天回复会附上完整 Design Hardening 交接，用户只需整段复制给 ChatGPT。

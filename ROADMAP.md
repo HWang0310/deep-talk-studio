@@ -114,6 +114,7 @@
 - 输出不可覆盖的 Edit Bridge JSON、普通中文 Markdown、NLE-neutral CSV 和 `ALIGNED_PREVIEW.mp4`。
 - 历史 rights/reuse 信息保持兼容读取，但不作为新制作 Gate；文件、SHA、格式、安全、grounding、binding 与 QA 仍严格验证。
 - 当前只完成 Design Spec，尚未编写 implementation plan 或代码；等待 ChatGPT Design Review。
+- Conditional Pass 后已完成四项 Design Contract Hardening：presentation timestamp mapping、frame-rate-neutral canonical timecode、placement/conflict 正交语义、长 still Preview exposure safeguard；仍等待 ChatGPT 最终 Design Review。
 
 ## 暂不承诺
 

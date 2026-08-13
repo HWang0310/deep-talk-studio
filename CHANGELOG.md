@@ -6,6 +6,10 @@
 
 ### Audio Alignment + Visual Edit Bridge design
 
+- 根据 ChatGPT Conditional Pass 完成 Design Contract Hardening：将 container/stream PTS、Clean A-roll presentation timeline 与 extracted-audio timeline 分离，新增可验证的 affine Timestamp Mapping；正常 AAC priming/padding、edit list 和非零/负 PTS 不再因非 identity offset 被误伤。
+- canonical Edit Bridge 时间统一为 decimal seconds 与 `HH:MM:SS.mmm`；30fps frame/timecode 只保留为 Aligned Preview 派生字段。
+- 将 placement uncertainty 与 timing conflict 拆成正交状态：可靠 placement 可携带 duration/overlap warning 并进入 Rough Cut；same-start selection ambiguity 才阻止自动 Preview。
+- 长静态画面新增版本化 7 秒 Preview exposure safeguard，继承 Material Profile 0.5 的已有默认 Cue 时长；canonical semantic OUT 保留，调整与 warning 全部可审计。
 - 完成 repository inspection 与 Design Review Candidate：把 immutable Clean A-roll 定义为 canonical timeline，设计 Narration Media、Extracted Audio、Timed Transcript、Script Alignment、Visual Placement、Edit Bridge 和 Aligned Preview 契约。
 - 设计 provider-neutral Speech-to-Text boundary、保留原文 span 的中英文 normalization、确定性序列对齐、版本化 threshold/Profile、Beat/Cue anchor 映射和可重推导 Gate；LLM 与 provider 均不能自报 canonical timecode 或 pass。
 - 将真实图片、截图、真实视频、现有 Motion 与 A-roll 纳入同一 placement model，定义真实 IN/OUT/duration、layout、source clip 双时间轴、timing conflict 和 preview-only adjustment。
