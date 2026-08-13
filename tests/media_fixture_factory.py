@@ -31,7 +31,7 @@ def _video_filter(spec: MediaFixtureSpec) -> str:
         return (
             "testsrc2=size=320x180:rate=30:duration="
             + spec.duration
-            + ",select='if(lt(t,1),not(mod(n,2)),1)',setpts=N/30/TB"
+            + ",select='if(lt(t,1),not(mod(n,2)),1)'"
         )
     return f"testsrc2=size=320x180:rate=30:duration={spec.duration}"
 
@@ -71,6 +71,8 @@ def build_media_fixture(root: Path, spec: MediaFixtureSpec) -> Path:
     suffix = spec.suffix.lower()
     if spec.video:
         command.extend(["-c:v", "libx264", "-pix_fmt", "yuv420p"])
+        if spec.vfr:
+            command.extend(["-fps_mode", "vfr"])
     if spec.audio:
         if suffix in {".wav"}:
             command.extend(["-c:a", "pcm_s16le"])
