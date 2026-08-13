@@ -14,7 +14,7 @@ ChatGPT 对 Planning HEAD `aa23b446e04302837c8632fc8851f7b61e39fa2a` 给出 IMPL
 
 - 新增独立 Task 7 `transcription-chunk-profile/1`，并将 Provider protocol 顺延为 Task 8，保证 Chunk Plan 先于其消费者实现；总 Task 数从 28 调整为 29。
 - 大文件仍遵守 25 MB provider limit，request cap 为 24 MiB；nominal boundary 前 12 秒内用 20 ms RMS / 10 ms hop 搜索持续至少 300 ms、≤ -42 dBFS 的自然停顿。
-- 候选采用确定性 score/tie-break；无安全停顿时选择同窗口内最低能量 valley，标记 high boundary risk，并生成前后各 1 秒 risk guard。
+- 候选采用确定性 score/tie-break；能量 threshold 使用整数 mean-square 比较，避免浮点差异移动边界。无安全停顿时在 10 ms 网格上比较完整 300 ms 区间的 nearest-rank p95 能量，选择同窗口最低能量 valley，标记 high boundary risk，并生成前后各 1 秒 risk guard。
 - Chunk 保存 index、samples、sample rate、extracted/media seconds、boundary evidence、Profile/chunk digest；不重叠、不删停顿、不修改 A-roll，也不依赖 LLM/Transcript。
 - boundary risk 贯穿 Provider Transcript → Timed Transcript → Alignment → Bridge → QA；风险区 duplicate/omission/anchor 异常不得生成 false high-confidence ready。
 - Preview audio mux 改为消费 Clean A-roll media presentation evidence；正 audio offset、normalized raw PTS、internal gap 与 audio/video relationship 必须保留。
