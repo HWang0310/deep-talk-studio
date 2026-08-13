@@ -19,6 +19,7 @@
 - comparison 不再由 Planner 无条件生成“两个解释”，改用版本化中性标题“要点对照”；每个 mechanism 只显示一次并在独立 card 内保留两条 grounded facts，Remotion / HyperFrames 共用同一 payload 语义。
 - 新增真实中文长 Diagram、三项 Comparison、单次 mechanism label、fact binding 与 machine-editorial allowlist 回归；任意事实文字仍不能伪装成机器标题。
 - 使用原 reviewed Script、approved Research 与 reviewed Material Package 生成新 Production `PROD-20260813T133848055707`；10 个真实工件 ready、QA pass，旧输出未覆盖。
+- Git canonical lineage 修复：保留无共同祖先的旧审计分支，从远端 canonical main 新建 `agent/real-e2e-preview-hardening-mainline` 并迁移完全相同的 hardening tree；不触碰 main、v0.6.1 tag 或 Release。
 
 ## [0.6.1] - 2026-08-11
 

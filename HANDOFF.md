@@ -6,13 +6,13 @@
 
 正式发布：https://github.com/HWang0310/deep-talk-studio/releases/tag/v0.6.1
 
-本轮：Real E2E Preview Hardening，开发分支 `agent/real-e2e-preview-hardening`。没有 tag，没有新 Release。
+本轮：Real E2E Preview Hardening canonical lineage 修复，新开发分支 `agent/real-e2e-preview-hardening-mainline`。没有 tag，没有新 Release。
 
-核心修复提交：`1394b90`（`fix: harden real E2E motion preview layouts`）。
+canonical-lineage 核心修复提交：`71fafe7`（`fix: harden real E2E motion preview layouts`）。旧审计分支 `agent/real-e2e-preview-hardening` 与旧提交 `1394b90` 保留未删除。
 
 ## 1. 本轮任务是什么
 
-根据 ChatGPT 对第一轮真实 E2E Motion Preview 的 Review，仅修复 Diagram 长中文与 edge label 可读性、Comparison 错误标题与强制左右栏，并把此前 timeline safe-area 修复正式提交到 GitHub development branch。使用同一 reviewed Script、approved Research 和 reviewed Material Package 重新生成不可覆盖的真实 Production，不进入 Audio Alignment 等下一阶段。
+修复 Git canonical lineage blocker：旧 hardening 分支来自一条与远端 canonical main 无共同祖先、但 V0.6.1 基线 tree 完全相同的复制历史。本轮保持 main、v0.6.1 tag、旧分支和旧提交不动，从远端 canonical main `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d` 创建新分支并迁移完全相同的 Preview Hardening scoped changes。不进入 Audio Alignment 等下一阶段。
 
 ## 2. 完成了什么
 
@@ -23,6 +23,8 @@
 - Display Text：仅增加固定 allowlist 短语“要点对照”；任意事实文本仍无法声明为 `machine_editorial`。
 - Remotion 与 HyperFrames 保持同一 Production Plan / payload 语义，renderer 不重新解释 Research。
 - 使用完全相同的正式输入生成新 Production `PROD-20260813T133848055707`，旧 preview 保留未覆盖。
+- Preview 已由 ChatGPT 实际观看并确认 Timeline、Diagram、Comparison 三个视觉问题通过；第一轮 Material + Motion 阶段正式通过。
+- 旧核心 fix tree 与新核心 fix tree 都是 `6711ec90e881430d25c232b572368010e6961527`，patch-id 也相同，证明 canonical lineage 迁移没有遗漏产品代码、测试或安全 Gate。
 
 ## 3. 创建 / 修改了哪些重要文件
 
@@ -74,15 +76,16 @@ Comparison/Diagram 的事实和 binding 由 Core 独占；两个 renderer 只消
 - capacity Gate 使用确定性 East Asian width 单位，避免依赖浏览器测量；安全优先于自动缩小到不可读字号。
 - 不修改 Script、Research 或 Material；新旧 Plan 的 Script digest 与 Material digest 完全相同。
 - 不创建 v0.6.2，正式 Release 仍为 v0.6.1。
+- 不使用 unrelated-history merge，不 force push main，不改写 tag；从 `origin/main` 建立新 lineage 后 cherry-pick 已审 scoped commits。
 
 ## 9. 哪些问题需要产品经理决定
 
-- 请 Review 用户观看的新 Motion rough preview，确认 Diagram 与 Comparison 两个视觉问题是否通过。
-- 用户确认“预览通过”后，正式安排 Audio Alignment + Edit Bridge；本轮不要回溯扩展范围。
+- 请 Review canonical lineage 修复：新分支 merge-base、ahead/behind、tree/patch 等价和测试结果。
+- lineage 通过后，正式安排 Audio Alignment + Edit Bridge；本轮不要回溯扩展范围。
 
 ## 10. 建议下一阶段做什么
 
-等待用户完成一次普通审美确认。若通过，由 ChatGPT 给出 Audio Alignment + Edit Bridge 的正式产品规格：把真人录音时间码绑定 Script Beat、Material Cue 与 Motion Scene，减少剪辑软件中的人工定位。
+等待 ChatGPT 确认 canonical lineage。确认后由 ChatGPT 给出 Audio Alignment + Edit Bridge 的正式产品规格：把真人录音时间码绑定 Script Beat、Material Cue 与 Motion Scene，减少剪辑软件中的人工定位。
 
 ## 验证结果
 
@@ -94,7 +97,9 @@ Comparison/Diagram 的事实和 binding 由 Core 独占；两个 renderer 只消
 - rough preview：H.264、1920×1080、30 fps、74.048 秒，SHA-256 `fe14987736b3f676d81f24124d3feae15a3640d86e13c8a199f6cdffb3140544`。
 - 人工画面检查：timeline 两端在 safe area；4 个 diagram node text 在 box 内，3 个 edge label plate 与线分离；comparison 标题为“要点对照”，三张 mechanism card 一眼可分，每张两条事实完整。
 - 权利复验：renderer asset map 为空；7 个外部来源仍为 reference_only，没有任何来源页面或截图进入项目。
+- canonical main 与正式 v0.6.1 commit 均为 `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`；旧分支无 merge-base 的 blocker 已在新分支解除。
+- 新分支 merge-base 为 canonical main；迁移前后核心 tree 与 patch-id 完全相同。完整测试与 GitHub compare 在推送前后再次复验。
 
 ## 给用户的下一步操作
 
-现在只需观看新 rough preview。满意回复“预览通过”；不满意直接指出具体画面。Codex 聊天回复会直接附完整的 ChatGPT 交接文字，不需要用户来本文件复制。
+用户不需要做任何技术操作。Codex 聊天回复会直接附完整的 ChatGPT lineage 交接文字，不需要用户来本文件复制。

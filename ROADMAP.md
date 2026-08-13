@@ -97,13 +97,13 @@
 - render-time SHA/path/MIME/eligibility、非数字 Display Text grounding、raw PDF/capture boundary 与 check→issue→gate fail-closed；
 - 字幕、BGM、标题、封面和发布仍保留到后续。
 
-## V0.7：第一轮真实用户端到端试用（E2E milestone pass，等待加固预览人工确认）
+## V0.7：第一轮真实用户端到端试用（Material + Motion 正式通过，等待 lineage Review）
 
 - 用一期真实内容从选题跑到可导入剪辑软件的素材包；
 - 收集普通用户的阻塞点，再决定是优先做音频对齐、字幕还是发布辅助；
 - 不默认自动发布。
 - 2026-08-13 已完成真实 Topic → Research → Script → Material Review → Motion Production QA；没有使用 fixture，稿件与 Research 均为已审核正式版本。
-- 本轮暴露并修复 timeline safe area、diagram 长中文与 edge label、comparison 错误标题与强制左右栏问题；新预览已通过 Production QA，等待用户人工确认。
+- 本轮暴露并修复 timeline safe area、diagram 长中文与 edge label、comparison 错误标题与强制左右栏问题；新预览已通过 Production QA 和 ChatGPT 实际观看核验。
 - 当前保留 5 个 reference-only 素材位和真人口播音频时间码；预览通过后的正式下一方向是 Audio Alignment + Edit Bridge，本轮未开始实现。
 
 ## 暂不承诺
