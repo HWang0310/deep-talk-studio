@@ -1,0 +1,26 @@
+{
+  "artifact_version": "alignment-profile/1",
+  "algorithm_version": "alignment-algorithm/1",
+  "normalization_profile_version": "normalization-profile/1",
+  "value_revision": 1,
+  "calibration_status": "candidate",
+  "primary_match_score": 4.0,
+  "numeric_alias_match_score": 3.0,
+  "substitution_score": -2.5,
+  "script_deletion_score": -2.0,
+  "transcript_insertion_score": -1.5,
+  "ambiguity_normalized_margin": 0.08,
+  "accepted_floors": {
+    "coverage": 0.85,
+    "similarity": 0.88
+  },
+  "review_floors": {
+    "coverage": 0.55,
+    "similarity": 0.65
+  },
+  "long_gap_token_threshold": 8,
+  "timestamp_epsilon_seconds": "0.001",
+  "source_design_head": "702c63e13d579bb5a651727684a546527c6a8731",
+  "source_design_digest": "68f8a10e09390b13b616d361dc8b42074e2af2ec73ee16f41ee74bb2bbe4cc17",
+  "profile_digest": "b670c95e71180ad9461d68ec0c94e640e6a10e1e74379c5a9abeb7ebf63e6570"
+}
