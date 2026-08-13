@@ -262,6 +262,6 @@ HANDOFF.md                      每轮开发交接
 - Codex：工程师，负责实现、测试、修复、文档和 GitHub。
 - 用户：只负责复制、粘贴和确认，不负责总结技术内容。
 
-每轮开发结束后，以 [HANDOFF.md](HANDOFF.md) 为唯一交接入口。V0.6 制作边界与真实评测见 [docs/PRODUCTION_CONTRACT.md](docs/PRODUCTION_CONTRACT.md) 和 [docs/PRODUCTION_EVALS.md](docs/PRODUCTION_EVALS.md)。
+每轮开发结束后维护 [HANDOFF.md](HANDOFF.md) 作为项目记录，同时在面向普通用户的阶段回复底部直接提供可原样发送给 ChatGPT 的完整交接文字，不要求用户进入文件查找。V0.6 制作边界与真实评测见 [docs/PRODUCTION_CONTRACT.md](docs/PRODUCTION_CONTRACT.md) 和 [docs/PRODUCTION_EVALS.md](docs/PRODUCTION_EVALS.md)。
 
 正式版本的 GitHub 发布与未来软件包规则见 [RELEASE_POLICY.md](RELEASE_POLICY.md)。

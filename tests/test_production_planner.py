@@ -232,6 +232,62 @@ class ProductionPlannerTests(unittest.TestCase):
                 self.assertEqual(len(payload[key]), expected_counts[visual_type])
                 self.assertEqual([item["order"] for item in payload[key]], list(range(1, expected_counts[visual_type] + 1)))
 
+    def test_three_item_comparison_uses_neutral_heading_and_preserves_bindings(self):
+        data = self.package.to_dict()
+        visual = data["generated_visuals"][0]
+        visual["visual_type"] = "comparison"
+        visual["events"] = []
+        visual["comparison_items"] = [
+            {
+                "label": "事件", "left_text": "事件在 2026 年 8 月 9 日发生",
+                "right_text": "事件", "claim_ids": ["C1"],
+                "evidence_link_ids": ["E1"],
+            },
+            {
+                "label": "流程故障", "left_text": "当事机构称原因是流程故障",
+                "right_text": "流程故障", "claim_ids": ["C2"],
+                "evidence_link_ids": ["E3"],
+            },
+            {
+                "label": "人为操纵", "left_text": "网络流传事件由人为操纵造成",
+                "right_text": "人为操纵", "claim_ids": ["C3"],
+                "evidence_link_ids": ["E4"],
+            },
+        ]
+        visual["nodes"] = []
+        visual["edges"] = []
+        plan = prepare_production_plan(
+            type(self.package)(data), self.script, self.report, self.production_profile,
+            self.root / "assets", created_at="2026-08-13T12:00:00+08:00",
+            production_id="PROD-comparison-cards", renderer_mode="remotion",
+        )
+        scene = plan["scenes"][1]
+        self.assertEqual(scene["on_screen_text"][0]["text"], "要点对照")
+        self.assertNotEqual(scene["on_screen_text"][0]["text"], "两个解释")
+        items = scene["scene_payload"]["comparison_items"]
+        self.assertEqual([item["label"]["text"] for item in items], ["事件", "流程故障", "人为操纵"])
+        for source, item in zip(visual["comparison_items"], items):
+            for key in ("label", "left_text", "right_text"):
+                self.assertEqual(item[key]["claim_ids"], source["claim_ids"])
+                self.assertEqual(item[key]["evidence_link_ids"], source["evidence_link_ids"])
+
+    def test_excessive_diagram_text_fails_before_renderer(self):
+        data = self.package.to_dict()
+        visual = data["generated_visuals"][0]
+        visual["visual_type"] = "diagram"
+        visual["events"] = []
+        visual["nodes"] = [
+            {"node_id": "N1", "label": "事件" * 30, "claim_ids": ["C1"]},
+            {"node_id": "N2", "label": "流程故障", "claim_ids": ["C2"]},
+        ]
+        visual["edges"] = [{"from_node": "N1", "to_node": "N2", "label": "流程故障"}]
+        with self.assertRaisesRegex(ProductionValidationError, "Diagram node.*安全布局"):
+            prepare_production_plan(
+                type(self.package)(data), self.script, self.report, self.production_profile,
+                self.root / "assets", created_at="2026-08-13T12:00:00+08:00",
+                production_id="PROD-diagram-overflow", renderer_mode="remotion",
+            )
+
     def test_raw_pdf_becomes_exact_gap_but_registered_capture_is_renderable(self):
         data = self.package.to_dict()
         data["generated_visuals"] = []

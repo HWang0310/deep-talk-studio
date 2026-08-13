@@ -2,6 +2,24 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [Unreleased] - 2026-08-13
+
+### Real user trial
+
+- 第一轮真实用户链路已从 Topic Discovery 继续跑通到 reviewed Research、reviewed Script、reviewed Material Package 和 Production QA；全程未使用 fixture，也未改写已审核稿件。
+- Material Review 通过：8 个画面提示、7 个仅供编辑核对的公开来源、3 个基于已批准 Research 的原创画面；没有明确复用依据的网页和文件未进入渲染。
+- Remotion 实际生成 8 个场景片段、1 个 rough visual preview 和 1 张 hero still；Production QA 通过，所有 10 个工件均为 ready。
+- 真实来源仍保留 5 个 reference-only 画面缺口，真人录音尚未提供，因此另保留 1 个语音时间码缺口；系统没有用伪造截图或自动改稿掩盖缺口。
+
+### Fixed during manual visual review
+
+- 修复 Remotion timeline 两端日期和事件文字贴近画布边缘的问题，增加左右安全区并扩大事件文字容器。
+- 新增 timeline safe-area 回归测试；首次存在问题的 Production 输出保持不可覆盖，修复后创建新的 Production 工件并重新通过 QA。
+- 修复真实 Trial diagram 中文长 node label 与 node box、edge label 与连接线的可读性问题；两个 renderer 统一使用可换行 node 容器和独立背景 label plate，超过确定性容量时在 Renderer 前失败。
+- comparison 不再由 Planner 无条件生成“两个解释”，改用版本化中性标题“要点对照”；每个 mechanism 只显示一次并在独立 card 内保留两条 grounded facts，Remotion / HyperFrames 共用同一 payload 语义。
+- 新增真实中文长 Diagram、三项 Comparison、单次 mechanism label、fact binding 与 machine-editorial allowlist 回归；任意事实文字仍不能伪装成机器标题。
+- 使用原 reviewed Script、approved Research 与 reviewed Material Package 生成新 Production `PROD-20260813T133848055707`；10 个真实工件 ready、QA pass，旧输出未覆盖。
+
 ## [0.6.1] - 2026-08-11
 
 ### Added

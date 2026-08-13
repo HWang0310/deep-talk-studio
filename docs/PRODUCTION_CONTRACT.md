@@ -31,7 +31,7 @@ Plan 由程序生成 `production_id`、Scene ID、Motion Asset ID、frame durati
 
 Plan 同时记录 source IDs、屏幕文字 grounding、layout/motion/transition intent、预期 clips、rough preview、hero still 和明确 gaps。当前时长来自 Material 建议值，没有真实语音时码时必须保留 gap。
 
-每个 Scene 还包含唯一 `scene_payload`。Python Core 拥有数据、顺序、文字和 binding；Remotion/HyperFrames 只按 payload 动画。timeline 是 baseline → ordered marker → date/event，bar 从共同 baseline 逐根增长，comparison 按左右与条目建立，diagram 先 node 后 endpoint 已存在的 edge/label。V0.5 SVG 只可作为静态 fallback/debug。
+每个 Scene 还包含唯一 `scene_payload`。Python Core 拥有数据、顺序、文字和 binding；Remotion/HyperFrames 只按 payload 动画。timeline 是 baseline → ordered marker → date/event，bar 从共同 baseline 逐根增长。comparison 的每个 item 是独立机制 card，label 只显示一次，left/right 作为同一卡片的两条 grounded fact；不再推断匿名左右阵营。diagram 先 node 后 endpoint 已存在的 edge/label，node 文字安全换行，edge label 使用与线分离的背景 plate。Core 对超过固定布局容量的文字 fail closed，不允许 renderer 截断、缩写或改写。V0.5 SVG 只可作为静态 fallback/debug。
 
 ## PDF / Capture Boundary
 

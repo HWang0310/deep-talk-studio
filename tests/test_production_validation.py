@@ -216,7 +216,7 @@ class ProductionValidationTests(unittest.TestCase):
                     validate_display_text(entry, self.report)
 
     def test_only_versioned_machine_editorial_phrases_can_be_unbound(self):
-        for text in ("关键时间点", "真人口播"):
+        for text in ("关键时间点", "要点对照", "真人口播"):
             validate_display_text(
                 {"text": text, "origin": "machine_editorial", "text_kind": "editorial",
                  "claim_ids": [], "evidence_link_ids": []}, self.report,
@@ -224,6 +224,12 @@ class ProductionValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ProductionValidationError, "白名单"):
             validate_display_text(
                 {"text": "公司已经承认全部责任", "origin": "machine_editorial",
+                 "text_kind": "editorial", "claim_ids": [], "evidence_link_ids": []},
+                self.report,
+            )
+        with self.assertRaisesRegex(ProductionValidationError, "白名单"):
+            validate_display_text(
+                {"text": "三种事故报告机制", "origin": "machine_editorial",
                  "text_kind": "editorial", "claim_ids": [], "evidence_link_ids": []},
                 self.report,
             )
