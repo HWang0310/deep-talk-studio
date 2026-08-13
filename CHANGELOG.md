@@ -6,6 +6,9 @@
 
 ### Audio Alignment + Visual Edit Bridge design
 
+- ChatGPT 最终 Design Review 已通过；新增 `docs/superpowers/plans/2026-08-13-audio-alignment-edit-bridge.md`，将 approved contract 拆为 28 个有明确文件、接口、红/绿测试命令和 commit boundary 的 TDD Tasks。
+- Plan 单独规划真实 ffmpeg/ffprobe 媒体 fixtures、可重算 Timestamp Mapping、provider-neutral/OpenAI transcription、span-preserving normalization、等价全局 DP、Profile calibration、Material production projection、统一 Visual Placement、duration/conflict policy、Remotion Aligned Preview、Clean A-roll audio mux、QA/Gate、CLI/Skill、A–AI eval、real provider smoke 与 real-user E2E Gate。
+- Planning 阶段只查询 OpenAI 官方 Speech-to-Text/API 文档并固化当前 capability boundary；没有调用转录 API、没有上传媒体、没有修改产品代码、没有 render 或创建 Release。
 - 根据 ChatGPT Conditional Pass 完成 Design Contract Hardening：将 container/stream PTS、Clean A-roll presentation timeline 与 extracted-audio timeline 分离，新增可验证的 affine Timestamp Mapping；正常 AAC priming/padding、edit list 和非零/负 PTS 不再因非 identity offset 被误伤。
 - canonical Edit Bridge 时间统一为 decimal seconds 与 `HH:MM:SS.mmm`；30fps frame/timecode 只保留为 Aligned Preview 派生字段。
 - 将 placement uncertainty 与 timing conflict 拆成正交状态：可靠 placement 可携带 duration/overlap warning 并进入 Rough Cut；same-start selection ambiguity 才阻止自动 Preview。

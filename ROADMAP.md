@@ -106,15 +106,15 @@
 - 本轮暴露并修复 timeline safe area、diagram 长中文与 edge label、comparison 错误标题与强制左右栏问题；新预览已通过 Production QA 和 ChatGPT 实际观看核验。
 - 当前保留 5 个历史 reference-only 素材位和真人口播音频时间码；ChatGPT 已通过 Preview 与 canonical lineage Review。
 
-## Unreleased：Audio Alignment + Visual Edit Bridge（Design Review Candidate）
+## Unreleased：Audio Alignment + Visual Edit Bridge（Implementation Plan Review Candidate）
 
 - 以用户先行剪好口气的 immutable Clean A-roll 为 canonical timeline；不自动删停顿、废句或重录。
 - Speech-to-Text provider 与确定性 Alignment Core 解耦，按真实 timestamp granularity 对齐 reviewed Script Beat、Material Cue 和现有 Production Scene。
 - 将 A-roll、真实图片/截图、真实视频和 QA-ready Motion 放入统一 Visual Placement timeline，自动推导 IN、OUT、duration 与基础 layout。
 - 输出不可覆盖的 Edit Bridge JSON、普通中文 Markdown、NLE-neutral CSV 和 `ALIGNED_PREVIEW.mp4`。
 - 历史 rights/reuse 信息保持兼容读取，但不作为新制作 Gate；文件、SHA、格式、安全、grounding、binding 与 QA 仍严格验证。
-- 当前只完成 Design Spec，尚未编写 implementation plan 或代码；等待 ChatGPT Design Review。
-- Conditional Pass 后已完成四项 Design Contract Hardening：presentation timestamp mapping、frame-rate-neutral canonical timecode、placement/conflict 正交语义、长 still Preview exposure safeguard；仍等待 ChatGPT 最终 Design Review。
+- Design 已从 Conditional Pass 升级为正式通过；presentation timestamp mapping、frame-rate-neutral canonical timecode、placement/conflict 正交语义和长 still Preview exposure safeguard 均为 approved contract。
+- 已完成 28 个依赖有序的 TDD Implementation Tasks，覆盖真实媒体 fixture、转录、确定性对齐、素材投影、统一 Placement、Preview、QA、Skill、A–AI eval、真实 provider smoke 与真实用户 Gate；尚未开始产品代码，等待 ChatGPT Plan Review。
 
 ## 暂不承诺
 
