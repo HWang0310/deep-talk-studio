@@ -18,6 +18,7 @@ from .schema import _enum, _integer, _object
 
 
 PROFILE_PATH = Path(__file__).resolve().parents[2] / "config" / "transcription-chunk-profile.json"
+LOCAL_PROFILE_PATH = Path(__file__).resolve().parents[2] / "config" / "transcription-local-whisper-profile.json"
 
 
 class TranscriptionChunkingError(ValueError):
@@ -26,7 +27,10 @@ class TranscriptionChunkingError(ValueError):
 
 TRANSCRIPTION_CHUNK_PROFILE_SCHEMA = _object(
     {
-        "profile_version": _enum(["transcription-chunk-profile/1"]),
+        "profile_version": _enum([
+            "transcription-chunk-profile/1",
+            "transcription-chunk-profile/local-whisper-cpp/1",
+        ]),
         "provider_hard_limit_bytes": _integer(1),
         "request_cap_bytes": _integer(45),
         "wav_header_bytes": _integer(44),
@@ -108,6 +112,12 @@ def load_transcription_chunk_profile(path: Path = PROFILE_PATH) -> Dict[str, Any
     return profile
 
 
+def load_local_whisper_chunk_profile(path: Path = LOCAL_PROFILE_PATH) -> Dict[str, Any]:
+    """Load the local long-form cap through the same deterministic planner."""
+
+    return load_transcription_chunk_profile(path)
+
+
 def profile_with_overrides(profile: Mapping[str, Any], **overrides: Any) -> Dict[str, Any]:
     value = deepcopy(dict(profile))
     value.pop("profile_digest", None)
@@ -129,10 +139,16 @@ def _validate_profile(profile: Mapping[str, Any]) -> None:
         raise TranscriptionChunkingError("首版只支持 canonical 44-byte PCM WAV header")
     if base["overlap_ms"] != 0 or base["use_previous_chunk_prompt"]:
         raise TranscriptionChunkingError("Profile 1 不使用 overlap 或 previous-chunk prompt")
-    if base["request_cap_bytes"] > 24 * 1024 * 1024:
-        raise TranscriptionChunkingError("request cap 不能超过 24 MiB")
-    if base["provider_hard_limit_bytes"] != 25 * 1024 * 1024:
-        raise TranscriptionChunkingError("Profile 1 将 provider 25 MB 上限精确记录为 25 MiB")
+    if base["profile_version"] == "transcription-chunk-profile/1":
+        if base["request_cap_bytes"] > 24 * 1024 * 1024:
+            raise TranscriptionChunkingError("request cap 不能超过 24 MiB")
+        if base["provider_hard_limit_bytes"] != 25 * 1024 * 1024:
+            raise TranscriptionChunkingError("Profile 1 将 provider 25 MB 上限精确记录为 25 MiB")
+    else:
+        if base["request_cap_bytes"] > 96 * 1024 * 1024:
+            raise TranscriptionChunkingError("Local Whisper request cap 不能超过 96 MiB")
+        if base["provider_hard_limit_bytes"] != 100 * 1024 * 1024:
+            raise TranscriptionChunkingError("Local Whisper Profile 将 100 MiB 作为稳定长音频上限")
     if base["request_cap_bytes"] >= base["provider_hard_limit_bytes"]:
         raise TranscriptionChunkingError("request cap 必须小于 provider hard limit")
 
@@ -317,7 +333,9 @@ def plan_transcription_chunks(
         path = chunk_root / f"chunk-{index:04d}.wav"
         _write_chunk(frames, path, start_sample, end_sample, rate, channels, width)
         if path.stat().st_size > int(profile["request_cap_bytes"]):
-            raise TranscriptionChunkingError("request chunk 超过 24 MiB cap")
+            raise TranscriptionChunkingError(
+                f"request chunk 超过 {profile['request_cap_bytes']} bytes cap"
+            )
         extracted_start = Decimal(start_sample) / Decimal(rate)
         extracted_end = Decimal(end_sample) / Decimal(rate)
         evidence = {

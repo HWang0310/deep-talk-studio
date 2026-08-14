@@ -4,6 +4,19 @@
 
 ## [Unreleased] - 2026-08-14
 
+### V1 Local Transcription Production Integration
+
+- 将已通过 Selection Gate 的 `whisper.cpp multilingual medium` 变成正式 `LocalWhisperCppTranscriptionProvider`，接入现有 `TranscriptionProvider → ProviderTranscript → Timed Transcript` 契约和唯一 `run_real_edit_bridge_session` 入口；未修改 reviewed Script、approved Research 或 reviewed Material Package。
+- 新增 repository-owned bootstrap：锁定 whisper.cpp v1.9.2/source commit `306c88f4d1286aec1bf96e544632897886af5501`，Apple Silicon 启用 Metal，自动准备 runtime 与 1,533,763,059-byte medium 模型，SHA-256 固定为 `6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208`；runtime、model、provenance 只进入外部 `~/.cache/deep-talk-studio/transcription/`，不进 Git。
+- 默认路径不查看或要求 `OPENAI_API_KEY`；OpenAI adapter 保留为未来可选能力。Provider 只接受 whisper.cpp full JSON 的真实 token offsets，缺失、越界或重叠时 fail closed，禁止插值、LLM 伪造和 silent cloud fallback。
+- 新增本地长音频 `transcription-chunk-profile/local-whisper-cpp/1`，继续复用现有 PCM natural-pause `TranscriptionChunkPlan` 与 local→global mapping；ProviderTranscript 绑定 runtime/model/audio/chunk/raw-response provenance。
+- 无 API Key 的真实非私人音频 smoke 通过：1,136 token units、token granularity、runtime 42.780224 秒、RTF 0.157068，transcript digest `153374e56a30e2f29a6ac923008dbc510db8b202539734f0445a97c82926e5dd`。
+- 正式短版 production E2E 通过：真实 whisper.cpp → Timed Transcript → Alignment → Material → Motion → Basic Subtitle → Edit Bridge → Remotion Aligned Preview → canonical QA，输出 20 秒、1920×1080、30fps、H.264/AAC 的 preview，QA 无 blocking failure，只有预期 `EBI0001 partial_placement_unready` warning；Preview 保留原 Clean A-roll 音频。
+- 长版合成验证如实记录为 gap：标准 24 MiB profile 的尾 chunk 曾出现越界，已用版本化本地 long-form profile 修复；完整 272 秒验证又发现 5 处 runtime token overlap，按 fail-closed 停止；约 272 秒 Remotion render 在本机环境耗时过长而停止。真实用户 Clean A-roll 尚未提供，因此 `REAL USER CLEAN A-ROLL GATE` 仍为 `BLOCKED/PENDING`。
+- 本轮保持 `V1.0 Candidate — Unreleased`；没有新 tag、Release 或 main 修改，selection history `evaluations/local_asr_selection/` 保留。
+
+## [Unreleased] - 2026-08-14
+
 ### Local ASR Selection Gate
 
 - 按 ChatGPT 最终产品原则完成真实本地 ASR 选择 Gate；没有执行旧的“直接采用 whisper.cpp”方案，没有修改 reviewed Script、approved Research、reviewed Material 或正式 Production 工件。

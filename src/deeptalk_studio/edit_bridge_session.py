@@ -175,15 +175,18 @@ def run_real_edit_bridge_session(
     media = media_result.artifact
     if media["media_kind"] != "video":
         raise RealEditBridgeSessionError("这一阶段需要真人口播视频，不接受纯音频")
-    extraction_profile = audio_extraction_profile()
+    preferred_sample_rate = getattr(provider, "preferred_sample_rate", 48000)
+    extraction_profile = audio_extraction_profile(sample_rate=preferred_sample_rate)
     extracted_result = extract_transcription_audio(media, root / "derived" / "transcription.wav", profile=extraction_profile, created_at=now)
     extracted = extracted_result.artifact
     mapping = derive_timestamp_mapping(media, extracted, mapping_id=id_factory("MAPPING"), created_at=now)
     validate_timestamp_mapping(mapping, media, extracted)
-    chunk_profile = load_transcription_chunk_profile()
+    chunk_profile_path = getattr(provider, "chunk_profile_path", None)
+    chunk_profile = load_transcription_chunk_profile(chunk_profile_path) if chunk_profile_path else load_transcription_chunk_profile()
     chunk_plan = plan_transcription_chunks(extracted, mapping, chunk_profile)
     validate_transcription_chunk_plan(chunk_plan, extracted, mapping, chunk_profile)
-    provider_result = provider.transcribe(extracted, chunk_plan, "zh", "whisper-1")
+    configured_model = getattr(provider, "default_configured_model", "whisper-1")
+    provider_result = provider.transcribe(extracted, chunk_plan, "zh", configured_model)
     transcript = build_timed_transcript(provider_result, media, extracted, mapping, chunk_plan, transcript_id=id_factory("TRANSCRIPT"), created_at=now)
     validate_timed_transcript(transcript, media, extracted, mapping, chunk_plan)
     subtitle_profile = load_subtitle_profile()
@@ -257,7 +260,7 @@ def load_real_edit_bridge_session_result(session_root, *, renderer=None):
     from .material_profile import load_material_profile
     from .narration_storage import load_narration_bundle
     from .rough_cut_profile import load_aligned_preview_profile,load_rough_cut_profile
-    from .transcription_chunking import load_transcription_chunk_profile,plan_transcription_chunks
+    from .transcription_chunking import load_local_whisper_chunk_profile, load_transcription_chunk_profile,plan_transcription_chunks
     from .subtitle_profile import load_subtitle_profile
     from .subtitle_storage import load_subtitle_artifact
     session=Path(session_root).resolve();root=session/"DeepTalk-Aligned-Edit"
@@ -265,7 +268,12 @@ def load_real_edit_bridge_session_result(session_root, *, renderer=None):
     inputs=resolve_real_edit_bridge_session(session);bundle=load_narration_bundle(next((root/"artifacts").rglob("narration-media.json")))
     if not all((bundle.extracted_audio,bundle.mapping,bundle.transcript)):raise RealEditBridgeSessionError("上一轮时间工件不完整")
     subtitle_profile=load_subtitle_profile();subtitle=load_subtitle_artifact(root/"subtitles"/"subtitle-r0001.json",bundle.transcript,bundle.media,subtitle_profile)
-    chunk_profile=load_transcription_chunk_profile();chunk_plan=plan_transcription_chunks(bundle.extracted_audio,bundle.mapping,chunk_profile)
+    chunk_profile = (
+        load_local_whisper_chunk_profile()
+        if bundle.transcript.get("provider") == "whisper.cpp"
+        else load_transcription_chunk_profile()
+    )
+    chunk_plan=plan_transcription_chunks(bundle.extracted_audio,bundle.mapping,chunk_profile)
     alignment=load_script_alignment(sorted((root/"alignment").rglob("script-alignment-r*.json"))[-1])
     material_profile=load_material_profile();material_view=build_material_production_view(inputs.material_package_path,inputs.script,inputs.report,material_profile,inputs.material_asset_root)
     material_package=_json(inputs.material_package_path);cues=material_package["cue_sheet"];alignment_profile=load_alignment_profile()

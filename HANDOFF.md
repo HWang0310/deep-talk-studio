@@ -273,3 +273,161 @@ Material/Motion Placement → Edit Bridge → subtitled visual Remotion render
 ## 给用户的下一步操作
 
 现在不要录制或上传视频。请创建/准备一个 OpenAI API Key，并把它添加到当前 Codex 运行环境的 `OPENAI_API_KEY` 安全环境变量或 Secret 中。不要把 Key 发到聊天正文里，也不要写进项目文件。设置后只需告诉 Codex“已设置”。
+## 2026-08-14：V1 Local Transcription Production Integration
+
+当前正式版本：V0.6.1 / `v0.6.1`
+当前产品状态：V1.0 Candidate — Unreleased；Local ASR Selection Gate 已 PASS，本轮本地生产集成已实现，真实用户 Clean A-roll Gate 仍待执行
+仓库：https://github.com/HWang0310/deep-talk-studio
+当前开发分支：`agent/audio-alignment-edit-bridge`
+本轮初始 HEAD：`afb4a5ea5d104c2f65b8744504080b9fb37ff756`
+本轮最终实现 commit：待本轮提交后补入（不会创建 Release）
+
+### 1. 本轮任务是什么
+
+根据 ChatGPT 已通过的 Local ASR Selection Gate，把 `whisper.cpp multilingual medium`
+正式接入 V1 本地转写生产路径。普通用户只需提供人工清理后的 Clean A-roll；系统自动准备
+本地 runtime/model、运行真实 token transcription，并沿用现有 Timed Transcript、Alignment、
+Material、Motion、Basic Subtitle、Edit Bridge、Remotion 和 canonical QA。不得检查或要求 API
+Key，不得修改 reviewed Script、approved Research、reviewed Material，也不开发新的 ASR 选型或
+Audio Alignment 功能。
+
+### 2. 完成了什么
+
+- 新增 `LocalWhisperCppTranscriptionProvider`，实现 `TranscriptionProvider` / `ProviderTranscript`
+  provider-neutral contract；默认解析器不查看 `OPENAI_API_KEY`，OpenAI adapter 仅保留未来可选能力。
+- 新增 `WhisperCppBootstrap`：锁定官方 whisper.cpp v1.9.2、source commit
+  `306c88f4d1286aec1bf96e544632897886af5501`，Apple Silicon 生产构建启用 Metal；自动准备
+  `whisper-cli` 和 multilingual medium 模型，下载/构建后核对 runtime version、model SHA-256、
+  文件大小，并写入 provenance。
+- 新增版本化 `config/transcription-local-whisper-profile.json`，仍使用现有
+  `TranscriptionChunkPlan` 与 local→global mapping，只把本地 long-form request cap 提高到
+  96 MiB/100 MiB hard limit，避免长音频尾 chunk 的不真实短请求；不是绕过分块。
+- Provider 只接受 whisper.cpp full JSON 的真实 token offsets；缺失 timing、越界或同 chunk
+  内重叠即 fail closed，不做插值、平均分配、LLM 推断、TTS、silence removal 或云端 fallback。
+- ProviderTranscript provenance 绑定 provider、runtime/source/build、model/SHA/bytes、language、
+  inference parameters、audio digest、chunk-plan digest、raw response digest、每 chunk evidence、
+  timestamp granularity/provenance 与 runtime/RTF。
+- CLI / `align-video` Skill 已改为普通用户语言：不要求安装 runtime/model，不要求 API Key；首次
+ 运行只提示正在准备本地语音识别模型。
+
+### 3. 创建 / 修改的重要文件
+
+- `src/deeptalk_studio/transcription/local_whisper_cpp.py`：bootstrap、runtime/model 校验、真实
+  token transcription、provenance、默认 Provider resolver。
+- `src/deeptalk_studio/transcription/local_asr_selection.py`：复用并扩展 selection parser，支持
+  production chunk order/request provenance；保留 `evaluations/local_asr_selection/` 历史不覆盖。
+- `src/deeptalk_studio/transcription_chunking.py`、`config/transcription-local-whisper-profile.json`：
+  本地 long-form profile 和同一 chunk planner。
+- `src/deeptalk_studio/edit_bridge_session.py`、`src/deeptalk_studio/cli.py`、
+  `src/deeptalk_studio/transcription/__init__.py`：正式入口接线和默认 provider。
+- `.agents/skills/align-video/SKILL.md`：普通用户本地转写说明。
+- `tests/test_local_whisper_bootstrap.py`、`tests/test_local_whisper_cpp_provider.py`、
+  `tests/test_local_asr_selection.py`、`tests/test_edit_bridge_cli.py`、相关 Skill/chunk/session 回归。
+- `README.md`、`PRD.md`、`ROADMAP.md`、`AGENTS.md`、`CHANGELOG.md`：更新 V1 本地转写默认、缓存、
+  no-key 原则、真实证据与 gap。
+
+### 4. 当前架构
+
+```text
+Clean A-roll
+  → Media / lossless 24 kHz transcription audio / Timestamp Mapping
+  → existing TranscriptionChunkPlan (local long-form profile)
+  → LocalWhisperCppTranscriptionProvider
+       → verified whisper.cpp runtime token offsets
+       → ProviderTranscript(token, provenance)
+  → Timed Transcript → Alignment → Material → Motion → Basic Subtitle
+  → Edit Bridge → Remotion Aligned Preview → repository-owned canonical QA
+```
+
+正式 production cache 为 `/Users/hwang/.cache/deep-talk-studio/transcription/`（用户级、Git 外）；
+selection evaluation cache `/Users/hwang/.cache/deep-talk-studio/asr-selection/` 仍仅作历史评测。
+已验证生产 runtime：`runtimes/whisper.cpp-1.9.2-arm64/bin/whisper-cli`，model：
+`models/whisper.cpp-1.9.2-medium/ggml-medium.bin`，provenance：
+`provenance/whisper.cpp-1.9.2-medium.json`。模型 1,533,763,059 bytes，SHA-256
+`6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208`；runtime build identity 为
+`1.9.2+runtime-sha256:01b232021d77510472911514c822a20187c2725fb3f71a8e31aaa00d991f0d59`；
+acceleration 为 Apple Silicon Metal。
+
+### 5. 已经可以运行什么
+
+- 无 `OPENAI_API_KEY`、无其他模型 API Key 时，真实非私人中文音频可通过正式
+  `LocalWhisperCppTranscriptionProvider` 生成 token-level ProviderTranscript，并进入 Timed Transcript。
+- 无 API Key 的短版正式 `run_real_edit_bridge_session` 已跑通全链路：真实 whisper.cpp、Timed Transcript、
+  Alignment、approved Material、Motion、Basic Subtitle、Edit Bridge、Remotion Preview 和 canonical QA。
+- 正式生产链路保留 Clean A-roll 原始音频 presentation；不替换成 TTS，不自动清理口气。
+
+### 6. 还不能运行什么 / 当前边界
+
+- 尚未完成用户本期真实 Clean A-roll 的最终语音质量和人工观看 Gate；短版 synthetic E2E 不能替代真人试用。
+- 完整约 272 秒合成验证的 raw whisper.cpp 输出出现 5 处微小 token overlap，Provider 按安全合同停止，未裁剪或修正真实时间；这不是已通过的真人 Gate。
+- 约 272 秒完整 Remotion render 在当前环境长时间无输出而停止，短版 20 秒 render 已成功；需要 ChatGPT 决定是否把长时 render 当作环境/后续性能 gap。
+- 短版 canonical QA 是 `warnings` 而非纯 `pass`，唯一 warning 是预期的 `EBI0001 partial_placement_unready`，因为 20 秒音频未覆盖全部 reviewed Script placement。
+- 不实现 VibeASR 复测、forced aligner、第二 ASR、transcript correction、BGM/SFX、标题、封面、发布或新版本。
+
+### 7. 真实产物、测试与 Gate
+
+无 API Key local smoke：外部证据 `~/.cache/deep-talk-studio/transcription/evidence/local-whisper-production-smoke.json`；
+1,136 token units，runtime 42.780224 秒，RTF `0.157068`，audio SHA-256
+`c1b08fe694eb59d598af2fb06b29f165ee341afc82048e999ddb362dceeba601`，transcript digest
+`153374e56a30e2f29a6ac923008dbc510db8b202539734f0445a97c82926e5dd`，token granularity，model SHA
+与上文一致，证据记录无 API Key。
+
+短版正式 E2E 外部 session：`~/.cache/deep-talk-studio/transcription/e2e/formal-short-session/`；
+源视频为非私人 20 秒 synthetic clean A-roll。Preview：
+`DeepTalk-Aligned-Edit/outputs/ALIGNED_PREVIEW.mp4`，SHA-256
+`35f43bced73eeb06f1db0bb86501b087da474f74ed026f78ce106c21aebe6363`，442,161 bytes，1920×1080、
+30fps、H.264、AAC、20 秒，字幕已烧录。Timed Transcript 93 units；transcript digest
+`7f5eb465e28fd3691a8a62fbdab3fd1d4d5649fe63bcd2189418872146f087d5`；subtitle digest
+`0b333b09124ab5ac2d1ceaaf9e7e25a4a4e910004431e42a9e62d0dfeb652125`；alignment digest
+`dff0b168560e8fbe464f9a86a2ce92708d68683b7e2a8c65e87abf94aab96b7e`；bridge digest
+`edbea885752bc59d326bd37d96593d6356c8db436baf20e1ccc4234dcc76e033`。QA package gate 为
+`warnings`，0 blocking fail，1 个预期 partial-placement warning；`used_placements=["VP0000"]`，
+其余 12 个 placement 未伪造进入视频。现有 5 个 reference-only source 仍没有被放入视频。
+
+当前 Gate 结论：
+
+- Local ASR Selection Gate：PASS（ChatGPT 已批准）。
+- Bootstrap/runtime/model digest Gate：PASS（Apple Silicon Metal provenance 已保存）。
+- No-API-key local smoke：PASS。
+- Short production E2E：PASS WITH EXPECTED WARNING。
+- Basic Subtitle / Alignment / Edit Bridge / Motion short render：PASS。
+- Real Material Preflight：PASS（复用已 Review 的 Material Package，没有重新获取）。
+- Canonical QA：WARNINGS，0 fail；不能写成无 warning 的 PASS。
+- `REAL TRANSCRIPTION PREFLIGHT`：CONDITIONAL / PARTIAL（本地路径可运行，完整用户 A-roll 未验收）。
+- `NO-API-KEY V1 PRODUCTION PATH`：PASS（smoke + short synthetic E2E 范围内）。
+- `REAL USER CLEAN A-ROLL GATE`：BLOCKED/PENDING 用户真实 Clean A-roll 与人工 Review。
+
+本轮应重新运行并记录完整回归的最终数字；短版和定向测试已先通过。不得在没有最终测试输出时声称“全部 Gate PASS”。
+
+### 8. 已知问题 / warning / gap
+
+- whisper.cpp 在长版合成音频的 5 个局部位置给出了重叠 token offsets；安全实现拒绝继续，不能偷偷裁剪、排序或平均化真实时间。是否需要未来调整官方 runtime/config，交由 ChatGPT 决定。
+- 本地 profile 将 extraction sample rate 固定为 24 kHz，并把长音频 request cap 版本化提高到 96 MiB；这是为保持真实 token offset 在长 chunk 内可验证，不是为了掩盖模型质量。
+- 20 秒短版只覆盖一个 placement，因此 QA 的 partial-placement warning 是预期缺口；需要真人完整 A-roll 后再判断是否仍可接受。
+- 当前 full-length Remotion render 的环境耗时未解决；没有伪造 full-length preview 或把短版证据说成完整用户 Gate。
+
+### 9. 重要技术决策
+
+- V1 默认只用 `whisper.cpp multilingual medium`；不重新 benchmark VibeASR，不实现 forced aligner 或第二模型。
+- 所有用户默认路径 no API Key；禁止先查 API Key，禁止静默回退 OpenAI/云端。
+- 真实 runtime token timestamp 是唯一可用时间证据；缺失、越界、重叠即 fail closed。
+- 复用现有 chunk/mapping/Timed Transcript/Alignment/Subtitle/Edit Bridge/QA，不重写 downstream；短版 provenance 证明链路共享同一 production payload。
+- 生产 runtime/model/cache/provenance 不进入 Git；selection evidence 继续保留。
+- 当前仍是 `V1.0 Candidate — Unreleased`，不创建 tag、Release 或 main 修改。
+
+### 10. 需要产品经理决定什么
+
+请 ChatGPT Review 本轮生产集成和短版真实产物，并决定：
+
+1. 是否接受当前 direct token overlap 的 fail-closed 策略，还是下一轮给出受控的官方 runtime/config 处理规格；在决定前不得放宽安全边界。
+2. 是否接受短版 QA 的预期 `partial_placement_unready` warning，以及约 272 秒完整 Remotion render 的环境耗时 gap。
+3. 是否批准下一步让用户提供真实 Clean A-roll，进行正式的真人 transcription / subtitle / placement / preview 人工 Gate；未通过前不要宣称 V1.0。
+4. 在上述 Review 后，请给出下一轮明确的 Codex 任务；本轮没有开始新的 Audio Alignment 或其他扩展功能。
+
+### 11. 建议下一阶段
+
+先由 ChatGPT Review 本交接、`formal-short-session` Preview/QA 和长版 gap；若接受当前实现，下一轮只安排真实用户 Clean A-roll 试用与人工 Review，不改稿、不改 Research、不扩大 ASR 选型。
+
+## 给用户的下一步操作
+
+你现在只需要把 Codex 回复最底部“请把以下内容复制给 ChatGPT”后面的整段文字，原样发给 ChatGPT。你不需要打开终端、安装模型、设置 API Key 或自己总结。

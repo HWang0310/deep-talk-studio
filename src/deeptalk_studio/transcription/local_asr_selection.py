@@ -1,10 +1,9 @@
-"""Evidence-only parsers used by the V1 local ASR selection Gate.
+"""Strict parser for the official whisper.cpp full JSON token evidence.
 
-This module is deliberately not a production provider or a default bootstrap path.
-It turns an official whisper.cpp JSON result into the existing provider-neutral
-contract so a candidate can be tested through Timed Transcript and Script
-Alignment without changing the V1 runtime selection.  VibeASR.cpp is rejected
-unless a future runtime exposes machine-owned media timestamps; prompt-generated
+The original selection Gate used this parser as an evidence-only spike.  The
+parser is intentionally kept provider-neutral so the production local provider
+can reuse exactly the same timestamp contract.  VibeASR.cpp is rejected unless
+a future runtime exposes machine-owned media timestamps; prompt-generated
 ``Start``/``End`` fields are never accepted as evidence.
 """
 
@@ -12,7 +11,7 @@ import json
 import unicodedata
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from ..narration_media import canonical_digest
 from ..transcription_chunking import TranscriptionChunkPlan
@@ -46,12 +45,35 @@ def _has_matchable_text(text: str) -> bool:
     )
 
 
+def _intersecting_risks(
+    chunk_plan: TranscriptionChunkPlan, chunk_index: int, start: Decimal, end: Decimal
+) -> Tuple[str, ...]:
+    """Bind a runtime token to an existing high-risk chunk boundary, if any."""
+
+    chunk = chunk_plan.chunks[chunk_index]
+    global_start = chunk.extracted_start_seconds + start
+    global_end = chunk.extracted_start_seconds + end
+    risk_ids = []
+    for boundary in chunk_plan.boundaries:
+        if (
+            boundary.boundary_risk != "high"
+            or boundary.guard_start_seconds is None
+            or boundary.guard_end_seconds is None
+        ):
+            continue
+        if global_start < boundary.guard_end_seconds and global_end > boundary.guard_start_seconds:
+            risk_ids.append(f"CBR-{boundary.boundary_index:04d}")
+    return tuple(risk_ids)
+
+
 def parse_whisper_cpp_json(
     path: Path,
     *,
     chunk_index: int = 0,
     model_version: str,
     chunk_plan: Optional[TranscriptionChunkPlan] = None,
+    provider_order_start: int = 0,
+    provider_request_id: str = "local-eval-whisper-cpp",
 ) -> ProviderTranscript:
     """Parse direct token offsets emitted by official whisper.cpp JSON output.
 
@@ -94,11 +116,16 @@ def parse_whisper_cpp_json(
             units.append(
                 ProviderTimedUnit(
                     chunk_index=chunk_index,
-                    provider_order=len(units),
+                    provider_order=provider_order_start + len(units),
                     local_start_seconds=start,
                     local_end_seconds=end,
                     spoken_text=text,
                     provider_confidence=str(token.get("p") or ""),
+                    boundary_risk_ids=(
+                        _intersecting_risks(chunk_plan, chunk_index, start, end)
+                        if chunk_plan is not None
+                        else ()
+                    ),
                 )
             )
             if timestamps is not None and not isinstance(timestamps, Mapping):
@@ -121,12 +148,13 @@ def parse_whisper_cpp_json(
         "token_unit_count": len(units),
         "model_type": str((payload.get("model") or {}).get("type") or ""),
         "language": language,
+        "provider_request_id": provider_request_id,
     }
     return ProviderTranscript(
         provider="whisper.cpp",
         provider_model=str((payload.get("model") or {}).get("type") or "medium"),
         provider_model_version=model_version,
-        provider_request_id="local-eval-whisper-cpp",
+        provider_request_id=provider_request_id,
         language=language,
         timestamp_granularity="token",
         units=tuple(units),

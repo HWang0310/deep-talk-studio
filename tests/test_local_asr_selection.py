@@ -41,6 +41,27 @@ class LocalASRSelectionTests(unittest.TestCase):
         self.assertEqual(result.units[0].local_start_seconds, Decimal("0.05"))
         self.assertEqual(result.units[1].local_end_seconds, Decimal("0.5"))
 
+    def test_whisper_parser_supports_production_chunk_order_and_request_identity(self):
+        path = self.write_json(
+            {
+                "model": {"type": "medium"},
+                "result": {"language": "zh"},
+                "transcription": [
+                    {"tokens": [{"text": "真实", "offsets": {"from": 50, "to": 170}}]}
+                ],
+            }
+        )
+        result = parse_whisper_cpp_json(
+            path,
+            chunk_index=1,
+            model_version="1.9.2+commit",
+            provider_order_start=7,
+            provider_request_id="local-whisper-cpp-run",
+        )
+        self.assertEqual(result.units[0].provider_order, 7)
+        self.assertEqual(result.units[0].chunk_index, 1)
+        self.assertEqual(result.provider_request_id, "local-whisper-cpp-run")
+
     def test_parser_rejects_missing_token_offsets(self):
         path = self.write_json(
             {"transcription": [{"text": "只有段落"}], "result": {"language": "zh"}}

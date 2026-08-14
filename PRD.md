@@ -11,7 +11,7 @@
      → 素材建议 → 可视化 → 剪辑方案 → 发布辅助
 ```
 
-当前 Unreleased 产品方向是 Audio Alignment + Visual Edit Bridge + Basic Subtitle V1：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统将 reviewed Script、Material Cue、真实图片/截图/视频、原创 Motion 和 Timed Transcript 字幕对齐到真实口播时间，自动生成已烧录基础字幕的完整 rough cut。实现与合成验证已完成，真实用户 Clean A-roll Gate 尚未开始；自动 A-roll cleanup 不属于当前阶段。
+当前 Unreleased 产品方向是 Audio Alignment + Visual Edit Bridge + Basic Subtitle V1：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统将 reviewed Script、Material Cue、真实图片/截图/视频、原创 Motion 和 Timed Transcript 字幕对齐到真实口播时间，自动生成已烧录基础字幕的完整 rough cut。正式本地转写生产集成与短版无 API Key E2E 已完成，真实用户 Clean A-roll Gate 仍待执行；自动 A-roll cleanup 不属于当前阶段。
 
 该 Design 的 canonical 时间以 Clean A-roll presentation timeline 的 decimal seconds 表示；不同容器/音轨通过可验证的 Timestamp Mapping 对齐，30fps 只属于 Preview 派生。可靠 placement 可以带 timing warning 进入 rough cut，而位置歧义不会自动预览；异常长的静态画面只限制 Preview exposure，不覆盖其 canonical semantic window。
 
@@ -270,6 +270,17 @@ V0.6 的成功不是“渲染命令返回 0”，而是真实文件的尺寸、�
 ## 10. Unreleased：Audio Alignment + Visual Edit Bridge
 
 V1.0 目标输出是 `reviewed Script + Clean A-roll + Real Material + Original Motion + Basic Subtitle → 完整可观看粗剪`，而不是让用户自行回剪辑软件拼三层素材。Hook 主要在 Script 阶段完成：现有 `audience_promise + ordered Beats + closing` 继续作为结构，独立 Review 的 `narrative_structure` 明确阻断缺失 opening hook、value promise、必要 re-hook / information turn 或 conclusion payoff 的新稿，不新增重复 Script schema。
+
+### 10.1 V1 本地转写生产要求
+
+1. V1 默认且唯一面向普通用户的转写路径是仓库内 `LocalWhisperCppTranscriptionProvider`，固定使用官方 `whisper.cpp` v1.9.2 multilingual medium；普通用户不选择 Provider、不安装运行时、不寻找模型 URL、不设置 API Key。
+2. Bootstrap 必须自动发现或准备 runtime，当前 Apple Silicon 路径启用 Metal；medium 模型放在项目外的用户缓存，下载后必须核对固定 SHA-256 与文件大小，并保存 runtime/source/model/cache/acceleration provenance。模型、二进制、私人音频不得进入 Git。
+3. 正式 Provider 必须复用现有 `TranscriptionChunkPlan` 与 local→global `TimestampMapping`，本地长音频使用版本化 `transcription-chunk-profile/local-whisper-cpp/1`，不能为了单次评测绕过分块。
+4. `ProviderTranscript.timestamp_granularity` 固定为 `token`，时间只能来自 whisper.cpp full JSON 的真实 token offsets。缺少、越界或重叠时必须 fail closed；禁止 segment 内插、字符平均分配、LLM 推断、TTS 或静默云端 fallback。
+5. ProviderTranscript 必须绑定 provider/runtime/source commit/build identity、model identity/SHA/bytes、language/inference parameters、timestamp provenance、audio digest、chunk-plan digest、raw response digest 和每个 chunk 的 runtime evidence。
+6. 默认入口必须按 `Clean A-roll → local transcription → Timed Transcript → Alignment → Material → Motion → Basic Subtitle → Edit Bridge → Remotion Preview → canonical QA` 执行，保持原 A-roll presentation audio，不得删停顿、改稿或替换音频。
+7. OpenAI transcription adapter 保持 provider-neutral 兼容与 regression，但只作为未来可选云端能力；不存在 API Key 不能阻塞 V1 preflight，也不能触发隐式 cloud fallback。
+8. 选择 Gate 历史 `evaluations/local_asr_selection/` 必须保留，不重新 benchmark VibeASR 或扩大当前选型范围。真实用户 Clean A-roll 仍是最终语音质量 Gate；短版 synthetic E2E 通过不能替代人工试用。
 
 Basic Subtitle V1 只从真实 Timed Transcript 生成：word/token 使用真实单位边界组织短句；segment-only 保留粗粒度整段时间，不伪造 karaoke/word precision。版本化 `subtitle-profile/1` 固定 1920×1080 两行高对比安全区；字幕跨 A-roll、图片、视频和 Motion 连续烧录。Subtitle Artifact、Transcript、Media、Profile、Bridge、Renderer enablement 与 Preview Manifest 全部进入 canonical QA；时间链、binding 或 digest 篡改为 blocking failure。
 
