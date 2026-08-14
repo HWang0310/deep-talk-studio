@@ -1,3 +1,160 @@
+## 2026-08-14：V1 本地 ASR Selection Gate
+
+当前正式版本：V0.6.1 / `v0.6.1`
+当前产品状态：V1 Candidate — Unreleased；本地 ASR 选择 Gate 已完成，默认接入等待 ChatGPT Review
+仓库：https://github.com/HWang0310/deep-talk-studio
+当前开发分支：`agent/audio-alignment-edit-bridge`
+本轮初始 HEAD：`4bb3c93f00a350a9b414e7893782db4f08924052`
+本轮产品实现 commit：`00105b6`（`feat: complete local ASR selection gate`）
+
+### 1. 本轮任务是什么
+
+本轮先执行正式 Local ASR Selection Gate，再决定 V1 默认本地转写候选。没有执行此前
+“直接采用 whisper.cpp”旧指令；没有修改 reviewed Script、approved Research、reviewed
+Material Package、Motion/Production 工件或正式版本。候选必须用同一份 2–5 分钟非私人中文
+评测音频真实运行，并经过时间戳 hard gate 和最小 Alignment 适配。
+
+### 2. 完成了什么
+
+- 固定并构建官方 `ggml-org/whisper.cpp v1.9.2`，源码 commit
+  `306c88f4d1286aec1bf96e544632897886af5501`；multilingual `medium` 模型文件
+  1,533,763,059 bytes，SHA-256 `6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208`。
+- 固定并构建官方 `microsoft/VibeASR.cpp` commit
+  `5cbce71c65911a7e10639ac13b6ab6929e4c8f9e`，配合官方
+  `VibeVoice-ASR-BitNet@66e7802`；LM 992,877,600 bytes、SHA-256
+  `fbe273d8dc2f2433bb25f849e19d77ea65aaa2188d12c20cee987ab6f321e002`；VAE
+  703,080,064 bytes、SHA-256
+  `4941c82608c253ec066b5cc74d3dd11a5c8fef96cccbc5b87359ef0fe4338df6`。
+- 两候选使用同一份外部非私人评测音频：24 kHz、单声道、PCM 16-bit、272.367458 秒，
+  SHA-256 `c1b08fe694eb59d598af2fb06b29f165ee341afc82048e999ddb362dceeba601`。音频由
+  macOS `say` 从公开评测文本生成，没有用户视频、私人录音或云端上传；因此不冒充真人
+  口音验收。
+- Whisper 使用 Metal，实际 wall runtime 44.37 秒、wall RTF 0.1630；`--dtw medium`
+  JSON 直接给出 token offsets。1,136 个单位通过 `ProviderTranscript(token)` →
+  `Timed Transcript` → `Script Alignment`，首个 Beat 为 `aligned/token`，起止
+  `0.05–3.41s`。Timed Transcript digest 为
+  `6e7bb2cccbd0c720ac5c8f962629b23617530f7abb499235c2edeb5a00a50d41`，Alignment
+  digest 为 `bf2f594cc5a99b17b2c6dd3be93b49cf9812fe6f01e09495a87d165053d2cafe`。
+- VibeASR 同音频真实运行：JSON prompt 331.97 秒、RTF 1.2109；默认 text prompt
+  284.17 秒、RTF 1.0402。两个模式都输出重复文本并耗尽 max tokens，没有 machine-owned
+  media timestamp；`Start/End` 只是模型 prompt/output 形状，不能作为时间证据。因此
+  ProviderTranscript Gate 直接 fail closed，没有生成 Timed Transcript 或 Alignment。
+- 选择结论：推荐 `whisper.cpp multilingual medium` 作为 V1 默认本地 Provider 候选，
+  但正式 production integration/自动 bootstrap 仍是 `PENDING_CHATGPT_REVIEW`。
+- 新增 evaluation-only `local_asr_selection` parser、复现脚本、报告和 regression；不把
+  大模型、音频或原始长日志提交 Git。外部真实摘要位于
+  `/Users/hwang/.cache/deep-talk-studio/asr-selection/eval/local-asr-selection-report.json`，
+  SHA-256 `df1abf766cb66236f893f2d3ee9bf8240d4233e0de90e59c1661e6639b959759`。
+
+### 3. 创建 / 修改的重要文件
+
+- `src/deeptalk_studio/transcription/local_asr_selection.py`：只接受官方 Whisper 直接
+  token offsets；固定拒绝 VibeASR prompt-generated times；不改变生产 Provider 默认值。
+- `evaluations/local_asr_selection/run_selection_gate.py`：将真实候选输出接入现有
+  `ProviderTranscript → Timed Transcript → Script Alignment` 的可复现实验链。
+- `evaluations/local_asr_selection/report.md`、`selection-result.json`：模型、音频、SHA、
+  runtime/RTF、时间戳证据、中文名词差异和 Gate 结论。
+- `tests/test_local_asr_selection.py`：3 个 parser/Gate regression。
+- `docs/superpowers/plans/2026-08-14-local-asr-selection-gate.md`、`README.md`、
+  `ROADMAP.md`、`AGENTS.md`、`CHANGELOG.md`：更新 V1 Candidate 与长期协作边界。
+- reviewed Script、approved Research、reviewed Material、旧 Production 工件和正式 Release
+  未改动。
+
+### 4. 当前架构
+
+```text
+Clean A-roll → Media/Mapping/Chunk → provider-neutral ProviderTranscript
+                                        ├─ local ASR selection Gate
+                                        │    ├─ whisper.cpp token offsets → Timed Transcript
+                                        │    │                              → Script Alignment
+                                        │    └─ VibeASR no machine timestamps → fail closed
+                                        └─ future approved V1 default local Provider
+                                                   ↓
+                    Material/Motion Placement → Edit Bridge → subtitled Preview
+```
+
+Provider-neutral boundary、真实 timestamp granularity、segment/coarse 安全降级和不插值规则
+均保持不变。当前选择代码是 evaluation-only，未把模型下载和 UI provider 选择塞入正式生产。
+
+### 5. 已经可以运行什么
+
+- 在项目外缓存中重跑同音频的两套官方候选，记录源码/model revision、大小、SHA、加速、
+  runtime、RTF、文字摘要和 timestamp provenance。
+- 用 `run_selection_gate.py` 将 Whisper 的真实 token offsets 送入现有 Timed Transcript
+  和 Script Alignment；VibeASR 无证据时在 ProviderTranscript 阶段停止。
+- 保持原有 Audio Alignment + Visual Edit Bridge + Basic Subtitle V1 synthetic integration
+  和 Material/Motion 产物可用。
+
+### 6. 还不能运行什么
+
+- Whisper 默认 Provider 尚未接入正式 V1 production bootstrap；必须先经 ChatGPT Review。
+- 这轮评测音频是非私人合成语音，不等于用户真人 Clean A-roll 的最终中文准确率、停顿、
+  音色、字幕断句或素材时机验收。
+- 真实用户 Clean A-roll E2E 仍不能宣称 V1.0 通过；必须保留现有 Media → real transcription
+  → Alignment → Material/Motion → Subtitle → Preview → QA Gate。
+- 不做自动剪口气、TTS、BGM/SFX、高级/karaoke 字幕、标题封面、发布或平台上传。
+
+### 7. Gate、测试和产物
+
+- Local ASR timestamp Gate：Whisper **PASS**；VibeASR **FAIL**。
+- Whisper adapter chain：ProviderTranscript **PASS**、Timed Transcript **PASS**、
+  Script Alignment **PASS/aligned/token**。
+- VibeASR adapter chain：ProviderTranscript **STOPPED**、Timed Transcript **NOT_BUILT**、
+  Script Alignment **NOT_BUILT**。
+- 完整 unittest：441 run，438 pass，3 skipped，0 failure。
+- 新增 local ASR regression：3 pass；`compileall` pass；既有 Production/Remotion 定向
+  regression 未改动，完整 suite 一并通过（真实 aligned E2E 仍按环境 skip）。
+- 真实 Material Preflight：继续保持 READY；本轮没有重新获取、重写或替换 reviewed Material。
+- REAL TRANSCRIPTION PREFLIGHT：本地选择 Gate 完成，但尚未处理用户正式 A-roll；OpenAI
+  cloud adapter 仍是无 API Key 的后续可选路径。
+- REAL USER E2E：**BLOCKED/PENDING**，原因是 ChatGPT 尚未 Review 默认集成，且尚未进入
+  用户本期 Clean A-roll 真实试用。
+
+### 8. 已知 warning / gap
+
+- macOS `say` 合成音频不覆盖真人声学分布；下一次真实 Clean A-roll Gate 才能确认用户
+  录音下的专有名词和停顿表现。
+- VibeASR 官方仓库在本机 `BITNET_ARM_TL1=ON` 编译失败，关闭 TL1 后 I2_S CPU 路径构建
+  成功；这降低了它的 bootstrap 稳定性评分，但不改变其 timestamp Gate 失败。
+- Whisper 在同一合成音频仍有 `OpenAI→OpenEye`、`DeepSeek→DeepSeq`、`AI Agent→AI Agit`、
+  `昇腾→生酮`、`GPU→GTU` 等明显名词错误；脚本和研究不能据此自动改写，后续需由真实
+  用户试用和产品 Gate 决定。
+- 本机 shell 未自动继承代理；本轮下载通过用户现有本地代理完成，密钥未输出。
+
+### 9. 重要技术决策
+
+- V1 timestamp priority 高于速度、体积和 README benchmark；没有可靠媒体时间戳即 fail。
+- 只接受 runtime 直接给出的 token/word offsets；不接受 segment 内插、字符位置、平均
+  分配或 LLM 生成时间。
+- V1 不依赖 `OPENAI_API_KEY`、Anthropic、Google 等 API Key；OpenAI Provider 保留为未来
+  V2/V3 可选能力。
+- 模型只在 `/Users/hwang/.cache/deep-talk-studio/asr-selection/` 外部缓存，不提交仓库；
+  正式接入后只允许 winner 自动 bootstrap，loser 不成为默认 UI 路径。
+- 本轮不是新版本；main、`v0.6.1` tag、GitHub Release 保持不变，没有创建 v0.7/v0.8/v0.9、
+  v1.0.0 或 rc tag。
+
+### 10. 需要产品经理决定什么
+
+请 ChatGPT Review `evaluations/local_asr_selection/report.md` 与
+`selection-result.json`，确认：
+
+1. 合成非私人音频是否足以通过“工程选择 Gate”，以及真实用户 A-roll 仍需保留哪些最终
+   Gate；
+2. 是否批准 `whisper.cpp multilingual medium` 成为 V1 默认本地 Provider，并给出正式
+   bootstrap/cache/CLI 规格；
+3. 是否允许下一阶段进入正式 V1 default integration，然后再安排真实用户 Clean A-roll
+   transcription preflight。
+
+### 11. 建议下一阶段
+
+先不要开始音频对齐新功能，也不要创建 Release。先由 ChatGPT Review 本轮 ASR 选择证据；
+通过后再实现一个明确版本化、provider-neutral、无 API Key 依赖的 V1 local transcription
+bootstrap，并重新跑生产定向 regression。之后才进入用户真实 Clean A-roll E2E Gate。
+
+### 给用户的下一步操作
+
+请把下面“请原样发给 ChatGPT”整段直接复制给 ChatGPT；暂时不要录制、上传或选择技术参数。
+
 # DeepTalk Studio 开发交接
 
 当前正式版本：V0.6.1 / `v0.6.1`
