@@ -2,6 +2,17 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [Unreleased] - 2026-08-14
+
+### Local ASR Selection Gate
+
+- 按 ChatGPT 最终产品原则完成真实本地 ASR 选择 Gate；没有执行旧的“直接采用 whisper.cpp”方案，没有修改 reviewed Script、approved Research、reviewed Material 或正式 Production 工件。
+- 用同一份非私人 272.367 秒、24 kHz 单声道中文评测音频比较官方 `whisper.cpp v1.9.2` multilingual medium 与 Microsoft `VibeASR.cpp` / `VibeVoice-ASR-BitNet@66e7802`；模型、音频和原始长日志均放在项目外部缓存。
+- `whisper.cpp` 在 Apple M4 Metal 上真实 wall runtime 44.37 秒、RTF 0.1630，输出直接 token offsets，并完成 `ProviderTranscript → Timed Transcript → Script Alignment`；新增 evaluation-only parser 与最小 adapter regression。
+- VibeASR 在同音频真实运行 JSON/text 两种模式，RTF 1.2109/1.0402；没有 machine-owned media timestamps，且输出重复文本并耗尽 max tokens，按时间戳 Gate fail closed，不生成 Timed Transcript 或 Alignment。
+- 选择结论：推荐 `whisper.cpp multilingual medium` 作为 V1 默认本地 Provider 候选；正式默认接入与自动 bootstrap 仍为 `PENDING_CHATGPT_REVIEW`，本轮不创建 V1.0、tag 或 Release。
+- main、正式 `v0.6.1` tag 与 GitHub Release 保持不变；V1 仍不依赖任何 API Key，现有 OpenAI Provider 只保留为后续可选能力。
+
 ## [Unreleased] - 2026-08-13
 
 ### REAL USER E2E Preflight unblock - 2026-08-14

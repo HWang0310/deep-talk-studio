@@ -120,6 +120,20 @@
 - Hook-aware Script contract 已最小加固，不改变 Script schema；Basic Subtitle V1 已接入唯一正式入口、自然语言重渲染、Remotion 与 canonical QA。
 - 两版真实 synthetic Remotion 粗剪已验证烧录字幕、Material/Motion Placement、单一 Clean A-roll 音轨和 revision binding；尚未用用户本期真实 Clean A-roll 执行 E2E，用户观看正式 `ALIGNED_PREVIEW.mp4` 与 ChatGPT 最终 Review 前不得宣称 V1.0。
 
+## V1 Candidate：Local ASR Selection Gate（Gate 已完成，默认接入待 Review）
+
+- 用同一份 272.367 秒、24 kHz 单声道、非私人中文评测音频真实比较官方 `whisper.cpp`
+  multilingual medium 与 Microsoft `VibeASR.cpp + VibeVoice-ASR-BitNet`。
+- `whisper.cpp v1.9.2` 在 Apple M4 Metal 上输出直接 token offsets，实际跑通
+  `ProviderTranscript → Timed Transcript → Script Alignment`，通过时间戳 hard gate。
+- VibeASR 本机真实输出没有 machine-owned media timestamps，两个官方 CLI 模式均出现
+  重复文本并耗尽 max tokens；在 ProviderTranscript 处 fail closed，不进入 Alignment。
+- 当前推荐 `whisper.cpp multilingual medium` 作为 V1 默认本地 Provider 候选；模型放在
+  项目外缓存，不依赖任何 API Key。正式 production integration 与自动 bootstrap 仍须
+  先由 ChatGPT Review，不能创建新版本、tag 或 Release。
+- 评测报告与可复现 adapter spike 位于 `evaluations/local_asr_selection/`；模型、音频和
+  原始长日志不提交仓库。合成 TTS 不是用户真人音色，真实 Clean A-roll 仍是最终 Gate。
+
 ## 暂不承诺
 
 - 全自动无人审查发布；

@@ -1,12 +1,14 @@
 # DeepTalk Studio
 
-> 当前开发分支包含 **Unreleased Audio Alignment + Visual Edit Bridge + Basic Subtitle V1**。它已能把带时间戳真实转写、真人主画面、真实素材、原创 Motion 和基础字幕合成为完整粗剪预览，并保持 Clean A-roll 原音；只有完成真实 Clean A-roll 用户试用后才可讨论正式版本或 V1.0。
+> 当前开发分支包含 **Unreleased Audio Alignment + Visual Edit Bridge + Basic Subtitle V1**，并已完成本地 ASR 选择 Gate。它已能把带时间戳真实转写、真人主画面、真实素材、原创 Motion 和基础字幕合成为完整粗剪预览，并保持 Clean A-roll 原音；只有完成真实 Clean A-roll 用户试用后才可讨论正式版本或 V1.0。
 
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
 当前版本是 **V0.6.1**。研究、独立事实核查、原创写稿、素材准备和制作已连成可验证链路。已审查素材包可由 Remotion 或 HyperFrames 中的一个引擎生成真实 MP4 动画、粗剪视觉预览、PNG 定帧和制作质检报告；四类图表会按内部元素真正运动，不再只是整张 SVG 进场。
 
 Audio Alignment + Visual Edit Bridge 正在 Unreleased 分支接受 Integration Review。正式生产入口会自动找到相互绑定的 approved Research、reviewed Script、reviewed Material、Production Plan/Manifest/QA 和一份 Clean A-roll，然后以仓库固定顺序完成全部阶段；调用方不能自行拼 stage 或 QA。它会从同一 Timed Transcript 生成版本化字幕工件：真实 word timestamp 可组合为短句，只有 segment timestamp 时保持 coarse，不伪造逐字精度。字幕烧录在 A-roll、图片、视频和 Motion 全部时段，统一预留底部安全区，并进入 canonical QA。大文件只使用版本化 PCM 自然停顿 Chunk Plan，不在 adapter 内任意切分。
+
+V1 的本地转写默认候选已通过选择 Gate：在同一份非私人中文评测音频上，官方 `whisper.cpp` multilingual medium（Apple Silicon Metal、`--dtw medium`）提供了可验证 token offsets，并实际跑通 `ProviderTranscript → Timed Transcript → Script Alignment`；Microsoft VibeASR.cpp 当前没有机器拥有的媒体时间戳，且本机真实输出退化为重复文本，因此没有进入 V1 默认路径。模型只放在项目外部缓存，不依赖任何 API Key。默认 Provider 的正式接入仍等待 ChatGPT Review，不能把本轮选择结论称为 V1.0 或新 Release。
 
 ## 现在最简单的用法
 
