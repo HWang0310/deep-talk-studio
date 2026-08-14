@@ -280,7 +280,7 @@ Material/Motion Placement → Edit Bridge → subtitled visual Remotion render
 仓库：https://github.com/HWang0310/deep-talk-studio
 当前开发分支：`agent/audio-alignment-edit-bridge`
 本轮初始 HEAD：`afb4a5ea5d104c2f65b8744504080b9fb37ff756`
-本轮最终实现 commit：待本轮提交后补入（不会创建 Release）
+本轮核心实现 commit：`412f699`（`feat: integrate local whisper production transcription`）
 
 ### 1. 本轮任务是什么
 
@@ -397,7 +397,7 @@ acceleration 为 Apple Silicon Metal。
 - `NO-API-KEY V1 PRODUCTION PATH`：PASS（smoke + short synthetic E2E 范围内）。
 - `REAL USER CLEAN A-ROLL GATE`：BLOCKED/PENDING 用户真实 Clean A-roll 与人工 Review。
 
-本轮应重新运行并记录完整回归的最终数字；短版和定向测试已先通过。不得在没有最终测试输出时声称“全部 Gate PASS”。
+最终完整回归：`447 passed, 3 skipped, 58 subtests passed in 8.11s`；`compileall`、`git diff --check` 和 tracked-file credential-shaped secret scan 均通过。3 个 skip 是既有环境/显式真实渲染条件，不是本轮新增失败。不得把本轮的 QA warning 写成无 warning 的 PASS。
 
 ### 8. 已知问题 / warning / gap
 

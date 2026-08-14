@@ -107,6 +107,6 @@
 - Modify: `.agents/skills/align-video/SKILL.md` if final wording needs alignment with real evidence.
 
 - [x] **Step 1: Document local-first V1, production cache/provenance, optional cloud adapter, and current Gate results.**
-- [ ] **Step 2: Run a secret scan and full test suite.**
+- [x] **Step 2: Run a secret scan and full test suite.**
 - [ ] **Step 3: Commit and push only the scoped integration changes; do not tag or release.**
 - [ ] **Step 4: Verify branch/main/tag/Release status and prepare the complete user-to-ChatGPT handoff as the final response.**
