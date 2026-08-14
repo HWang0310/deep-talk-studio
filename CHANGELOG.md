@@ -4,6 +4,14 @@
 
 ## [Unreleased] - 2026-08-13
 
+### REAL USER CLEAN A-ROLL E2E Preflight
+
+- ChatGPT 已批准进入真人 E2E Gate；本轮完成只读 Preflight，未新增产品功能、未修改历史工件。
+- 分支 `agent/audio-alignment-edit-bridge` 的 reviewed HEAD `5ff947c`、workspace、ffmpeg 8.1.1、ffprobe 8.1.1 与实际 Remotion exact-entrypoint render 均正常；当前 approved Research r3、reviewed Script r2、reviewed Material r2、Production Plan、Motion Manifest 与 Production QA 精确绑定，Production QA 为 pass。
+- 真实 OpenAI transcription Preflight 判定为 blocked：当前运行环境没有 `OPENAI_API_KEY` 和 OpenAI Python SDK。adapter 单元测试通过，真实 smoke 诚实跳过；不允许用 deterministic provider 代替真人转写。
+- 本期 Real Material Preflight 判定为 missing_asset：外部网页/官方文件仍未取得本地 capture，未被升格为 ready；现有原创 Motion 输出可用。真人 E2E 因转写与真实素材两项 blocker 暂不开始。
+- main、`v0.6.1` tag 和 GitHub Release 均未改变。
+
 ### V1 scope reconciliation + Basic Subtitle V1
 
 - “全面冻结功能”临时边界已撤销，恢复 `reviewed Script + Clean A-roll + Real Material + Original Motion + Basic Subtitle → 完整可观看粗剪` 的 V1 产品目标；仍不扩展 A-roll cleanup、BGM/SFX、标题封面、发布或 NLE 专属导出。
