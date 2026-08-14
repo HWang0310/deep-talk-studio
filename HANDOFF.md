@@ -281,6 +281,7 @@ Material/Motion Placement → Edit Bridge → subtitled visual Remotion render
 当前开发分支：`agent/audio-alignment-edit-bridge`
 本轮初始 HEAD：`afb4a5ea5d104c2f65b8744504080b9fb37ff756`
 本轮核心实现 commit：`412f699`（`feat: integrate local whisper production transcription`）
+本轮文档收尾 commit：`34aad60`（`docs: finalize local transcription handoff`）
 
 ### 1. 本轮任务是什么
 
@@ -398,6 +399,8 @@ acceleration 为 Apple Silicon Metal。
 - `REAL USER CLEAN A-ROLL GATE`：BLOCKED/PENDING 用户真实 Clean A-roll 与人工 Review。
 
 最终完整回归：`447 passed, 3 skipped, 58 subtests passed in 8.11s`；`compileall`、`git diff --check` 和 tracked-file credential-shaped secret scan 均通过。3 个 skip 是既有环境/显式真实渲染条件，不是本轮新增失败。不得把本轮的 QA warning 写成无 warning 的 PASS。
+
+GitHub 已推送：`origin/agent/audio-alignment-edit-bridge` 当时 HEAD 为 `34aad60884804ba768f04766c0a7bfb55ec127ba`；与远端 `main` 的 compare 为 `ahead 66 / behind 0`，merge-base 为 canonical main `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`，不再是无共同祖先。远端 main 仍为 `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`；annotated `v0.6.1` tag object 为 `64358100d17de3f74d0d9c3db12a0c177a80a190`、peeled commit 仍为 canonical main；没有新 Release。
 
 ### 8. 已知问题 / warning / gap
 
