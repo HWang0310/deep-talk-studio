@@ -231,13 +231,13 @@ Run: `.venv/bin/python -m pytest -q && .venv/bin/python -m compileall -q src tes
 
 Expected: zero test failures, compile success and no whitespace errors.
 
-- [ ] **Step 3: Run a credential-shaped secret scan and inspect the scoped diff.**
+- [x] **Step 3: Run a credential-shaped secret scan and inspect the scoped diff.**
 
 Run: `git grep -Il -E 'sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}' -- .`
 
 Expected: no credential-shaped value; only model checksums, source URLs, tests, evaluator, docs and contract changes are staged.
 
-- [ ] **Step 4: Commit and push only this scoped work.**
+- [x] **Step 4: Commit and push only this scoped work.**
 
 ```bash
 git add docs/superpowers/specs/2026-08-14-large-v3-long-form-design.md docs/superpowers/plans/2026-08-14-large-v3-long-form-production.md src/deeptalk_studio/transcription tests evaluations README.md PRD.md ROADMAP.md AGENTS.md CHANGELOG.md HANDOFF.md .agents/skills/align-video/SKILL.md
@@ -245,7 +245,7 @@ git commit -m "feat: validate large-v3 long-form transcription"
 git push origin agent/audio-alignment-edit-bridge
 ```
 
-- [ ] **Step 5: Verify GitHub branch/main/tag/release and provide the self-contained ChatGPT handoff.**
+- [x] **Step 5: Verify GitHub branch/main/tag/release and provide the self-contained ChatGPT handoff.**
 
 Run: `gh api repos/HWang0310/deep-talk-studio/compare/main...agent/audio-alignment-edit-bridge`
 

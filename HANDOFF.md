@@ -538,6 +538,18 @@ medium 的 selection cache/artifacts 保持为历史审计；正式 runtime/mode
 停止新功能，先让 ChatGPT Review 本轮 long-form evidence。若其批准，再请用户仅拖入已经剪好口气的
 真人口播视频，运行同一正式入口并观看自己的 Preview；仍不扩展 Audio Alignment 功能范围。
 
+### 11. Git / Release 状态
+
+- 工作分支：`agent/audio-alignment-edit-bridge`；本轮开始时生产集成记录 HEAD 为
+  `b6dcf3c7a3a48ba818ff416d3ee83e1c3e011980`。
+- large-v3 design/plan commits：`b79fd9e16ff2e2fafb763b8268af1c0c19397446`、`8f86f98`；
+  实现和证据 runner commit：`b9c51c2cb7c53b6c75cd8035a570e3bb367e9e63`。
+- GitHub compare：branch 对 canonical main `ahead 70 / behind 0`，merge-base 仍为
+  `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`。
+- main HEAD 与 peeled `v0.6.1` tag commit 都是
+  `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`；现有 latest Release 仍是 v0.6.1。
+  本轮没有修改 main/tag/Release。
+
 ## 给用户的下一步操作
 
 你现在只需要把 Codex 回复最底部“请把以下内容复制给 ChatGPT”后面的整段文字，原样发给 ChatGPT。你不需要打开终端、安装模型、设置 API Key 或自己总结。
