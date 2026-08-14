@@ -4,6 +4,12 @@
 
 ## [Unreleased] - 2026-08-13
 
+### REAL USER E2E Preflight unblock - 2026-08-14
+
+- 安装并验证项目专用 OpenAI Python SDK `2.54.0`；未记录或输出任何 Key。`OPENAI_API_KEY` 缺失，真实 OpenAI smoke 尚未运行，也没有 deterministic fallback。
+- 新增不可变 `material-capture-manifest/1` 和 Material Production View 重放：已检查素材只有在 exact package/material/source/capture/Cue binding、静态 MIME、允许目录、size 和 SHA-256 都通过时，才可成为 `ready`；rights/reuse 仍只作历史元数据。
+- 已实际打开当前 M001 OpenAI 官方页，将真实页面截图登记为 VC001 生产素材（PNG、127,433 bytes、SHA-256 `d3305a0d3b9c58c950aa75421c05effb27013d581916a9e0156026106788b3e1`）；Material r2 和 reviewed 历史保持不变。
+
 ### REAL USER CLEAN A-ROLL E2E Preflight
 
 - ChatGPT 已批准进入真人 E2E Gate；本轮完成只读 Preflight，未新增产品功能、未修改历史工件。

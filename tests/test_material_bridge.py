@@ -23,7 +23,7 @@ class MaterialBridgeTests(unittest.TestCase):
         self.report, self.script, _ = reviewed_inputs()
         self.profile = load_material_profile()
 
-    def _reviewed_reference_package(self, root, *, asset_type="official_document", video_reference=None):
+    def _reviewed_reference_package(self, root, *, asset_type="official_document", video_reference=None, attach_package_file=True):
         asset_root = root / "assets"; asset_root.mkdir()
         if asset_type == "video_clip_reference":
             asset = build_media_fixture(asset_root, MediaFixtureSpec(name="M001", duration="2"))
@@ -40,10 +40,11 @@ class MaterialBridgeTests(unittest.TestCase):
             inspection_manifest=inspection_manifest(), rights_manifest={"entries": []},
             created_at="2026-08-13T11:00:00+08:00", package_id="MAT-bridge",
         )
-        data = package.to_dict()
-        data["materials"][0].update(local_path=str(asset), byte_size=len(asset_bytes), sha256=hashlib.sha256(asset_bytes).hexdigest())
-        data["package_digest"] = material_package_digest(data)
-        package = MaterialPackage(data)
+        if attach_package_file:
+            data = package.to_dict()
+            data["materials"][0].update(local_path=str(asset), byte_size=len(asset_bytes), sha256=hashlib.sha256(asset_bytes).hexdigest())
+            data["package_digest"] = material_package_digest(data)
+            package = MaterialPackage(data)
         r1_paths = save_material_package(package, root / "packages")
         review = prepare_material_review({
             "issues": [{
@@ -111,6 +112,25 @@ class MaterialBridgeTests(unittest.TestCase):
             # Canonical replay rejects modified r2 before projection.
             with self.assertRaises(Exception):
                 build_material_production_view(path, self.script, self.report, self.profile, asset_root)
+
+    def test_reviewed_reference_capture_manifest_projects_real_image_without_rewriting_history(self):
+        from deeptalk_studio.material_capture_manifest import build_material_capture_manifest, save_material_capture_manifest
+        with tempfile.TemporaryDirectory() as temp:
+            package_path, asset_root, original = self._reviewed_reference_package(Path(temp), attach_package_file=False)
+            capture_root = asset_root / "captures"; capture_root.mkdir(parents=True)
+            capture = capture_root / "M001-capture.png"; capture.write_bytes(PNG)
+            item = original.materials[0]
+            record = {
+                "material_id": "M001", "source_url": item["source_url"], "source_title": item["title"],
+                "page_number": item["capture"]["page_number"], "capture_region": item["capture"]["capture_region"],
+                "local_path": str(capture), "mime_type": "image/png", "byte_size": capture.stat().st_size,
+                "sha256": hashlib.sha256(capture.read_bytes()).hexdigest(), "cue_ids": item["cue_ids"],
+                "captured_at": "2026-08-14T10:00:00+08:00",
+            }
+            save_material_capture_manifest(build_material_capture_manifest(original.to_dict(), [record], created_at="2026-08-14T10:00:00+08:00"), asset_root)
+            view = build_material_production_view(package_path, self.script, self.report, self.profile, asset_root)
+            self.assertEqual(view["items"][0]["production_status"], "ready")
+            self.assertEqual(view["items"][0]["local_path"], str(capture.resolve()))
 
 
 if __name__ == "__main__": unittest.main()

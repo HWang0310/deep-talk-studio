@@ -6,11 +6,11 @@
 
 当前开发分支：`agent/audio-alignment-edit-bridge`
 
-本轮：REAL USER CLEAN A-ROLL E2E Preflight（Unreleased）。
+本轮：REAL USER CLEAN A-ROLL E2E Preflight unblock（Unreleased）。
 
 ## 1. 本轮任务是什么
 
-ChatGPT 已通过 Hook-aware Script 与 Basic Subtitle V1 Implementation Review，并正式批准进入真人 E2E Gate。本轮只做只读 Preflight：核对 branch/workspace、视频工具、真实 Remotion、真实 OpenAI 转写环境、当前本期根工件与本期真实素材文件；不开发功能、不要求用户先上传视频、不创建版本。
+本轮只解除两个 Preflight blocker：将 OpenAI Python SDK 安装到项目专用运行环境，并让当前 reviewed Material Package 可安全登记真实官方网页截图；不改 reviewed Script、approved Research 或 Material 历史，不要求用户先上传视频，不创建版本。
 
 ## 2. 完成了什么
 
@@ -24,8 +24,10 @@ ChatGPT 已通过 Hook-aware Script 与 Basic Subtitle V1 Implementation Review�
 - 当前 branch/HEAD 正确且 workspace clean：`agent/audio-alignment-edit-bridge` / `5ff947c99859ef9179b27a7ca9129448eeb7a10e`。
 - `ffmpeg 8.1.1`、`ffprobe 8.1.1` 可用；正式 exact-entrypoint Remotion 真实渲染回归在 26.654 秒完成并通过。
 - 本期 approved Research r3、reviewed Script r2、reviewed Material Package r2、Production Plan、Motion Manifest、Production QA 均存在、精确相互绑定；Production QA 为 `pass`，Motion 输出文件存在且可 probe。
-- 真实转写 Preflight 为 **BLOCKED**：当前 Codex 进程没有 `OPENAI_API_KEY`，也没有 OpenAI Python SDK；因此不允许用 deterministic provider 代替真实用户转写。
-- 本期 Material Package 的外部网页/官方文件仍是 `reference_only` / 无本地 capture，未发现本期可供正式 Rough Cut 使用的真实 screenshot/image/document 或带明确范围的真实视频。本期现有原创 Motion 输出完整可用，但真实素材子项是 `missing_asset`。
+- 新增不可变 `material-capture-manifest/1`：精确绑定 reviewed Material Package、inspected Material、来源、页面/区域、Cue、捕获时间、本地静态文件、MIME、大小和 SHA-256；任何 package、binding 或文件篡改均 fail closed。
+- Material Production View 可重放已经验证的 Capture，不改写 Material r1/r2 历史，rights/reuse 保持历史元数据而非生产文件 Gate。
+- 已实际打开并读取 M001 的 OpenAI 官方事件说明页，并登记真实截图：PNG、127,433 bytes、SHA-256 `d3305a0d3b9c58c950aa75421c05effb27013d581916a9e0156026106788b3e1`，绑定 VC001；capture manifest digest 为 `3ff4c1df0aea1bbb5152615f126cd5f2a2bfd23b51c30396f7dc5765d65e1de8`。M001 production projection 已为 `ready`。
+- 已在项目专用 `.venv` 安装并验证 OpenAI Python SDK `2.54.0`；transport 可实例化至仅缺授权阶段。`OPENAI_API_KEY` 仍未设置，未调用 API、上传音频或伪造 smoke。
 
 ## 3. 创建 / 修改的重要文件
 
@@ -34,7 +36,7 @@ ChatGPT 已通过 Hook-aware Script 与 Basic Subtitle V1 Implementation Review�
 - Integration / QA：`edit_bridge_session.py`、`edit_bridge_qa.py`、`edit_bridge_schema.py`、`edit_bridge_planner.py`、`aligned_preview/remotion.py`。
 - Hook：`config/script-profile.json`、`script_prompt.py`、`script_review.py`、`schema.py`、`write-script/SKILL.md`、`docs/SCRIPT_CONTRACT.md`。
 - 设计与计划：`docs/superpowers/specs/2026-08-13-v1-scope-reconciliation-basic-subtitle-design.md`、对应 implementation plan。
-- 本轮没有修改 production code 或本期历史工件；只更新状态记录。
+- 新增 capture-manifest / Material Bridge 最小实现和回归；本期历史 Research、Script、Material Package 未修改。
 - 测试：subtitle profile/builder/storage、renderer、manifest、canonical QA、exact-entrypoint E2E 与自然语言 rerender regressions。
 
 ## 4. 当前架构
@@ -66,9 +68,9 @@ Material/Motion Placement → Edit Bridge → subtitled visual Remotion render
 
 ## 6. 还不能运行什么
 
-- **REAL USER E2E = BLOCKED**，因此尚不能接收/处理用户正式 Clean A-roll，也不得称 V1.0 通过。
-- 阻断一：当前 Codex 运行环境没有 `OPENAI_API_KEY` 和 OpenAI Python SDK。官方转写接口仍兼容本项目的 `whisper-1 + verbose_json + word timestamps` 实现，但真实调用必须在授权环境中运行。
-- 阻断二：本期缺少可进入 Rough Cut 的真实 screenshot/image/document capture；没有假装把 reference-only 链接或原始网页/PDF 当作 ready asset。没有明确 clip range 的真实视频也不会自动猜选段。
+- **REAL USER E2E 仍为 BLOCKED**，因此尚不能接收/处理用户正式 Clean A-roll，也不得称 V1.0 通过。
+- 唯一剩余阻断：当前 Codex 运行环境没有 `OPENAI_API_KEY`。SDK 已可用，官方 `whisper-1 + verbose_json + word timestamps` 实现已可调用，但真实调用必须在授权环境中运行。
+- M001 已满足本轮最小真实 screenshot/image/document 要求；真实视频仍是 optional，且无明确 clip range 时绝不自动猜选段。
 - 不做自动剪口气、重录删除、filler word cleanup、BGM/SFX、高级/karaoke 字幕、标题封面、发布、平台上传或 NLE 专属工程导出。
 
 ## 7. 测试、评测与真实渲染
@@ -84,11 +86,12 @@ Material/Motion Placement → Edit Bridge → subtitled visual Remotion render
 - 人工抽帧确认：字幕确实烧录、两行内、高对比、底部安全区生效；初版和 revision 都有字幕。
 - 本轮 Preflight：当前 production roots 的 Production QA 是 `pass`；一张 `HERO001.png` 与 8 个 Motion MP4/MAPREVIEW 文件存在，抽样 `MA001.mp4` 可由 ffprobe 读取（10.048 秒）。
 - OpenAI adapter 单元测试 8 项通过，真实 smoke 1 项因授权/真实媒体环境缺失跳过；没有伪造 provider success。
+- capture manifest + Material Bridge + real material placement 定向 10 项通过；真实 M001 projection 已重新推导并通过完整性验证。
 
 ## 8. 已知 warning / gap
 
-- real transcription 的唯一 blocker 是环境授权/SDK，不是 adapter 设计或官方接口不兼容。
-- 本期真实素材缺口不是 Rights Gate 问题：现有 reference-only 网页/官方文件没有被错误升格为 ready；需要真实 capture/image/document 文件，真实视频还需要明确 clip range。
+- real transcription 的唯一 blocker 是安全环境授权，不是 SDK、adapter 设计或官方接口不兼容。
+- 普通 Playwright 会被目标网页 403 拒绝，但 Chrome 用户浏览器实际打开官方页并完成读取、截图；没有把 403 页面或下载替代品登记成素材。
 - 当前默认中文换行使用确定性字符容量，不做 AI 动态避障；真实长视频可能暴露断句与审美调整需求。
 - `npm audit` 的 2 个上游 low severity warning 仍存在；没有擅自升级锁定 Remotion。
 - 真实用户 E2E 才能发现实际录音中的 ASR 错字、长停顿、语速、字幕断句和素材时机问题。
@@ -104,12 +107,12 @@ Material/Motion Placement → Edit Bridge → subtitled visual Remotion render
 
 ## 10. 需要产品经理决定什么
 
-请 ChatGPT 决定如何为当前 Codex 运行环境提供真实 OpenAI transcription 授权（不把密钥写入仓库），以及是否先补齐本期真实 screenshot/image/document capture。两项 blocker 均解除后，Codex 再要求用户录制并拖入 Clean A-roll。
+请 ChatGPT Review 本轮 immutable capture manifest / production projection 的边界，并确认可进入唯一剩余的 OpenAI API Key 授权动作。授权后先运行最小真实 OpenAI smoke；通过后才请用户录制并拖入 Clean A-roll。
 
 ## 11. 建议下一阶段
 
-停止新增功能。保持本分支 Unreleased。先解除真实转写环境和真实素材 capture 两项 Preflight blocker；随后用户只需拖入已经自行剪好口气的正式真人口播 mp4/mov，由同一正式入口完成 real transcription、Alignment、Material/Motion、Basic Subtitle、完整 Rough Cut 与 QA，再由用户观看。
+停止新增功能。保持本分支 Unreleased。现在只解除真实转写授权；随后先运行最小真实 OpenAI smoke，再由用户拖入已经自行剪好口气的正式真人口播 mp4/mov，由同一正式入口完成 real transcription、Alignment、Material/Motion、Basic Subtitle、完整 Rough Cut 与 QA，再由用户观看。
 
 ## 给用户的下一步操作
 
-现在不要录制或上传视频。把 Codex 回复底部的完整交接原样发给 ChatGPT，请它只决定如何解除“真实转写授权/SDK”和“本期真实素材 capture”两个 blocker；解除前不进入真人视频 Gate。
+现在不要录制或上传视频。请创建/准备一个 OpenAI API Key，并把它添加到当前 Codex 运行环境的 `OPENAI_API_KEY` 安全环境变量或 Secret 中。不要把 Key 发到聊天正文里，也不要写进项目文件。设置后只需告诉 Codex“已设置”。

@@ -9,6 +9,11 @@ from typing import Any, Dict, Mapping
 
 from .material_storage import MaterialStorageError, load_material_package
 from .production_validation import ProductionValidationError, _inside, _validate_file_type
+from .material_capture_manifest import (
+    MaterialCaptureManifestError,
+    MaterialCaptureManifestNotFound,
+    load_material_capture_manifest,
+)
 
 
 class MaterialBridgeError(ValueError):
@@ -78,12 +83,31 @@ def build_material_production_view(package_path, script, report, profile, asset_
         if issue.get("severity") == "blocking" and issue.get("issue_type") not in {"rights_misrepresented", "permission_needed"}
         for item_id in issue.get("material_ids", [])
     }
+    try:
+        capture_manifest = load_material_capture_manifest(Path(asset_root), package)
+    except MaterialCaptureManifestNotFound:
+        capture_manifest = None
+        captured_by_material_id = {}
+    except MaterialCaptureManifestError as exc:
+        raise MaterialBridgeError(f"Material Capture Manifest 验证失败：{exc}") from exc
+    else:
+        captured_by_material_id = {
+            record["material_id"]: record for record in capture_manifest["records"]
+        }
     items = []
     for item in package.materials:
+        production_item = deepcopy(item)
+        capture_record = captured_by_material_id.get(item["material_id"])
+        if capture_record is not None:
+            production_item.update(
+                local_path=capture_record["local_path"],
+                byte_size=capture_record["byte_size"],
+                sha256=capture_record["sha256"],
+            )
         if item["material_id"] in non_rights_blocks or item["provenance_status"] != "inspected":
             status = "rejected"
         else:
-            status = _validate_local(item, Path(asset_root))
+            status = _validate_local(production_item, Path(asset_root))
         items.append({
             "source_kind": "material", "source_id": item["material_id"],
             "cue_ids": list(item["cue_ids"]), "title": item["title"], "caption": item["caption"],
@@ -93,7 +117,7 @@ def build_material_production_view(package_path, script, report, profile, asset_
             "provenance_status": item["provenance_status"],
             "historical_eligibility_status": item["eligibility_status"],
             "rights_status": item["rights_status"], "rights_basis": item["rights_basis"],
-            "local_path": item["local_path"], "byte_size": item["byte_size"], "sha256": item["sha256"],
+            "local_path": production_item["local_path"], "byte_size": production_item["byte_size"], "sha256": production_item["sha256"],
             "production_status": status,
         })
     for visual in package.generated_visuals:
@@ -116,7 +140,9 @@ def build_material_production_view(package_path, script, report, profile, asset_
         "package_digest": package.package_digest, "script_id": package.script_id,
         "script_revision": package.script_revision, "report_id": package.report_id,
         "report_revision": package.report_revision, "review_id": package.review_state["review_id"],
-        "rights_reuse_affects_production_gate": False, "items": items,
+        "rights_reuse_affects_production_gate": False,
+        "capture_manifest_digest": "" if capture_manifest is None else capture_manifest["manifest_digest"],
+        "items": items,
     }
     view["view_digest"] = _digest(view)
     return view
