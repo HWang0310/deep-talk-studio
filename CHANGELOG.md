@@ -4,6 +4,15 @@
 
 ## [Unreleased] - 2026-08-14
 
+### Quality-first large-v3 long-form production validation
+
+- 按用户明确的 quality-first 决策，将 V1 唯一生产默认从 historical medium 升级为官方完整精度 `ggml-large-v3.bin`，固定 `whisper.cpp v1.9.2`、source commit `306c88f4d1286aec1bf96e544632897886af5501` 和正确的 `--dtw large.v3`；medium Selection Gate 工件与缓存保留，不被改写或删除。
+- Bootstrap 现在核验 full large-v3 的官方 URL、`3,095,033,483` bytes 和 SHA-256 `64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2`，并记录 DTW provenance。桌面环境未继承 shell proxy 时会读取已启用的 macOS HTTPS 系统代理，仅用于官方模型下载。
+- 新增 raw overlap audit：任何相邻 token overlap 仍 fail closed，但会输出包含 chunk、segment、raw token/provider order、raw 起止时间、控制 token、边界、runtime/model/DTW 和 raw JSON digest 的版本化证据；没有引入 canonicalization、segment fallback、LLM/dictionary/second ASR 或 cloud fallback。
+- 新增外部证据 runner 与 render liveness monitor。真实 no-key 272 秒 smoke：large-v3 在 Apple M4 Metal 上 87.210505 秒、RTF 0.320194、1,167 token、overlap 0，且 `ProviderTranscript → Timed Transcript → Script Alignment` 通过。相同音频上 large-v3 保留 OpenAI、DeepSeek、AI Agent、GPU；`昇腾` 仍未精确命中，原始文本未被人工修正。
+- 真实非私人 274.267 秒 synthetic Clean A-roll 已跑完完整 production E2E，生成 1920×1080/30fps H.264/AAC、274.3 秒 Aligned Preview，SHA-256 `2377c5459c5bd31894ece27c105ec7305f03269f215732c41efea619df773c81`；完整 session 665.763 秒，canonical QA 0 blocking failure，保留 1 个预期 `partial_placement_unready` warning。
+- 本轮未修改 reviewed Script、approved Research、reviewed Material Package 或历史 Production 工件；未创建 tag、Release 或修改 main。真实用户 Clean A-roll Gate 仍需要下一轮真人试用与人工 Review。
+
 ### V1 Local Transcription Production Integration
 
 - 将已通过 Selection Gate 的 `whisper.cpp multilingual medium` 变成正式 `LocalWhisperCppTranscriptionProvider`，接入现有 `TranscriptionProvider → ProviderTranscript → Timed Transcript` 契约和唯一 `run_real_edit_bridge_session` 入口；未修改 reviewed Script、approved Research 或 reviewed Material Package。

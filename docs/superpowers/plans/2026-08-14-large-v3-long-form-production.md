@@ -33,7 +33,7 @@
 - `WhisperCppInstallation` carries `dtw_preset` and bootstrap provenance writes it.
 - `LocalWhisperCppTranscriptionProvider.default_configured_model == "large-v3"` and its runtime command contains `--dtw large.v3`.
 
-- [ ] **Step 1: Write failing default and command regressions.**
+- [x] **Step 1: Write failing default and command regressions.**
 
 ```python
 def test_v1_default_is_full_large_v3_with_matching_dtw():
@@ -47,13 +47,13 @@ def test_provider_command_uses_large_v3_dtw_preset():
     self.assertNotIn("medium", captured_command)
 ```
 
-- [ ] **Step 2: Run the focused tests and confirm they fail because the default is currently medium.**
+- [x] **Step 2: Run the focused tests and confirm they fail because the default is currently medium.**
 
 Run: `.venv/bin/python -m pytest -q tests/test_local_whisper_bootstrap.py tests/test_local_whisper_cpp_provider.py tests/test_edit_bridge_cli.py`
 
 Expected: failure showing `medium` where `large-v3` or `large.v3` is required.
 
-- [ ] **Step 3: Change only the pinned production spec and provider metadata.**
+- [x] **Step 3: Change only the pinned production spec and provider metadata.**
 
 ```python
 WHISPER_CPP_MODEL_NAME = "large-v3"
@@ -64,7 +64,7 @@ WHISPER_CPP_DTW_PRESET = "large.v3"
 
 Add `dtw_preset` to `WhisperCppRuntimeSpec`, `WhisperCppInstallation`, provenance and provider metadata. Build commands from the installation's preset. Replace medium-specific error text with the pinned model name. Keep the medium constants only if explicitly namespaced as historical evidence; no default path may reference them.
 
-- [ ] **Step 4: Run focused production-provider tests and confirm they pass.**
+- [x] **Step 4: Run focused production-provider tests and confirm they pass.**
 
 Run: `.venv/bin/python -m pytest -q tests/test_local_whisper_bootstrap.py tests/test_local_whisper_cpp_provider.py tests/test_edit_bridge_cli.py`
 
@@ -82,7 +82,7 @@ Expected: all pass; test fake models use explicit test specs rather than product
 - `inspect_whisper_cpp_token_overlaps(path, *, chunk_index, provider_order_start, model, dtw_preset, runtime_version, chunk_boundary) -> tuple[dict, ...]` reads only raw JSON and produces audit mappings.
 - `WhisperCppTokenOverlapError(WhisperCppBootstrapError)` exposes `overlaps: tuple[dict, ...]` and `raw_response_digests: tuple[str, ...]`.
 
-- [ ] **Step 1: Write a failing raw-evidence regression.**
+- [x] **Step 1: Write a failing raw-evidence regression.**
 
 ```python
 def test_overlap_error_preserves_raw_pair_evidence_without_canonicalizing():
@@ -95,13 +95,13 @@ def test_overlap_error_preserves_raw_pair_evidence_without_canonicalizing():
     self.assertEqual(item["dtw_preset"], "large.v3")
 ```
 
-- [ ] **Step 2: Run the overlap regression and confirm it fails because the current error has no serializable raw evidence.**
+- [x] **Step 2: Run the overlap regression and confirm it fails because the current error has no serializable raw evidence.**
 
 Run: `.venv/bin/python -m pytest -q tests/test_local_whisper_cpp_provider.py::LocalWhisperCppProviderTests::test_overlap_error_preserves_raw_pair_evidence_without_canonicalizing`
 
 Expected: failure because `WhisperCppTokenOverlapError` does not exist or lacks `overlaps`.
 
-- [ ] **Step 3: Implement raw JSON inspection without altering ProviderTimedUnit timestamps.**
+- [x] **Step 3: Implement raw JSON inspection without altering ProviderTimedUnit timestamps.**
 
 ```python
 if raw_current_start < raw_previous_end:
@@ -119,7 +119,7 @@ if raw_current_start < raw_previous_end:
 
 Also record segment IDs, token/raw/provider order, control-token flags, chunk-boundary status, model, DTW preset, runtime version and raw JSON digest. Raise the structured error before Timed Transcript construction. Do not modify raw JSON, text, token order or offsets.
 
-- [ ] **Step 4: Run parser/provider regressions and confirm they pass.**
+- [x] **Step 4: Run parser/provider regressions and confirm they pass.**
 
 Run: `.venv/bin/python -m pytest -q tests/test_local_asr_selection.py tests/test_local_whisper_cpp_provider.py`
 
@@ -135,7 +135,7 @@ Expected: direct raw timing is preserved; overlap still blocks downstream work; 
 - `run_large_v3_smoke(audio_path, reference_path, evidence_path) -> dict` invokes the formal local Provider without API keys and writes a versioned external evidence JSON.
 - `run_full_large_v3_session(session_root, repo_root, monitor_path) -> dict` invokes `resolve_real_edit_bridge_session` and `run_real_edit_bridge_session` once; it records elapsed time, PID/liveness checks, output growth and terminal stage.
 
-- [ ] **Step 1: Write failing report-contract tests.**
+- [x] **Step 1: Write failing report-contract tests.**
 
 ```python
 def test_overlap_report_requires_every_raw_audit_field():
@@ -149,13 +149,13 @@ def test_liveness_record_does_not_mark_a_live_renderer_as_hung():
     self.assertEqual(record["state"], "running")
 ```
 
-- [ ] **Step 2: Run the new evaluator tests and confirm they fail because the runner does not exist.**
+- [x] **Step 2: Run the new evaluator tests and confirm they fail because the runner does not exist.**
 
 Run: `.venv/bin/python -m pytest -q tests/test_large_v3_production_gate.py`
 
 Expected: import failure for `run_large_v3_production_gate`.
 
-- [ ] **Step 3: Implement the evaluator with external-cache-only outputs.**
+- [x] **Step 3: Implement the evaluator with external-cache-only outputs.**
 
 ```python
 result = provider.transcribe(extracted_audio, plan, "zh", "large-v3")
@@ -168,7 +168,7 @@ evidence = {
 
 Catch only `WhisperCppTokenOverlapError` to write its exact raw evidence and return `BLOCKED`; re-raise other failures. Use `subprocess.Popen` only for the outer full-session monitor. Sample parent/child liveness and output-file growth at a fixed interval, never terminate a live process merely for elapsed time. Persist monitor/evidence beneath `~/.cache/deep-talk-studio/transcription/evidence/` and `.../e2e/`, not Git.
 
-- [ ] **Step 4: Run evaluator unit tests and the focused provider suite.**
+- [x] **Step 4: Run evaluator unit tests and the focused provider suite.**
 
 Run: `.venv/bin/python -m pytest -q tests/test_large_v3_production_gate.py tests/test_local_whisper_cpp_provider.py tests/test_local_whisper_bootstrap.py`
 
@@ -185,25 +185,25 @@ Expected: report schemas and liveness rules pass; no test invokes network/model 
 - Use `ggml-large-v3.bin` through `WhisperCppBootstrap.ensure()` and `LocalWhisperCppTranscriptionProvider`.
 - Use the same 272.367-second audio SHA `c1b08fe694eb59d598af2fb06b29f165ee341afc82048e999ddb362dceeba601`.
 
-- [ ] **Step 1: Bootstrap/download large-v3 and verify runtime/model provenance.**
+- [x] **Step 1: Bootstrap/download large-v3 and verify runtime/model provenance.**
 
 Run: `.venv/bin/python -c 'from deeptalk_studio.transcription.local_whisper_cpp import WhisperCppBootstrap; print(WhisperCppBootstrap().ensure())'`
 
 Expected: external large-v3 cache exists, SHA and exact bytes match, runtime is v1.9.2 and acceleration is Apple Silicon Metal.
 
-- [ ] **Step 2: Run the real no-key 272-second large-v3 smoke.**
+- [x] **Step 2: Run the real no-key 272-second large-v3 smoke.**
 
 Run: `.venv/bin/python evaluations/local_asr_selection/run_large_v3_production_gate.py smoke --audio /Users/hwang/.cache/deep-talk-studio/asr-selection/eval/eval_cn_single_speaker_24k_mono.wav --reference /Users/hwang/.cache/deep-talk-studio/asr-selection/eval/reference.txt --evidence-root /Users/hwang/.cache/deep-talk-studio/transcription/evidence`
 
 Expected: either a token-level ProviderTranscript/Timed Transcript/Alignment evidence report or a structured overlap evidence report. Never substitute medium or cloud output.
 
-- [ ] **Step 3: If smoke timing passes, run the full-length session under the liveness monitor.**
+- [x] **Step 3: If smoke timing passes, run the full-length session under the liveness monitor.**
 
 Run: `.venv/bin/python evaluations/local_asr_selection/run_large_v3_production_gate.py full-session --session-root /Users/hwang/.cache/deep-talk-studio/transcription/e2e/formal-large-v3-session --source-video /Users/hwang/.cache/deep-talk-studio/transcription/e2e/synthetic-selection-clean-aroll.mov --repo-root .`
 
 Expected: full local large-v3 transcription, Timed Transcript, Alignment, reviewed Material, Motion, subtitle, Bridge, full Remotion preview, ffprobe/Manifest and canonical QA. A live renderer remains running; a genuine failure records stage and monitor evidence.
 
-- [ ] **Step 4: Inspect evidence and state the Gate truthfully.**
+- [x] **Step 4: Inspect evidence and state the Gate truthfully.**
 
 Run: `jq . /Users/hwang/.cache/deep-talk-studio/transcription/evidence/large-v3-production-smoke.json`
 
@@ -221,11 +221,11 @@ Expected: report includes model/DTW/runtime/RTF/token count/proper-noun comparis
 - Modify: `.agents/skills/align-video/SKILL.md`
 - Modify: `docs/superpowers/plans/2026-08-14-large-v3-long-form-production.md`
 
-- [ ] **Step 1: Update user and agent documentation with the quality-first large-v3 decision.**
+- [x] **Step 1: Update user and agent documentation with the quality-first large-v3 decision.**
 
 Document that medium remains historical Selection evidence, large-v3 is the only V1 default, correct DTW is `large.v3`, cache remains external and no API key is needed. Record the actual smoke/E2E outcome and unresolved overlap/render facts without calling a blocked Gate ready.
 
-- [ ] **Step 2: Run all repository verification.**
+- [x] **Step 2: Run all repository verification.**
 
 Run: `.venv/bin/python -m pytest -q && .venv/bin/python -m compileall -q src tests && git diff --check`
 

@@ -9,10 +9,26 @@ from deeptalk_studio.transcription.local_whisper_cpp import (
     WhisperCppBootstrapError,
     WhisperCppRuntimeSpec,
     production_transcription_cache_root,
+    _system_https_proxy,
 )
+from unittest.mock import patch
 
 
 class LocalWhisperBootstrapTests(unittest.TestCase):
+    def test_macos_system_proxy_is_available_to_official_model_bootstrap(self):
+        proxy = "<dictionary> {\n HTTPSEnable : 1\n HTTPSPort : 7897\n HTTPSProxy : 127.0.0.1\n}"
+        with patch.dict("os.environ", {}, clear=True), patch(
+            "deeptalk_studio.transcription.local_whisper_cpp.platform.system", return_value="Darwin"
+        ), patch("deeptalk_studio.transcription.local_whisper_cpp.subprocess.run") as run:
+            run.return_value.stdout = proxy
+            self.assertEqual(_system_https_proxy(), "http://127.0.0.1:7897")
+    def test_v1_default_spec_is_full_large_v3(self):
+        spec = WhisperCppRuntimeSpec()
+        self.assertEqual(spec.model_name, "large-v3")
+        self.assertEqual(spec.dtw_preset, "large.v3")
+        self.assertEqual(spec.model_sha256, "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2")
+        self.assertEqual(spec.model_bytes, 3095033483)
+
     def test_production_cache_namespace_is_not_selection_cache(self):
         root = production_transcription_cache_root(Path(tempfile.mkdtemp()))
         self.assertNotIn("asr-selection", str(root))
@@ -21,16 +37,16 @@ class LocalWhisperBootstrapTests(unittest.TestCase):
     def test_missing_runtime_and_model_are_prepared_and_provenance_is_written(self):
         with tempfile.TemporaryDirectory() as temp:
             cache = production_transcription_cache_root(Path(temp))
-            model_bytes = b"verified-medium-model"
+            model_bytes = b"verified-large-v3-model"
             model_sha = hashlib.sha256(model_bytes).hexdigest()
             spec = WhisperCppRuntimeSpec(
                 version="1.9.2",
                 source_commit="source-commit",
-                model_name="medium",
+                model_name="large-v3",
                 model_sha256=model_sha,
                 model_bytes=len(model_bytes),
                 source_url="https://example.invalid/whisper.cpp.tar.gz",
-                model_url="https://example.invalid/ggml-medium.bin",
+                model_url="https://example.invalid/ggml-large-v3.bin",
             )
 
             def build_runtime(runtime_path, _source_root):
@@ -61,17 +77,17 @@ class LocalWhisperBootstrapTests(unittest.TestCase):
     def test_model_digest_mismatch_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             cache = production_transcription_cache_root(Path(temp))
-            model_dir = cache / "models" / "whisper.cpp-1.9.2-medium"
+            model_dir = cache / "models" / "whisper.cpp-1.9.2-large-v3"
             model_dir.mkdir(parents=True)
-            (model_dir / "ggml-medium.bin").write_bytes(b"tampered")
+            (model_dir / "ggml-large-v3.bin").write_bytes(b"tampered")
             spec = WhisperCppRuntimeSpec(
                 version="1.9.2",
                 source_commit="source-commit",
-                model_name="medium",
+                model_name="large-v3",
                 model_sha256="0" * 64,
                 model_bytes=8,
                 source_url="https://example.invalid/whisper.cpp.tar.gz",
-                model_url="https://example.invalid/ggml-medium.bin",
+                model_url="https://example.invalid/ggml-large-v3.bin",
             )
             bootstrap = WhisperCppBootstrap(
                 spec=spec,

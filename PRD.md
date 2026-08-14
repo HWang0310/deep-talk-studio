@@ -11,7 +11,7 @@
      → 素材建议 → 可视化 → 剪辑方案 → 发布辅助
 ```
 
-当前 Unreleased 产品方向是 Audio Alignment + Visual Edit Bridge + Basic Subtitle V1：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统将 reviewed Script、Material Cue、真实图片/截图/视频、原创 Motion 和 Timed Transcript 字幕对齐到真实口播时间，自动生成已烧录基础字幕的完整 rough cut。正式本地转写生产集成与短版无 API Key E2E 已完成，真实用户 Clean A-roll Gate 仍待执行；自动 A-roll cleanup 不属于当前阶段。
+当前 Unreleased 产品方向是 Audio Alignment + Visual Edit Bridge + Basic Subtitle V1：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统将 reviewed Script、Material Cue、真实图片/截图/视频、原创 Motion 和 Timed Transcript 字幕对齐到真实口播时间，自动生成已烧录基础字幕的完整 rough cut。正式 full large-v3 本地转写生产集成、272 秒 no-key 转写和 274 秒完整 synthetic E2E 已完成，真实用户 Clean A-roll Gate 仍待执行；自动 A-roll cleanup 不属于当前阶段。
 
 该 Design 的 canonical 时间以 Clean A-roll presentation timeline 的 decimal seconds 表示；不同容器/音轨通过可验证的 Timestamp Mapping 对齐，30fps 只属于 Preview 派生。可靠 placement 可以带 timing warning 进入 rough cut，而位置歧义不会自动预览；异常长的静态画面只限制 Preview exposure，不覆盖其 canonical semantic window。
 
@@ -273,8 +273,8 @@ V1.0 目标输出是 `reviewed Script + Clean A-roll + Real Material + Original 
 
 ### 10.1 V1 本地转写生产要求
 
-1. V1 默认且唯一面向普通用户的转写路径是仓库内 `LocalWhisperCppTranscriptionProvider`，固定使用官方 `whisper.cpp` v1.9.2 multilingual medium；普通用户不选择 Provider、不安装运行时、不寻找模型 URL、不设置 API Key。
-2. Bootstrap 必须自动发现或准备 runtime，当前 Apple Silicon 路径启用 Metal；medium 模型放在项目外的用户缓存，下载后必须核对固定 SHA-256 与文件大小，并保存 runtime/source/model/cache/acceleration provenance。模型、二进制、私人音频不得进入 Git。
+1. V1 默认且唯一面向普通用户的转写路径是仓库内 `LocalWhisperCppTranscriptionProvider`，固定使用官方 `whisper.cpp` v1.9.2 multilingual full `large-v3` 与 `--dtw large.v3`；普通用户不选择 Provider、不安装运行时、不寻找模型 URL、不设置 API Key。medium 是不可改写的历史 Selection Gate 证据，不能静默成为生产默认。
+2. Bootstrap 必须自动发现或准备 runtime，当前 Apple Silicon 路径启用 Metal；full large-v3 模型放在项目外的用户缓存，下载后必须核对固定 SHA-256、3,095,033,483 bytes 与 runtime/source/model/cache/acceleration/DTW provenance。模型、二进制、私人音频不得进入 Git。
 3. 正式 Provider 必须复用现有 `TranscriptionChunkPlan` 与 local→global `TimestampMapping`，本地长音频使用版本化 `transcription-chunk-profile/local-whisper-cpp/1`，不能为了单次评测绕过分块。
 4. `ProviderTranscript.timestamp_granularity` 固定为 `token`，时间只能来自 whisper.cpp full JSON 的真实 token offsets。缺少、越界或重叠时必须 fail closed；禁止 segment 内插、字符平均分配、LLM 推断、TTS 或静默云端 fallback。
 5. ProviderTranscript 必须绑定 provider/runtime/source commit/build identity、model identity/SHA/bytes、language/inference parameters、timestamp provenance、audio digest、chunk-plan digest、raw response digest 和每个 chunk 的 runtime evidence。

@@ -8,18 +8,18 @@ DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目�
 
 Audio Alignment + Visual Edit Bridge 正在 Unreleased 分支接受 Integration Review。正式生产入口会自动找到相互绑定的 approved Research、reviewed Script、reviewed Material、Production Plan/Manifest/QA 和一份 Clean A-roll，然后以仓库固定顺序完成全部阶段；调用方不能自行拼 stage 或 QA。它会从同一 Timed Transcript 生成版本化字幕工件：真实 word timestamp 可组合为短句，只有 segment timestamp 时保持 coarse，不伪造逐字精度。字幕烧录在 A-roll、图片、视频和 Motion 全部时段，统一预留底部安全区，并进入 canonical QA。大文件只使用版本化 PCM 自然停顿 Chunk Plan，不在 adapter 内任意切分。
 
-V1 的本地转写默认已经落地为官方 `whisper.cpp` multilingual medium（v1.9.2、Apple Silicon Metal、`--dtw medium`）。它由仓库内的生产 Provider 自动准备运行时和模型，使用项目外部的 `~/.cache/deep-talk-studio/transcription/` 缓存，并在每次使用前核对版本、SHA-256、大小和 provenance；普通用户不需要安装、找 URL、设置 PATH 或配置任何 API Key。Provider 只接受 runtime 直接给出的 token offsets，缺少或重叠时间就停止，不插值、不调用云端兜底。OpenAI Provider 仍保留为未来可选能力，不是 V1 默认或 preflight blocker。
+V1 的本地转写默认是官方完整精度 `whisper.cpp` multilingual `large-v3`（v1.9.2、Apple Silicon Metal、`--dtw large.v3`）。它由仓库内的生产 Provider 自动准备运行时和模型，使用项目外部的 `~/.cache/deep-talk-studio/transcription/` 缓存，并在每次使用前核对版本、SHA-256、大小和 provenance；普通用户不需要安装、找 URL、设置 PATH 或配置任何 API Key。Provider 只接受 runtime 直接给出的 token offsets，缺少或重叠时间就停止，不插值、不调用云端兜底。此前 medium 的 Selection Gate 仍是保留的历史评测，不再是生产默认。OpenAI Provider 仍保留为未来可选能力，不是 V1 默认或 preflight blocker。
 
-本地 no-key smoke 和短版真实 production E2E 已跑通：真实音频经 `whisper.cpp → Timed Transcript → Alignment → Material → Motion → Basic Subtitle → Edit Bridge → Remotion Preview → canonical QA`，Preview 保留 Clean A-roll 原音。短版 QA 只有预期的 partial-placement warning；完整用户 Clean A-roll 试用仍需真实素材，长版合成音频还暴露了 runtime token 重叠和长时 Remotion 环境耗时问题，因此当前仍是 **V1.0 Candidate — Unreleased**，没有创建新 tag 或 Release。
+本地 no-key smoke 和完整 274 秒 synthetic production E2E 已跑通：真实音频经 `whisper.cpp → Timed Transcript → Alignment → Material → Motion → Basic Subtitle → Edit Bridge → Remotion Preview → canonical QA`，Preview 保留 Clean A-roll 原音。large-v3 在同一份 272 秒评测音频上没有 token overlap，完整 render 成功；QA 只有预期的 `partial-placement_unready` warning。真实用户 Clean A-roll 人工试用仍未进行，因此当前仍是 **V1.0 Candidate — Unreleased**，没有创建新 tag 或 Release。
 
 ### V1 本地转写生产路径
 
-- 普通用户只需提供已经人工清理好的 mp4/mov 口播视频；系统自动选择本地 whisper.cpp medium，不显示 Provider、模型或 API Key 选择。
-- 首次运行会用普通语言提示“正在准备本地语音识别模型；首次使用需要下载一次”，随后把 runtime、medium 模型和 provenance 放入项目外用户缓存，不把二进制或私人音频提交 GitHub。
+- 普通用户只需提供已经人工清理好的 mp4/mov 口播视频；系统自动选择本地 whisper.cpp full `large-v3`，不显示 Provider、模型或 API Key 选择。
+- 首次运行会用普通语言提示“正在准备本地语音识别模型；首次使用需要下载一次”，随后把 runtime、full large-v3 模型和 provenance 放入项目外用户缓存，不把二进制或私人音频提交 GitHub。
 - 生产路径继续使用现有 `TranscriptionChunkPlan` 和 local→global 时间映射；本地长音频使用版本化 `config/transcription-local-whisper-profile.json`，不是绕过分块。
 - ProviderTranscript 绑定 runtime/source commit、build identity、model SHA/大小、音频和 chunk digest、推理参数、token timestamp provenance 与每个 chunk 的原始响应摘要。
 - 任何缺失 token timing、越界或重叠都 fail closed；不会用字符插值、平均分配、LLM 修正或云端 fallback 伪造时间。
-- 当前短版 E2E 已证明无 API Key 的正式链路可运行；真实用户 Clean A-roll Gate 仍待下一轮人工试用与 Review，不能把这次集成称为 V1.0 发布。
+- 当前 272 秒转写与 274 秒完整 synthetic E2E 已证明无 API Key 的正式链路可运行；真实用户 Clean A-roll Gate 仍待下一轮人工试用与 Review，不能把这次集成称为 V1.0 发布。
 
 ## 现在最简单的用法
 

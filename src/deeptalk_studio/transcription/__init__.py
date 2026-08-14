@@ -14,6 +14,7 @@ from .local_whisper_cpp import (
     WhisperCppBootstrapError,
     WhisperCppInstallation,
     WhisperCppRuntimeSpec,
+    WhisperCppTokenOverlapError,
     resolve_default_transcription_provider,
 )
 
@@ -29,5 +30,6 @@ __all__ = [
     "WhisperCppBootstrapError",
     "WhisperCppInstallation",
     "WhisperCppRuntimeSpec",
+    "WhisperCppTokenOverlapError",
     "resolve_default_transcription_provider",
 ]

@@ -106,7 +106,7 @@
 - 本轮暴露并修复 timeline safe area、diagram 长中文与 edge label、comparison 错误标题与强制左右栏问题；新预览已通过 Production QA 和 ChatGPT 实际观看核验。
 - 当前保留 5 个历史 reference-only 素材位和真人口播音频时间码；ChatGPT 已通过 Preview 与 canonical lineage Review。
 
-## Unreleased：Audio Alignment + Visual Edit Bridge + Basic Subtitle V1（本地转写生产集成完成，真实用户 Gate 待执行）
+## Unreleased：Audio Alignment + Visual Edit Bridge + Basic Subtitle V1（full large-v3 长版 production E2E 完成，真实用户 Gate 待执行）
 
 - 以用户先行剪好口气的 immutable Clean A-roll 为 canonical timeline；不自动删停顿、废句或重录。
 - Speech-to-Text provider 与确定性 Alignment Core 解耦，按真实 timestamp granularity 对齐 reviewed Script Beat、Material Cue 和现有 Production Scene。
@@ -119,10 +119,10 @@
 - Preview audio mux 已复验 Clean A-roll audio presentation start、internal gaps、codec conversion timing 与 audio/video 关系；A–AI、CB1–CB7、PA1–PA7 与真实合成渲染已通过。
 - Hook-aware Script contract 已最小加固，不改变 Script schema；Basic Subtitle V1 已接入唯一正式入口、自然语言重渲染、Remotion 与 canonical QA。
 - 两版 synthetic Remotion 粗剪已验证烧录字幕、Material/Motion Placement、单一 Clean A-roll 音轨和 revision binding；本轮又用真实 whisper.cpp 跑通无 API Key 的短版正式入口，保留原 A-roll 音频并生成 Aligned Preview。
-- `LocalWhisperCppTranscriptionProvider` 已接入唯一正式生产入口，自动准备锁定的 whisper.cpp v1.9.2/runtime、multilingual medium 模型和 Apple Silicon Metal；运行时 provenance、模型 SHA/大小、chunk/raw response digest 均绑定到 ProviderTranscript。
+- `LocalWhisperCppTranscriptionProvider` 已接入唯一正式生产入口，自动准备锁定的 whisper.cpp v1.9.2/runtime、full multilingual large-v3 模型、`--dtw large.v3` 和 Apple Silicon Metal；运行时 provenance、模型 SHA/大小/DTW、chunk/raw response digest 均绑定到 ProviderTranscript。
 - 本地 Provider 使用版本化 `transcription-local-whisper-profile/1` 长音频分块，继续复用现有 local→global mapping；只接受 runtime 直接 token offsets，缺失、越界或重叠时 fail closed，不插值、不调用云端兜底。
-- no-key smoke 与 20 秒非私人 synthetic Clean A-roll E2E 已通过，Basic Subtitle、Alignment、Material、Motion、Edit Bridge、Remotion 与 canonical QA 均有真实产物；QA 仅有预期 `partial_placement_unready` warning。
-- 完整用户 Clean A-roll 尚未提供；长版合成验证还暴露 5 处 runtime token overlap（已按安全边界停止）以及约 272 秒 Remotion render 的环境耗时 gap。故 `REAL USER CLEAN A-ROLL GATE` 仍为 BLOCKED/PENDING，不能宣称 V1.0。
+- 同一份 272 秒音频的 no-key full large-v3 smoke 已通过：1,167 token、无 overlap、Timed Transcript 与 Alignment 均通过。274 秒非私人 synthetic Clean A-roll 的完整 E2E 已成功生成 1920×1080/30fps H.264/AAC Preview；Basic Subtitle、Alignment、Material、Motion、Edit Bridge、Remotion 与 canonical QA 均有真实产物，QA 仅有预期 `partial_placement_unready` warning。
+- 完整用户 Clean A-roll 尚未提供，故 `REAL USER CLEAN A-ROLL GATE` 仍为 BLOCKED/PENDING，不能宣称 V1.0；但此前 medium 的 5 处 overlap 和长版 render 未证明已由 large-v3 的实际长版运行消除。
 
 ## V1 Candidate：Local ASR Selection Gate + Local Production Integration（Selection PASS，集成已完成）
 
@@ -132,7 +132,7 @@
   `ProviderTranscript → Timed Transcript → Script Alignment`，通过时间戳 hard gate。
 - VibeASR 本机真实输出没有 machine-owned media timestamps，两个官方 CLI 模式均出现
   重复文本并耗尽 max tokens；在 ProviderTranscript 处 fail closed，不进入 Alignment。
-- 当前批准并实现 `whisper.cpp multilingual medium` 作为 V1 默认本地 Provider；模型和运行时
+- Selection Gate 历史曾推荐 `whisper.cpp multilingual medium`；用户的 quality-first 决策已将生产默认升级为 full `large-v3`，模型和运行时
   放在项目外 `~/.cache/deep-talk-studio/transcription/`，不依赖任何 API Key。普通用户不需
   选择 Provider、安装依赖或配置环境变量。
 - 生产入口的 no-key short E2E 已通过，但真实用户 Clean A-roll 和完整长版 render 仍需

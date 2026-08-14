@@ -30,7 +30,7 @@ from .base import (
     boundary_risks_from_plan,
     validate_provider_units,
 )
-from .local_asr_selection import parse_whisper_cpp_json
+from .local_asr_selection import inspect_whisper_cpp_token_overlaps, parse_whisper_cpp_json
 
 
 WHISPER_CPP_VERSION = "1.9.2"
@@ -39,14 +39,24 @@ WHISPER_CPP_SOURCE_URL = "https://github.com/ggml-org/whisper.cpp.git"
 WHISPER_CPP_SOURCE_ARCHIVE_URL = (
     "https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v1.9.2.tar.gz"
 )
-WHISPER_CPP_MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin"
-WHISPER_CPP_MODEL_SHA256 = "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208"
-WHISPER_CPP_MODEL_BYTES = 1533763059
-WHISPER_CPP_MODEL_NAME = "medium"
+WHISPER_CPP_MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin"
+WHISPER_CPP_MODEL_SHA256 = "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2"
+WHISPER_CPP_MODEL_BYTES = 3095033483
+WHISPER_CPP_MODEL_NAME = "large-v3"
+WHISPER_CPP_DTW_PRESET = "large.v3"
 
 
 class WhisperCppBootstrapError(TranscriptionProviderError):
     """A verified local whisper.cpp installation cannot be prepared safely."""
+
+
+class WhisperCppTokenOverlapError(WhisperCppBootstrapError):
+    """Runtime raw token evidence overlaps and cannot form a canonical timeline."""
+
+    def __init__(self, overlaps, raw_response_digests):
+        super().__init__("whisper.cpp token offsets overlap，已停止，不修改或裁剪真实时间")
+        self.overlaps = tuple(dict(item) for item in overlaps)
+        self.raw_response_digests = tuple(str(value) for value in raw_response_digests)
 
 
 @dataclass(frozen=True)
@@ -56,6 +66,7 @@ class WhisperCppRuntimeSpec:
     model_name: str = WHISPER_CPP_MODEL_NAME
     model_sha256: str = WHISPER_CPP_MODEL_SHA256
     model_bytes: int = WHISPER_CPP_MODEL_BYTES
+    dtw_preset: str = WHISPER_CPP_DTW_PRESET
     source_url: str = WHISPER_CPP_SOURCE_URL
     source_archive_url: str = WHISPER_CPP_SOURCE_ARCHIVE_URL
     model_url: str = WHISPER_CPP_MODEL_URL
@@ -73,6 +84,7 @@ class WhisperCppInstallation:
     model_name: str
     model_sha256: str
     model_bytes: int
+    dtw_preset: str
     acceleration: str
     bootstrap_status: str
 
@@ -99,6 +111,33 @@ def _runtime_version_from_output(value: str) -> str:
         return match.group(1)
     match = re.search(r"\b(\d+\.\d+\.\d+)\b", value)
     return match.group(1) if match else ""
+
+
+def _system_https_proxy() -> Optional[str]:
+    """Read an enabled macOS HTTPS proxy when this process lacks proxy env.
+
+    The desktop app does not always inherit shell proxy variables, although the
+    user may have enabled the macOS system proxy.  This only affects the
+    official model download transport; it never changes model identity.
+    """
+
+    if any(os.environ.get(name) for name in ("HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy")):
+        return None
+    if platform.system() != "Darwin":
+        return None
+    try:
+        result = subprocess.run(
+            ["scutil", "--proxy"], check=True, capture_output=True, text=True
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    output = result.stdout
+    enabled = re.search(r"\bHTTPSEnable\s*:\s*1\b", output)
+    host = re.search(r"\bHTTPSProxy\s*:\s*([^\s]+)", output)
+    port = re.search(r"\bHTTPSPort\s*:\s*(\d+)", output)
+    if not enabled or not host or not port:
+        return None
+    return f"http://{host.group(1)}:{port.group(1)}"
 
 
 class WhisperCppBootstrap:
@@ -162,7 +201,7 @@ class WhisperCppBootstrap:
         model_sha = sha256_file(self.model_path)
         model_bytes = self.model_path.stat().st_size
         if model_sha != self.spec.model_sha256 or model_bytes != self.spec.model_bytes:
-            raise WhisperCppBootstrapError("本地 medium 模型校验失败，已停止使用")
+            raise WhisperCppBootstrapError(f"本地 {self.spec.model_name} 模型校验失败，已停止使用")
         runtime_sha = sha256_file(self.runtime_path)
         build_identity = f"{self.spec.version}+runtime-sha256:{runtime_sha}"
         acceleration = self._acceleration()
@@ -178,6 +217,7 @@ class WhisperCppBootstrap:
             "model_path": str(self.model_path),
             "model_sha256": model_sha,
             "model_bytes": model_bytes,
+            "dtw_preset": self.spec.dtw_preset,
             "cache_path": str(self.cache_root),
             "acceleration": acceleration,
             "bootstrap_status": "verified",
@@ -197,6 +237,7 @@ class WhisperCppBootstrap:
             model_name=self.spec.model_name,
             model_sha256=model_sha,
             model_bytes=model_bytes,
+            dtw_preset=self.spec.dtw_preset,
             acceleration=acceleration,
             bootstrap_status="verified",
         )
@@ -227,7 +268,7 @@ class WhisperCppBootstrap:
         actual_bytes = self.model_path.stat().st_size
         if actual_sha != self.spec.model_sha256 or actual_bytes != self.spec.model_bytes:
             raise WhisperCppBootstrapError(
-                "本地 medium 模型的 SHA-256 或文件大小不匹配，已拒绝运行"
+                f"本地 {self.spec.model_name} 模型的 SHA-256 或文件大小不匹配，已拒绝运行"
             )
 
     def _ensure_runtime(self) -> None:
@@ -262,8 +303,13 @@ class WhisperCppBootstrap:
     def _download_model(self, target: Path, url: str) -> None:
         curl = shutil.which("curl")
         if curl:
+            command = [curl, "--location", "--fail", "--retry", "3"]
+            proxy = _system_https_proxy()
+            if proxy:
+                command.extend(["--proxy", proxy])
+            command.extend(["--output", str(target), url])
             self._run(
-                [curl, "--location", "--fail", "--retry", "3", "--output", str(target), url],
+                command,
                 check=True,
                 capture_output=True,
                 text=True,
@@ -382,6 +428,7 @@ class LocalWhisperCppTranscriptionProvider:
 
     provider_name = "whisper.cpp"
     default_configured_model = WHISPER_CPP_MODEL_NAME
+    default_dtw_preset = WHISPER_CPP_DTW_PRESET
     chunk_profile_path = LOCAL_PROFILE_PATH
     preferred_sample_rate = 24000
 
@@ -415,6 +462,7 @@ class LocalWhisperCppTranscriptionProvider:
         units = []
         response_digests = []
         chunk_evidence = []
+        overlaps = []
         provider_order = 0
         started = self._clock()
         with tempfile.TemporaryDirectory(prefix="whisper-cpp-", dir=str(run_root)) as temp:
@@ -430,7 +478,7 @@ class LocalWhisperCppTranscriptionProvider:
                     "--language",
                     language,
                     "--dtw",
-                    "medium",
+                    installation.dtw_preset,
                     "--output-json-full",
                     "--output-file",
                     str(output_base),
@@ -450,6 +498,7 @@ class LocalWhisperCppTranscriptionProvider:
                         json_path,
                         chunk_index=chunk.chunk_index,
                         model_version=installation.runtime_version,
+                        dtw_preset=installation.dtw_preset,
                         chunk_plan=chunk_plan,
                         provider_order_start=provider_order,
                         provider_request_id="local-whisper-cpp",
@@ -459,6 +508,16 @@ class LocalWhisperCppTranscriptionProvider:
                         "whisper.cpp 输出缺少真实 token 时间戳，已停止，不使用伪造时间"
                     ) from exc
                 units.extend(parsed.units)
+                overlaps.extend(
+                    inspect_whisper_cpp_token_overlaps(
+                        json_path,
+                        chunk_index=chunk.chunk_index,
+                        provider_order_start=provider_order,
+                        model=installation.model_name,
+                        dtw_preset=installation.dtw_preset,
+                        runtime_version=installation.runtime_version,
+                    )
+                )
                 provider_order += len(parsed.units)
                 response_digests.append(parsed.raw_response_digest)
                 chunk_evidence.append(
@@ -472,6 +531,8 @@ class LocalWhisperCppTranscriptionProvider:
                 )
         if not units:
             raise WhisperCppBootstrapError("whisper.cpp 没有识别出可绑定时间的 token")
+        if overlaps:
+            raise WhisperCppTokenOverlapError(overlaps, response_digests)
         previous_chunk = None
         previous_end = None
         for unit in units:
@@ -501,7 +562,7 @@ class LocalWhisperCppTranscriptionProvider:
             "acceleration": installation.acceleration,
             "language": language,
             "inference_parameters": {
-                "dtw": "medium",
+                "dtw": installation.dtw_preset,
                 "timestamp_granularity": "token",
                 "threads": self._threads,
                 "flash_attention": "runtime disables it for DTW token timestamps",
@@ -552,7 +613,9 @@ __all__ = [
     "WhisperCppBootstrapError",
     "WhisperCppInstallation",
     "WhisperCppRuntimeSpec",
+    "WhisperCppTokenOverlapError",
     "WHISPER_CPP_MODEL_BYTES",
+    "WHISPER_CPP_DTW_PRESET",
     "WHISPER_CPP_MODEL_NAME",
     "WHISPER_CPP_MODEL_SHA256",
     "WHISPER_CPP_SOURCE_COMMIT",

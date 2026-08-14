@@ -66,11 +66,105 @@ def _intersecting_risks(
     return tuple(risk_ids)
 
 
+def inspect_whisper_cpp_token_overlaps(
+    path: Path,
+    *,
+    chunk_index: int,
+    provider_order_start: int,
+    model: str,
+    dtw_preset: str,
+    runtime_version: str,
+    is_chunk_boundary: bool = False,
+) -> Tuple[Dict[str, Any], ...]:
+    """Return raw DTW overlap evidence without changing any runtime timestamp.
+
+    Only spoken candidates that the Provider would preserve are compared. This
+    makes an overlap evidence item a direct explanation of the exact canonical
+    Provider unit pair that must currently fail closed.
+    """
+
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise LocalASRSelectionError("无法读取 whisper.cpp JSON 时间证据") from exc
+    transcriptions = payload.get("transcription")
+    if not isinstance(transcriptions, list):
+        raise LocalASRSelectionError("whisper.cpp JSON 缺少 transcription 数组")
+    response_digest = canonical_digest(payload)
+    candidates = []
+    provider_order = provider_order_start
+    for segment_index, segment in enumerate(transcriptions):
+        if not isinstance(segment, Mapping):
+            raise LocalASRSelectionError("whisper.cpp segment 结构无效")
+        tokens = segment.get("tokens")
+        if not isinstance(tokens, list):
+            raise LocalASRSelectionError("whisper.cpp JSON 缺少 token offsets")
+        for token_index, token in enumerate(tokens):
+            if not isinstance(token, Mapping):
+                raise LocalASRSelectionError("whisper.cpp token 结构无效")
+            text = str(token.get("text") or "")
+            is_control = _control_token(text)
+            if not text or is_control or not _has_matchable_text(text):
+                continue
+            offsets = token.get("offsets")
+            if not isinstance(offsets, Mapping):
+                raise LocalASRSelectionError("whisper.cpp token 缺少 offsets")
+            start = _milliseconds(offsets.get("from"), "token.from")
+            end = _milliseconds(offsets.get("to"), "token.to")
+            if end <= start:
+                continue
+            candidates.append(
+                {
+                    "segment_index": segment_index,
+                    "raw_token_index": token_index,
+                    "provider_order": provider_order,
+                    "text": text,
+                    "start": start,
+                    "end": end,
+                    "is_control_token": is_control,
+                }
+            )
+            provider_order += 1
+    overlaps = []
+    for previous, current in zip(candidates, candidates[1:]):
+        if current["start"] >= previous["end"]:
+            continue
+        overlaps.append(
+            {
+                "chunk_id": f"chunk-{chunk_index:04d}",
+                "chunk_index": chunk_index,
+                "previous_segment_index": previous["segment_index"],
+                "current_segment_index": current["segment_index"],
+                "same_segment": previous["segment_index"] == current["segment_index"],
+                "previous_raw_token_index": previous["raw_token_index"],
+                "current_raw_token_index": current["raw_token_index"],
+                "previous_provider_order": previous["provider_order"],
+                "current_provider_order": current["provider_order"],
+                "previous_token_text": previous["text"],
+                "current_token_text": current["text"],
+                "previous_raw_start_seconds": format(previous["start"], "f"),
+                "previous_raw_end_seconds": format(previous["end"], "f"),
+                "current_raw_start_seconds": format(current["start"], "f"),
+                "current_raw_end_seconds": format(current["end"], "f"),
+                "overlap_duration_seconds": format(previous["end"] - current["start"], "f"),
+                "previous_is_control_token": previous["is_control_token"],
+                "current_is_control_token": current["is_control_token"],
+                "is_chunk_boundary": is_chunk_boundary,
+                "model": model,
+                "dtw_preset": dtw_preset,
+                "runtime_version": runtime_version,
+                "raw_response_digest": response_digest,
+            }
+        )
+    return tuple(overlaps)
+
+
 def parse_whisper_cpp_json(
     path: Path,
     *,
     chunk_index: int = 0,
     model_version: str,
+    dtw_preset: str = "medium",
     chunk_plan: Optional[TranscriptionChunkPlan] = None,
     provider_order_start: int = 0,
     provider_request_id: str = "local-eval-whisper-cpp",
@@ -143,7 +237,7 @@ def parse_whisper_cpp_json(
     language = str((payload.get("result") or {}).get("language") or payload.get("language") or "")
     metadata: Dict[str, Any] = {
         "source": "official_whisper_cpp_json",
-        "timestamp_provenance": "runtime token offsets from whisper.cpp --dtw medium",
+        "timestamp_provenance": f"runtime token offsets from whisper.cpp --dtw {dtw_preset}",
         "raw_json_path": str(path),
         "token_unit_count": len(units),
         "model_type": str((payload.get("model") or {}).get("type") or ""),

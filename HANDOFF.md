@@ -434,3 +434,110 @@ GitHub 已推送：`origin/agent/audio-alignment-edit-bridge` 当时 HEAD 为 `3
 ## 给用户的下一步操作
 
 你现在只需要把 Codex 回复最底部“请把以下内容复制给 ChatGPT”后面的整段文字，原样发给 ChatGPT。你不需要打开终端、安装模型、设置 API Key 或自己总结。
+
+## 2026-08-14：Quality-first large-v3 长版生产验证
+
+### 1. 本轮任务
+
+按 ChatGPT Review 的正式质量优先决定，将 V1 本地转写生产默认升级为 full multilingual
+`large-v3`，锁定正确 DTW preset，保留 medium 历史，调查真实 token overlap，并完成同一份
+272 秒评测音频与 274 秒 non-private synthetic Clean A-roll 的完整 production E2E。
+
+### 2. 已完成内容
+
+- 默认 Provider 已改为官方 full `ggml-large-v3.bin`，只能与 `--dtw large.v3` 配对；禁止
+  medium、turbo、量化模型和云端静默 fallback。
+- Bootstrap 重新从官方 Hugging Face 下载并本地复算：3,095,033,483 bytes、SHA-256
+  `64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2`；运行时为
+  whisper.cpp v1.9.2/source `306c88f4d1286aec1bf96e544632897886af5501`，Apple Silicon Metal。
+- 增加 macOS 系统 HTTPS proxy 探测，解决桌面进程没有继承 shell proxy 时无法下载官方模型的
+  真实环境问题；不改变模型来源或身份。
+- Token overlap 继续 fail closed，并新增完整 raw overlap audit contract；实际 large-v3 long-form
+  smoke 得到 `overlap_count=0`，没有触发 canonicalization，也没有篡改时间戳。
+- 272 秒 no-key smoke 已通过 `ProviderTranscript → Timed Transcript → Script Alignment`。
+- 274.267 秒 non-private synthetic Clean A-roll 已走完整正式入口，生成 Material/Motion/Subtitle/
+  Edit Bridge/全长 Remotion Preview/canonical QA；没有重研究、改稿或重做素材包。
+
+### 3. 创建 / 修改的重要文件
+
+- `src/deeptalk_studio/transcription/local_whisper_cpp.py`：large-v3 默认、`large.v3` DTW、provenance、
+  macOS system proxy transport、结构化 overlap error。
+- `src/deeptalk_studio/transcription/local_asr_selection.py`：按实际 DTW 记录 parser provenance，并输出
+  原始 token overlap audit。
+- `evaluations/local_asr_selection/run_large_v3_production_gate.py`：可直接执行的 no-key smoke、
+  overlap evidence、full session child/liveness monitor。
+- `tests/test_local_whisper_bootstrap.py`、`tests/test_local_whisper_cpp_provider.py`、
+  `tests/test_large_v3_production_gate.py`：large-v3 default/bytes/digest/DTW/no-medium fallback/
+  raw overlap/liveness/direct CLI regressions。
+- `README.md`、`PRD.md`、`ROADMAP.md`、`AGENTS.md`、`CHANGELOG.md`、
+  `.agents/skills/align-video/SKILL.md`：更新 quality-first policy、真实长版结果与用户边界。
+
+### 4. 当前架构
+
+```text
+Clean A-roll
+  → Media / lossless 24 kHz transcription audio / Timestamp Mapping
+  → TranscriptionChunkPlan
+  → verified local whisper.cpp v1.9.2 + full large-v3 + --dtw large.v3
+  → ProviderTranscript (raw runtime token offsets and provenance)
+  → Timed Transcript → Alignment → reviewed Material → Motion → Basic Subtitle
+  → Edit Bridge → full Remotion Preview → canonical QA
+```
+
+medium 的 selection cache/artifacts 保持为历史审计；正式 runtime/model/provenance 和所有真实运行
+输出都在 Git 外 `~/.cache/deep-talk-studio/transcription/`。
+
+### 5. 已经可以运行什么
+
+- 正式 no-key large-v3 生产路径会自动下载、核验、缓存并使用 Apple Silicon Metal，不要求用户找模型、
+  设置 PATH 或 API Key。
+- 272.367 秒中文评测音频：runtime 87.210505 秒、RTF 0.320194、1,167 token、overlap 0；
+  `large-v3-production-smoke.json` 已记录完整原文、timing/provenance、轻量 medium 对照。
+- 全长 formal session 用 274.267 秒 synthetic Clean A-roll 已生成 Preview：1920×1080、30 fps、
+  H.264 + AAC、274.3 秒、6,079,376 bytes、SHA-256
+  `2377c5459c5bd31894ece27c105ec7305f03269f215732c41efea619df773c81`。
+- canonical QA 六项 revalidation 均 pass；唯一 `EBI0001 partial_placement_unready` 是 warning，
+  没有 blocking failure；subtitle binding 与 Preview manifest 已核对。
+
+### 6. 还不能运行什么
+
+- 尚未运行用户本人的真实 Clean A-roll，也尚未由用户人工观看自己的内容 Preview；不能称 V1.0 发布。
+- 本轮没有实现 Audio cleanup、forced aligner、词典/LLM correction、second ASR、BGM/SFX、标题、封面、
+  发布或其他功能。
+
+### 7. 已知问题 / warning / gap
+
+- `partial_placement_unready` 仍有 1 个 warning：只有已可用 placement 进入 Preview，未就绪素材没有被伪造
+  或硬塞进视频。它不阻断 canonical QA，但需要 ChatGPT 判断 V1 对真实用户试用时的展示策略。
+- large-v3 的 same-audio proper-noun exact presence：OpenAI、DeepSeek、AI Agent、GPU 为 true；`昇腾` 为
+  false。报告保留原始转写，没有人工修正；这不是 token-timing 或 E2E blocker。
+- 新评测 runner 修正了 completed session 摘要中 bridge digest 的字段名；现有 session 的 manifest 和
+  saved bridge 已独立验证其 digest 为
+  `1ac996561f25248477f937c25b80ed73af5f613761376015613708c9d1d12181`，无需为摘要字段重渲染。
+
+### 8. 重要技术决策
+
+- 用户质量优先选择覆盖了 Selection Gate 后的 medium 默认；full large-v3 是唯一 V1 production default，
+  必须使用 `large.v3` DTW heads。
+- 不以任意毫秒阈值消除 overlap。raw overlap 保留完整证据并 fail closed；本次实际 large-v3 无 overlap，
+  因此没有引入未经 Review 的 canonicalization contract。
+- 长时 Remotion render 由独立子进程执行、每 15 秒记录 PID/liveness/output bytes；665.763 秒完成，
+  没有因安静或缓慢而提前终止。
+- 本轮保持 `V1.0 Candidate — Unreleased`，不创建 tag、Release，不修改 main、v0.6.1 或 reviewed upstream
+  artifacts。
+
+### 9. 需要产品经理决定什么
+
+1. Review full large-v3 quality-first default、272 秒 token/proper-noun evidence、274 秒 Preview 与
+   canonical QA。
+2. 确认 `partial_placement_unready` warning 在真实用户 Gate 的产品展示/交接策略是否可接受。
+3. 若通过，单独安排用户真实 Clean A-roll E2E 与人工 Preview Gate；在用户试用完成前不得发布 V1.0。
+
+### 10. 建议下一阶段
+
+停止新功能，先让 ChatGPT Review 本轮 long-form evidence。若其批准，再请用户仅拖入已经剪好口气的
+真人口播视频，运行同一正式入口并观看自己的 Preview；仍不扩展 Audio Alignment 功能范围。
+
+## 给用户的下一步操作
+
+你现在只需要把 Codex 回复最底部“请把以下内容复制给 ChatGPT”后面的整段文字，原样发给 ChatGPT。你不需要打开终端、安装模型、设置 API Key 或自己总结。
