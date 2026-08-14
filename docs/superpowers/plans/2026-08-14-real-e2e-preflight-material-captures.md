@@ -63,9 +63,9 @@
 **Files:** `HANDOFF.md`, `CHANGELOG.md`, affected source/tests.
 
 - [x] Verify SDK installation/import without exposing a secret.
-- [ ] Run targeted material tests, provider tests, existing production-session regression, diff check and secret scan.
-- [ ] Commit scoped code/docs changes and push `agent/audio-alignment-edit-bridge`.
-- [ ] Verify main/tag/Release remain unchanged and stop before any real user video.
+- [x] Run targeted material tests, provider tests, existing production-session regression, diff check and secret scan.
+- [x] Commit scoped code/docs changes and push `agent/audio-alignment-edit-bridge`.
+- [x] Verify main/tag/Release remain unchanged and stop before any real user video.
 
 ## Self-review
 
