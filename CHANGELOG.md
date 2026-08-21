@@ -4,6 +4,19 @@
 
 ## [Unreleased] - 2026-08-21
 
+### SAFE-CUE REAL MATERIAL COMPLETION + REAL USER VISUAL PREVIEW
+
+- 针对当前 approved Alignment 仅补齐 VC003/B006 与 VC007/B016 的真实页面/法条截图；没有修改 reviewed Script、
+  approved Research、Transcript、Alignment、Basic Subtitle 或既有 Motion。
+- 新建不可变 Material Package `MAT-20260821-safe-cue-completion-01` r1 → reviewed r2，Material Review Gate `PASS`；
+  新 capture manifest 绑定两张实际打开并保存的 PNG，保留 source URL、capture region、文件大小和 SHA-256。历史 rights
+  继续保守记录为 `editorial_reference_only/reference_only`，没有声称取得版权许可，且不让 rights 冒充 Production Gate。
+- 从新的 Material lineage 建立 `PROD-20260821T170000-safe-cue-completion-01`、Motion Manifest 和 Production QA；逐项核对
+  旧 approved Motion 的 scene/payload/文件 SHA 后只做 canonical rebind，没有重新渲染 Motion，也没有让 Motion 进入新 Preview。
+- 复用已有真实 whisper.cpp Transcript、Alignment `ALIGNMENT-96854be79b9048a2b6800e1313efb2a6` 和 Basic Subtitle，生成新的
+  620.533333 秒全长 Remotion Preview。新 Edit Bridge/Preview/Manifest/Canonical QA 均保存为新的 immutable session；QA 为
+  6 项通过、0 blocking、1 个预期 `partial_placement_unready` warning。新 Preview 当前停在人工作看 Gate，未创建 V1 Release、tag 或修改 main。
+
 ### Global Monotonic Alignment Projection + Real User E2E Resume
 
 - 将 Script Alignment 升级为 `script-alignment/2`：完整 reviewed Script 与完整 Timed Transcript 只运行一次

@@ -437,6 +437,189 @@ GitHub 已推送：`origin/agent/audio-alignment-edit-bridge` 当时 HEAD 为 `3
 
 ---
 
+## 2026-08-21：当前轮最终状态（SAFE-CUE REAL MATERIAL COMPLETION）
+
+> 本节位于文件末尾，覆盖本轮之前的历史交接摘要。它只记录本轮 SAFE-CUE completion 的最终状态；历史章节保留用于审计。
+
+### 1. 任务与边界
+
+- 已完成 VC003/B006 与 VC007/B016 的真实语义素材补齐、Material Gate、Production canonical rebind、Edit Bridge、全长真人 Preview 和 Canonical QA。
+- 没有修改 reviewed Script、approved Research、Transcript、ASR、Alignment、Basic Subtitle、reviewed Material 的旧 revision、既有 Motion 或旧 Preview。
+- 没有开始 Audio Alignment + Edit Bridge 新功能；没有创建 V1 tag/Release，也没有修改 main。
+
+### 2. 对齐与素材
+
+- Approved Alignment：`ALIGNMENT-96854be79b9048a2b6800e1313efb2a6`，digest `b71ccfcbe1decb71a48c2901daba1f0627596f4c95c9d191dd3c1fb3a351dce0`；全局单调、Beat localization、Cue projection 均 PASS，17/18 Beat aligned，B011 保留 needs_review warning。
+- VC003 时间只来自 Alignment：`162.55–174.48s`，Preview 实际 `162.55–169.55s`；VC007：`488.77–512.12s`，Preview 实际 `488.77–495.77s`。没有猜测时点。
+- 新 Material `MAT-20260821-safe-cue-completion-01` r2，Material Review/Gate PASS，digest `756f417948c2c7a91bfdf2f7f0b0c5037c9d0684a4134a154cb0c1aeeecf9e5a`；旧 Material r2 未覆盖。
+- M003/VC003 为 [AISI 官方 Figure 1 页面](https://www.aisi.gov.uk/blog/how-do-environmental-factors-impact-ai-behaviour) capture，SHA `d75611aaf0372f3c3ab5ca42c16ec3b380eca7a008bc6027a185ae1e167641d6`；M007/VC007 为 [California SB-53 官方法条页面](https://leginfo.legislature.ca.gov/faces/billNavClient.xhtml?bill_id=202520260SB53) capture，SHA `16e60b0a2a4476e603e863dff5f74953c9552b352ccdb343a167b02f8dcfa66e`。Capture Manifest digest `1e80d03a04f28e9783a4981aaba1cc91db738cdd244e1e5d7f9c1880c33d5c2e`。
+- 两张 capture 均如实保留 `editorial_reference_only/reference_only`；没有声称版权许可，rights 不参与 Production Gate；未绕过 paywall、DRM 或访问控制。
+
+### 3. Production / Motion / Bridge
+
+- Production `PROD-20260821T170000-safe-cue-completion-01`，digest `a63217f219130119b4360bf1d392a223542d68d40ad2cddb1a5155226140ca13`；既有 approved Motion 仅做 scene/payload/SHA canonical rebind，未重新渲染，Production QA PASS（digest `fcfa194c74a08b1c830001a1b69d27abfe38b915d81d595f9a4e515ba820dbd9`）。
+- Edit Bridge `BRIDGE-20260821-safe-cue-completion-01` r1，digest `74108d721bd27cdea6459cdf9c1b9099c72fba3f26520fa36fbe8e14ca2051ca`；staged 仅 `VP0000` A-roll、`VP0006` VC007、`VP0007` VC003。
+- VC001/VC002/VC004/VC005/VC006/VC008 仍 unplaced；既有 Motion placement 保持 `NOT_YET_VALIDATED / WARNING`；B011 需人工听音确认；B018 `588.11–620.14s` trailing ad-lib 仍只保留 A-roll。
+
+### 4. Preview / QA
+
+- 全长真实 Remotion Preview（无 fixture）路径：`/Users/hwang/.cache/deep-talk-studio/transcription/e2e/real-user-clean-aroll-20260821/DeepTalk-Aligned-Edit-safe-cue-completion-20260821/outputs/ALIGNED_PREVIEW-r0001.mp4`。
+- 规格：1920×1080、30fps、H.264 + AAC、`620.533333s`、955,193,338 bytes，SHA `afa27c6f0f5e09e3e53f65a471e565d07c0d163f1b7806515c1d69c1a1184606`；visual-only master SHA `a0b26dc13cbab2ed8510c5a3b31dd51555d1597c7099a26c7c7e3d3210657d23`。真实全长渲染/封装约 30 分钟完成，无进程遗留，未覆盖历史 Preview。
+- Preview Manifest digest `764e715698e5078cab9ddeaa97eb11eae1e1fd60dd91c53482ffeb31f8c16970`；Canonical Edit Bridge QA digest `9af393da0599f5659317010b4665349ce405c2ef04490a7a5f3ddb1d85d1ae2c`，6/6 checks pass、0 blocking，唯一 warning 为预期 `EBI0001 partial_placement_unready`。
+- 已检查 VC003 约 165s 和 VC007 约 491s 的真实帧：来源图/法条在上方，Basic Subtitle 在安全区，未混入 Motion；Human Preview Gate 仍等待用户完整观看。
+
+### 5. 测试与当前版本
+
+- 完整测试：`460 passed, 3 skipped`；本轮相关定向回归：`52 passed`。本轮没有新增功能代码或测试源码，验证通过正式 artifact replay、真实渲染、ffprobe、Manifest/SHA binding 和 Canonical QA 完成。
+- 当前状态：`REAL USER MATERIAL PLACEMENT = PASS for VC003/VC007`；`REAL USER MOTION PLACEMENT = NOT_YET_VALIDATED / WARNING`；`REAL USER FULL PREVIEW = TECHNICAL PASS / AWAITING HUMAN`；`V1.0 Candidate — Unreleased`。
+
+### 6. Git / Release
+
+- 分支：`agent/audio-alignment-edit-bridge`。本轮开始 HEAD：`f35f19405da44e64acbc6cb1387acaf9cf08ccce`；本轮仅提交 HANDOFF/CHANGELOG 文档，最终提交 SHA 见本轮最后一次 commit。
+- canonical main HEAD、正式 `v0.6.1` peeled tag commit 均仍为 `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`；main 未修改，v0.6.1 未改写，无新 tag、无新 Release。
+
+### 7. 下一步
+
+先由用户完整观看新 Preview 并提出画面反馈；只有用户确认后，才由 ChatGPT Review 本轮 Material/Preview 并正式安排 Audio Alignment + Edit Bridge。不得因本轮技术 QA PASS 跳过 Human Preview Gate。
+
+---
+
+## 2026-08-21：本轮最终交接摘要（SAFE-CUE completion）
+
+1. **任务 / 完成**：只为 VC003/B006、VC007/B016 取得真实页面/法条 capture，完成新的 Material r1→reviewed r2、Production canonical rebind、Edit Bridge r1、全长真人 Preview；没有修改 Script、Research、Transcript、Alignment、Subtitle 或既有 Motion。
+2. **Gate / QA**：Material Review `PASS`；Production QA `PASS`；Canonical Edit Bridge QA 6/6 `pass`、0 blocking、唯一预期 warning `EBI0001 partial_placement_unready`；Human Preview Gate 尚未完成。
+3. **关键产物**：Material `MAT-20260821-safe-cue-completion-01` r2 digest `756f417948c2c7a91bfdf2f7f0b0c5037c9d0684a4134a154cb0c1aeeecf9e5a`；Capture Manifest digest `1e80d03a04f28e9783a4981aaba1cc91db738cdd244e1e5d7f9c1880c33d5c2e`；Production `PROD-20260821T170000-safe-cue-completion-01` digest `a63217f219130119b4360bf1d392a223542d68d40ad2cddb1a5155226140ca13`；Bridge `BRIDGE-20260821-safe-cue-completion-01` digest `74108d721bd27cdea6459cdf9c1b9099c72fba3f26520fa36fbe8e14ca2051ca`。
+4. **当前架构 / placements**：新的 Material View → 既有 Motion canonical rebind → 既有 Transcript/Alignment/Basic Subtitle → 新 Bridge → Remotion Preview → Canonical QA。Preview 只 staged `VP0000` A-roll、`VP0006` VC007、`VP0007` VC003；Motion 没有进入 Preview。
+5. **真实时间 / 素材**：VC003 `162.55–174.48s`，Preview `162.55–169.55s`；VC007 `488.77–512.12s`，Preview `488.77–495.77s`。VC003 SHA `d75611aaf0372f3c3ab5ca42c16ec3b380eca7a008bc6027a185ae1e167641d6`；VC007 SHA `16e60b0a2a4476e603e863dff5f74953c9552b352ccdb343a167b02f8dcfa66e`。未放置 VC001/VC002/VC004/VC005/VC006/VC008；B011 warning、B018 trailing ad-lib 保留。
+6. **Preview / QA 输出**：`/Users/hwang/.cache/deep-talk-studio/transcription/e2e/real-user-clean-aroll-20260821/DeepTalk-Aligned-Edit-safe-cue-completion-20260821/outputs/ALIGNED_PREVIEW-r0001.mp4`，1920×1080、30fps、H.264/AAC、620.533333s、955193338 bytes，SHA `afa27c6f0f5e09e3e53f65a471e565d07c0d163f1b7806515c1d69c1a1184606`；Manifest `764e715698e5078cab9ddeaa97eb11eae1e1fd60dd91c53482ffeb31f8c16970`；QA `9af393da0599f5659317010b4665349ce405c2ef04490a7a5f3ddb1d85d1ae2c`。
+7. **测试 / 人工检查**：项目回归 `460 passed, 3 skipped`；定向 Material/capture/Production/Alignment/Edit Bridge `52 passed`；已抽查 165s 的 VC003 与 491s 的 VC007 帧，来源文字在画面上方、字幕在安全区且无 Motion 混入。两张 capture rights 均保守 `editorial_reference_only/reference_only`，未声称版权许可。
+8. **已知 gap / 决策**：Motion status 仍 `NOT_YET_VALIDATED / WARNING`；Human Preview Gate 等用户观看；本轮没有开始 Audio Alignment + Edit Bridge；不要因 warning 宣称 V1 完成。
+9. **Git / Release**：分支 `agent/audio-alignment-edit-bridge`，本轮开始 HEAD `f35f19405da44e64acbc6cb1387acaf9cf08ccce`；本轮只提交文档；canonical main 与 v0.6.1 tag 仍 `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`，无新 tag/Release。
+10. **需要产品经理决定**：Review 新 Material completion、两张 capture 的来源与全长 Preview；若通过，再正式安排 Audio Alignment + Edit Bridge。
+11. **给用户的下一步**：只需完整观看上述新 Preview，然后直接告诉 Codex 哪一处画面需要修改；不要打开终端、JSON 或输入时间码。
+
+## 2026-08-21：SAFE-CUE REAL MATERIAL COMPLETION + REAL USER VISUAL PREVIEW
+
+### 1. 本轮任务是什么
+
+在不修改 reviewed Script、approved Research、Transcript、Alignment、Basic Subtitle 或既有 Motion
+语义的前提下，完成真实用户 Clean A-roll 的两个安全 Cue：VC003/B006 与 VC007/B016。为这两个 Cue
+取得真实页面/法条截图，重新通过 Material Gate，建立新的 Production / Edit Bridge revision，生成一份
+不覆盖旧工件的 620 秒全长真人预览，并停在用户人工观看 Gate。
+
+### 2. 完成了什么
+
+- 实际打开并保存了 AISI 官方研究说明页 Figure 1（VC003）与加州官方 SB-53 Section 22757.13(c)(1)-(2)
+  法条摘录（VC007）；没有使用 fixture、合成图片、猜测时点或访问控制绕过。
+- 创建新的不可变 Material Package lineage：`MAT-20260821-safe-cue-completion-01`，r1 → reviewed r2，
+  Material Review `MRV-20260821-safe-cue-completion-01`，Material Gate `PASS`，r2 digest
+  `756f417948c2c7a91bfdf2f7f0b0c5037c9d0684a4134a154cb0c1aeeecf9e5a`。旧 `MAT-c29080...` r2 未改写。
+- 新 capture manifest digest 为
+  `1e80d03a04f28e9783a4981aaba1cc91db738cdd244e1e5d7f9c1880c33d5c2e`：VC003/M003 PNG 254,016 bytes，
+  SHA `d75611aaf0372f3c3ab5ca42c16ec3b380eca7a008bc6027a185ae1e167641d6`；VC007/M007 PNG 45,367 bytes，
+  SHA `16e60b0a2a4476e603e863dff5f74953c9552b352ccdb343a167b02f8dcfa66e`。两者历史 rights 仍保守为
+  `editorial_reference_only/reference_only`；这没有被误写成取得版权许可，且 rights 不参与 Production Gate。
+- VC003 使用当前 Alignment 的 `162.55–174.48s` 语义窗口，Preview 实际展示 `162.55–169.55s`；
+  VC007 使用 `488.77–512.12s`，Preview 实际展示 `488.77–495.77s`。未放置 Cue 仍为
+  `VC001, VC002, VC004, VC005, VC006, VC008`；B011 仍 `needs_review`；B018 `588.11–620.14s`
+  trailing ad-lib 仍只保留在 A-roll。
+- 从新 Material Package 生成 Production Plan `PROD-20260821T170000-safe-cue-completion-01`，digest
+  `a63217f219130119b4360bf1d392a223542d68d40ad2cddb1a5155226140ca13`。逐项核对旧 approved Motion 的
+  scene/payload 语义、文件大小与 SHA 后，仅做 canonical rebind，没有重新渲染 Motion；新 Motion Manifest
+  digest `86034a61dc4b11432e20254753e37aa73e80b07cb59080086faaaebb550491d7`，Production QA digest
+  `fcfa194c74a08b1c830001a1b69d27abfe38b915d81d595f9a4e515ba820dbd9`，Gate `PASS`。
+- 新 Edit Bridge `BRIDGE-20260821-safe-cue-completion-01` r1，digest
+  `74108d721bd27cdea6459cdf9c1b9099c72fba3f26520fa36fbe8e14ca2051ca`；新的真实用户输出根目录为
+  `/Users/hwang/.cache/deep-talk-studio/transcription/e2e/real-user-clean-aroll-20260821/DeepTalk-Aligned-Edit-safe-cue-completion-20260821/`。
+- 使用既有 immutable local whisper.cpp Transcript、Timestamp Mapping、Alignment `ALIGNMENT-96854be79b9048a2b6800e1313efb2a6`
+  （digest `b71ccfcbe1decb71a48c2901daba1f0627596f4c95c9d191dd3c1fb3a351dce0`）和既有 Basic Subtitle；没有重新转写。
+- 新全长 Preview：
+  `.../outputs/ALIGNED_PREVIEW-r0001.mp4`，1920×1080、30fps、H.264 + AAC、`620.533333s`、
+  955,193,338 bytes，SHA `afa27c6f0f5e09e3e53f65a471e565d07c0d163f1b7806515c1d69c1a1184606`；visual-only
+  master `ALIGNED_PREVIEW_VISUAL-r0001.mp4` SHA `a0b26dc13cbab2ed8510c5a3b31dd51555d1597c7099a26c7c7e3d3210657d23`。
+  Preview Manifest digest `764e715698e5078cab9ddeaa97eb11eae1e1fd60dd91c53482ffeb31f8c16970`。
+
+### 3. 创建 / 修改的重要文件
+
+- Git tracked：`HANDOFF.md`、`CHANGELOG.md`。
+- Git-ignored canonical artifacts：新 Material r1/r2 与 Review、capture manifest、Production Plan / Motion Manifest /
+  Production QA，以及新 Edit Bridge / Preview / Manifest / QA，均位于上面列出的日期化目录。
+- 新 Preview 的人工检查帧：`.../visual-checks/VC003-at-165s.png` 与 `.../visual-checks/VC007-at-491s.png`。
+- reviewed Script、approved Research、既有 Material r2、既有 Alignment、既有 Motion 输出和旧 Preview 均未覆盖。
+
+### 4. 当前架构
+
+```text
+reviewed Script + approved Research
+  → immutable Material completion r1/r2 + actual capture manifest
+  → Material Production View（仅 M003/M007 capture 为 ready）
+  → existing approved Production/Motion canonical rebind（不重新渲染）
+  → existing Transcript / Alignment / Basic Subtitle
+  → new Edit Bridge r1
+  → Remotion full-length Preview（A-roll + VC003/VC007 real image + Basic Subtitle）
+  → Canonical Edit Bridge QA
+```
+
+Preview 实际 staged placement 只有 `VP0000`（A-roll）、`VP0006`（VC007）和 `VP0007`（VC003）；
+既有 Motion 没有进入 Preview。
+
+### 5. 已经可以运行什么
+
+- 可以观看新的全长真人预览并核对两个真实素材的语义位置。
+- Material Capture Manifest、Material Production View、Production Plan、Motion Manifest、Production QA、
+  Edit Bridge、Preview Manifest 和 Canonical QA 均可按 digest 重放。
+- Full project test：`460 passed, 3 skipped`；Material / capture / production / alignment / Edit Bridge
+  定向回归：`52 passed`。
+- Canonical Edit Bridge QA：6 项 revalidation 全部 `pass`，blocking failure `0`；唯一 issue 是预期的
+  `EBI0001 partial_placement_unready` warning，因为另外 6 个 Cue 和既有 Motion 仍未有安全语义时点。
+
+### 6. 还不能运行什么
+
+- 还不能声称真人 Clean A-roll E2E 最终完成：用户尚未人工观看并确认新 Preview，且既有 Motion placement 仍为
+  `NOT_YET_VALIDATED / WARNING`。
+- 不包含 Audio Alignment + Edit Bridge 新功能、音频对齐、字幕升级、BGM/SFX、标题、封面或发布能力。
+- 不能把 `editorial_reference_only` capture 解读为已取得第三方版权许可；如将来需要正式发布，仍需单独做版权/授权判断。
+
+### 7. 已知问题 / warning / gap
+
+- `EBI0001 partial_placement_unready` 是 warning，不是 blocking failure；未就绪素材和 Motion 被 fail-closed 排除。
+- B011 的人工听音确认仍未完成；本轮不利用 B011 做素材落位。
+- B018 trailing ad-lib 保留在真人 A-roll 尾段，未自动安排任何素材。
+- VC003 使用 AISI 页面中实际下载的 Figure 1，页面截图复用权未被宣称为已获许可；VC007 是官方法条截图，
+  同样保守记录为 reference-only。两者都保留来源与 SHA，便于后续产品/版权决定。
+
+### 8. 重要技术决策
+
+- 不修改 Script、Research、Transcript、Alignment、字幕或 Motion 语义；时间点只来自当前 approved Alignment。
+- 不覆盖旧 Material r2、旧 capture manifest、旧 Bridge 或旧 Preview；用新的 package/session/Bridge/output revision 保存历史。
+- 不因新 Material 而强行把旧 Motion 放入 Preview；Motion 只做 canonical rebind 和 SHA/语义等价核验，Real User Motion
+  Placement 继续标记为 warning。
+- rights 不参与 Production Gate；但 rights 状态仍如实保守，不使用无证据的“可复用”表述。
+
+### 9. 需要产品经理决定什么
+
+1. Review 新 Material Package completion、两个 capture 的来源/语义与新的全长 Preview。
+2. 判断 `editorial_reference_only` 的真实页面截图是否足够作为当前试用的辅助素材；这不是 Codex 自动替用户作出的版权授权决定。
+3. 如果 Preview 通过，再正式安排 Audio Alignment + Edit Bridge；本轮没有提前开始该功能。
+
+### 10. 建议下一阶段
+
+先完成本轮人工 Preview Gate。只有用户观看完整视频并确认后，才由 ChatGPT 决定是否进入 Audio Alignment + Edit Bridge。
+
+### 11. Git / Release 状态
+
+- 分支：`agent/audio-alignment-edit-bridge`；本轮开始 HEAD：`f35f19405da44e64acbc6cb1387acaf9cf08ccce`。
+- 本轮只更新 `HANDOFF.md` 与 `CHANGELOG.md`，代码树没有新增功能代码；本轮最终 commit SHA 以本轮提交记录为准。
+- canonical main 与正式 `v0.6.1` tag 仍保持 `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`；没有修改 main、tag，
+  没有创建新 Release，V1 仍为 `Candidate — Unreleased`。
+
+## 给用户的下一步操作
+
+你现在只需要完整观看本轮新的 `ALIGNED_PREVIEW-r0001.mp4`，然后告诉 Codex 哪一处画面需要修改；不需要打开终端、
+查看 JSON、输入时间码或自己总结。
+
+---
+
 ## 2026-08-21：GLOBAL MONOTONIC ALIGNMENT PROJECTION FIX + REAL USER E2E RESUME
 
 > 本节是当前最新状态。本轮实现并验证 ChatGPT 已批准的最小 Alignment 修复；没有改 reviewed Script、approved Research、reviewed Material Package、真人媒体、raw Timed Transcript、ASR、字幕、阈值、main、tag 或 Release。
@@ -904,3 +1087,34 @@ medium 的 selection cache/artifacts 保持为历史审计；正式 runtime/mode
 ## 给用户的下一步操作
 
 你现在只需要把 Codex 回复最底部“请把以下内容复制给 ChatGPT”后面的整段文字，原样发给 ChatGPT。你不需要打开终端、安装模型、设置 API Key 或自己总结。
+
+---
+
+## 当前轮最终状态：SAFE-CUE REAL MATERIAL COMPLETION
+
+本节位于 HANDOFF 文件末尾，覆盖本轮之前的历史章节；历史内容保留用于审计。
+
+### 任务、边界与 Gate
+
+- 已完成 VC003/B006、VC007/B016 的真实语义素材补齐、Material Gate、Production canonical rebind、Edit Bridge、全长真人 Preview 和 Canonical QA。
+- 没有修改 reviewed Script、approved Research、Transcript、ASR、Alignment、Basic Subtitle、旧 Material r2、既有 Motion 或旧 Preview；没有开始 Audio Alignment + Edit Bridge。
+- Material `MAT-20260821-safe-cue-completion-01` r2 Review/Gate PASS，digest `756f417948c2c7a91bfdf2f7f0b0c5037c9d0684a4134a154cb0c1aeeecf9e5a`。Capture Manifest digest `1e80d03a04f28e9783a4981aaba1cc91db738cdd244e1e5d7f9c1880c33d5c2e`。
+- Approved Alignment `ALIGNMENT-96854be79b9048a2b6800e1313efb2a6`，digest `b71ccfcbe1decb71a48c2901daba1f0627596f4c95c9d191dd3c1fb3a351dce0`；VC003 仅使用 `162.55–174.48s`，VC007 仅使用 `488.77–512.12s`。不猜时点。
+
+### 素材、Production 与 Bridge
+
+- M003/VC003 使用 [AISI 官方页面 Figure 1](https://www.aisi.gov.uk/blog/how-do-environmental-factors-impact-ai-behaviour)，PNG SHA `d75611aaf0372f3c3ab5ca42c16ec3b380eca7a008bc6027a185ae1e167641d6`；M007/VC007 使用 [California SB-53 官方法条页面](https://leginfo.legislature.ca.gov/faces/billNavClient.xhtml?bill_id=202520260SB53)，PNG SHA `16e60b0a2a4476e603e863dff5f74953c9552b352ccdb343a167b02f8dcfa66e`。两者均保留 `editorial_reference_only/reference_only`，未声称版权许可或绕过访问控制。
+- Production `PROD-20260821T170000-safe-cue-completion-01` digest `a63217f219130119b4360bf1d392a223542d68d40ad2cddb1a5155226140ca13`；只对既有 approved Motion 做语义/SHA canonical rebind，不重新渲染，Production QA PASS，digest `fcfa194c74a08b1c830001a1b69d27abfe38b915d81d595f9a4e515ba820dbd9`。
+- Bridge `BRIDGE-20260821-safe-cue-completion-01` digest `74108d721bd27cdea6459cdf9c1b9099c72fba3f26520fa36fbe8e14ca2051ca`；staged 只有 `VP0000` A-roll、`VP0006` VC007、`VP0007` VC003。VC001/002/004/005/006/008 仍 unplaced；B011 仍需听音确认；B018 `588.11–620.14s` trailing ad-lib 保留 A-roll；Motion placement 仍 `NOT_YET_VALIDATED / WARNING`。
+
+### Preview、QA 与测试
+
+- 全长真实 Remotion Preview：[ALIGNED_PREVIEW-r0001.mp4](</Users/hwang/.cache/deep-talk-studio/transcription/e2e/real-user-clean-aroll-20260821/DeepTalk-Aligned-Edit-safe-cue-completion-20260821/outputs/ALIGNED_PREVIEW-r0001.mp4>)，1920×1080、30fps、H.264 + AAC、`620.533333s`、955,193,338 bytes，SHA `afa27c6f0f5e09e3e53f65a471e565d07c0d163f1b7806515c1d69c1a1184606`；真实渲染/封装约 30 分钟，旧 Preview 未覆盖。
+- Preview Manifest digest `764e715698e5078cab9ddeaa97eb11eae1e1fd60dd91c53482ffeb31f8c16970`；Canonical Edit Bridge QA digest `9af393da0599f5659317010b4665349ce405c2ef04490a7a5f3ddb1d85d1ae2c`，6/6 pass、0 blocking，唯一 warning `EBI0001 partial_placement_unready`。
+- 项目测试 `460 passed, 3 skipped`；定向回归 `52 passed`。已检查约 165s/491s 真实帧：来源素材在上方、Basic Subtitle 在安全区、无 Motion 混入。Human Preview Gate 仍等待用户完整观看。
+
+### Git / Release / 下一步
+
+- 分支 `agent/audio-alignment-edit-bridge`；本轮开始 HEAD `f35f19405da44e64acbc6cb1387acaf9cf08ccce`；本轮只提交 HANDOFF/CHANGELOG 文档，最终 SHA 以收尾 commit 为准。
+- canonical main HEAD、正式 `v0.6.1` peeled tag commit 均为 `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`；main、tag 未变，无新 Release，V1 仍 `Candidate — Unreleased`。
+- 下一步只等待用户完整观看 Preview；确认后由 ChatGPT Review 本轮 Material/Preview 并正式安排 Audio Alignment + Edit Bridge，不得用技术 QA PASS 跳过人工 Gate。
