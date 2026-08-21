@@ -483,7 +483,10 @@ GitHub 已推送：`origin/agent/audio-alignment-edit-bridge` 当时 HEAD 为 `3
   re-derivation 的一部分，手改 status、time 或 correspondence 均失败。
 - ASR wall runtime/RTF 没有持久化为正式真人工件，仍是与本 Alignment 修复无关的 non-blocking observability gap。
 - 开发分支：`agent/audio-alignment-edit-bridge`；本轮起点 `0103d4b5881425aa5f6b9013ef8ad9757a7d60cc`。
-  `V1.0 Candidate — Unreleased` 保持不变。main、peeled `v0.6.1`、tag 和 GitHub Release 均未改变。
+  产品实现 commit `59cd636070620f909727c60f7f386ae17334459f`（已推送）。GitHub compare 为
+  `ahead 74 / behind 0`，merge-base 仍是 canonical main
+  `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`。`V1.0 Candidate — Unreleased` 保持不变。
+  main、peeled `v0.6.1`、tag 和 GitHub Release 均未改变。
 
 ### 4. 需要产品经理决定什么
 
