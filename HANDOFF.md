@@ -1115,6 +1115,6 @@ medium 的 selection cache/artifacts 保持为历史审计；正式 runtime/mode
 
 ### Git / Release / 下一步
 
-- 分支 `agent/audio-alignment-edit-bridge`；本轮开始 HEAD `f35f19405da44e64acbc6cb1387acaf9cf08ccce`；本轮只提交 HANDOFF/CHANGELOG 文档，最终 SHA 以收尾 commit 为准。
+- 分支 `agent/audio-alignment-edit-bridge`；本轮开始 HEAD `f35f19405da44e64acbc6cb1387acaf9cf08ccce`；首个收尾文档提交为 `3d46f42a68841425b47672d398d3ec1a3c69287b`，若后续仅更新本节，当前 HEAD 以最新文档提交为准。
 - canonical main HEAD、正式 `v0.6.1` peeled tag commit 均为 `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`；main、tag 未变，无新 Release，V1 仍 `Candidate — Unreleased`。
 - 下一步只等待用户完整观看 Preview；确认后由 ChatGPT Review 本轮 Material/Preview 并正式安排 Audio Alignment + Edit Bridge，不得用技术 QA PASS 跳过人工 Gate。
