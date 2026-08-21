@@ -106,10 +106,11 @@
 - 本轮暴露并修复 timeline safe area、diagram 长中文与 edge label、comparison 错误标题与强制左右栏问题；新预览已通过 Production QA 和 ChatGPT 实际观看核验。
 - 当前保留 5 个历史 reference-only 素材位和真人口播音频时间码；ChatGPT 已通过 Preview 与 canonical lineage Review。
 
-## Unreleased：Audio Alignment + Visual Edit Bridge + Basic Subtitle V1（full large-v3 长版 production E2E 完成，真实用户 Gate 待执行）
+## Unreleased：Audio Alignment + Visual Edit Bridge + Basic Subtitle V1（真实全局对齐通过，安全素材 placement 仍待补齐）
 
 - 以用户先行剪好口气的 immutable Clean A-roll 为 canonical timeline；不自动删停顿、废句或重录。
 - Speech-to-Text provider 与确定性 Alignment Core 解耦，按真实 timestamp granularity 对齐 reviewed Script Beat、Material Cue 和现有 Production Scene。
+- 对齐只执行一次全局、单调、顺序保持的 Script→Transcript evidence pass；Beat 与 Cue 只能投影该 mapping，不能各自扫描整条录音。B011 类真实局部缺口继续 review，Script 外真人尾段继续保留为 trailing ad-lib。
 - 将 A-roll、真实图片/截图、真实视频和 QA-ready Motion 放入统一 Visual Placement timeline，自动推导 IN、OUT、duration 与基础 layout。
 - 输出不可覆盖的 Edit Bridge JSON、普通中文 Markdown、NLE-neutral CSV 和 `ALIGNED_PREVIEW.mp4`。
 - 唯一具体生产入口和 repository-owned canonical QA 已完成；word/segment 真实时间戳安全降级、完整 Cue 语义 OUT、Material 图片/视频字段保真、自然语言 Preview revision 已通过回归与真实合成入口验证。

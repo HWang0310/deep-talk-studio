@@ -300,14 +300,14 @@ def _trace_digest(operations, windows, gaps, ambiguity, total):
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def _align(script_tokens, transcript_tokens, profile, *, reference=False):
+def _align(script_tokens, transcript_tokens, profile, *, reference=False, inspect_candidate_windows=True):
     if not script_tokens or not transcript_tokens:
         raise SequenceAlignmentError("Script/Transcript token stream 不能为空")
     if not _REQUIRED_PROFILE.issubset(profile) or profile["algorithm_version"] != "alignment-algorithm/1":
         raise SequenceAlignmentError("Alignment Profile 与 algorithm/1 不匹配")
     cells=len(script_tokens)*len(transcript_tokens)
     operations, total = _full_dp(script_tokens, transcript_tokens, profile) if reference or cells<=4096 else _checkpoint_dp(script_tokens, transcript_tokens, profile)
-    windows = _window_candidates(script_tokens, transcript_tokens, profile)
+    windows = _window_candidates(script_tokens, transcript_tokens, profile) if inspect_candidate_windows else ()
     ambiguity = "ambiguous_match" if len(windows) > 1 else "none"
     gaps = _group_gaps(operations, script_tokens, transcript_tokens)
     if ambiguity == "ambiguous_match":
@@ -324,8 +324,18 @@ def _align(script_tokens, transcript_tokens, profile, *, reference=False):
     return AlignmentTrace("alignment-algorithm/1", operations, windows, gaps, ambiguity, float(total), digest)
 
 
-def align_sequences(script_tokens, transcript_tokens, profile) -> AlignmentTrace:
-    return _align(tuple(script_tokens), tuple(transcript_tokens), profile)
+def align_sequences(script_tokens, transcript_tokens, profile, *, inspect_candidate_windows=True) -> AlignmentTrace:
+    """Align deterministically, optionally omitting local-window ambiguity scans.
+
+    A whole-script ordered mapping is already anchored at both ends by the DP
+    pass.  Its consumers must not reuse the old per-Beat sliding-window check,
+    which answers a different question and creates false ambiguity for long
+    recordings with legitimate trailing speech.
+    """
+    return _align(
+        tuple(script_tokens), tuple(transcript_tokens), profile,
+        inspect_candidate_windows=inspect_candidate_windows,
+    )
 
 
 def _align_sequences_full_reference(script_tokens, transcript_tokens, profile) -> AlignmentTrace:

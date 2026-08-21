@@ -29,6 +29,7 @@ def _safe(value: str) -> str:
 def _markdown(artifact: Mapping[str, Any]) -> str:
     lines = [
         "# Script Alignment", "",
+        f"- 证据方式：{'全局单调投影' if artifact.get('artifact_version') == 'script-alignment/2' else '历史对齐工件'}",
         f"- 对齐状态：{sum(b['alignment_status'] == 'aligned' for b in artifact['beat_timeline'])} 个可直接对齐",
         f"- 需要检查：{sum(b['alignment_status'] != 'aligned' for b in artifact['beat_timeline'])} 个",
         "", "## Beat", "",
@@ -39,6 +40,8 @@ def _markdown(artifact: Mapping[str, Any]) -> str:
         lines.extend(["", "## 已保留的差异与边界风险", ""])
         for gap in artifact["gaps"]:
             lines.append(f"- {gap['gap_type']}：{gap['reason_code']}")
+    if any(gap["gap_type"] == "trailing_ad_lib_transcript_span" for gap in artifact["gaps"]):
+        lines.extend(["", "## Script 结束后的真人补充口播", "", "- 已保留为真实 Transcript 尾段；未当作 Script 内容，也未自动安排素材。"])
     return "\n".join(lines) + "\n"
 
 

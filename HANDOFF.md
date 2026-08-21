@@ -437,6 +437,67 @@ GitHub 已推送：`origin/agent/audio-alignment-edit-bridge` 当时 HEAD 为 `3
 
 ---
 
+## 2026-08-21：GLOBAL MONOTONIC ALIGNMENT PROJECTION FIX + REAL USER E2E RESUME
+
+> 本节是当前最新状态。本轮实现并验证 ChatGPT 已批准的最小 Alignment 修复；没有改 reviewed Script、approved Research、reviewed Material Package、真人媒体、raw Timed Transcript、ASR、字幕、阈值、main、tag 或 Release。
+
+### 1. 本轮任务与完成内容
+
+- 根因修复：`script-alignment/2` 对完整 Script 与完整 Timed Transcript 只做一次 deterministic
+  `align_sequences` pass，再投影 Beat 与 Cue。本地 Beat 不再扫描整条 10 分钟 Transcript。
+- 每个 Script lexical unit 保存 exact/numeric/substitution/deletion 与实际 Transcript index/unit/time；每个
+  insertion 保存相邻 Script position，并归类为 leading、Beat-local、Beat-boundary 或 trailing。
+- Beat 只计算自身 Script span 和确定归属的本地 evidence。既有 accepted/review floors 未改变；少量
+  substitution、filler 与非结构性小缺口不再自动使 Beat 失效。真实长缺口、boundary risk 和 ambiguity 继续
+  fail closed。
+- Cue 直接投影自身 global correspondence。只要 anchor/semantic span 唯一、单调、连续并达到既有 floor，就能
+  使用真实 token timing；不再因父 Beat 其他位置的 review item 自动 unplaced。
+- 保存新真人 Alignment：`ALIGNMENT-96854be79b9048a2b6800e1313efb2a6` / r0001，digest
+  `b71ccfcbe1decb71a48c2901daba1f0627596f4c95c9d191dd3c1fb3a351dce0`。路径在既有 Git 外 session 的
+  `alignment/.../ALIGNMENT-96854be79b9048a2b6800e1313efb2a6/`。
+
+### 2. 真实结果与 Gate
+
+- BEFORE：18/18 `needs_review`、213 gaps、8/8 Cue `unplaced`。
+- AFTER：17 `aligned`、1 `needs_review`、0 `unmatched`；117 个全局 gap；2 `aligned` Cue（VC003、VC007）、
+  6 `unplaced`、0 coarse/needs_review。全局 projection 重放耗时 78.765 秒；没有运行 Whisper。
+- B011：仍为 `needs_review`，coverage/similarity `0.906736`，保存真实 13-unit omission 与本地 ad-lib；文本
+  本身无法判断是漏讲还是 ASR drop，因此需要听音确认，未伪造修复。
+- B018：`aligned/high`；Script 完结后的额外真人尾段保留为 `trailing_ad_lib_transcript_span`，真实时间
+  `588.11–620.14s`。它没有被改成 Script 内容，也不污染 B001–B017。
+- `GLOBAL MONOTONIC ALIGNMENT = PASS`；`BEAT LOCALIZATION = PASS`；`CUE PROJECTION = PASS`；
+  `REAL USER ALIGNMENT = PASS WITH B011 WARNING`。
+- 当前 approved Material/Production 的 Motion 只绑定 VC001/VC002/VC008，真实 image items 对 VC003/VC007
+  是 `missing_asset`。因此没有任何 ready real image 或 Original Motion placement。`REAL USER MATERIAL
+  PLACEMENT = WARNING`；`REAL USER MOTION PLACEMENT = WARNING`；没有伪造或猜测画面。
+- 因为没有可安全进入视频的实际素材，未创建新的 Bridge、Preview、Manifest 或 QA，避免生成另一份只有 A-roll
+  的伪进展。`REAL USER FULL PREVIEW = BLOCKED`；`CANONICAL QA = NOT RERUN`；`HUMAN PREVIEW GATE = NOT_REACHED`；
+  `REAL USER CLEAN A-ROLL E2E = REVISION_REQUIRED`。
+
+### 3. 回归、边界与版本
+
+- 新增匿名 regression：全局单调/deterministic、每 Beat 不吞其他 Beat、局部 insertion、长 omission、trailing
+  tail、raw Transcript 文字/时间不变、18/20 substitution Cue、重复/缺词 Cue fail closed、父 Beat 无关 review
+  不污染安全 Cue。既有 Alignment、Cue、Edit Bridge 定向 regression 保持通过。
+- `script-alignment/1` 仅可历史读取；新 Artifact/validator 使用 `script-alignment/2`，global mapping 是完整
+  re-derivation 的一部分，手改 status、time 或 correspondence 均失败。
+- ASR wall runtime/RTF 没有持久化为正式真人工件，仍是与本 Alignment 修复无关的 non-blocking observability gap。
+- 开发分支：`agent/audio-alignment-edit-bridge`；本轮起点 `0103d4b5881425aa5f6b9013ef8ad9757a7d60cc`。
+  `V1.0 Candidate — Unreleased` 保持不变。main、peeled `v0.6.1`、tag 和 GitHub Release 均未改变。
+
+### 4. 需要产品经理决定什么
+
+请 Review 全局 mapping / local Beat / independent Cue contract 和真实 After metrics。下一步需要决定：是否允许在不改
+Script、Research、现有 Motion 语义的前提下，为已安全对齐的 VC003/VC007 补齐经过正式 Material Gate 的可用素材，
+从而恢复真实 Bridge、full Preview 与 canonical QA；或者另行调整 Approved Material/Production Plan。不要开始字幕、
+ASR、forced alignment、自动剪口气或 V1.0 Release。
+
+## 给用户的下一步操作
+
+你现在不需要看片、重录、找素材文件、运行命令或自己判断技术问题。请把本次 Codex 回复最底部“请把以下内容复制给 ChatGPT”后的完整文字原样发给 ChatGPT，等待它 Review 本次全局对齐修复，并决定如何处理 VC003/VC007 的正式素材缺口。
+
+---
+
 ## 2026-08-21：REAL USER CLEAN A-ROLL E2E（Alignment Gate Blocked）
 
 > 本节是当前最新状态，优先于本文件前面的历史交接记录。本轮只执行真实用户端到端试用，未开发新功能、未改稿、未改研究、未改素材包。

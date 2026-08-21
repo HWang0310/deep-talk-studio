@@ -192,4 +192,19 @@ V0.6.1 收口为 `Production Plan 0.6.1 scene_payload → Renderer Adapter → M
 
 ## 扩展原则
 
+## Global Monotonic Alignment Projection（Unreleased）
+
+`script-alignment/2` 不再逐 Beat 扫描完整 Timed Transcript。它先在完整 reviewed Script 与完整
+Timed Transcript 上运行一次既有确定性 sequence-alignment core，保存每个 Script lexical unit 的
+match/numeric/substitution/deletion correspondence，以及每个 Transcript insertion 相对于 Script 的
+leading、Beat-local、Beat-boundary 或 trailing 归属。随后才投影 Beat 和 Cue。
+
+- Beat 指标只能消费本 Beat 的 Script span 与确定归属的本地 Transcript evidence；其他 Beat、或 Script
+  完成后的真人尾段不能被记成该 Beat 的 ad-lib。
+- Cue 不继承父 Beat 的一票否决。它只在自身 anchor/semantic span 有唯一、单调、连续的真实 token
+  correspondence，并达到既有 Profile floor 时才可 `aligned`；deletion、重复 anchor、边界风险和粗粒度时间
+  继续 fail closed。
+- 该版本只增加可重推导 evidence，不修改 raw Transcript 文字或时间，也不降低 Profile 阈值。`script-alignment/1`
+  仅为历史读取兼容；新的 validator/production path 使用 `script-alignment/2`。
+
 新增 Agent 时先定义工件和验收，再实现最小工作流。只有确有多个调用方时才抽象共享框架。不要为了“多 Agent”外观把一个清晰步骤拆成无意义的多个 Prompt。

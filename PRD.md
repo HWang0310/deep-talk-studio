@@ -11,7 +11,7 @@
      → 素材建议 → 可视化 → 剪辑方案 → 发布辅助
 ```
 
-当前 Unreleased 产品方向是 Audio Alignment + Visual Edit Bridge + Basic Subtitle V1：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统将 reviewed Script、Material Cue、真实图片/截图/视频、原创 Motion 和 Timed Transcript 字幕对齐到真实口播时间，自动生成已烧录基础字幕的完整 rough cut。正式 full large-v3 本地转写生产集成、272 秒 no-key 转写和 274 秒完整 synthetic E2E 已完成，真实用户 Clean A-roll Gate 仍待执行；自动 A-roll cleanup 不属于当前阶段。
+当前 Unreleased 产品方向是 Audio Alignment + Visual Edit Bridge + Basic Subtitle V1：用户先在习惯的工具中完成口气清理，再把 Clean A-roll 作为不可变化的真人主时间轴。系统用单次全局单调、顺序保持的 Script→Timed Transcript correspondence 投影 Beat 与 Material Cue 的真实时间；raw Transcript 仍是时间真相，Script 只作内容参照。正式 full large-v3 本地转写生产集成、272 秒 no-key 转写和 274 秒完整 synthetic E2E 已完成；真实用户 Clean A-roll 已完成对齐重放，但现有已审素材没有落在安全 Cue 上，完整可看片 Preview Gate 仍未达到。自动 A-roll cleanup 不属于当前阶段。
 
 该 Design 的 canonical 时间以 Clean A-roll presentation timeline 的 decimal seconds 表示；不同容器/音轨通过可验证的 Timestamp Mapping 对齐，30fps 只属于 Preview 派生。可靠 placement 可以带 timing warning 进入 rough cut，而位置歧义不会自动预览；异常长的静态画面只限制 Preview exposure，不覆盖其 canonical semantic window。
 

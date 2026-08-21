@@ -4,6 +4,22 @@
 
 ## [Unreleased] - 2026-08-21
 
+### Global Monotonic Alignment Projection + Real User E2E Resume
+
+- 将 Script Alignment 升级为 `script-alignment/2`：完整 reviewed Script 与完整 Timed Transcript 只运行一次
+  确定性、顺序保持的 evidence pass，再投影 Beat/Cue；不再让单个 Beat 回退扫描整条真人录音。
+- 新增版本化 global correspondence：每个 Script lexical unit 保留 match/numeric/substitution/deletion 与真实
+  Transcript index/unit/time；Transcript-only token 保留 leading、Beat-local、Beat-boundary 或 trailing ownership。
+  不改写原始文字、时间戳或既有 Profile threshold。
+- Beat status 以本地 evidence 重算：普通替换、小缺词、filler 不再自动污染全片；真实长缺口、边界风险与实际
+  ambiguity 继续 fail closed。Cue 直接消费自身 global mapping，因此不因父 Beat 的无关 review 自动失去时间。
+- 重放用户的既有 immutable Transcript，没有重新运行 Whisper：由 `18/18 needs_review`、213 gaps、8/8 unplaced
+  变为 `17 aligned / 1 needs_review / 0 unmatched`、117 global gaps、`2 aligned / 6 unplaced` Cues。B011 保留为
+  13-unit 真实文本缺口（需要听音确认）；B018 的约 154-unit Script 外结尾保存为 trailing ad-lib，不进入前段。
+- 新增匿名 global-localization、long omission、tail、Cue substitution 18/20、Cue deletion 与 parent-review
+  decoupling regressions。真实安全 Cue 为 VC003、VC007，但它们在当前 reviewed Material/Production 中没有可用
+  real image 或 Original Motion；因此没有伪造 placement、没有重渲染新 Preview，Human Preview Gate 未达到。
+
 ### REAL USER ALIGNMENT BLOCKER DIAGNOSIS
 
 - 对第一次真人 Clean A-roll E2E 的 `18/18 needs_review`、`213 gaps`、`8/8 Cue unplaced` 完成只读诊断；

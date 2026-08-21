@@ -1,6 +1,6 @@
 # DeepTalk Studio
 
-> 当前开发分支包含 **Unreleased Audio Alignment + Visual Edit Bridge + Basic Subtitle V1**，并已完成本地 ASR 选择 Gate。它已能把带时间戳真实转写、真人主画面、真实素材、原创 Motion 和基础字幕合成为完整粗剪预览，并保持 Clean A-roll 原音；只有完成真实 Clean A-roll 用户试用后才可讨论正式版本或 V1.0。
+> 当前开发分支包含 **Unreleased Audio Alignment + Visual Edit Bridge + Basic Subtitle V1**，并已完成本地 ASR 选择 Gate。它已能用一次全局、顺序保持的 Script→Transcript 对齐，将真实时间证据投影到口播段落和素材点；它不会用脚本改写真人口播，也不会猜时间。真实用户试用已解除“全片误判”的 Alignment blocker，但当前已审素材没有与两个安全素材点对应的可用画面，因此还没有达到可看片的完整 E2E 门槛。
 
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
@@ -10,7 +10,7 @@ Audio Alignment + Visual Edit Bridge 正在 Unreleased 分支接受 Integration 
 
 V1 的本地转写默认是官方完整精度 `whisper.cpp` multilingual `large-v3`（v1.9.2、Apple Silicon Metal、`--dtw large.v3`）。它由仓库内的生产 Provider 自动准备运行时和模型，使用项目外部的 `~/.cache/deep-talk-studio/transcription/` 缓存，并在每次使用前核对版本、SHA-256、大小和 provenance；普通用户不需要安装、找 URL、设置 PATH 或配置任何 API Key。Provider 只接受 runtime 直接给出的 token offsets，缺少或重叠时间就停止，不插值、不调用云端兜底。此前 medium 的 Selection Gate 仍是保留的历史评测，不再是生产默认。OpenAI Provider 仍保留为未来可选能力，不是 V1 默认或 preflight blocker。
 
-本地 no-key smoke 和完整 274 秒 synthetic production E2E 已跑通：真实音频经 `whisper.cpp → Timed Transcript → Alignment → Material → Motion → Basic Subtitle → Edit Bridge → Remotion Preview → canonical QA`，Preview 保留 Clean A-roll 原音。large-v3 在同一份 272 秒评测音频上没有 token overlap，完整 render 成功；QA 只有预期的 `partial-placement_unready` warning。真实用户 Clean A-roll 人工试用仍未进行，因此当前仍是 **V1.0 Candidate — Unreleased**，没有创建新 tag 或 Release。
+本地 no-key smoke 和完整 274 秒 synthetic production E2E 已跑通：真实音频经 `whisper.cpp → Timed Transcript → Global Alignment Projection → Material → Motion → Basic Subtitle → Edit Bridge → Remotion Preview → canonical QA`，Preview 保留 Clean A-roll 原音。large-v3 在同一份 272 秒评测音频上没有 token overlap，完整 render 成功；QA 只有预期的 `partial-placement_unready` warning。真实用户 Clean A-roll 已完成真实转写与对齐重放：17/18 段安全对齐，B011 保留为需要人工确认的局部缺口，B018 的额外结尾保留为真人尾段；但当前没有可安全进入预览的已审素材，所以仍是 **V1.0 Candidate — Unreleased**，没有创建新 tag 或 Release。
 
 ### V1 本地转写生产路径
 
