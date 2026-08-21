@@ -2,6 +2,29 @@
 
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
+## [Unreleased] - 2026-08-21
+
+### REAL USER CLEAN A-ROLL E2E
+
+- 使用用户提供的真实无烧录字幕 Clean A-roll `/Users/hwang/Movies/口播/AI事故8月21日.mp4` 完成正式本地
+  large-v3 生产路径：immutable media → 24 kHz mono audio → whisper.cpp v1.9.2 full multilingual
+  `large-v3` + `--dtw large.v3` → Timed Transcript → Script Alignment → Edit Bridge → 完整 Remotion Preview
+  → canonical QA。原始媒体 SHA-256 为 `39d08733447f78c60b5cc0f737781c8fc3a9d95629d7f92a04902bbe0f8e57ec`，
+  时长 `620.530068` 秒；输入文件未移动、覆盖或改写。
+- 真实 Transcript 生成 2,646 个 token/unit，raw token overlap `0`，未使用 fixture、synthetic timing、
+  cloud ASR、second ASR、forced aligner 或 Script 覆盖 Transcript。Timed Transcript digest 为
+  `85154b27fed6b9871c4975692b37410d5d79526caa7128cb3d0ccc2d525b92f7`。
+- 18/18 Beat 为 `needs_review`（13 medium、5 low），存在 213 个 alignment gaps；8/8 Cue 为 `unplaced`，
+  因此所有真实截图/文件与 Original Motion 均保持未落位，没有猜时间或伪造素材位置。产品 Alignment、
+  Material Placement、Motion Placement Gate 阻塞；不得把技术 QA warning 误写成完整 E2E 通过。
+- 生成完整 Preview `ALIGNED_PREVIEW.mp4`，1920×1080、30fps、H.264/AAC、`620.533333` 秒，SHA-256
+  `36d29165238bd1a2dcb05060be067aee05eedfe44f0898ce0b3858e589d71bf9`；当前路径仍烧录 Basic Subtitle，
+  没有无字幕 visual master。Canonical QA 6 项通过、0 blocking failure，唯一 issue 是预期的
+  `EBI0001 partial_placement_unready` warning。
+- 本次 production session 没有持久化 whisper 单阶段 runtime/RTF，已在 HANDOFF 标为 observability gap，
+  未从文件时间伪造精确数值。完整代码回归 `454 passed, 3 skipped`；本轮未修改 Script、Research、Material、
+  main、v0.6.1 tag 或 GitHub Release，V1 仍为 `Candidate — Unreleased`。
+
 ## [Unreleased] - 2026-08-14
 
 ### Quality-first large-v3 long-form production validation

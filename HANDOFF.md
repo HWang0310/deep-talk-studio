@@ -435,6 +435,142 @@ GitHub 已推送：`origin/agent/audio-alignment-edit-bridge` 当时 HEAD 为 `3
 
 你现在只需要把 Codex 回复最底部“请把以下内容复制给 ChatGPT”后面的整段文字，原样发给 ChatGPT。你不需要打开终端、安装模型、设置 API Key 或自己总结。
 
+---
+
+## 2026-08-21：REAL USER CLEAN A-ROLL E2E（Alignment Gate Blocked）
+
+> 本节是当前最新状态，优先于本文件前面的历史交接记录。本轮只执行真实用户端到端试用，未开发新功能、未改稿、未改研究、未改素材包。
+
+### 1. 本轮任务
+
+使用用户提供的无烧录字幕真人 Clean A-roll，按正式 V1 路径执行：不可变媒体 → 音频抽取 → 官方本地
+whisper.cpp v1.9.2 full multilingual `large-v3` + `--dtw large.v3` → Timed Transcript →
+Script Alignment → Beat/Cue timing → approved Material / Original Motion → Edit Bridge →
+完整 Remotion Preview → canonical QA。不得使用 fixture、synthetic timing、云端 ASR、第二 ASR、
+forced aligner、Script 覆盖 Transcript 或任何自动剪口气/删填充词/改用户口播。
+
+### 2. 完成了什么
+
+- 已验证用户原始文件真实存在、可读取，且原文件未移动或覆盖：
+  `/Users/hwang/Movies/口播/AI事故8月21日.mp4`。
+- 为避免触碰原文件，只在项目外缓存建立同 inode hard link，作为本次不可变输入：
+  `/Users/hwang/.cache/deep-talk-studio/transcription/e2e/real-user-clean-aroll-20260821/AI事故8月21日.mp4`。
+- 已完成完整本地 large-v3 转写、Timed Transcript、Alignment、Bridge、字幕和完整时长 Remotion
+  Preview；命令返回成功，后台没有遗留转写、渲染或测试进程。
+- 没有重新生成或修改 reviewed Script、approved Research、reviewed Material Package，也没有修改
+  Clean A-roll 本身。
+
+### 3. 真实媒体与音频
+
+- 原始容器：MP4/MOV；视频：H.264/AVC，1920×1072，逐行，30/1 fps；音频：AAC-LC，44.1 kHz，
+  stereo；原始 presentation duration `620.530068` 秒，文件大小 `943,998,605` bytes。
+- 原始媒体 SHA-256：`39d08733447f78c60b5cc0f737781c8fc3a9d95629d7f92a04902bbe0f8e57ec`。
+- 正式抽取音频：24 kHz mono PCM，`14,892,722` samples，duration `620.5300833333333333333333333`
+  秒；audio SHA-256：`83d8942cf36290bcba54483d98fd7c41e54bf3965113eb99c413698090bbf3cc`。
+- 没有改变输入时长、结构、停顿、填充词或重录段。
+
+### 4. Local ASR / Transcript
+
+- Provider：`whisper.cpp`；runtime `v1.9.2+306c88f4d1286aec1bf96e544632897886af5501`；
+  model：full multilingual `large-v3`；flags 包含 `--language zh --dtw large.v3 --output-json-full`；
+  无 API Key、无云端、无 medium/turbo/quantized fallback。
+- Timed Transcript：
+  `.../DeepTalk-Aligned-Edit/artifacts/MEDIA-0d2b4644fb6d445189b9141250fe47d0/artifacts/timed-transcript-TRANSCRIPT-e3e949a79e744a3d90aa8a02b9366742.json`
+ ；ID `TRANSCRIPT-e3e949a79e744a3d90aa8a02b9366742`；token granularity；真实 token/unit 数
+  `2646`；transcript digest `85154b27fed6b9871c4975692b37410d5d79526caa7128cb3d0ccc2d525b92f7`；
+  provider metadata digest `b34b197175e0e6ed0376abf7b8999bb2476cbe8d541c0dafb32b54a3902ed901`。
+- raw token overlap count：`0`。没有发生裁剪、排序、平均、插值、segment fallback 或 canonicalization。
+- 本次 session 没有将 whisper 单阶段 wall runtime / RTF 持久化到 Transcript Artifact；因此不能诚实地
+  报出精确的 ASR runtime/RTF。完整 CLI 流程实际已等待 ASR、Bridge、长时渲染和 QA 全部结束，约为一
+  小时内；这是当前 observability gap，不能用文件 mtime 倒推伪造精确值。
+- 真实中文转写观察（保留原始 Transcript，没有人工纠正）：开头出现“设一家公正在给AI…”（目标语义
+  应接近“一家公司正在给 AI…”）、“顺系统漏洞”（目标语义应接近“顺着系统漏洞”）、“这场…2026年7月Open…”
+  （`OpenAI` 在该处被截成 `Open`）。`Hugging Face` 在多处被识别；后段出现 `OpenAI`、`SAFE`、`NASA`、
+  `SB53` 相关内容，但仍有“OpenSeries”“SAVE”等可疑读法。上述是实际语音与模型输出的观察，不是用
+  Script 改写后的文本。
+
+### 5. Script Alignment / Beat / Cue
+
+- Alignment：
+  `.../DeepTalk-Aligned-Edit/alignment/SCR-301097255e2746ee9550ba8ea38acf01/MEDIA-0d2b4644fb6d445189b9141250fe47d0/ALIGNMENT-b3cfeb6801094e03b1b4658bde602760/script-alignment-r0001.json`
+ ；ID `ALIGNMENT-b3cfeb6801094e03b1b4658bde602760`；绑定 Script `SCR-301097255e2746ee9550ba8ea38acf01`
+  revision 2、Transcript revision 1。
+- 18/18 Beats 均为 `needs_review`；confidence 为 13 medium、5 low；共有 `213` 个 alignment gaps。
+  每个 Beat 都出现 `omitted_script_span` / `ad_lib_transcript_span`，多个 Beat 还出现
+  `ambiguous_match`，B010 另有 `long_gap`。这是实际口播与 reviewed Script 存在连续偏差和候选窗口
+  不唯一，不是可以安全忽略的少量错字。
+- 8/8 Cues 均为 `unplaced`、confidence `none`，没有可靠的 `actual_start_seconds` /
+  `actual_end_seconds`。例如 `VC001` 的“演变成了对 Hugging Face 基础设施的真实入侵”无法安全绑定到
+  真实语音时间。
+- 因此本轮没有用 Script 偷换 Transcript，也没有猜测素材出现时间；相关 Alignment / Material / Motion
+  产品 Gate 必须停在等待 Review。
+
+### 6. Material / Motion / Edit Bridge
+
+- 复用已批准 Material `MAT-c29080b0554d4c49959b58f5fcc3174d` revision 2、Material Review
+  `MRV-30c7d6fc40c043e6b071b45ded6bedc9`、Production Plan `PROD-20260813T133848055707`；没有重研究、
+  重搜或修改素材。
+- Edit Bridge：`BRIDGE-f1f75ecc66234b3e8ca843a635a47814` revision 1；共 13 个候选 placement：
+  10 个 `real_image`（7 needs_review、3 rejected）和 3 个 `original_motion`（全部 needs_review）；
+  ready placement `0`。所有非 A-roll placement 因缺少可靠 Cue timing 保持未落位，未伪造进入视频。
+- 本次预览实际使用的 placement 只有 `VP0000`（Clean A-roll）；没有真实 screenshot/image/document
+  或 Original Motion 进入这份 Preview。这说明完整视频虽已生成，但没有达到本轮要求的“真人 + 真实素材 +
+  Original Motion”产品验收，不能宣称 REAL USER CLEAN A-ROLL E2E 通过。
+- 5 个 `reference_only` 来源没有被偷偷放入视频；没有真实视频 placement，也没有猜选 clip range。
+
+### 7. Preview / Subtitle
+
+- 完整 Preview：
+  `/Users/hwang/.cache/deep-talk-studio/transcription/e2e/real-user-clean-aroll-20260821/DeepTalk-Aligned-Edit/outputs/ALIGNED_PREVIEW.mp4`
+ ；SHA-256 `36d29165238bd1a2dcb05060be067aee05eedfe44f0898ce0b3858e589d71bf9`；971,138,885 bytes；
+  H.264/AAC，1920×1080，30 fps，duration `620.533333` 秒，和原始 Clean A-roll 完整时长一致到视频
+  帧边界。
+- Preview Manifest：`aligned-preview-manifest.json`，bridge digest
+  `6e0b36b1ebc9b49d4d9f427d2acc26c2ad3ae2f43d9c3d272664e7668e8aa422`，manifest digest
+  `099d6e33d53a1bd055d3c700537546e5e1194ab53b13e3ee042436e084c0ae6c`，`subtitles_enabled=true`。
+- 当前 Preview **带烧录 Basic Subtitle**，字幕仍来自真实 Timed Transcript；没有生成真正的无字幕
+  visual master。`ALIGNED_PREVIEW_VISUAL.mp4` 只是静音视觉中间片，同样使用当前字幕渲染配置，不能当作
+  无字幕成片。
+
+### 8. Canonical QA / Gate
+
+- QA：`.../outputs/edit-bridge-qa.json`；6 项 canonical revalidation 全部 `pass`：root artifacts、
+  chunk/transcript mapping、normalization/alignment risk、placement timing、preview manifest/audio、
+  ready-only preview。
+- QA package gate 为 `warnings`，blocking failure `0`；唯一 issue 是 `EBI0001 partial_placement_unready`
+  （warning）。这表示技术 QA 没有发现伪造或损坏输出，但不等于产品素材/对齐 Gate 通过。
+- 本轮产品 Gate：`REAL USER TRANSCRIPTION` **PASS（token timing 可产出，overlap=0）**；
+  `REAL USER ALIGNMENT` **BLOCKED / NEEDS_REVIEW**；`REAL USER MATERIAL PLACEMENT` **BLOCKED / WAITING**；
+  `REAL USER MOTION PLACEMENT` **BLOCKED / WAITING**；`REAL USER FULL PREVIEW` **TECHNICAL OUTPUT ONLY，未通过产品验收**；
+  `REAL USER CLEAN A-ROLL E2E` **BLOCKED / NOT PASSED**。
+- 本轮没有进入人工视觉 Preview Gate，因为没有可靠 Beat/Cue timing，视频只保留 A-roll 和字幕；不要把这
+  份 Preview 当作已经通过的成片，也不要要求用户按 timecode 做审美判断。
+
+### 9. 测试、Git 与版本
+
+- 当前代码回归：`454 passed, 3 skipped in 13.29s`；本轮未改产品代码，`git diff --check` 与工作区检查通过。
+- 分支：`agent/audio-alignment-edit-bridge`。本轮真实运行开始时 HEAD 与最终文档提交前 HEAD 均为
+  `0a9830a3a04cdfa5e11a5a34fa92d99d29f45586`（`docs: record large-v3 long-form verification`）。
+  本轮只新增本交接/CHANGELOG 文档记录，不新增产品功能。
+- canonical main HEAD 未改变：`8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`；正式 `v0.6.1` peeled
+  commit 未改变，annotated tag object 仍为 `64358100d17de3f74d0d9c3db12a0c177a80a190`；没有新 tag、
+  GitHub Release 或 main merge。
+- 当前状态仍为 `V1.0 Candidate — Unreleased`。不要开始字幕新功能、ASR 修正、第二模型、forced aligner、
+  音频清理或其他新功能；先由 ChatGPT Review 本轮 Alignment blocker，并决定下一步是否需要用户重录/
+  重新确认口播、受控对齐规格或其他产品决策。
+
+### 10. 给产品经理的 Review 请求
+
+请 ChatGPT Review：真实 Transcript 与 reviewed Script 的偏差是否达到需要产品决策的程度；在保持
+fail-closed 和“不用 Script 覆盖真实语音”的前提下，下一轮应如何处理 18 个 `needs_review` Beat、213 个
+gaps 和 8 个未落位 Cue；是否接受当前 Preview 仅 A-roll + Basic Subtitle 的技术产物；以及在没有可靠
+alignment 前，是否允许任何 Material/Motion placement Gate 继续。请先给出明确的下一轮 Codex 指令，本轮
+不要直接进入新的功能开发。
+
+## 给用户的下一步操作
+
+你现在不需要看片，也不需要做任何技术操作。请把本次回复最底部“请把以下内容复制给 ChatGPT”后的整段文字原样发给 ChatGPT，等待它决定下一步。不要打开终端、找 JSON、改字幕或重新上传视频。
+
 ## 2026-08-14：Quality-first large-v3 长版生产验证
 
 ### 1. 本轮任务
