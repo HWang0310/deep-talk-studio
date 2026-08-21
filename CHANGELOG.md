@@ -4,6 +4,25 @@
 
 ## [Unreleased] - 2026-08-21
 
+### REAL USER ALIGNMENT BLOCKER DIAGNOSIS
+
+- 对第一次真人 Clean A-roll E2E 的 `18/18 needs_review`、`213 gaps`、`8/8 Cue unplaced` 完成只读诊断；
+  未重转写、重渲染、改 Script/Transcript、改 Alignment/Gate/阈值或开发新功能。诊断 JSON 与 Markdown 只保存在
+  Git 外的 real-user E2E artifact `diagnostics/` 目录。
+- 所有 Script r2、真人 Transcript、Media SHA、Timestamp Mapping、Material r2、Production Plan 与 8 个 Cue
+  binding 均重算通过；没有误用 synthetic Transcript、旧 Script revision 或错误 production lineage。
+- 根因确认为 mixed：**CASE D 为主因**。当前 per-Beat fallback 在没有整段逐字命中时把单个 Beat 与整条
+  Transcript 比较，其他 17 Beat 必然成为 `transcript_insertion/ad_lib`；任何 deviation 又阻止 `aligned/high`，
+  因而即使 17/18 Beat 已满足 accepted lexical floors，仍会系统性全部 `needs_review`。B001 的 1,289 candidate
+  windows 覆盖几乎全片，是缺少定位的算法歧义，不是 1,289 次真人复读。
+- **CASE B 为次因**：全片顺序诊断得到 Script→Transcript exact/numeric lexical coverage `94.8232%`、
+  Transcript→Script `90.1872%`，Beat 边界顺序违例为 0；但 B011 有 13-unit 缺口、B018 有 154-unit Script 外
+  尾段，需要未来听音频/人工 review 确认。其余主要是专有名词与单字 ASR 噪声或正常口语变化。
+- 当前 fail-closed 生产 Gate 保持正确；建议下一步仅由 ChatGPT 决定是否设计“全局单调、顺序感知”的证据
+  pass，再投影 Beat/Cue，同时保留 B011/B018 人工 review 与所有安全边界。本轮不实施。
+
+## [Unreleased] - 2026-08-21
+
 ### REAL USER CLEAN A-ROLL E2E
 
 - 使用用户提供的真实无烧录字幕 Clean A-roll `/Users/hwang/Movies/口播/AI事故8月21日.mp4` 完成正式本地

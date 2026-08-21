@@ -571,6 +571,157 @@ alignment 前，是否允许任何 Material/Motion placement Gate 继续。请�
 
 你现在不需要看片，也不需要做任何技术操作。请把本次回复最底部“请把以下内容复制给 ChatGPT”后的整段文字原样发给 ChatGPT，等待它决定下一步。不要打开终端、找 JSON、改字幕或重新上传视频。
 
+---
+
+## 2026-08-21：REAL USER ALIGNMENT BLOCKER DIAGNOSIS（只读诊断）
+
+> 本节是当前最新状态。本轮是诊断，不是功能开发：没有重新转写、重渲染、改稿、改 Transcript、改
+> Alignment 代码、阈值、Gate 或正式工件，也没有 merge、tag 或 Release。
+
+### 1. 本轮任务与产物
+
+针对第一次真人 Clean A-roll E2E 的 `18/18 needs_review`、`213 gaps`、`8/8 Cue unplaced`，只回答
+根因。诊断使用原有真人工件和同一套确定性 normalization / sequence-alignment core；没有用 LLM 语义猜测
+时间，也没有生成新的 Alignment / Edit Bridge / Preview revision。
+
+Git 外诊断产物：
+
+- JSON：`/Users/hwang/.cache/deep-talk-studio/transcription/e2e/real-user-clean-aroll-20260821/DeepTalk-Aligned-Edit/diagnostics/real-user-alignment-diagnosis-r0001.json`
+  ，SHA-256 `6a5bad483bdaee40f2ec5185512aaacbc9c11d7843ea1fbb7ba340c9ec6dd1d7`。
+- 人读 Markdown：`/Users/hwang/.cache/deep-talk-studio/transcription/e2e/real-user-clean-aroll-20260821/DeepTalk-Aligned-Edit/diagnostics/real-user-alignment-diagnosis-r0001.md`
+  ，SHA-256 `114be3bf1f26c10a2b60d5a4f7bcf0a72addc342989cc4b79f8a2a20bd8e0190`。
+
+### 2. Artifact binding verification
+
+所有实际可重算的 binding 均通过：
+
+- Alignment `ALIGNMENT-b3cfeb6801094e03b1b4658bde602760` 精确绑定 Script
+  `SCR-301097255e2746ee9550ba8ea38acf01` revision 2；保存的 full-script digest 与当前 r2 重算值一致。
+- Material r2 与 Production Plan `PROD-20260813T133848055707` 均绑定当前 reviewed Script r2 的
+  content digest `855b0d3c7d39b3e76a7bd18b90293bed93a9026e2b035cf86eadd4c00f6554cd`。
+- Alignment 精确绑定真实 Transcript `TRANSCRIPT-e3e949a79e744a3d90aa8a02b9366742` 及其 digest
+  `85154b27fed6b9871c4975692b37410d5d79526caa7128cb3d0ccc2d525b92f7`。
+- Transcript / Alignment 的 Media ID、Mapping ID/digest 和媒体 SHA 都一致，并指向用户的原始 Clean A-roll
+  SHA-256 `39d08733447f78c60b5cc0f737781c8fc3a9d95629d7f92a04902bbe0f8e57ec`。
+- 8 个 Cue 的 `(cue_id, beat_id, placement_anchor)` 与 approved Production Plan 完全一致。
+
+没有误用旧 synthetic Transcript、旧 Script revision 或错误的 Material/Production lineage。CASE D 的含义是
+现有 Alignment 实现行为有问题，不是 artifact binding 错误。
+
+### 3. Independent ordered diagnostic
+
+在不改变 production 的前提下，使用同一现有 deterministic DP core 对“完整 Script（按 B001→B018 顺序）”和
+“完整真实 Transcript”做了一次只读顺序比较，不输出时间码：
+
+- Script normalized lexical units：`2,743`；Transcript：`2,884`。
+- Script → Transcript exact/numeric lexical coverage：`94.8232%`；计入 substitution 后 `96.9377%`。
+- Transcript → Script exact/numeric coverage：`90.1872%`；计入 substitution 后 `92.1983%`。
+- Beat 间顺序违例：`0`。没有证据表明整段口播被大范围重排，也不支持“已不是同一条内容”的 CASE C。
+- 原正式 artifact 的 18 个 Beat 中，`18/18` 满足 coverage floor `0.85`，`17/18` 同时满足 accepted
+  similarity floor `0.88`；仍然全部 `needs_review`。
+
+### 4. 根因：CASE D 为主因
+
+当前 `_beat_record` 在 Beat 没有“整段逐字精确命中窗口”时，会把该**单个 Beat**与**整条 10 分钟
+Transcript**比较。真实口播存在正常小差异，因此 18 个 Beat 都进入该 fallback。
+
+这会造成两个连锁结果：
+
+1. 其他 17 个 Beat 的正常内容，都会成为当前 Beat 的 `transcript_insertion`；
+2. 只要出现任意 `transcript_insertion`，实现就加入 `ad_lib_transcript_span` deviation；只有完全无 deviation
+   才可能标记 `aligned/high`。
+
+因此，`ad_lib_transcript_span` 在 18/18 Beat 出现，并不是“用户 18 次都大幅加词”的证据，而是逐 Beat
+对全片 fallback 的必然结果。B001 更出现 `1,289` 个 candidate windows，覆盖从 `1.27s` 到 `593.83s` 的
+几乎整条视频；这不是 1,289 个真实复读位置，而是缺少顺序定位时的算法歧义。
+
+另一个直接证据：正式 artifact 把唯一 `long_gap` 标在 B010；而只读全片顺序诊断显示 B010 最大真实
+Script deletion 只有 1 lexical unit，唯一 13-unit deletion 在 B011。这说明独立 Beat→全片比较发生跨段
+吸附，不能可靠归因本地 gap。
+
+### 5. 213 gaps 的真实含义
+
+正式 artifact 的 213 条为：147 `ad_lib_transcript_span`、61 `omitted_script_span`、5
+`repeated_or_ambiguous_span`。其中 96 条 ad-lib 被记录为 `13+` units，最大甚至 `2,561` units；这些大
+ad-lib 主要是“整条 Transcript 中不属于当前独立 Beat 的部分”，不能解释成 96 个真实大段加词。
+
+一次完整顺序诊断得到的实际差异分布：
+
+- Script deletion：84 units / 66 runs，其中 62 个单 unit、2 个双 unit、1 个 3–5 unit、1 个 13+ unit。
+- Transcript insertion：225 units / 51 runs，其中 37 个单 unit、10 个双 unit、2 个 3–5 unit、1 个
+  6–12 unit、1 个 154-unit tail。
+- 除 B011 的 13-unit 缺口和 B018 的 154-unit 额外收尾外，其余大部分是单字、双字、专有名词或正常
+  口语变化级别差异。
+
+### 6. 18 Beat audit summary
+
+以下 coverage 为完整顺序诊断，非新的正式 timing；每个 Beat 当前的共同 production failure 都是
+`ALIGNER_SENSITIVITY`（全片 fallback 产生 ad-lib）。
+
+| Beat | lexical coverage | 次要差异证据 | 结论 |
+| --- | ---: | --- | --- |
+| B001 | 95.38% | 1–2 unit 小漏/错词；B001 有 1,289 个假性候选窗 | 正常口语/ASR 小噪声 + sensitivity |
+| B002 | 93.86% | `OpenAI→Open`、`Hugging→H`、中文数字→阿拉伯数字 | 专名/数字 ASR 噪声 |
+| B003 | 92.86% | 多个单字替代、`Hugging→H` | ASR 小错词 |
+| B004 | 96.35% | `Hugging→H`、`Spaces→SP` | 专名 ASR 噪声 |
+| B005 | 95.65% | 两个最长仅 2-unit 小缺口 | 小口语差异或 ASR |
+| B006 | 97.01% | `地→的`、`结→解`、`果→锁` | 单字 ASR 错误 |
+| B007 | 95.73% | 最长单 unit；2 个候选窗 | 小口语/ASR 差异 |
+| B008 | 98.18% | `Axios→AC`、`这就是` 3-unit 插入 | 专名 ASR + 小加词 |
+| B009 | 92.65% | 单字遗漏/替代；3 个候选窗 | 小差异，非大段重排 |
+| B010 | 93.92% | `Open Secure AI Alliance`、`SAFE` 被拆错 | 专名 ASR；不支持正式 long-gap 归因 |
+| B011 | 90.67% | 开头“这里有个很容易被忽略的关键”13 units 未见 | 需听音频确认：真人漏讲或 ASR drop |
+| B012 | 97.66% | 三个单字错词 | ASR 小错词 |
+| B013 | 92.72% | `SAFE` / `Axios` 等专名拆错 | 专名 ASR |
+| B014 | 97.97% | `NASA→N`、单字替代 | 专名 ASR |
+| B015 | 94.41% | `NASA→N`；“责任洗掉”重复 4 units | 专名 + 重复短语 |
+| B016 | 93.84% | `SB` / `SAFE` 拆错；7-unit 重复/变体 | 专名 ASR + 小重复 |
+| B017 | 94.32% | 少量单字替代 | ASR 小错词 |
+| B018 | 94.19% | 154-unit 未写入 Script 的尾部收束/CTA；另有 5-unit 缺口 | 需听音频确认额外收尾，不影响前 17 Beat 顺序 |
+
+仅从文本证据不能把每个中文单字差异百分之百归为“ASR”或“用户改说”；诊断没有假装知道。清晰的专有名词
+错误（如 OpenAI、Hugging Face、Axios、NASA、SAFE、SB）归为 ASR evidence；B011/B018 的较大内容则明确
+保留为需要未来听音频确认的局部情况。
+
+### 7. Cue diagnosis（仅诊断，不写 production time）
+
+8 个 Cue 都不是“真人完全没讲”。在完整顺序诊断中：
+
+- VC001、VC002、VC003、VC004、VC005、VC006、VC008 都有一个顺序一致的**部分**候选；分别只受 0–2
+  anchor lexical 差异影响。
+- VC007“`一般要在十五天内报告`”有唯一 exact literal candidate（`15` 与“十五”受正常数字 alias 处理）。
+- 当前 8/8 `unplaced` 的直接原因是 Cue mapper 要求整段 semantic span 全部严格匹配；其 parent Beat 已被
+  全片 fallback 置为 `needs_review` 后，Cue 全部得到 `semantic_span_unmatched`，而不是没有说 anchor。
+
+### 8. 正式结论与建议（不实施）
+
+结论为 **MIXED：CASE D 为主因，CASE B 为次因**。
+
+- CASE D：实现的 per-Beat→full-Transcript fallback 使正常真人口播被系统性写成 ad-lib，足以解释
+  `18/18 needs_review`、大部分 `213 gaps` 与 `8/8 unplaced`。
+- CASE B：B011 有一个 13-unit 缺口，B018 有一个 154-unit Script 外尾段；它们是局部真实风险，不能被
+  正常化或静默吞掉。
+- 不支持 CASE C：整体 Script→Transcript lexical coverage 94.82%，顺序违例 0；用户没有把整期讲成另一篇。
+- 不支持 artifact lineage CASE D：所有 binding 均正确；这里的 CASE D 是实现/contract sensitivity，而非
+  工件串线。
+
+当前 fail-closed 行为仍然正确：在当前工件下不能安全生成素材时间码。错误不在于“停止”，而在于停止依据
+把非本 Beat 的整片内容错误地计入了本 Beat 的 ad-lib。
+
+建议 ChatGPT 若决定解除 blocker，授权的最小下一步应是：设计并评审一个**全局单调、顺序感知**的
+Script→Transcript evidence pass，再从唯一的全局 mapping 投影 Beat/Cue；保持严格的 Cue span、B011/B018
+人工 review、raw timestamp、无 Script 覆盖、无阈值放宽和 fail-closed。此建议未实施。
+
+### 9. Git / Release 状态
+
+- 本轮开始 HEAD：`acd229899844c9d8c7d55bcdccb5c5e9260cbb0a`。
+- 本轮尚未修改产品代码；仅生成 Git 外 diagnosis artifact，并将最终更新 HANDOFF / CHANGELOG。
+- 仍为 `V1.0 Candidate — Unreleased`；main、`v0.6.1` tag、GitHub Release 均不得改变。
+
+## 给用户的下一步操作
+
+你现在不需要重录、看片、对 Transcript、找时间点或改任何文件。请把本次 Codex 回复最底部“请把以下内容复制给 ChatGPT”后的整段文字原样发给 ChatGPT，等待它决定是否进入最小的 alignment architecture 修复设计。
+
 ## 2026-08-14：Quality-first large-v3 长版生产验证
 
 ### 1. 本轮任务
