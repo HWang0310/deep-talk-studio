@@ -18,7 +18,7 @@ class VisualPlanPlacementTests(unittest.TestCase):
             motion = root / "motion.mp4"; motion.write_bytes(b"motion")
             visual_plan = {"plan_digest": "p" * 64, "opportunities": [
                 {"opportunity_id": "OP1", "beat_id": "B002", "visual_kind": "real_material", "visual_role": "evidence", "semantic_target": "官方页面", "source_binding": {"material_id": "M001"}, "timing_status": "ready", "placement_status": "ready", "actual_in_seconds": "10.0", "actual_out_seconds": "14.0", "duration_seconds": "4.0", "confidence": "high"},
-                {"opportunity_id": "OP2", "beat_id": "B003", "visual_kind": "original_motion", "visual_role": "context", "semantic_target": "攻击链", "source_binding": {"scene_id": "S002"}, "timing_status": "ready", "placement_status": "ready", "actual_in_seconds": "20.0", "actual_out_seconds": "27.0", "duration_seconds": "7.0", "confidence": "high"},
+                {"opportunity_id": "OP2", "beat_id": "B003", "visual_kind": "original_motion", "visual_role": "context", "semantic_target": "攻击链", "source_binding": {"visual_id": "V002"}, "timing_status": "ready", "placement_status": "ready", "actual_in_seconds": "20.0", "actual_out_seconds": "27.0", "duration_seconds": "7.0", "confidence": "high"},
             ]}
             material_view = {"items": [{"source_id": "M001", "title": "官方页面", "asset_type": "webpage", "local_path": str(image), "byte_size": image.stat().st_size, "sha256": digest(image), "production_status": "ready"}]}
             plan = {"scenes": [{"scene_id": "S002", "beat_id": "B003", "cue_id": "VC002", "source_visual_ids": ["V002"]}]}
@@ -39,6 +39,15 @@ class VisualPlanPlacementTests(unittest.TestCase):
             view = {"items": [{"source_id": "M001", "title": "官方页面", "asset_type": "webpage", "local_path": str(image), "byte_size": image.stat().st_size, "sha256": digest(image), "production_status": "ready"}]}
             placement = build_visual_plan_placements(visual_plan, view, {}, {}, [root])[0]
             self.assertEqual((placement["placement_status"], placement["timing_status"]), ("unplaced", "clear"))
+            self.assertEqual((placement["source_kind"], placement["source_id"]), ("real_image", "M001"))
+
+    def test_unplaced_motion_keeps_a_typed_visual_identity(self):
+        visual_plan = {"plan_digest": "p" * 64, "opportunities": [
+            {"opportunity_id": "OP1", "beat_id": "B011", "visual_kind": "original_motion", "visual_role": "explanation", "semantic_target": "待复核轨迹", "source_binding": {"visual_id": "V007"}, "timing_status": "unplaced", "placement_status": "unplaced", "actual_in_seconds": "", "actual_out_seconds": "", "duration_seconds": "", "confidence": "none"},
+        ]}
+        plan = {"scenes": [{"scene_id": "S007", "source_visual_ids": ["V007"]}]}
+        placement = build_visual_plan_placements(visual_plan, {"items": []}, plan, {"assets": []}, [Path("/")])[0]
+        self.assertEqual((placement["placement_status"], placement["source_kind"], placement["source_id"], placement["scene_id"]), ("unplaced", "original_motion", "S007", "S007"))
 
 
 if __name__ == "__main__":

@@ -148,6 +148,30 @@ def build_visual_plan_placements(visual_plan, material_view, production_plan, mo
         )
         _plan_semantic(placement, opportunity)
         if opportunity.get("timing_status") != "ready" or opportunity.get("placement_status") != "ready":
+            # An unplaced opportunity is still an auditable request for a
+            # specific reviewed source.  Keep its typed source identity so it
+            # remains schema-valid and cannot silently become a generic blank
+            # placement in an Edit Bridge.
+            if opportunity.get("visual_kind") == "original_motion":
+                scene_id = binding.get("scene_id", "")
+                if not scene_id and binding.get("visual_id"):
+                    matching_scenes = [
+                        candidate["scene_id"] for candidate in production_plan.get("scenes", [])
+                        if binding["visual_id"] in candidate.get("source_visual_ids", [])
+                    ]
+                    if len(matching_scenes) == 1:
+                        scene_id = matching_scenes[0]
+                placement.update(
+                    source_kind="original_motion", source_id=scene_id or binding.get("visual_id", ""),
+                    scene_id=scene_id, asset_type="original_motion", layout_mode="full_screen_visual",
+                    layout_source="production_plan", audio_policy="mute_source_keep_aroll",
+                )
+            elif opportunity.get("visual_kind") == "real_material":
+                placement.update(
+                    source_kind="real_image", source_id=binding.get("material_id", ""),
+                    asset_type="document_screenshot", layout_mode="full_screen_broll",
+                    audio_policy="mute_source_keep_aroll",
+                )
             placement["placement_status"] = "unplaced"
             result.append(placement)
             continue
@@ -179,6 +203,13 @@ def build_visual_plan_placements(visual_plan, material_view, production_plan, mo
                     placement["placement_status"] = "ready"
         elif opportunity.get("visual_kind") == "original_motion":
             scene_id = binding.get("scene_id", "")
+            if not scene_id and binding.get("visual_id"):
+                matching_scenes = [
+                    candidate["scene_id"] for candidate in production_plan.get("scenes", [])
+                    if binding["visual_id"] in candidate.get("source_visual_ids", [])
+                ]
+                if len(matching_scenes) == 1:
+                    scene_id = matching_scenes[0]
             asset = motion_by_scene.get(scene_id)
             scene = scenes.get(scene_id)
             asset_path = (asset or {}).get("local_path") or (asset or {}).get("output_path", "")

@@ -32,6 +32,7 @@ class RemotionAlignedPreviewRenderer:
    raise AlignedPreviewError("Subtitle Artifact 与 Preview roots 不一致")
   payload={"media_duration_seconds":media["presentation_duration_seconds"],"subtitle_artifact_digest":subtitle_artifact["artifact_digest"],"subtitle_profile":subtitle_profile,"subtitle_cues":subtitle_artifact["cues"],"subtitles_enabled":True,"placements":[{"placement_id":"VP0000","source_kind":"clean_aroll","asset_path":f"assets/{ar_name}","preview_in_frame":0,"preview_out_frame":None}]};ids=["VP0000"]
   for p in bridge.get("visual_placements",[]):
+   if p.get("placement_id")=="VP0000" or p.get("source_kind")=="clean_aroll":continue
    if p.get("placement_status")!="ready" or not p.get("preview_enabled",True):continue
    suffix=Path(p["local_path"]).suffix.lower();name=p["placement_id"]+suffix;staged.append(_stage(p["local_path"],public/name,allowed_roots,p["byte_size"],p["sha256"]));ids.append(p["placement_id"])
    payload["placements"].append({"placement_id":p["placement_id"],"source_kind":p["source_kind"],"asset_path":f"assets/{name}","preview_in_frame":p["preview_in_frame"],"preview_out_frame":p["preview_out_frame"],"source_clip_in_seconds":p.get("source_clip_in_seconds","")})

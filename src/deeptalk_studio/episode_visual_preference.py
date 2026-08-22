@@ -92,6 +92,31 @@ def parse_visual_preference_feedback(text: str, *, human_preview: bool = False) 
     return {"scope": _scope(raw, human_preview=human_preview), "raw_text": raw, "patch": patch, "recognized_intents": intents}
 
 
+def apply_explicit_persistent_visual_default(persistent_default: Mapping, feedback: str) -> dict:
+    """Return a new default profile only for an unambiguous future-default request.
+
+    This is deliberately a pure operation.  It never rewrites the repository's
+    baseline profile or an existing episode artifact: the caller must save a
+    separately approved user preference artifact when the person explicitly asks
+    for a lasting change.
+    """
+
+    default = dict(persistent_default)
+    if default.get("profile_digest") != _digest(default, "profile_digest"):
+        raise EpisodeVisualPreferenceError("长期视觉默认风格不可信")
+    parsed = parse_visual_preference_feedback(feedback)
+    if parsed["scope"] != "persistent":
+        raise EpisodeVisualPreferenceError("只有明确说明“以后默认”才能修改长期默认")
+    if not parsed["patch"]:
+        raise EpisodeVisualPreferenceError("长期默认请求没有可确定的视觉偏好")
+    revised = {
+        "artifact_version": default["artifact_version"],
+        "preferences": {**dict(default["preferences"]), **parsed["patch"]},
+    }
+    revised["profile_digest"] = _digest(revised, "profile_digest")
+    return revised
+
+
 def _resolved(default: Mapping, override: Mapping, revisions: Sequence[Mapping]) -> dict:
     result = dict(default["preferences"])
     result.update(override["patch"])

@@ -36,7 +36,7 @@ def _tail_policy(alignment: Mapping) -> dict:
     return {"status": "aroll", "start_seconds": str(tail.get("actual_start_seconds", "")), "end_seconds": str(tail.get("actual_end_seconds", ""))}
 
 
-def _beat_audits(script: Mapping, alignment: Mapping, preference: Mapping) -> list:
+def _beat_audits(script: Mapping, alignment: Mapping, preference: Mapping, notes: Mapping[str, Mapping] = None) -> list:
     timeline = {item["beat_id"]: item for item in alignment.get("beat_timeline", [])}
     audits = []
     for beat in script.get("beats", []):
@@ -49,11 +49,13 @@ def _beat_audits(script: Mapping, alignment: Mapping, preference: Mapping) -> li
             rationale = "该 Beat 存在真实对齐不确定性；仅独立安全 span 可进入辅助画面。"
         elif beat.get("beat_id") == "B018":
             rationale = "结论与 CTA 默认保留真人；Script 外尾段始终保留真人。"
+        note = dict((notes or {}).get(beat["beat_id"], {}))
         audits.append({
             "beat_id": beat["beat_id"], "actual_start_seconds": str(record.get("actual_start_seconds", "")),
             "actual_end_seconds": str(record.get("actual_end_seconds", "")), "alignment_status": status,
-            "confidence": record.get("confidence", "none"), "semantic_purpose": "待由已审核 Script 视觉规划解释",
-            "a_roll_rationale": rationale, "existing_assets": [], "missing_assets": [],
+            "confidence": record.get("confidence", "none"), "semantic_purpose": note.get("semantic_purpose", "待由已审核 Script 视觉规划解释"),
+            "a_roll_rationale": note.get("a_roll_rationale", rationale),
+            "existing_assets": list(note.get("existing_assets", [])), "missing_assets": list(note.get("missing_assets", [])),
             "preference_effect": dict(preference["resolved_preference"]),
         })
     return audits
@@ -125,6 +127,7 @@ def build_post_alignment_visual_plan(
     created_at: str,
     revision: int = 1,
     previous_revision: int = 0,
+    beat_audit_notes: Mapping[str, Mapping] = None,
 ) -> dict:
     if alignment.get("artifact_version") not in {None, "script-alignment/2"}:
         raise PostAlignmentVisualPlanError("Post-Alignment Visual Plan 只接受 script-alignment/2")
@@ -141,7 +144,9 @@ def build_post_alignment_visual_plan(
         if int(raw["semantic_char_end"]) <= int(raw["semantic_char_start"]):
             raise PostAlignmentVisualPlanError("Visual Opportunity semantic span 无效")
         seen.add(raw["opportunity_id"]); projected.append(_project(raw, alignment, transcript))
-    audits = _beat_audits(script, alignment, preference)
+    if beat_audit_notes is not None and set(beat_audit_notes) != beat_ids:
+        raise PostAlignmentVisualPlanError("完整 Visual Audit 必须覆盖每一个 Beat")
+    audits = _beat_audits(script, alignment, preference, beat_audit_notes)
     data = {
         "artifact_version": "post-alignment-visual-plan/1", "plan_id": str(plan_id), "revision": int(revision),
         "previous_revision": int(previous_revision), "created_at": str(created_at),
@@ -165,9 +170,13 @@ def validate_post_alignment_visual_plan(value: Mapping, script: Mapping, transcr
     if set(value) != required or value.get("artifact_version") != "post-alignment-visual-plan/1":
         raise PostAlignmentVisualPlanError("Post-Alignment Visual Plan 字段或版本无效")
     raw = [{key: item[key] for key in ("opportunity_id", "beat_id", "semantic_char_start", "semantic_char_end", "visual_kind", "visual_role", "semantic_target", "source_binding")} for item in value["opportunities"]]
+    notes = {
+        item["beat_id"]: {key: item[key] for key in ("semantic_purpose", "a_roll_rationale", "existing_assets", "missing_assets")}
+        for item in value["beat_audits"]
+    }
     expected = build_post_alignment_visual_plan(
         script, transcript, alignment, preference, raw, plan_id=value["plan_id"], created_at=value["created_at"],
-        revision=value["revision"], previous_revision=value["previous_revision"],
+        revision=value["revision"], previous_revision=value["previous_revision"], beat_audit_notes=notes,
     )
     if dict(value) != expected:
         raise PostAlignmentVisualPlanError("Post-Alignment Visual Plan 无法从 canonical roots 重推导")

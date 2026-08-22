@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 
 from deeptalk_studio.episode_visual_preference import (
+    apply_explicit_persistent_visual_default,
     build_episode_visual_preference,
     load_episode_visual_default,
     parse_visual_preference_feedback,
@@ -50,6 +51,14 @@ class EpisodeVisualPreferenceTests(unittest.TestCase):
         self.assertEqual(persistent["patch"], {"motion_preference": "high"})
         self.assertEqual(episode["scope"], "episode")
         self.assertEqual(episode["patch"], {"motion_preference": "high"})
+
+    def test_only_explicit_future_feedback_can_create_a_new_persistent_default(self):
+        default = load_episode_visual_default()
+        revised = apply_explicit_persistent_visual_default(default, "以后默认动画都多一点")
+        self.assertEqual(revised["preferences"]["motion_preference"], "high")
+        self.assertNotEqual(revised["profile_digest"], default["profile_digest"])
+        with self.assertRaisesRegex(Exception, "长期默认"):
+            apply_explicit_persistent_visual_default(default, "这期动画多一点")
 
     def test_human_preview_revision_has_highest_precedence(self):
         preference = build_episode_visual_preference(
