@@ -16,5 +16,11 @@ class EditBridgeValidationTests(unittest.TestCase):
  def test_unready_placement_cannot_carry_preview_frames(self):
   p=copy.deepcopy(self.p); p["placement_status"]="unplaced"
   with self.assertRaises(EditBridgePlanningError): build_edit_bridge(bindings(),[p],(),(),(),bridge_id="EB2",created_at="x")
+ def test_post_alignment_visual_roots_are_bound_as_an_all_or_nothing_pair(self):
+  roots=bindings()|{"episode_visual_preference_digest":"v"*64,"post_alignment_visual_plan_digest":"p"*64}
+  bridge=build_edit_bridge(roots,[self.p],(),(),(),bridge_id="EB3",created_at="x")
+  validate_edit_bridge(bridge,roots,[self.p],(),(),())
+  with self.assertRaises(EditBridgePlanningError):
+   build_edit_bridge(bindings()|{"episode_visual_preference_digest":"v"*64},[self.p],(),(),(),bridge_id="EB4",created_at="x")
 
 if __name__=="__main__": unittest.main()

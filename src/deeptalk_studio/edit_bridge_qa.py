@@ -26,6 +26,7 @@ class CanonicalEditBridgeQAContext:
  preview_project:Optional[Any]=None;preview_renderer:Optional[Any]=None
  previous_bridge:Optional[Mapping[str,Any]]=None;revision_adjustment:Optional[Mapping[str,Any]]=None
  subtitle_artifact:Optional[Mapping[str,Any]]=None;subtitle_profile:Optional[Mapping[str,Any]]=None
+ episode_visual_preference:Optional[Mapping[str,Any]]=None;post_alignment_visual_plan:Optional[Mapping[str,Any]]=None
 
 REQUIRED_GROUPS={"root","transcript","alignment","placement","preview"}
 
@@ -62,6 +63,15 @@ def _root_digest(value,*names):
 def _validate_root_chain(context):
  from .narration_media import canonical_digest,probe_narration_media,sha256_file
  from .production_qa import validate_motion_manifest,validate_production_qa
+ has_preference=getattr(context,"episode_visual_preference",None) is not None
+ has_visual_plan=getattr(context,"post_alignment_visual_plan",None) is not None
+ if has_preference != has_visual_plan:raise EditBridgeQAError("Episode Visual Preference 与 Post-Alignment Visual Plan 必须成对绑定")
+ if has_preference:
+  from .episode_visual_preference import load_episode_visual_default,validate_episode_visual_preference
+  from .post_alignment_visual_plan import validate_post_alignment_visual_plan
+  validate_episode_visual_preference(context.episode_visual_preference,load_episode_visual_default())
+  validate_post_alignment_visual_plan(context.post_alignment_visual_plan,_value(context.script),context.transcript,context.alignment,context.episode_visual_preference)
+  if context.production_plan.get("episode_visual_preference_digest")!=context.episode_visual_preference["preference_digest"] or context.production_plan.get("post_alignment_visual_plan_digest")!=context.post_alignment_visual_plan["plan_digest"]:raise EditBridgeQAError("Production Plan Visual Context binding 不一致")
  source=Path(context.media["immutable_local_path"])
  if sha256_file(source)!=context.media["sha256"]:raise EditBridgeQAError("Clean A-roll SHA 已变化")
  evidence=probe_narration_media(source)
@@ -88,6 +98,8 @@ def _validate_root_chain(context):
  }
  if context.subtitle_artifact is not None and context.subtitle_profile is not None:
   expected.update(subtitle_artifact_digest=_root_digest(context.subtitle_artifact,"artifact_digest"),subtitle_profile_digest=_root_digest(context.subtitle_profile,"profile_digest"))
+ if has_preference:
+  expected.update(episode_visual_preference_digest=context.episode_visual_preference["preference_digest"],post_alignment_visual_plan_digest=context.post_alignment_visual_plan["plan_digest"])
  if dict(context.bridge.get("root_bindings",{}))!=expected:raise EditBridgeQAError("Edit Bridge canonical root binding 不一致")
 
 def _validate_transcript_chain(context):
@@ -106,11 +118,14 @@ def _validate_alignment_chain(context):
  validate_script_alignment(context.alignment,context.script,context.transcript,context.mapping,context.alignment_profile,context.cues,context.media)
 
 def _validate_placement_chain(context):
- from .edit_bridge_planner import build_visual_placements,derive_placement_timing
+ from .edit_bridge_planner import build_base_aroll_placement,build_visual_placements,build_visual_plan_placements,derive_placement_timing
  from .edit_bridge_validation import validate_edit_bridge
  from .material_bridge import validate_material_production_view
  validate_material_production_view(context.material_view,context.material_package_path,context.script,context.report,context.material_profile,context.material_asset_root)
- raw=build_visual_placements(context.alignment,context.material_view,context.production_plan,context.motion_manifest,context.media,context.allowed_roots,context.production_qa)
+ if getattr(context,"post_alignment_visual_plan",None) is not None:
+  raw=(build_base_aroll_placement(context.media),)+build_visual_plan_placements(context.post_alignment_visual_plan,context.material_view,context.production_plan,context.motion_manifest,context.allowed_roots)
+ else:
+  raw=build_visual_placements(context.alignment,context.material_view,context.production_plan,context.motion_manifest,context.media,context.allowed_roots,context.production_qa)
  derived=derive_placement_timing(raw,context.timing_profiles)
  if tuple(context.timing_result.placements)!=tuple(derived.placements) or tuple(context.timing_result.conflicts)!=tuple(derived.conflicts) or tuple(context.timing_result.adjustments)!=tuple(derived.adjustments):raise EditBridgeQAError("Placement timing 无法从 canonical roots 重推导")
  if context.previous_bridge is not None:

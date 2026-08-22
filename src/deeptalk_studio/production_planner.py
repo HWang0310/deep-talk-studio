@@ -204,6 +204,8 @@ def prepare_production_plan(
     created_at: str,
     production_id: str,
     renderer_mode: str = "auto",
+    episode_visual_preference: Mapping[str, Any] = None,
+    post_alignment_visual_plan: Mapping[str, Any] = None,
 ) -> Dict[str, Any]:
     if package.status not in {"reviewed", "reviewed_with_warnings"}:
         raise ProductionValidationError("Production Plan 只接受正式 reviewed Material Package")
@@ -354,6 +356,17 @@ def prepare_production_plan(
         "motion_assets": expected_assets, "production_gaps": gaps,
         "warnings": list(package.warnings), "qa_state": {"state": "not_run"},
     }
+    if (episode_visual_preference is None) != (post_alignment_visual_plan is None):
+        raise ProductionValidationError("Episode Visual Preference 与 Post-Alignment Visual Plan 必须成对绑定")
+    if episode_visual_preference is not None:
+        preference_digest = str(episode_visual_preference.get("preference_digest", ""))
+        visual_plan_digest = str(post_alignment_visual_plan.get("plan_digest", ""))
+        if len(preference_digest) != 64 or len(visual_plan_digest) != 64:
+            raise ProductionValidationError("Visual Context digest 无效")
+        data.update(
+            episode_visual_preference_digest=preference_digest,
+            post_alignment_visual_plan_digest=visual_plan_digest,
+        )
     data["plan_digest"] = production_plan_digest(data)
     validate_production_plan(data, package, script, profile, report=report_obj)
     return data
@@ -362,6 +375,8 @@ def prepare_production_plan(
 def validate_production_plan(
     plan: Mapping[str, Any], package: MaterialPackage, script: Any,
     profile: Mapping[str, Any], *, report: Any = None,
+    episode_visual_preference: Mapping[str, Any] = None,
+    post_alignment_visual_plan: Mapping[str, Any] = None,
 ) -> None:
     try:
         validate_json_schema(dict(plan), PRODUCTION_PLAN_SCHEMA, "production_plan")
@@ -369,6 +384,15 @@ def validate_production_plan(
         raise ProductionValidationError(str(exc)) from None
     if plan["plan_digest"] != production_plan_digest(plan):
         raise ProductionValidationError("Production Plan digest 无效")
+    has_preference = "episode_visual_preference_digest" in plan
+    has_visual_plan = "post_alignment_visual_plan_digest" in plan
+    if has_preference != has_visual_plan:
+        raise ProductionValidationError("Production Plan Visual Context binding 不完整")
+    if (episode_visual_preference is None) != (post_alignment_visual_plan is None):
+        raise ProductionValidationError("Visual Context validator 输入不完整")
+    if episode_visual_preference is not None:
+        if not has_preference or plan["episode_visual_preference_digest"] != episode_visual_preference.get("preference_digest") or plan["post_alignment_visual_plan_digest"] != post_alignment_visual_plan.get("plan_digest"):
+            raise ProductionValidationError("Production Plan Visual Context binding 无效")
     expected_binding = (
         script.script_id, script.revision, script_content_digest(script.data),
         package.package_id, package.revision, package.package_digest,

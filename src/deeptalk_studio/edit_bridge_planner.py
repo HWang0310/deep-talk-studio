@@ -111,6 +111,98 @@ def build_visual_placements(alignment,material_view,production_plan,motion_manif
     return tuple(result)
 
 
+def _plan_semantic(placement, opportunity):
+    """Copy only already safe, global-projection time from a Visual Plan."""
+    placement.update(
+        beat_id=opportunity["beat_id"], placement_anchor=opportunity.get("semantic_target", ""),
+        semantic_in_seconds=opportunity.get("actual_in_seconds", ""),
+        semantic_out_seconds=opportunity.get("actual_out_seconds", ""),
+        semantic_duration_seconds=opportunity.get("duration_seconds", ""),
+        target_duration_seconds=opportunity.get("duration_seconds", ""), confidence=opportunity.get("confidence", "none"),
+    )
+    if placement["semantic_in_seconds"] and placement["semantic_out_seconds"]:
+        placement["canonical_in_timecode"] = format_canonical_timecode(placement["semantic_in_seconds"])
+        placement["canonical_out_timecode"] = format_canonical_timecode(placement["semantic_out_seconds"])
+
+
+def build_visual_plan_placements(visual_plan, material_view, production_plan, motion_manifest, allowed_roots):
+    """Turn a reviewed Post-Alignment Visual Plan into safe existing-source placements.
+
+    The plan owns semantic timing. This adapter never projects, extends, or guesses time.
+    """
+    materials = {item.get("source_id"): item for item in material_view.get("items", [])}
+    scenes = {item.get("scene_id"): item for item in production_plan.get("scenes", [])}
+    motion_by_scene = {
+        item.get("scene_id"): item for item in motion_manifest.get("assets", [])
+        if item.get("asset_kind", "motion_clip") == "motion_clip"
+    }
+    result = []
+    for opportunity in visual_plan.get("opportunities", []):
+        binding = opportunity.get("source_binding", {})
+        placement = _base_fields()
+        placement.update(
+            placement_id=f"VP{len(result) + 1:04d}", track_order=len(result) + 1,
+            visual_role=opportunity.get("visual_role", "context"), notes=[
+                f"post_alignment_visual_plan:{opportunity.get('opportunity_id', '')}"
+            ],
+        )
+        _plan_semantic(placement, opportunity)
+        if opportunity.get("timing_status") != "ready" or opportunity.get("placement_status") != "ready":
+            placement["placement_status"] = "unplaced"
+            result.append(placement)
+            continue
+        if opportunity.get("visual_kind") == "real_material":
+            material_id = binding.get("material_id", "")
+            item = materials.get(material_id)
+            if item is None:
+                placement.update(source_kind="real_image", source_id=material_id, placement_status="missing_asset")
+            else:
+                is_video = item.get("asset_type") == "video_clip_reference"
+                placement.update(
+                    source_kind="real_video" if is_video else "real_image", source_id=material_id,
+                    safe_filename=Path(item.get("local_path", "")).name, asset_type=item.get("asset_type", "document_screenshot"),
+                    local_path=item.get("local_path", ""), byte_size=int(item.get("byte_size", 0)), sha256=item.get("sha256", ""),
+                    layout_mode="full_screen_broll", duration_status="natural",
+                )
+                if item.get("production_status") != "ready":
+                    placement["placement_status"] = "missing_asset"
+                elif not _verified(placement["local_path"], placement["byte_size"], placement["sha256"], allowed_roots):
+                    placement["placement_status"] = "rejected"
+                elif is_video:
+                    reference = item.get("video_reference", {})
+                    start, end = reference.get("start_seconds", 0), reference.get("end_seconds", 0)
+                    if end > start:
+                        placement.update(placement_status="ready", source_clip_in_seconds=str(start), source_clip_out_seconds=str(end), natural_duration_seconds=str(Decimal(str(end)) - Decimal(str(start))))
+                    else:
+                        placement["placement_status"] = "clip_selection_needed"
+                else:
+                    placement["placement_status"] = "ready"
+        elif opportunity.get("visual_kind") == "original_motion":
+            scene_id = binding.get("scene_id", "")
+            asset = motion_by_scene.get(scene_id)
+            scene = scenes.get(scene_id)
+            asset_path = (asset or {}).get("local_path") or (asset or {}).get("output_path", "")
+            placement.update(
+                source_kind="original_motion", source_id=scene_id, scene_id=scene_id,
+                safe_filename=Path(asset_path).name, asset_type="original_motion", local_path=asset_path,
+                byte_size=int((asset or {}).get("byte_size", 0)), sha256=(asset or {}).get("sha256", ""),
+                natural_duration_seconds=str((asset or {}).get("duration_seconds", "")), layout_mode="full_screen_visual",
+                layout_source="production_plan", duration_status="natural",
+            )
+            if scene is None or asset is None or asset.get("qa_status") != "ready":
+                placement["placement_status"] = "missing_asset"
+            elif not _verified(placement["local_path"], placement["byte_size"], placement["sha256"], allowed_roots):
+                placement["placement_status"] = "rejected"
+            else:
+                placement["placement_status"] = "ready"
+        else:
+            # Hybrid is represented as separate Material and Motion opportunities so neither
+            # source gets a fabricated composite timing or mixed provenance record.
+            placement["placement_status"] = "unplaced"
+        result.append(placement)
+    return tuple(result)
+
+
 @dataclass(frozen=True)
 class PlacementTimingResult:
     placements: Tuple[dict,...]; conflicts: Tuple[dict,...]; adjustments: Tuple[dict,...]
@@ -194,7 +286,9 @@ def _bridge_digest(value):
 def build_edit_bridge(root_bindings,placements,conflicts,adjustments,alignment_gaps,*,bridge_id,created_at,revision=1,previous_revision=0):
     legacy_bindings={"narration_media_digest","extracted_audio_digest","timestamp_mapping_digest","chunk_plan_digest","transcript_digest","script_content_digest","research_digest","material_package_digest","material_view_digest","production_plan_digest","motion_manifest_digest","production_qa_digest","alignment_digest","alignment_profile_digest","rough_cut_profile_digest","aligned_preview_profile_digest"}
     subtitle_bindings={"subtitle_artifact_digest","subtitle_profile_digest"}
-    if set(root_bindings) not in {frozenset(legacy_bindings),frozenset(legacy_bindings|subtitle_bindings)} or not all(root_bindings.values()): raise EditBridgePlanningError("Edit Bridge root bindings 不完整")
+    visual_plan_bindings={"episode_visual_preference_digest","post_alignment_visual_plan_digest"}
+    accepted={frozenset(legacy_bindings),frozenset(legacy_bindings|subtitle_bindings),frozenset(legacy_bindings|visual_plan_bindings),frozenset(legacy_bindings|subtitle_bindings|visual_plan_bindings)}
+    if frozenset(root_bindings) not in accepted or not all(root_bindings.values()): raise EditBridgePlanningError("Edit Bridge root bindings 不完整")
     for p in placements:
         if p.get("placement_status")!="ready" and (p.get("preview_in_frame",-1)>=0 or p.get("preview_out_frame",-1)>=0):
             raise EditBridgePlanningError("非 ready Placement 不得携带 Preview frame")

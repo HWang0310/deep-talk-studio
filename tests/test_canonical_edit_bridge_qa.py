@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 from deeptalk_studio.edit_bridge_qa import (
     REQUIRED_GROUPS,
+    EditBridgeQAError,
+    _validate_root_chain,
     build_canonical_edit_bridge_qa_inputs,
     run_canonical_edit_bridge_qa,
 )
@@ -70,6 +72,10 @@ class CanonicalEditBridgeQATests(unittest.TestCase):
             qa = run_canonical_edit_bridge_qa(context)
         self.assertEqual(qa["package_gate_status"], "fail")
         self.assertIn("invalid_transcript_chain", {item["issue_type"] for item in qa["issues"]})
+
+    def test_visual_context_roots_must_be_an_all_or_nothing_pair(self):
+        with self.assertRaises(EditBridgeQAError):
+            _validate_root_chain(SimpleNamespace(episode_visual_preference={}, post_alignment_visual_plan=None))
 
 
 if __name__ == "__main__":

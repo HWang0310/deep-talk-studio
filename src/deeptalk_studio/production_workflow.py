@@ -94,6 +94,8 @@ def run_production_workflow(
     manifest_id: Optional[str] = None,
     qa_id: Optional[str] = None,
     probe_func: Probe = probe_media,
+    episode_visual_preference: Optional[Mapping[str, Any]] = None,
+    post_alignment_visual_plan: Optional[Mapping[str, Any]] = None,
 ) -> ProductionWorkflowResult:
     """Validate V0.5.1 input, produce one plan, render, probe, gate and store."""
 
@@ -110,6 +112,8 @@ def run_production_workflow(
         package, script, report, production_config, Path(material_asset_root),
         created_at=timestamp, production_id=chosen_production_id,
         renderer_mode=renderer_mode,
+        episode_visual_preference=episode_visual_preference,
+        post_alignment_visual_plan=post_alignment_visual_plan,
     )
     plan_path = save_production_plan(plan, Path(package_root))
 

@@ -97,6 +97,21 @@ class ProductionPlannerTests(unittest.TestCase):
         self.assertEqual(first["plan_digest"], production_plan_digest(first))
         validate_production_plan(first, self.package, self.script, self.production_profile)
 
+    def test_post_alignment_visual_context_is_bound_without_breaking_legacy_plans(self):
+        preference = {"preference_digest": "v" * 64}
+        visual_plan = {"plan_digest": "p" * 64}
+        plan = prepare_production_plan(
+            self.package, self.script, self.report, self.production_profile, self.root / "assets",
+            created_at="2026-08-11T12:00:00+08:00", production_id="PROD-visual-context",
+            episode_visual_preference=preference, post_alignment_visual_plan=visual_plan,
+        )
+        self.assertEqual(plan["episode_visual_preference_digest"], "v" * 64)
+        self.assertEqual(plan["post_alignment_visual_plan_digest"], "p" * 64)
+        validate_production_plan(
+            plan, self.package, self.script, self.production_profile,
+            episode_visual_preference=preference, post_alignment_visual_plan=visual_plan,
+        )
+
     def test_renderer_auto_is_transparent_and_explicit_modes_are_respected(self):
         self.assertEqual(self.plan("auto")["selected_renderer"], "remotion")
         self.assertEqual(self.plan("remotion")["selected_renderer"], "remotion")
