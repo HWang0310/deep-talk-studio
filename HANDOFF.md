@@ -272,6 +272,18 @@ Material/Motion Placement → Edit Bridge → subtitled visual Remotion render
 
 ## 给用户的下一步操作
 
+### 2026-08-22：POST-ALIGNMENT FULL VISUAL PLANNING
+
+- 完成：本期 episode-only 高密度视觉偏好、18 Beat 审计、16 个由 approved Alignment 投影的机会（15 ready、B011 unplaced）、新 Material Review、Production、Bridge 和完整真实 Preview r0002。
+- 未修改：reviewed Script、approved Research、Transcript、ASR、approved Alignment；B018 `588.11–620.14s` 仍保持真人尾段。
+- Gate：Material/Production PASS；Canonical QA 6/6 PASS，唯一 warning 为 B011 `partial_placement_unready`，没有硬塞候选画面。
+- 当前 Preview：`ALIGNED_PREVIEW-r0002.mp4`，1920×1080、30fps、H.264/AAC、620.533333 秒，SHA `d5c17ab1d883e7d890c195c9f111fb6f1d85dd1c0e37f519cb74f8b64d66fffb`。此前失败的 r0001 与历史工件保留不覆盖。
+- Git：`agent/audio-alignment-edit-bridge`，commit `d8e7560` 已推送；main、v0.6.1 tag 和 Release 未改变。
+
+## 给用户的下一步操作
+
+观看新的完整预览；满意请回复“预览通过”，不满意直接说哪一处画面需要调整。
+
 现在不要录制或上传视频。请创建/准备一个 OpenAI API Key，并把它添加到当前 Codex 运行环境的 `OPENAI_API_KEY` 安全环境变量或 Secret 中。不要把 Key 发到聊天正文里，也不要写进项目文件。设置后只需告诉 Codex“已设置”。
 ## 2026-08-14：V1 Local Transcription Production Integration
 

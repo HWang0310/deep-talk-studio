@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased] - 2026-08-22
+
+### Post-alignment full visual planning
+
+- Added episode-only visual preferences, an immutable alignment-derived 18-beat visual plan, reviewed evidence-bound original visuals, and typed safe handling for unplaced opportunities.
+- Real-user preview r0002 passed all six canonical checks with the expected B011 `partial_placement_unready` warning; no release, tag, Script, Research, Transcript, or Alignment change.
+
 本项目使用日期和版本记录实际完成的修改。规划中的功能只写入 ROADMAP，不写入已完成记录。
 
 ## [Unreleased] - 2026-08-21
