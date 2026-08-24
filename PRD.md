@@ -275,7 +275,7 @@ V0.6 的成功不是“渲染命令返回 0”，而是真实文件的尺寸、�
 
 ## 10. Unreleased：Audio Alignment + Visual Edit Bridge
 
-V1.0 目标输出是 `reviewed Script + Clean A-roll + Real Material + Original Motion + Basic Subtitle → 完整可观看粗剪`，而不是让用户自行回剪辑软件拼三层素材。Hook 主要在 Script 阶段完成：现有 `audience_promise + ordered Beats + closing` 继续作为结构，独立 Review 的 `narrative_structure` 明确阻断缺失 opening hook、value promise、必要 re-hook / information turn 或 conclusion payoff 的新稿，不新增重复 Script schema。
+V1.0 Candidate 的主交付是 `Final Clean A-roll → Real Timeline / Semantic Timeline → QA-ready Real Material + Original Motion → Asset Pack + Edit Map → 用户在剪映完成最终剪辑`。DeepTalk 不替用户选择 take、删除停顿/重录/废段、拼接 A-roll、决定 NLE 时间线或发布。历史自动 Preview 只保留为兼容、单素材预览和 QA，不是默认成功标准。Hook 主要在 Script 阶段完成：现有 `audience_promise + ordered Beats + closing` 继续作为结构，独立 Review 的 `narrative_structure` 明确阻断缺失 opening hook、value promise、必要 re-hook / information turn 或 conclusion payoff 的新稿，不新增重复 Script schema。
 
 ### 10.1 V1 本地转写生产要求
 
@@ -284,7 +284,7 @@ V1.0 目标输出是 `reviewed Script + Clean A-roll + Real Material + Original 
 3. 正式 Provider 必须复用现有 `TranscriptionChunkPlan` 与 local→global `TimestampMapping`，本地长音频使用版本化 `transcription-chunk-profile/local-whisper-cpp/1`，不能为了单次评测绕过分块。
 4. `ProviderTranscript.timestamp_granularity` 固定为 `token`，时间只能来自 whisper.cpp full JSON 的真实 token offsets。缺少、越界或重叠时必须 fail closed；禁止 segment 内插、字符平均分配、LLM 推断、TTS 或静默云端 fallback。
 5. ProviderTranscript 必须绑定 provider/runtime/source commit/build identity、model identity/SHA/bytes、language/inference parameters、timestamp provenance、audio digest、chunk-plan digest、raw response digest 和每个 chunk 的 runtime evidence。
-6. 默认入口必须按 `Clean A-roll → local transcription → Timed Transcript → Alignment → Material → Motion → Basic Subtitle → Edit Bridge → Remotion Preview → canonical QA` 执行，保持原 A-roll presentation audio，不得删停顿、改稿或替换音频。
+6. 默认入口必须按 `Final Clean A-roll → local transcription → Timed Transcript → Alignment → Semantic Timeline → Visual Director → individual Material/Motion QA → Asset Pack + Edit Map → human NLE editing` 执行。全片 Remotion Preview 是可选兼容/QA 输出，不得成为默认交付；不得删停顿、改稿或替换音频。
 7. OpenAI transcription adapter 保持 provider-neutral 兼容与 regression，但只作为未来可选云端能力；不存在 API Key 不能阻塞 V1 preflight，也不能触发隐式 cloud fallback。
 8. 选择 Gate 历史 `evaluations/local_asr_selection/` 必须保留，不重新 benchmark VibeASR 或扩大当前选型范围。真实用户 Clean A-roll 仍是最终语音质量 Gate；短版 synthetic E2E 通过不能替代人工试用。
 

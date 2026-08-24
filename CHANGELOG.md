@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-08-25 — Asset Pack + Edit Map production boundary
+
+- 将 V1 Candidate 的默认后半段交付正式改为 `Final Clean A-roll → Semantic Timeline → QA-ready Asset Pack + Edit Map → 用户手工 NLE 剪辑`；历史全片 Remotion Preview 保留为兼容、预览和 QA，不再是默认产品成功标准。
+- 新增 immutable Clean A-roll Gate、真实语义时间轴、`FACT_CONFLICT` display blocker、actual-span-only Motion timing、Asset Pack workflow 与 machine `edit-map/1`。系统不选择 take、不自动删停顿/重录/废段、不裁剪或拼接 A-roll、不生成 NLE 工程或最终成片。
+- 普通 `KEEP_A_ROLL`、`REAL_MATERIAL`、`MG_MOTION` 决策不再需要逐条人工批准；`ADVANCED_MOTION` 继续要求独立 Review。未 READY 素材按 `ADVANCED → MG → REAL → KEEP_A_ROLL` 安全降级，禁止 broken Edit Map。
+- 增加 22 项定向 regression，覆盖无真实对齐拒绝、真实时间映射、KEEP、非 KEEP 的 READY/SHA 绑定、失败回退、无默认 final video/NLE project、事实冲突阻断、MG real-span timing、无自动 take 选择/剪辑和 Advanced Review。
+
 ## [Unreleased] - 2026-08-24
 
 ### Local real-episode Script V1 acceptance run

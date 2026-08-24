@@ -2,7 +2,7 @@
 
 本阶段把用户已经剪好口气的真人口播视频作为唯一 canonical timeline。系统不自动剪口气、不改变 reviewed Script / approved Research，不伪造词级时间戳，也不把 B-roll / Motion 原音混入主音轨。Basic Subtitle V1 从同一 Timed Transcript 确定性生成并烧录进最终 Aligned Preview。
 
-正式流程只能由 `run_real_edit_bridge_session` 所有：不可变导入 Clean A-roll → 提取保留 presentation 语义的转录音频 → 确定性分块与带时间戳转录 → Subtitle Artifact/SRT → Script/Transcript 全局对齐 → 复用 Beat/Cue/Scene 身份 → 统一 Visual Placement → Edit Bridge JSON/Markdown/CSV → 烧录字幕的纯视觉 Remotion Preview → 原 A-roll 音轨 presentation-preserving mux → repository-owned 五组 canonical QA。provider、时钟、ID 与 renderer 可以注入，但阶段顺序和正式 validator 不可注入。
+历史 Preview 兼容流程由 `run_real_edit_bridge_session` 所有：不可变导入 Clean A-roll → 提取保留 presentation 语义的转录音频 → 确定性分块与带时间戳转录 → Subtitle Artifact/SRT → Script/Transcript 全局对齐 → 统一 Visual Placement → Edit Bridge → 烧录字幕的 Remotion Preview → 原 A-roll 音轨 mux → canonical QA。当前默认用户交付改由 `docs/ASSET_PACK_EDIT_MAP_CONTRACT.md` 规定：同一真实对齐链只生成 QA-ready 独立视觉素材与 Edit Map，用户在 NLE 手工完成最终剪辑。provider、时钟、ID 与 renderer 可以注入，但阶段顺序和正式 validator 不可注入。
 
 关键边界：
 

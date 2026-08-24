@@ -1,6 +1,6 @@
 # DeepTalk Studio 架构
 
-Audio Alignment + Visual Edit Bridge + Basic Subtitle V1 的 Unreleased 合同见 `docs/EDIT_BRIDGE_CONTRACT.md`。该链把 Clean A-roll 容器/stream、媒体 presentation、提取音频 timeline 分开建模；Provider 只贡献时间化转录，Core 独占 Subtitle/Alignment/Placement/Gate，renderer 只消费通过重验证的 ready Placement 和同一绑定 Subtitle Artifact。
+Audio Alignment + Visual Edit Bridge + Basic Subtitle V1 的 Unreleased 合同见 `docs/EDIT_BRIDGE_CONTRACT.md` 与 `docs/ASSET_PACK_EDIT_MAP_CONTRACT.md`。该链把 Clean A-roll 容器/stream、媒体 presentation、提取音频 timeline 分开建模；Provider 只贡献时间化转录，Core 独占 Transcript/Alignment/Semantic Timeline/Fact Conflict/Visual Decision/Asset QA。正式用户交付是 Asset Pack + Edit Map，用户在 NLE 手工剪辑；renderer 只消费通过重验证的 ready Placement，作为单素材渲染、Preview 和 QA 兼容能力。
 
 ## 设计目标
 

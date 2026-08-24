@@ -1,5 +1,42 @@
 # DeepTalk Studio 开发交接
 
+## 2026-08-25：Asset Pack + Edit Map 主产品路径（V1 Candidate）
+
+### 本轮任务
+
+把“DeepTalk 不替用户剪辑最终视频”的产品边界写入正式 contract、代码和测试，并以《牛来》的最终 A-roll 开始真实验证。
+
+### 已完成
+
+- 新默认用户体验：Final Clean A-roll → 本地 ASR → global monotonic Alignment → Semantic Timeline → Visual Director → 单素材 QA → Asset Pack + Edit Map → 用户在剪映手工剪辑。
+- 新增 Clean A-roll Gate：只会拒绝明显的整段重录/多个完整 take，给出“请先人工清理后重新提供”；不会自动剪、选 take、给 cut list 或修改原视频。
+- 新增 Semantic Timeline 与 `FACT_CONFLICT` display blocker；时间只认真实 A-roll，事实只认 reviewed Script/approved Research，错误口播事实会标出真实时间并禁止错误画面。
+- 新增 `asset_pack_workflow`：每条 Edit Map 都含真实时间、内容摘要、四种正式 decision、素材名、剪映放置建议、原因、来源、QA、fallback。`KEEP_A_ROLL` 为合法正式行；非 KEEP 行只接受真实存在且 SHA/QA-ready 的资产，失败按 Advanced → MG → REAL → KEEP 回退。
+- Motion Spec 新增 semantic beats 和随真实 span 重新计算的相对 timing；Visual Director 拒绝估算时间，普通 KEEP/REAL/MG 不要求逐条审批，Advanced 继续独立 Review。
+
+### 重要文件
+
+- `docs/ASSET_PACK_EDIT_MAP_CONTRACT.md`
+- `src/deeptalk_studio/clean_aroll_gate.py`
+- `src/deeptalk_studio/semantic_timeline.py`
+- `src/deeptalk_studio/fact_conflict.py`
+- `src/deeptalk_studio/asset_pack_workflow.py`
+- `src/deeptalk_studio/motion_spec.py`
+- `src/deeptalk_studio/visual_director.py`
+
+### 已验证
+
+- 定向 unittest：22/22 PASS。
+- 未创建 Release、tag 或修改 main/v0.6.1；用户 episode 内容仍只在本地目录，绝不进入 Git。
+
+### 正在进行的真实验证
+
+- 正在使用 `/Users/hwang/Movies/口播/牛来8月24日.mp4` 与 canonical r4 SHA `5b8308dba915ae91b21f849ccc0ecd5da0a0181f8fa383bfb57385875cfe45ef` 做本地 `whisper.cpp large-v3` 真实转写。完成前不得宣称《牛来》通过 Clean A-roll Gate，也不得生成素材或 Edit Map。
+
+## 给用户的下一步操作
+
+请先等待 Codex 完成本期真人口播的本地转写和 Clean A-roll Gate；此时不需要你做任何操作。
+
 ## 2026-08-24：真实 Episode Creator Polish r3
 
 本轮没有重新研究、没有改变 Thesis、没有新增事实、没有修改产品代码。
