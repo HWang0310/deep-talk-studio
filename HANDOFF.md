@@ -4,6 +4,7 @@
 
 当前正式 Release：v0.6.1（未改变）
 当前开发分支：`agent/audio-alignment-edit-bridge`
+本轮核心实现 commit：`a5bd9bbac359fa4b975b61482d421365ddc54ca0`
 本轮状态：工程实现与定向测试完成；《牛来》停在 **Human Thesis Review**，未生成最终稿。
 
 ### 1. 本轮任务
