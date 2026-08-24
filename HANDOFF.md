@@ -1,5 +1,39 @@
 # DeepTalk Studio 开发交接
 
+## 2026-08-25：Asset Pack + Edit Map 主产品路径 — 《牛来》真实验证完成
+
+### 本轮最终状态
+
+- 工程实现 commit：`ba2511b`（已推送至 `origin/agent/audio-alignment-edit-bridge`）。本轮没有创建 tag、Release，没有修改 `main` 或 `v0.6.1`。
+- 完整项目回归：`524 tests` 通过，`3 skipped`，`0 failure`；本轮新增/定向回归 `22/22` 通过。完整测试包含实际浏览器渲染的素材引擎回归，耗时 `146.031s`。
+- 《牛来》真实试用通过本轮产品 Gate：Clean A-roll `accepted`、真实 ASR、实际时间 Alignment、Semantic Timeline、Visual Director、单资产 SHA/manifest、Asset Pack QA 均为 `pass`。没有生成最终视频、没有生成剪映/其他 NLE 工程、没有替用户剪辑真人口播。
+
+### 真实 Episode 输入与不可变边界
+
+- 真人视频：`/Users/hwang/Movies/口播/牛来8月24日.mp4`，1920×1080、30fps、H.264/AAC、`294.382585s`；媒体 SHA-256：`822288c456fcd94702a2b7b08636eeb8652dd60c5c121c53ba60f0353aba3569`。
+- Script：本地 Final Reviewed r4，SHA-256 `5b8308dba915ae91b21f849ccc0ecd5da0a0181f8fa383bfb57385875cfe45ef`；未修改 reviewed Script、approved Research、reviewed Material Package 或用户原始视频。
+- 本地 ASR：`whisper.cpp v1.9.2` 的 multilingual `large-v3` + `--dtw large.v3`，一段真实转写，`1,243` token，运行 `1137.910327s`，RTF `3.865413`；没有云端上传、API Key、fixture 或第二转写器。
+
+### 《牛来》真实产物（均在 Git 外本地 episode 目录）
+
+- 真实转写：`05_A-roll/《牛来》Actual Transcript.srt`、`05_A-roll/《牛来》Actual Transcript.txt`；转写 digest：`cb598e8aee8c8005b199acbe08dd97d3dd39fd118dcc31002f5c4141b2efeea4`。
+- 对齐/时间轴：`05_A-roll/《牛来》A-roll Alignment Review.md`、`05_A-roll/《牛来》真实时间轴.md`，以及 `_DeepTalk记录/niulai-aroll-alignment-r0001.json`、`niulai-semantic-timeline-r0001.json`、`niulai-clean-aroll-gate-r0001.json`。25/25 Beat 已用实际 A-roll 时间定位；没有估算时钟。
+- 三条原创 MG（已人工检查文字可读、无越界；均为 1920×1080、30fps、H.264/AAC）：
+  - `07_MG动画/MG_01_前期冷清.mp4`，`00:00:06.220–00:00:18.700`，SHA `f1ad42c89c32879fe78a4453894897eb0b52ec7ffc8e3b88e20f7381eb8878ff`；
+  - `07_MG动画/MG_02_几天后的转折.mp4`，`00:00:18.780–00:00:36.480`，SHA `4d622e92138137a1928f2d0b44b278fb73350f3062528730fd6da0f87844289c`；
+  - `07_MG动画/MG_03_热闹如何接住彼此.mp4`，`00:03:24.440–00:03:35.560`，SHA `46c720769d1fc272cb5afe47c8f61c77847fab89a085a71b9502673909c5f5f9`。
+- 交付：`09_剪辑表/剪辑表.md`、`09_剪辑表/剪辑表.csv`、`_DeepTalk记录/edit-map.json`、`_DeepTalk记录/visual-asset-manifest.json`、`_DeepTalk记录/niulai-production-asset-pack-qa-r0001.json`。25 行中 22 行 `KEEP_A_ROLL`、3 行 `MG_MOTION`；没有硬凑 REAL_MATERIAL 或 ADVANCED_MOTION。
+
+### QA、事实与已知边界
+
+- Asset Pack QA：`pass`，3/3 non-KEEP 素材为 ready 且与 manifest SHA 相符，25/25 剪辑行完整；manifest digest：`0a038b0cf6201d98c2248738c41a1bbdb422652f55ede6c57ae9c7159e010d40`。
+- `FACT_CONFLICT` Gate 在本期没有检测到需阻断的实际口播事实冲突；它不会修改用户音频，发生冲突时只会在真实时间上禁止错误事实画面。当前自动检测仍是保守的高风险文本检查，人工事实审校仍以 reviewed Script/Research 为权威。
+- 本期没有 READY 的独立真实素材来源被强行塞进画面，也没有 Advanced Motion；因此没有来源/版权被虚构为已通过。MG 的可见文字均绑定 r4 与本期最终事实池，按真实 span 生成。
+
+### 给用户的下一步操作
+
+现在可以打开剪映，导入真人 A-roll 和 `07_MG动画/` 的三条动画，按 `09_剪辑表/剪辑表.md` 的时间点放入即可。DeepTalk 不会替用户删除口播、选择 take、生成最终成片或发布。
+
 ## 2026-08-25：Asset Pack + Edit Map 主产品路径（V1 Candidate）
 
 ### 本轮任务
@@ -29,13 +63,13 @@
 - 定向 unittest：22/22 PASS。
 - 未创建 Release、tag 或修改 main/v0.6.1；用户 episode 内容仍只在本地目录，绝不进入 Git。
 
-### 正在进行的真实验证
+### 真实验证结果
 
-- 正在使用 `/Users/hwang/Movies/口播/牛来8月24日.mp4` 与 canonical r4 SHA `5b8308dba915ae91b21f849ccc0ecd5da0a0181f8fa383bfb57385875cfe45ef` 做本地 `whisper.cpp large-v3` 真实转写。完成前不得宣称《牛来》通过 Clean A-roll Gate，也不得生成素材或 Edit Map。
+- 《牛来》已完成本地 `whisper.cpp large-v3` 真实转写、Clean A-roll Gate、实际时间 Alignment、3 条 MG、Asset Pack 与 Edit Map；详细结果见本文件顶部的“《牛来》真实验证完成”记录。没有覆盖历史工件。
 
 ## 给用户的下一步操作
 
-请先等待 Codex 完成本期真人口播的本地转写和 Clean A-roll Gate；此时不需要你做任何操作。
+打开剪映，按 `09_剪辑表/剪辑表.md` 将三条已 QA-ready 的 MG 素材放到对应真实时间；不要让 DeepTalk 自动替你剪辑真人口播。
 
 ## 2026-08-24：真实 Episode Creator Polish r3
 

@@ -6,6 +6,7 @@
 - 新增 immutable Clean A-roll Gate、真实语义时间轴、`FACT_CONFLICT` display blocker、actual-span-only Motion timing、Asset Pack workflow 与 machine `edit-map/1`。系统不选择 take、不自动删停顿/重录/废段、不裁剪或拼接 A-roll、不生成 NLE 工程或最终成片。
 - 普通 `KEEP_A_ROLL`、`REAL_MATERIAL`、`MG_MOTION` 决策不再需要逐条人工批准；`ADVANCED_MOTION` 继续要求独立 Review。未 READY 素材按 `ADVANCED → MG → REAL → KEEP_A_ROLL` 安全降级，禁止 broken Edit Map。
 - 增加 22 项定向 regression，覆盖无真实对齐拒绝、真实时间映射、KEEP、非 KEEP 的 READY/SHA 绑定、失败回退、无默认 final video/NLE project、事实冲突阻断、MG real-span timing、无自动 take 选择/剪辑和 Advanced Review。
+- 已用《牛来》的最终真人 Clean A-roll 完成一次真实验证：本地 `whisper.cpp large-v3` 转写、25/25 Script Beat 的真实时间对齐、Semantic Timeline、Visual Director、3 条 QA-ready MG 动画、Asset Manifest 和 25 行 Edit Map 均通过。交付是可直接导入剪映的 A-roll + 素材包 + 剪辑表，不是自动生成的完整成片或 NLE 工程；episode 私有素材始终未进入 Git。
 
 ## [Unreleased] - 2026-08-24
 
