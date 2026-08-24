@@ -1224,3 +1224,67 @@ Spec/Asset QA → 独立 Asset Pack + Edit Map → 用户 NLE 手工剪辑。
 ### 给用户的下一步操作
 
 把本轮 Codex 完整交接发给 ChatGPT，请它 Review MVP 基础实现，重点确认“中文 Display Text 必须迁移到现有 Remotion 文字渲染后才可进入真实 episode”的 blocker，并决定下一轮是否只做该 renderer hardening。
+
+---
+
+## 当前轮最终状态：Visual Asset Engine 中文 Display Text Renderer Hardening
+
+### 1. 本轮任务
+
+只解除 Visual Asset Engine MVP 的中文 Display Text renderer blocker：让已绑定、已批准的中文文字实际进入最终 MP4，并保留既有 Binding、时序、容量与人工 Review Gate。未启动真实 episode。
+
+### 2. 已完成内容
+
+- `visual_asset_renderer.py` 已由无文字 ffmpeg fallback 改为复用本仓库已安装的 Remotion + Chrome 浏览器渲染路径。
+- 全部 grammar 统一消费同一个受约束 Display Text primitive；文字仅来自 Motion Spec 的 `visual_intent` 与 `elements.text`，不改写、缩写、概括事实。
+- 增加 Neutral Editorial 的 title、heading/node、body 与纯数字 emphasis；使用本机已验证的 `Hiragino Sans GB`。没有可用中文字体、Chrome、MP4 或 reference frame 时会 fail closed，不会交付 ready。
+- 加入确定性中文换行、最大宽度/行数、横向 safe-area 与容量 Gate；文本装不下会失败而非无限缩小。日期和含数字的普通标签不会被错误当作单行纯数字。
+- 五种 fixture（timeline、causal chain、comparison mechanism、path、metaphor）及独立中文压力 fixture 均通过浏览器成片与 reference frame 验证；每个成片生成 `.text-evidence.json`，绑定可见文字、源时间范围与 Motion Spec digest。
+- 完整项目回归：`496 passed, 3 skipped`；新增中文布局、溢出拒绝、safe-area 和成片文字 evidence 回归均通过。人工检查中文压力 reference frame，确认中文、数字、日期及 `B站 / AI` 可见且未被裁切。
+
+### 3. 创建/修改的重要文件
+
+- `src/deeptalk_studio/visual_asset_renderer.py`
+- `evaluations/visual_asset_engine/fixture_episode.py`
+- `tests/test_visual_asset_renderer.py`
+- `tests/test_visual_asset_engine_fixture.py`
+- `CHANGELOG.md`
+- `HANDOFF.md`
+
+### 4. 当前架构
+
+`approved Motion Spec` → `assert_renderable / binding & capacity Gate` → shared primitive payload → bounded Display Text layout → local Remotion/Chrome MP4 + deterministic PNG reference frame → text evidence sidecar → Asset Manifest / Edit Map。所有 source time 继续来自现有 Motion Spec，不由 renderer 新建或修改。
+
+### 5. 已可运行 / 6. 尚不能运行
+
+- 已可运行：五种合成 grammar、中文/数字/日期/英文缩写的最终 MP4，带可核验 reference frame 和 evidence sidecar。
+- 尚不能运行：本轮明确没有生成真实用户 episode、没有新增 grammar、没有接外部 API、没有图像生成，也没有进行任何产品审美验收。
+
+### 7. 已知问题 / warning / gap
+
+- 这是工程 Foundation 的文字 hardening；首个真实 episode 的素材选择、视觉表达和人工创作质量仍需下一轮独立验收。
+- 当前字体策略依赖本机 macOS 已存在的中文系统字体；缺失时会明确失败，不会输出 tofu 或无文字占位成片。
+
+### 8. 重要技术决策
+
+- 不再允许无文字 ffmpeg fallback 被标记为 ready。
+- browser-generated reference frame + visible-text evidence 是 MP4 文字输出的确定性 QA 证据；不以 OCR 作为唯一或主要判断。
+- 发现压力样本节点贴边后，已修复统一横向锚点，并用自动 safe-area regression 和人工 reference-frame 检查验证。
+
+### 9. 需要产品经理决定什么
+
+1. Review 中文 reference-frame/文字证据是否满足首个真实 episode 的工程准入。
+2. 若通过，再单独定义第一条真实 episode 的 Visual Asset Engine 验收；本轮不默认进入。
+
+### 10. 建议下一阶段
+
+在 ChatGPT 确认工程准入后，才启动第一条真实 episode 的受控 Visual Asset Engine 试用，并保留人工 Preview Gate。
+
+### 11. Git / Release 状态
+
+- 工作分支：`agent/audio-alignment-edit-bridge`；本轮基线 commit 为 `b369466`。
+- 本轮不修改 `main`、正式 `v0.6.1` tag 或 GitHub Release；不创建新 tag/Release。
+
+### 给用户的下一步操作
+
+你现在只需要把 Codex 回复最底部“请把以下内容复制给 ChatGPT”后面的整段文字原样发给 ChatGPT。你不需要查看代码、终端或 HANDOFF 文件。

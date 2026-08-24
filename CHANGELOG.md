@@ -2,6 +2,13 @@
 
 ## [Unreleased] - 2026-08-24
 
+### Visual Asset Engine Chinese Display Text renderer hardening
+
+- Replaced the Visual Asset Engine's no-text ffmpeg fallback with the repository's installed Remotion/Chrome browser route. A visual asset is now ready only when its browser-rendered MP4 and deterministic PNG text reference frame both exist.
+- Added one binding-preserving, bounded Chinese text primitive with title, heading/node, body and pure-numeric emphasis roles. It uses an available macOS Chinese system font, retains the exact approved text, wraps only within explicit capacity, and fails rather than paraphrasing, clipping or silently shrinking unsafe text.
+- Regenerated the five synthetic grammar fixtures plus a Chinese stress fixture covering Chinese labels, punctuation, dates, numbers and `B站 / AI`; added evidence sidecars that bind the visible text, reference frame, source range and Motion Spec digest.
+- Added regressions for Chinese layout preservation, overflow failure, safe-area placement and final render evidence. No real episode, reviewed Script, approved Research, reviewed Material Package, main branch, tag or Release was changed.
+
 ### Visual Asset Engine MVP foundation
 
 - Added alignment-bound `visual-director-plan/1` decisions with `KEEP_A_ROLL` as the default and explicit MG/Advanced review requirements; proposal-supplied A-roll clocks are rejected.
