@@ -97,3 +97,11 @@
 - [ ] Build the new Plan-driven Bridge and full 620-second Preview without re-transcription or overwriting prior output.
 - [ ] Run canonical QA, ffprobe, SHA/binding verification, visual frame checks, compileall, `git diff --check` and credential-shaped secret scan.
 - [ ] Update user-facing UX and handoff documentation, commit/push the development branch, and stop at Human Preview Gate.
+# 2026-08-24 — Real-user visual presentation and Output-Truth completion
+
+- [x] Map the existing typed `layout_mode` to a controlled renderer presentation mode; do not create a second editorial interpretation path.
+- [x] Make `primary_visual` use the complete 1920×1080 canvas, keep `supporting_overlay` inside the existing subtitle-safe region, and define an explicit PIP A-roll inset.
+- [x] Add regression coverage for the three controlled modes and for final-output evidence integrity.
+- [x] Add a canonical blocking Output-Truth check for a formal Full Visual preview and persist real encoded frame evidence.
+- [x] Render real-user `ALIGNED_PREVIEW-r0003.mp4`, mux the immutable Clean A-roll audio, probe it, and run canonical QA.
+- [x] Preserve B011 as an unplaced warning and keep B018 as A-roll; do not alter content roots or create a release.

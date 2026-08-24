@@ -1130,3 +1130,27 @@ medium 的 selection cache/artifacts 保持为历史审计；正式 runtime/mode
 - 分支 `agent/audio-alignment-edit-bridge`；本轮开始 HEAD `f35f19405da44e64acbc6cb1387acaf9cf08ccce`；文档收尾提交链为 `3d46f42a68841425b47672d398d3ec1a3c69287b` → `b46e536b30aee0067b361b09b42bc81091dd13e0`。
 - GitHub canonical `origin/main` HEAD、正式 `v0.6.1` peeled tag commit 均为 `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`；`merge-base(origin/main, HEAD)` 相同，当前 compare 为 `ahead 80 / behind 0`。main、tag 未变，无新 Release，V1 仍 `Candidate — Unreleased`。
 - 下一步只等待用户完整观看 Preview；确认后由 ChatGPT Review 本轮 Material/Preview 并正式安排 Audio Alignment + Edit Bridge，不得用技术 QA PASS 跳过人工 Gate。
+## 2026-08-24：REAL USER VISUAL PRESENTATION MODE FIX + OUTPUT-TRUTH QA
+
+当前正式版本：V0.6.1 / `v0.6.1`
+当前产品状态：V1 Candidate — Unreleased；真实用户 Full Visual Preview 已生成，等待人工观看 Gate
+仓库：https://github.com/HWang0310/deep-talk-studio
+当前开发分支：`agent/audio-alignment-edit-bridge`
+
+### 本轮完成
+
+- 修复了真实 E2E 中“素材和 Motion 只占上方、下方长期保留 A-roll”的呈现错误。已经批准的全屏素材和 Motion 现在作为主画面完整占据 1920×1080；其间字幕仍在最上层；窗口外回到真人 A-roll。
+- 没有改变 reviewed Script、approved Research、Fact Check、Transcript、Alignment、approved Material、Visual Plan、A-roll 或默认偏好。B011 仍为 unplaced/needs-review 警告，B018 尾段仍是 A-roll。
+- 增加受控 `primary_visual`、`primary_visual_with_pip`、`supporting_overlay` renderer contract；未从任何机器文本重开编辑解释入口。
+- 增加 `output-truth-evidence/1`：保存 final MP4 的 pre/in/post 抽帧、SHA 和绑定；正式 Full Visual Preview 少此证据时 canonical QA 直接 fail。
+- 真实输出：`ALIGNED_PREVIEW-r0003.mp4`，H.264 1920×1080 30fps，AAC 单一 Clean A-roll 音轨，620.533333 秒，878,626,034 bytes，SHA-256 `6494ac0ebf60e0d888d6fe2dc9dbfa02f7dc5cbd33c3f0156e27c1894b1e15eb`。
+- 真实 Output-Truth digest：`631989274c4363ed357c0af56553aa44d867fb6dbed43fc9e28371360e51bae4`；抽样 VP0001–VP0005 全部为 primary visual。人工检查确认 Timeline/Motion、Hugging Face 真实材料均为全画面，窗口结束恢复真人 A-roll。
+- Canonical Edit Bridge QA：`warnings`，digest `e6d301dc8f69d8ca929b2532af072a9fa48b15fbaa5ddc806c3bef5310db00b9`；唯一 warning 是既有 B011 `partial_placement_unready`，没有 blocking failure。Remotion project validation、ffprobe 和完整项目测试均通过（483 passed，3 skipped）。
+
+### 当前 Gate
+
+工程、绑定、成片输出和自动 QA 已通过；下一步是人工观看新粗预览。没有 main/tag/Release，仍未开始任何新功能。
+
+### 给用户的下一步操作
+
+请观看新的 `ALIGNED_PREVIEW-r0003.mp4`。满意则回复“预览通过”；如不满意，直接说出画面位置或问题。

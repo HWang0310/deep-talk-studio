@@ -27,6 +27,7 @@ class CanonicalEditBridgeQAContext:
  previous_bridge:Optional[Mapping[str,Any]]=None;revision_adjustment:Optional[Mapping[str,Any]]=None
  subtitle_artifact:Optional[Mapping[str,Any]]=None;subtitle_profile:Optional[Mapping[str,Any]]=None
  episode_visual_preference:Optional[Mapping[str,Any]]=None;post_alignment_visual_plan:Optional[Mapping[str,Any]]=None
+ output_truth_evidence:Optional[Mapping[str,Any]]=None
 
 REQUIRED_GROUPS={"root","transcript","alignment","placement","preview"}
 
@@ -149,6 +150,14 @@ def _validate_preview_chain(context):
   context.preview_renderer.validate_project(context.preview_project)
   if not context.preview_project.subtitles_enabled or context.preview_project.subtitle_artifact_digest!=context.subtitle_artifact.get("artifact_digest"):raise EditBridgeQAError("Renderer project 未启用当前字幕")
 
+def _validate_output_truth_chain(context):
+ from .output_truth import validate_output_truth_evidence
+ evidence=getattr(context,"output_truth_evidence",None)
+ if evidence is None:
+  if getattr(context,"post_alignment_visual_plan",None) is not None:raise EditBridgeQAError("正式 Full Visual Preview 缺少 Output-Truth evidence")
+  return
+ validate_output_truth_evidence(evidence,context.preview_path)
+
 def build_canonical_edit_bridge_qa_inputs(context):
  """Create the only formal QA input set; callers cannot replace validators."""
  checks=[
@@ -157,6 +166,7 @@ def build_canonical_edit_bridge_qa_inputs(context):
   QACheck("alignment","normalization_status_risk_rederived",lambda:_validate_alignment_chain(context),"alignment_false_ready"),
   QACheck("placement","placement_files_and_timing_rederived",lambda:_validate_placement_chain(context),"invalid_placement_chain"),
   QACheck("preview","preview_manifest_and_audio_rederived",lambda:_validate_preview_chain(context),"preview_audio_presentation_mismatch"),
+  QACheck("preview","final_encoded_output_truth",lambda:_validate_output_truth_chain(context),"invalid_output_truth"),
  ]
  return EditBridgeQAInputs(checks,list(context.placements),list(context.preview_used_placement_ids))
 

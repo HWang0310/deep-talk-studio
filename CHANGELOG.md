@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased] - 2026-08-24
+
+### Real-user visual presentation and output-truth hardening
+
+- Corrected the aligned Preview presentation contract: approved full-screen material and Motion placements now occupy the primary canvas; the A-roll returns outside those placement windows, while the subtitle layer remains above both.
+- Added controlled `primary_visual`, `primary_visual_with_pip`, and `supporting_overlay` modes. The renderer never derives display semantics from new editorial text; picture-in-picture has an explicit A-roll inset implementation.
+- Added persisted final-MP4 Output-Truth evidence and a blocking canonical QA check for formal Full Visual previews. Evidence binds the final output SHA and records saved pre/in/post frames for sampled ready placements.
+- Generated the real-user r0003 preview without changing reviewed Script, approved Research, Transcript, Alignment, approved Material, Visual Plan, or A-roll. Canonical QA completed with the existing expected B011 `partial_placement_unready` warning only.
+
 ## [Unreleased] - 2026-08-22
 
 ### Post-alignment full visual planning

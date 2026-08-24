@@ -25,7 +25,7 @@ class CanonicalEditBridgeQATests(unittest.TestCase):
     def test_factory_owns_exactly_one_concrete_validator_per_required_group(self):
         inputs = build_canonical_edit_bridge_qa_inputs(self.context())
         self.assertEqual({check.group for check in inputs.checks}, REQUIRED_GROUPS)
-        self.assertEqual(len(inputs.checks), len(REQUIRED_GROUPS))
+        self.assertEqual(len(inputs.checks), len(REQUIRED_GROUPS) + 1)
 
     def test_canonical_path_calls_all_repository_owned_validators(self):
         targets = (
@@ -76,6 +76,12 @@ class CanonicalEditBridgeQATests(unittest.TestCase):
     def test_visual_context_roots_must_be_an_all_or_nothing_pair(self):
         with self.assertRaises(EditBridgeQAError):
             _validate_root_chain(SimpleNamespace(episode_visual_preference={}, post_alignment_visual_plan=None))
+
+    def test_output_truth_failure_is_blocking(self):
+        with patch("deeptalk_studio.edit_bridge_qa._validate_output_truth_chain", side_effect=ValueError("no final frame evidence")):
+            qa = run_canonical_edit_bridge_qa(self.context())
+        self.assertEqual(qa["package_gate_status"], "fail")
+        self.assertIn("invalid_output_truth", {item["issue_type"] for item in qa["issues"]})
 
 
 if __name__ == "__main__":

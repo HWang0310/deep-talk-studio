@@ -35,7 +35,9 @@ class RemotionAlignedPreviewRenderer:
    if p.get("placement_id")=="VP0000" or p.get("source_kind")=="clean_aroll":continue
    if p.get("placement_status")!="ready" or not p.get("preview_enabled",True):continue
    suffix=Path(p["local_path"]).suffix.lower();name=p["placement_id"]+suffix;staged.append(_stage(p["local_path"],public/name,allowed_roots,p["byte_size"],p["sha256"]));ids.append(p["placement_id"])
-   payload["placements"].append({"placement_id":p["placement_id"],"source_kind":p["source_kind"],"asset_path":f"assets/{name}","preview_in_frame":p["preview_in_frame"],"preview_out_frame":p["preview_out_frame"],"source_clip_in_seconds":p.get("source_clip_in_seconds","")})
+   layout=p.get("layout_mode","")
+   mode="primary_visual" if layout in {"","full_screen_broll","full_screen_visual"} else "primary_visual_with_pip" if layout=="picture_in_picture" else "supporting_overlay"
+   payload["placements"].append({"placement_id":p["placement_id"],"source_kind":p["source_kind"],"asset_path":f"assets/{name}","preview_in_frame":p["preview_in_frame"],"preview_out_frame":p["preview_out_frame"],"source_clip_in_seconds":p.get("source_clip_in_seconds","") ,"presentation_mode":mode})
   text=json.dumps(payload,ensure_ascii=False,indent=2)+"\n";payload_path=target/"public/bridge.json";payload_path.write_text(text,encoding="utf-8")
   return AlignedPreviewProject(target,payload_path,tuple(ids),tuple(staged),text,True,subtitle_artifact["artifact_digest"])
  def validate_project(self,project):

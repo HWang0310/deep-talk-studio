@@ -23,11 +23,27 @@ class AlignedPreviewAdapterTests(unittest.TestCase):
    self.assertEqual(set(project.staged_placement_ids),{"VP0000","VP0001"});self.assertNotIn("VP0002",project.payload_text)
    self.assertTrue((project.project_dir/"package.json").is_file());self.assertTrue(project.subtitles_enabled)
    self.assertIn("今天我们看证据。",project.payload_text)
+   self.assertIn('"presentation_mode": "primary_visual"',project.payload_text)
    RemotionAlignedPreviewRenderer().validate_project(project)
  def test_tampered_ready_asset_fails_closed(self):
   with tempfile.TemporaryDirectory() as temp:
    root=Path(temp);ar=root/"a.mp4";ar.write_bytes(b"aroll");m=media(str(ar));m.update(byte_size=5,sha256=hashlib.sha256(b"aroll").hexdigest())
    bridge={"bridge_id":"EB1","revision":1,"visual_placements":[{"placement_id":"VP1","placement_status":"ready","source_kind":"real_image","local_path":str(root/"no.png"),"byte_size":1,"sha256":"x","preview_in_frame":0,"preview_out_frame":1}]}
    with self.assertRaises(Exception):RemotionAlignedPreviewRenderer().prepare_project(bridge,m,subtitle(),load_subtitle_profile(),[root],root/"projects")
+
+ def test_layout_mode_has_a_single_controlled_presentation_mapping(self):
+  with tempfile.TemporaryDirectory() as temp:
+   root=Path(temp); ar=root/"a.mp4"; ar.write_bytes(b"aroll"); image=root/"i.png"; image.write_bytes(b"image")
+   m=media(str(ar));m.update(byte_size=5,sha256=hashlib.sha256(b"aroll").hexdigest())
+   base={"placement_status":"ready","source_kind":"real_image","local_path":str(image),"byte_size":5,"sha256":hashlib.sha256(b"image").hexdigest(),"preview_in_frame":0,"preview_out_frame":10}
+   bridge={"bridge_id":"EB1","revision":1,"visual_placements":[
+    base|{"placement_id":"VP1","layout_mode":"full_screen_broll"},
+    base|{"placement_id":"VP2","layout_mode":"picture_in_picture"},
+    base|{"placement_id":"VP3","layout_mode":"supporting_overlay"},
+   ]}
+   project=RemotionAlignedPreviewRenderer().prepare_project(bridge,m,subtitle(),load_subtitle_profile(),[root],root/"projects")
+   import json
+   modes={p["placement_id"]:p["presentation_mode"] for p in json.loads(project.payload_text)["placements"] if p["placement_id"] != "VP0000"}
+   self.assertEqual(modes,{"VP1":"primary_visual","VP2":"primary_visual_with_pip","VP3":"supporting_overlay"})
 
 if __name__=="__main__":unittest.main()
