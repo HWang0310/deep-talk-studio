@@ -1191,3 +1191,36 @@ Spec/Asset QA → 独立 Asset Pack + Edit Map → 用户 NLE 手工剪辑。
 ### 给用户的下一步操作
 
 把本轮 Codex 的完整交接文字原样发给 ChatGPT，请它 Review `Visual Asset Engine MVP Design`，确认 MVP 边界、首批动画能力和第一条真实 episode 验收方案，再给出下一轮正式实现任务。
+
+## 2026-08-24：Visual Asset Engine MVP Foundation（实现中，待 Review）
+
+### 本轮实际实现
+
+- 新增 `visual-director-plan/1` 的最小机器合同：必须引用 64 位 Alignment digest，所有窗口只从 Alignment cue range 投影；proposal 自带 start/end/duration 会失败；未升级时默认 `KEEP_A_ROLL`。
+- 新增 `motion-spec/1`：首批允许 timeline、causal chain、comparison/mechanism、SVG/path、controlled conceptual metaphor；事实文字无 binding、超容量或 Advanced 未经 Review 一律拒绝。Advanced fallback 固定为 MG → real material → A-roll。
+- 新增共享 primitive payload（text/shape/line/arrow/node/card/path/reveal/transition 的最小组合）及无外部 API 的本地 fixture renderer。
+- 新增 `visual-asset-manifest/1`、用户目录 `06_真实素材` 至 `09_剪辑表`、`_DeepTalk记录`，以及不暴露 SHA/内部 ID 的 Markdown/CSV Edit Map。
+- fixture 成功输出 3 个 MG、1 个 path、1 个 controlled metaphor，共 5 个独立 1920×1080 MP4；ffprobe、SHA、manifest 与 Edit Map 一致性通过。fixture 不是真实 episode 验收。
+
+### 重要文件
+
+- `src/deeptalk_studio/visual_director.py`
+- `src/deeptalk_studio/motion_spec.py`
+- `src/deeptalk_studio/visual_asset_renderer.py`
+- `src/deeptalk_studio/visual_asset_pack.py`
+- `src/deeptalk_studio/edit_map.py`
+- `evaluations/visual_asset_engine/fixture_episode.py`
+- `tests/test_visual_director.py`、`tests/test_motion_spec.py`、`tests/test_visual_asset_renderer.py`、`tests/test_visual_asset_pack.py`、`tests/test_visual_asset_engine_fixture.py`
+
+### 真实限制 / 下一步产品问题
+
+本机 ffmpeg 9.0.1 没有 SVG decoder 和 `drawtext` filter。因此 fixture renderer 的路径和节点 reveal 是真实、确定性的图形动画，但最终 MP4 尚未显示已绑定的中文标题/标签；binding Gate 已在 Spec 层执行，却不能把它当成完整的 Neutral Editorial 文本渲染完成。下一实现轮应复用现有 Remotion renderer（或确认另一已安装的文字渲染路径）来完成中文 display-text 输出，再开始真实 episode。
+
+### 测试与 Git
+
+- 新增定向测试 7/7 通过；完整项目回归 `493 passed, 3 skipped`。
+- 本轮未修改 main、`v0.6.1` tag 或 Release；未开始真实《牛来》或任何真实选题/资产。
+
+### 给用户的下一步操作
+
+把本轮 Codex 完整交接发给 ChatGPT，请它 Review MVP 基础实现，重点确认“中文 Display Text 必须迁移到现有 Remotion 文字渲染后才可进入真实 episode”的 blocker，并决定下一轮是否只做该 renderer hardening。

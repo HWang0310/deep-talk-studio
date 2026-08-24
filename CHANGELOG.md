@@ -2,6 +2,12 @@
 
 ## [Unreleased] - 2026-08-24
 
+### Visual Asset Engine MVP foundation
+
+- Added alignment-bound `visual-director-plan/1` decisions with `KEEP_A_ROLL` as the default and explicit MG/Advanced review requirements; proposal-supplied A-roll clocks are rejected.
+- Added binding-first `motion-spec/1`, common primitive payloads, a local deterministic five-asset fixture route, `visual-asset-manifest/1`, creator folders and Markdown/CSV Edit Map. The fixture produces three MG clips, a path clip and a controlled metaphor clip without external API keys.
+- The installed local ffmpeg lacks SVG decoding and `drawtext`; the fixture renderer therefore proves deterministic 1920×1080 MP4/path reveal and asset QA, but does not yet provide final Chinese text typography. This is a production gap, not a real-episode pass.
+
 ### Visual Asset Engine MVP design
 
 - Recorded the non-implementation MVP contract for a Visual Director that makes one of four explicit decisions per safe A-roll opportunity: keep the speaker, show reviewed real material, use parameterized MG, or reserve a small number of advanced motion moments.
