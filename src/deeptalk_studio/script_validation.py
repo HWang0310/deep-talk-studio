@@ -8,7 +8,7 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, Iterable, Mapping, Optional
 
-from .models import ResearchReport, ScriptDraft
+from .models import ContentThesisCard, ResearchReport, ScriptDraft
 from .schema import SCRIPT_DRAFT_CONTENT_JSON_SCHEMA, SCRIPT_DRAFT_JSON_SCHEMA
 from .script_profile import ScriptValidationError
 from .validation import ReportValidationError, validate_json_schema, validate_report
@@ -319,6 +319,7 @@ def prepare_script_draft(
     change_summary: str = "基于已批准 Research Report 生成第一版原创口播稿。",
     beat_ids: Optional[Iterable[str]] = None,
     beat_identity: Optional[Mapping[str, Any]] = None,
+    content_thesis_card: Optional[ContentThesisCard] = None,
 ) -> ScriptDraft:
     assert_report_ready_for_script(report)
     _schema(content, SCRIPT_DRAFT_CONTENT_JSON_SCHEMA, "script_content")
@@ -328,6 +329,25 @@ def prepare_script_draft(
         target_duration_minutes, bool
     ) or not 3 <= target_duration_minutes <= 30:
         raise ScriptValidationError("目标口播时长必须在 3 到 30 分钟之间")
+    if profile["profile_version"] == "1":
+        from .content_director import ContentDirectorValidationError, validate_content_thesis_card
+        from .content_director_profile import load_content_director_profile
+
+        if content_thesis_card is None:
+            raise ScriptValidationError("Script Agent V1 必须绑定已人工确认的 Content Thesis Card")
+        try:
+            validate_content_thesis_card(
+                content_thesis_card,
+                report,
+                profile=load_content_director_profile(),
+                review_artifact=content_thesis_card.review_artifact,
+            )
+        except ContentDirectorValidationError as exc:
+            raise ScriptValidationError("Content Thesis Card 无法证明已通过人工确认") from exc
+        if content_thesis_card.status != "approved_for_script":
+            raise ScriptValidationError("Content Thesis Card 尚未人工确认，不能开始写稿")
+        if not 5 <= target_duration_minutes <= 6:
+            raise ScriptValidationError("Script Agent V1 的目标口播时长必须在 5 到 6 分钟")
     timestamp = generated_at or created_at
     assigned_ids = list(beat_ids or ())
     if assigned_ids and len(assigned_ids) != len(content["beats"]):
@@ -345,7 +365,7 @@ def prepare_script_draft(
             "retired_beat_ids": [],
         }
     artifact = {
-        "artifact_version": "0.4",
+        "artifact_version": str(profile["profile_version"]),
         "script_id": script_id,
         "revision": revision,
         "previous_revision": previous_revision,
@@ -356,6 +376,14 @@ def prepare_script_draft(
         "script_mode": script_mode,
         "status": "draft",
         "script_profile_version": str(profile["profile_version"]),
+        **(
+            {
+                "content_thesis_card_id": content_thesis_card.card_id,
+                "content_thesis_card_revision": content_thesis_card.revision,
+                "content_thesis_content_digest": content_thesis_card.content_digest,
+            }
+            if content_thesis_card is not None else {}
+        ),
         "target_duration_minutes": target_duration_minutes,
         "working_title": content["working_title"],
         "thesis": content["thesis"],
@@ -370,7 +398,9 @@ def prepare_script_draft(
         "beat_identity": identity,
     }
     artifact.update(_derived_fields(artifact, report, profile))
-    return ScriptDraft.from_dict(artifact, report, dict(profile))
+    return ScriptDraft.from_dict(
+        artifact, report, dict(profile), content_thesis_card=content_thesis_card
+    )
 
 
 def validate_script_draft(
@@ -378,10 +408,13 @@ def validate_script_draft(
     report: ResearchReport,
     profile: Mapping[str, Any],
     review_artifact: Optional[Mapping[str, Any]] = None,
+    content_thesis_card: Optional[ContentThesisCard] = None,
 ) -> None:
     data = script.data if hasattr(script, "data") else script
     if review_artifact is None and hasattr(script, "review_artifact"):
         review_artifact = script.review_artifact
+    if content_thesis_card is None and hasattr(script, "content_thesis_card"):
+        content_thesis_card = script.content_thesis_card
     _schema(data, SCRIPT_DRAFT_JSON_SCHEMA, "script_draft")
     assert_report_ready_for_script(report)
     if data["report_id"] != report.report_id:
@@ -390,6 +423,33 @@ def validate_script_draft(
         raise ScriptValidationError("Script report_revision 与已批准 Research Report 不一致")
     if data["script_profile_version"] != profile["profile_version"]:
         raise ScriptValidationError("Script Profile 版本与稿件不一致")
+    if data["script_profile_version"] == "1":
+        from .content_director import ContentDirectorValidationError, validate_content_thesis_card
+        from .content_director_profile import load_content_director_profile
+
+        if data["artifact_version"] != "1" or content_thesis_card is None:
+            raise ScriptValidationError("Script Agent V1 必须绑定 Content Thesis Card")
+        try:
+            validate_content_thesis_card(
+                content_thesis_card,
+                report,
+                load_content_director_profile(),
+                content_thesis_card.review_artifact,
+            )
+        except ContentDirectorValidationError as exc:
+            raise ScriptValidationError("Script Agent V1 的 Content Thesis Card 验证失败") from exc
+        if content_thesis_card.status != "approved_for_script":
+            raise ScriptValidationError("Script Agent V1 只能使用已人工确认的 Content Thesis Card")
+        if (
+            data.get("content_thesis_card_id") != content_thesis_card.card_id
+            or data.get("content_thesis_card_revision") != content_thesis_card.revision
+            or data.get("content_thesis_content_digest") != content_thesis_card.content_digest
+        ):
+            raise ScriptValidationError("Script 与 Content Thesis Card 的 binding 不一致")
+        if not 5 <= data["target_duration_minutes"] <= 6:
+            raise ScriptValidationError("Script Agent V1 的目标口播时长必须在 5 到 6 分钟")
+    elif any(data.get(field) for field in ("content_thesis_card_id", "content_thesis_card_revision", "content_thesis_content_digest")):
+        raise ScriptValidationError("Script 0.4 不能伪装绑定 Content Thesis Card")
     if (data["revision"] == 1 and data["previous_revision"] != 0) or (
         data["revision"] > 1 and data["previous_revision"] != data["revision"] - 1
     ):
@@ -404,6 +464,8 @@ def validate_script_draft(
     for field, value in expected.items():
         if data[field] != value:
             raise ScriptValidationError(f"Script 机器字段不一致：{field}")
+    if data["script_profile_version"] == "1" and not 5 <= data["estimated_duration_minutes"] <= 6:
+        raise ScriptValidationError("Script Agent V1 的实际预计口播时长必须在 5 到 6 分钟")
     omission_ids = [item["claim_id"] for item in data["must_keep_omission_reasons"]]
     if len(omission_ids) != len(set(omission_ids)):
         raise ScriptValidationError("must_keep_omission_reasons 不能重复 Claim")

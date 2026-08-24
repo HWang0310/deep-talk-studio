@@ -208,3 +208,20 @@ leading、Beat-local、Beat-boundary 或 trailing 归属。随后才投影 Beat 
   仅为历史读取兼容；新的 validator/production path 使用 `script-alignment/2`。
 
 新增 Agent 时先定义工件和验收，再实现最小工作流。只有确有多个调用方时才抽象共享框架。不要为了“多 Agent”外观把一个清晰步骤拆成无意义的多个 Prompt。
+# Content Director + Script Agent V1（Unreleased）
+
+```text
+approved Research + FactCheck
+        ↓ exact binding
+Content Thesis Card (draft)
+        ↓ independent controlled Thesis Gate
+ordinary-language Human Thesis Confirmation
+        ↓ exact binding, otherwise fail closed
+Script Agent V1 draft (5–6 min)
+        ↓ fact safety review + 17 Script Quality checks
+reviewed Script V1
+        ↓
+existing Material / Production / Edit Bridge chain
+```
+
+Content Thesis Card is a content-decision contract, not a second research system. It may point to approved claim IDs, but human-facing views hide machine IDs. It records the intended audience value and counterevidence so the writer cannot silently turn a provocative competitive insight into a factual conclusion. V1 script validation continues to require the exact approved Research, its fact-check status and review linkage; the Thesis binding is an additional gate, not a replacement.

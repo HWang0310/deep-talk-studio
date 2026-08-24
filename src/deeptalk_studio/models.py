@@ -61,6 +61,7 @@ class ScriptDraft:
 
     data: Dict[str, Any]
     review_artifact: Optional[Dict[str, Any]] = None
+    content_thesis_card: Optional["ContentThesisCard"] = None
 
     @classmethod
     def from_dict(
@@ -69,6 +70,7 @@ class ScriptDraft:
         report: ResearchReport,
         profile: Dict[str, Any],
         review_artifact: Optional[Mapping[str, Any]] = None,
+        content_thesis_card: Optional["ContentThesisCard"] = None,
     ) -> "ScriptDraft":
         from .script_validation import ScriptValidationError, validate_script_draft
 
@@ -77,9 +79,48 @@ class ScriptDraft:
         script = cls(
             deepcopy(data),
             deepcopy(dict(review_artifact)) if review_artifact is not None else None,
+            content_thesis_card,
         )
-        validate_script_draft(script, report, profile, review_artifact)
+        validate_script_draft(
+            script, report, profile, review_artifact, content_thesis_card
+        )
         return script
+
+    def to_dict(self) -> Dict[str, Any]:
+        return deepcopy(self.data)
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self.data[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
+
+
+@dataclass(frozen=True)
+class ContentThesisCard:
+    """Validated, versioned content decision between Research and Script."""
+
+    data: Dict[str, Any]
+    review_artifact: Optional[Dict[str, Any]] = None
+
+    @classmethod
+    def from_dict(
+        cls,
+        data: Dict[str, Any],
+        report: ResearchReport,
+        profile: Dict[str, Any],
+        review_artifact: Optional[Mapping[str, Any]] = None,
+    ) -> "ContentThesisCard":
+        from .content_director import validate_content_thesis_card
+
+        if not isinstance(data, dict):
+            raise ValueError("Content Thesis Card 必须是 JSON 对象")
+        card = cls(
+            deepcopy(data),
+            deepcopy(dict(review_artifact)) if review_artifact is not None else None,
+        )
+        validate_content_thesis_card(card, report, profile, review_artifact)
+        return card
 
     def to_dict(self) -> Dict[str, Any]:
         return deepcopy(self.data)

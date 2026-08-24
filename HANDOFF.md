@@ -1,3 +1,81 @@
+# DeepTalk Studio 开发交接
+
+## 2026-08-24：Content Director + Script Agent V1
+
+当前正式 Release：v0.6.1（未改变）
+当前开发分支：`agent/audio-alignment-edit-bridge`
+本轮状态：工程实现与定向测试完成；《牛来》停在 **Human Thesis Review**，未生成最终稿。
+
+### 1. 本轮任务
+
+在不重建 Research/FactCheck、且不修改旧 Script/Material/Production 血缘的前提下，新增 Content Director + Script Agent V1：先形成内容主张与受众价值，再经独立 Thesis Gate 和用户确认写 5–6 分钟原创口播；随后用事实安全检查与 17 项质量检查审稿。
+
+### 2. 已完成
+
+- 新增 Content Thesis Card 1：核心问题、回答、判断、反常识、情绪/共鸣/点赞点/评论张力/嘴替价值/价值认同、最强事实、反证、未知边界、原创切口、Hook 与结尾。
+- 新增受控 Thesis Review：检查项固定，不能由模型自定义；失败不能确认；通过后也必须保存包含“确认”和“进入写稿”的普通语言人工确认。
+- V1 Script 必须同时绑定 approved Research 和已确认 Thesis Card；竞争参考只可影响高层机制，不能成为事实来源。
+- V1 实际预计口播硬限制 5–6 分钟。原 0.4 流程兼容保留。
+- 新增 17 项 blocking Script Quality Gate；纯听无冲突、推进、转折或新问题时，`audio_only_interest` 必须失败且不能产生 reviewed 稿件。
+- 已建立《牛来》真实内容方向卡、Thesis Review 与 SHA source-lock。它们没有被伪装为系统 Research JSON，也没有虚构人工确认。
+
+### 3. 重要文件
+
+- `src/deeptalk_studio/content_director.py`、`content_thesis_review.py`、`content_thesis_renderer.py`、`content_thesis_storage.py`、`content_director_workflow.py`
+- `config/content-director-profile.json`、`config/script-profile-v1.json`
+- `src/deeptalk_studio/script_validation.py`、`script_review.py`、`script_workflow.py`、`script_prompt.py`、`schema.py`、`models.py`
+- 新增 `tests/test_content_director.py`、`test_content_thesis_review.py`、`test_content_thesis_storage.py`、`test_script_agent_v1.py`
+- 本地、不会 Git 提交的真实产物：
+  - `/Users/hwang/Movies/自媒体创意库/牛来_电影话语权反噬/04_口播稿/Content Thesis Card（待人工确认）.md`
+  - `/Users/hwang/Movies/自媒体创意库/牛来_电影话语权反噬/04_口播稿/Thesis Review（待人工确认）.md`
+  - `/Users/hwang/Movies/自媒体创意库/牛来_电影话语权反噬/_DeepTalk记录/content-director-v1-source-lock.json`
+
+### 4. 当前架构
+
+`approved Research + FactCheck → Content Thesis Card → Thesis Gate → Human Thesis Confirmation → Script V1 (5–6 min) → fact safety + 17 Quality Gate → reviewed Script → existing Material/Production/Edit Bridge`
+
+没有确认的 Thesis 不得跨越到 Script。没有最终 A-roll，不得跨越到最终视觉。
+
+### 5. 已经可以运行什么
+
+- 对任何完整 `ready_for_script` Research 生成、验证、不可覆盖保存 Content Thesis Card 和 Thesis Review。
+- 普通人可阅读不含机器 Claim ID 的内容方向页。
+- 用已确认 Thesis 创建 V1 Script Draft；无确认、错误绑定、超出 5–6 分钟、或伪造内容方向时 fail closed。
+- 进行原事实安全审查及 V1 17 项内容质量审查。
+
+### 6. 还不能运行什么
+
+- 《牛来》尚未得到真实用户的 Thesis 确认，因此没有生成初稿、Review、revised Script 或 reviewed Script；这不是 bug，而是产品 Gate。
+- 本期已有研究以本地 Markdown/事实池形式存在，尚未迁移为 DeepTalk `ResearchReport` JSON；source-lock 仅锁定它们，不冒充完整的系统工件。
+- 未开始 A-roll、MG、视觉、素材、音频、字幕、发布，也没有创建新 Release。
+
+### 7. 测试与 Gate
+
+- 新增 Content Director/Thesis/Script V1 定向测试：10 项通过。
+- 完整项目 unittest 已重跑；未观察到 failure，真实 aligned E2E 继续按环境条件 skip。`compileall` 与 `git diff --check` 均通过。
+- 《牛来》Thesis preparation review：通过；Human Thesis Confirmation：**待用户确认**；Script Gate：**未运行**。
+
+### 8. 重要技术决策
+
+- 内容方向不是大 Prompt，而是版本化、可审计的中间工件。
+- 竞争研究可以吸收问题、结构与情绪机制，不提供事实，不复制表达。
+- V1 把“纯听是否仍然有意思”设为受控 blocking Gate，避免安全但无聊的稿件被放行。
+- 本期事实池没有被强行伪造成 approved Research JSON；先保留 source lock 与人工确认，再由产品经理决定是否需要正式迁移适配器。
+
+### 9. 需要产品经理决定
+
+1. Review 《牛来》Content Thesis Card 是否准确表达期望：事件化共同体验为主，观众自主判断/反话术为有边界的第二层，而非全体观众的已证实动机。
+2. 是否接受“本地 Markdown 最终事实池 + SHA source-lock”作为本期先行 Gate 输入，或要求下一轮先把已有研究正式迁移为 `ResearchReport` JSON。
+3. 若 Thesis 通过，是否授权执行 Script V1 的真实 5–6 分钟初稿、独立 Review 与修订；仍不进入 A-roll/视觉。
+
+### 10. 建议下一阶段
+
+先完成用户的普通语言 Thesis 确认，并由 ChatGPT Review 本轮方向。确认后才进行《牛来》Script V1 初稿和 Script Quality Gate；无论稿件是否通过，均不提前进入 A-roll 与视觉。
+
+### 给用户的下一步操作
+
+请直接查看本轮的普通中文内容方向；如果认可，请回复“确认本期内容方向，进入写稿”。同时，把本轮回复末尾的完整交接原样发给 ChatGPT。
+
 ## 2026-08-14：V1 本地 ASR Selection Gate
 
 当前正式版本：V0.6.1 / `v0.6.1`

@@ -60,6 +60,15 @@
 - 稿件修订不可覆盖，并支持比较两个 revision；
 - 完成稳定商业、争议公共议题和未批准输入三类真实评测。
 
+## Unreleased：Content Director + Script Agent V1（开发完成，等待本期人工 Thesis 确认）
+
+- 在 approved Research 与写稿之间增加不可覆盖的 Content Thesis Card：核心问题、原创判断、反常识点、情绪/共鸣/评论张力、嘴替价值、价值认同、反证和不确定性边界；
+- Content Thesis 必须绑定已核验 confirmed fact 和反证 Claim，并经过受控 Thesis Gate；机器通过不等于写稿，仍要用户普通语言确认；
+- Script Agent V1 只使用已确认 Thesis Card + approved Research，竞争参考只允许提供高层机制，不能成为事实来源；
+- 固定 5–6 分钟实际口播时长，保留旧 V0.4 兼容路径；
+- 在原有事实安全 Review 外新增 17 项 Script Quality Gate；包含纯听是否仍有冲突、推进、转折和新问题，任何失败均为 blocking；
+- 本期《牛来》已经生成待确认 Thesis Card 与 Thesis Review；未获人工确认前不写最终稿、不进入 A-roll 或视觉制作。
+
 ## V0.4.1：Script Gate Hardening（已完成并验收）
 
 - 将 15 项 Script Review checks 与受控 issue mapping 绑定；任一失败检查必须有对应 issue，八项事实安全检查必须对应 blocking issue；

@@ -1,5 +1,9 @@
 # DeepTalk Studio 工程协作规则
 
+## Content Director + Script Agent V1（Unreleased）
+
+进入 V1 写稿前，先读取 approved Research、Content Thesis Card、Thesis Review 和本期的普通中文人工确认。不得用竞争视频、竞品转录或其高传播结论作为事实来源；它们只能影响高层问题、叙事机制和风险提示。没有可验证的 Thesis Review Artifact 与人工确认，不得创建 V1 Script Draft。V1 Script Review 必须同时完成既有事实安全检查和 17 项 Script Quality Gate；任何 Quality Gate fail 都是 blocking。不要为绕过 Gate 改写研究、伪造确认、缩短实际口播时长，或提前创建 A-roll / 视觉产物。
+
 本文件面向进入仓库的未来 Codex。用户不是工程师，不应被要求理解架构、代码或命令行。
 
 ## 开始任何任务前

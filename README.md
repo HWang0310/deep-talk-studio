@@ -2,6 +2,8 @@
 
 > 当前开发分支包含 **Unreleased Audio Alignment + Visual Edit Bridge + Basic Subtitle V1**，并已完成本地 ASR 选择 Gate。它已能用一次全局、顺序保持的 Script→Transcript 对齐，将真实时间证据投影到口播段落和素材点；它不会用脚本改写真人口播，也不会猜时间。真实用户试用已解除“全片误判”的 Alignment blocker，但当前已审素材没有与两个安全素材点对应的可用画面，因此还没有达到可看片的完整 E2E 门槛。
 
+> 新增开发中能力：**Content Director + Script Agent V1**。它在已批准研究和写稿之间加入 Content Thesis Card、独立 Thesis Gate 与人工确认；只有用户确认内容方向，才允许生成 5–6 分钟原创口播。V1 的 Script Quality Gate 在原有事实安全检查之外增加 17 项听感、冲突、推进、共鸣与原创质量检查，任何失败都不能进入 reviewed 状态。
+
 DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目。它服务于真人露脸深度口播：先建立可核查的研究底稿，再逐步扩展到原创口播稿、素材建议、可视化、剪辑和发布。
 
 当前版本是 **V0.6.1**。研究、独立事实核查、原创写稿、素材准备和制作已连成可验证链路。已审查素材包可由 Remotion 或 HyperFrames 中的一个引擎生成真实 MP4 动画、粗剪视觉预览、PNG 定帧和制作质检报告；四类图表会按内部元素真正运动，不再只是整张 SVG 进场。

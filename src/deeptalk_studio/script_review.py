@@ -6,6 +6,8 @@ from typing import Any, Dict, Mapping, Optional
 
 from .models import ResearchReport, ScriptDraft
 from .schema import (
+    SCRIPT_QUALITY_GATE_CHECK_NAMES_V1,
+    SCRIPT_REVIEW_CHECK_NAMES_LEGACY,
     SCRIPT_REVIEW_CHECK_NAMES,
     SCRIPT_REVIEW_CONTENT_JSON_SCHEMA,
     SCRIPT_REVIEW_JSON_SCHEMA,
@@ -26,6 +28,7 @@ BLOCKING_ISSUE_TYPES = {
     "research_gap_filled",
     "perspective_distortion",
     "hook_structure",
+    "quality_gate_failure",
 }
 
 # V0.4.1: a reviewer check is not merely explanatory text.  Every failure must
@@ -33,7 +36,7 @@ BLOCKING_ISSUE_TYPES = {
 # blocking issue.  The mapping is deliberately small and deterministic rather
 # than attempting to infer editorial intent from natural language.
 REVIEW_CONSISTENCY_VERSION = "0.4.2"
-SUPPORTED_REVIEW_CONSISTENCY_VERSIONS = {"0.4.1", REVIEW_CONSISTENCY_VERSION}
+SUPPORTED_REVIEW_CONSISTENCY_VERSIONS = {"0.4.1", REVIEW_CONSISTENCY_VERSION, "1"}
 CHECK_ISSUE_TYPES = {
     "factual_grounding": {"unsupported_fact", "unverified_as_fact"},
     "attribution_integrity": {"attribution_error"},
@@ -53,6 +56,7 @@ CHECK_ISSUE_TYPES = {
         "counterargument_unfair",
         "perspective_distortion",
     },
+    **{name: {"quality_gate_failure"} for name in SCRIPT_QUALITY_GATE_CHECK_NAMES_V1},
 }
 CRITICAL_CHECK_NAMES = {
     "factual_grounding",
@@ -65,6 +69,12 @@ CRITICAL_CHECK_NAMES = {
     "research_gap_integrity",
 }
 ALLOWED_NOT_APPLICABLE_CHECK_NAMES = {"counterargument_fairness"}
+
+
+def _required_check_names(script_data: Mapping[str, Any]) -> list[str]:
+    if script_data["script_profile_version"] == "1":
+        return [*SCRIPT_REVIEW_CHECK_NAMES_LEGACY, *SCRIPT_QUALITY_GATE_CHECK_NAMES_V1]
+    return list(SCRIPT_REVIEW_CHECK_NAMES_LEGACY)
 
 
 @dataclass(frozen=True)
@@ -134,7 +144,7 @@ def _derived_gate(issues: list) -> Dict[str, object]:
     }
 
 
-def _validate_check_issue_consistency(artifact: Mapping[str, Any]) -> None:
+def _validate_check_issue_consistency(artifact: Mapping[str, Any], required_checks: list[str]) -> None:
     """Reject Reviewer output whose checks and typed findings contradict.
 
     The output is invalid, instead of quietly treating a missing safety issue as
@@ -146,6 +156,8 @@ def _validate_check_issue_consistency(artifact: Mapping[str, Any]) -> None:
     for check in artifact["checks"]:
         name = check["check_name"]
         outcome = check["outcome"]
+        if name not in required_checks:
+            raise ScriptValidationError("Script Review 不得加入当前版本不适用的检查项")
         if outcome == "not_applicable":
             if name not in ALLOWED_NOT_APPLICABLE_CHECK_NAMES:
                 raise ScriptValidationError(
@@ -202,6 +214,7 @@ def _reviewed_script_revision(
         report,
         dict(profile),
         artifact if gate_status == "pass" else None,
+        script.content_thesis_card,
     )
 
 
@@ -222,7 +235,7 @@ def prepare_script_review(
     issues = _canonical_issues(content, script)
     gate = _derived_gate(issues)
     artifact = {
-        "artifact_version": "0.4",
+        "artifact_version": script.artifact_version,
         "review_id": review_id,
         "script_id": script.script_id,
         "script_revision": script.revision,
@@ -234,7 +247,7 @@ def prepare_script_review(
         "checks": deepcopy(content["checks"]),
         "overall_notes": content["overall_notes"],
         "reviewed_content_digest": script_content_digest(script.data),
-        "review_consistency_version": REVIEW_CONSISTENCY_VERSION,
+        "review_consistency_version": "1" if script.script_profile_version == "1" else REVIEW_CONSISTENCY_VERSION,
         **gate,
     }
     validate_script_review_artifact(artifact, report, script)
@@ -295,12 +308,13 @@ def validate_script_review_artifact(
     check_names = [check["check_name"] for check in artifact["checks"]]
     if len(check_names) != len(set(check_names)):
         raise ScriptValidationError("Script Review checks 不能重复")
-    missing_checks = sorted(set(SCRIPT_REVIEW_CHECK_NAMES) - set(check_names))
+    required_checks = _required_check_names(script_data)
+    missing_checks = sorted(set(required_checks) - set(check_names))
     if missing_checks:
         raise ScriptValidationError(
             "Script Review 缺少必检项：" + "、".join(missing_checks)
         )
-    _validate_check_issue_consistency(artifact)
+    _validate_check_issue_consistency(artifact, required_checks)
     expected_gate = _derived_gate(artifact["issues"])
     for field, value in expected_gate.items():
         if artifact[field] != value:

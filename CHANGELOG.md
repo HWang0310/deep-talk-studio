@@ -2,6 +2,14 @@
 
 ## [Unreleased] - 2026-08-24
 
+### Content Director + Script Agent V1
+
+- Added Content Thesis Card 1, controlled Thesis Review Artifact, immutable local storage and ordinary-language review pages. A Thesis Card is bound to exact approved Research content, verified confirmed facts and counterevidence; a passing machine review still cannot start writing until an explicit human confirmation is recorded.
+- Added Script Profile 1 and Script Draft/Review compatibility for V1 while preserving the 0.4 path. V1 requires an approved Thesis binding and enforces an actual 5–6 minute spoken-duration range.
+- Added 17 blocking Script Quality Gate checks on top of the legacy fact-safety review, including hook, conflict, cognitive turns, propulsion, re-hooks, counterevidence, audience value, audio-only interest, originality and a non-summary ending. A failed audio-only check cannot become advisory.
+- Added no-search Writer/Reviewer prompt boundaries: competitive references can inform high-level content mechanisms only and cannot supply facts or expressions.
+- Added real 《牛来》 Content Thesis Card, human-readable Thesis Review and source-lock manifest outside Git. The thesis passes the preparation review but is deliberately **pending human confirmation**; no final Script, A-roll or visual work was generated.
+
 ### Visual Asset Engine Chinese Display Text renderer hardening
 
 - Replaced the Visual Asset Engine's no-text ffmpeg fallback with the repository's installed Remotion/Chrome browser route. A visual asset is now ready only when its browser-rendered MP4 and deterministic PNG text reference frame both exist.

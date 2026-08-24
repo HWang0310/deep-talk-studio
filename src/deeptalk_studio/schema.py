@@ -573,6 +573,60 @@ RESEARCH_HANDOFF_BRIEF_JSON_SCHEMA = _object(
 
 # Script models only produce the content contract. Identity, revision, status,
 # duration metrics, beat IDs and Claim coverage are owned by the Python core.
+CONTENT_THESIS_CONTENT_JSON_SCHEMA = _object(
+    {
+        "core_question": _string(),
+        "one_sentence_answer": _string(),
+        "core_thesis": _string(),
+        "counterintuitive_point": _string(),
+        "target_emotion": _string(),
+        "resonance": _string(),
+        "approval_point": _string(),
+        "comment_tension": _string(),
+        "spokesperson_value": _string(),
+        "value_identity": _string(),
+        "strongest_evidence_claim_ids": _string_array(),
+        "counter_evidence_claim_ids": _string_array(),
+        "uncertainty_limits": _string_array(),
+        "crowded_angles": _string_array(),
+        "differentiated_angle": _string(),
+        "hook_promise": _string(),
+        "ending_question_or_judgment": _string(),
+        "competitive_insight_notes": _string_array(),
+    }
+)
+
+CONTENT_THESIS_REVIEW_STATE_SCHEMA = _object(
+    {
+        "state": _enum(["not_reviewed", "reviewed"]),
+        "review_id": _string(allow_empty=True),
+        "reviewed_from_revision": _integer(),
+        "review_gate_status": _enum(["not_run", "pass"]),
+        "reviewed_content_digest": _string(allow_empty=True),
+        "user_confirmation": _string(allow_empty=True),
+    }
+)
+
+CONTENT_THESIS_CARD_JSON_SCHEMA = _object(
+    {
+        "artifact_version": _enum(["1"]),
+        "card_id": _string(),
+        "revision": _integer(1),
+        "previous_revision": _integer(),
+        "created_at": _string(),
+        "generated_at": _string(),
+        "report_id": _string(),
+        "report_revision": _integer(1),
+        "report_content_digest": _string(),
+        "content_director_profile_version": _string(),
+        "status": _enum(["draft", "approved_for_script"]),
+        "content_digest": _string(),
+        "review_state": CONTENT_THESIS_REVIEW_STATE_SCHEMA,
+        "change_summary": _string(),
+        **CONTENT_THESIS_CONTENT_JSON_SCHEMA["properties"],
+    }
+)
+
 SCRIPT_CONTENT_BEAT_RAW_SCHEMA = _object(
     {
         "purpose": _string(),
@@ -643,7 +697,7 @@ SCRIPT_BEAT_IDENTITY_SCHEMA = _object(
 
 SCRIPT_DRAFT_JSON_SCHEMA = _object(
     {
-        "artifact_version": _enum(["0.4"]),
+        "artifact_version": _enum(["0.4", "1"]),
         "script_id": _string(),
         "revision": _integer(1),
         "previous_revision": _integer(),
@@ -654,6 +708,9 @@ SCRIPT_DRAFT_JSON_SCHEMA = _object(
         "script_mode": _enum(["codex_skill", "openai_api", "fixture"]),
         "status": _enum(["draft", "reviewed"]),
         "script_profile_version": _string(),
+        "content_thesis_card_id": _string(),
+        "content_thesis_card_revision": _integer(1),
+        "content_thesis_content_digest": _string(),
         "target_duration_minutes": _number(3, 30),
         "character_count": _integer(),
         "estimated_duration_minutes": _number(),
@@ -672,10 +729,13 @@ SCRIPT_DRAFT_JSON_SCHEMA = _object(
         "review_state": SCRIPT_REVIEW_STATE_SCHEMA,
         "beat_identity": SCRIPT_BEAT_IDENTITY_SCHEMA,
     },
-    optional=("review_state", "beat_identity"),
+    optional=(
+        "review_state", "beat_identity", "content_thesis_card_id",
+        "content_thesis_card_revision", "content_thesis_content_digest",
+    ),
 )
 
-SCRIPT_REVIEW_CHECK_NAMES = [
+SCRIPT_REVIEW_CHECK_NAMES_LEGACY = [
     "factual_grounding",
     "attribution_integrity",
     "uncertainty_preservation",
@@ -691,6 +751,31 @@ SCRIPT_REVIEW_CHECK_NAMES = [
     "original_expression",
     "script_usability",
     "counterargument_fairness",
+]
+
+SCRIPT_QUALITY_GATE_CHECK_NAMES_V1 = [
+    "hook_effectiveness",
+    "core_conflict",
+    "surprise_or_cognitive_turn",
+    "story_propulsion",
+    "re_hook",
+    "evidence_narrative_integration",
+    "counterevidence_fairness",
+    "golden_judgment",
+    "emotional_progression",
+    "resonance",
+    "approval_value",
+    "comment_tension",
+    "spokesperson_value",
+    "value_identity",
+    "audio_only_interest",
+    "original_expression_quality",
+    "non_summary_ending",
+]
+
+SCRIPT_REVIEW_CHECK_NAMES = [
+    *SCRIPT_REVIEW_CHECK_NAMES_LEGACY,
+    *SCRIPT_QUALITY_GATE_CHECK_NAMES_V1,
 ]
 
 SCRIPT_REVIEW_ISSUE_TYPES = [
@@ -714,6 +799,7 @@ SCRIPT_REVIEW_ISSUE_TYPES = [
     "long_quote",
     "script_usability",
     "hook_structure",
+    "quality_gate_failure",
 ]
 
 SCRIPT_REVIEW_CHECK_SCHEMA = _object(
@@ -752,7 +838,7 @@ SCRIPT_REVIEW_ISSUE_SCHEMA = _object(
 
 SCRIPT_REVIEW_JSON_SCHEMA = _object(
     {
-        "artifact_version": _enum(["0.4"]),
+        "artifact_version": _enum(["0.4", "1"]),
         "review_id": _string(),
         "script_id": _string(),
         "script_revision": _integer(1),
@@ -766,7 +852,7 @@ SCRIPT_REVIEW_JSON_SCHEMA = _object(
         "blocking_issue_count": _integer(),
         "gate_status": _enum(["pass", "fail"]),
         "reviewed_content_digest": _string(),
-        "review_consistency_version": _enum(["0.4.1", "0.4.2"]),
+        "review_consistency_version": _enum(["0.4.1", "0.4.2", "1"]),
     },
     optional=("reviewed_content_digest", "review_consistency_version"),
 )
