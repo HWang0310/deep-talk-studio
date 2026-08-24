@@ -1,5 +1,16 @@
 # DeepTalk Studio 开发交接
 
+## 2026-08-24：真实 Episode Script V1 验收运行
+
+本轮没有修改产品代码。用户与 ChatGPT 已完成 Human Thesis Confirmation，并明确允许本期用本地 Markdown 最终事实池与 SHA source-lock 作为 V1 Candidate 的先行输入。
+
+- 真实 episode 已完成 `Draft r1 → independent review → r2 reviewed`，共 1 次必要修订。
+- r1 的 `story_propulsion`、`re_hook`、`audio_only_interest`、`non_summary_ending` 为 blocking，未放行；r2 的事实安全、反证、时长、原创边界和 17 项 Quality Gate 全部通过。
+- 本期实际预计口播为 5.3 分钟，符合 5–6 分钟硬约束。
+- 本期真实内容工件仅保留在用户本地 episode 目录；没有把 Thesis、Research、Script、来源正文、哈希或媒体提交 Git。
+- 此处必须停止。下一步只能由用户阅读 reviewed Script 并决定是否自行录制；没有最终 Clean A-roll，不得启动任何视觉、素材、字幕、Edit Map 或发布。
+- 技术债保持：正式 V1.0 Release 前，需要评估本地 Markdown + source-lock 是否应迁移为 canonical ResearchReport / provenance contract。
+
 ## 2026-08-24：Content Director + Script Agent V1
 
 当前正式 Release：v0.6.1（未改变）

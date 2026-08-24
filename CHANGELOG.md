@@ -2,6 +2,11 @@
 
 ## [Unreleased] - 2026-08-24
 
+### Local real-episode Script V1 acceptance run
+
+- Ran one user-owned real episode through the already-implemented Content Director + Script Agent V1 path using its explicitly approved local Markdown fact pool and SHA source-lock. Its first draft was held for four content-quality failures, then revised once and passed the evidence, counterevidence, duration, originality and 17-item quality review.
+- No episode thesis, research, draft, reviewed script, source text, media, hash or private creative artifact was added to Git. No product code, main branch, tag or Release changed in this run.
+
 ### Content Director + Script Agent V1
 
 - Added Content Thesis Card 1, controlled Thesis Review Artifact, immutable local storage and ordinary-language review pages. A Thesis Card is bound to exact approved Research content, verified confirmed facts and counterevidence; a passing machine review still cannot start writing until an explicit human confirmation is recorded.
