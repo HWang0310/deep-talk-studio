@@ -2,6 +2,11 @@
 
 ## [Unreleased] - 2026-08-24
 
+### Visual Asset Engine MVP design
+
+- Recorded the non-implementation MVP contract for a Visual Director that makes one of four explicit decisions per safe A-roll opportunity: keep the speaker, show reviewed real material, use parameterized MG, or reserve a small number of advanced motion moments.
+- Defined the proposed MG grammar, Advanced Motion Spec, asset-manifest/Edit-Map, human review, Gate and fallback contracts. No renderer, production logic, formal artifact, media output, tag, release, or main branch was changed.
+
 ### Real-user visual presentation and output-truth hardening
 
 - Corrected the aligned Preview presentation contract: approved full-screen material and Motion placements now occupy the primary canvas; the A-roll returns outside those placement windows, while the subtitle layer remains above both.

@@ -1154,3 +1154,40 @@ medium 的 selection cache/artifacts 保持为历史审计；正式 runtime/mode
 ### 给用户的下一步操作
 
 请观看新的 `ALIGNED_PREVIEW-r0003.mp4`。满意则回复“预览通过”；如不满意，直接说出画面位置或问题。
+## 2026-08-24：Visual Asset Engine MVP Design（设计草案，等待 ChatGPT Review）
+
+### 本轮任务与完成内容
+
+将已完成的高级动画研究转化为 DeepTalk V1 的产品/技术合同；这是设计轮，不实现 Renderer、不生成正式动画、不修改生产逻辑、不创建 Release。已完成 `Visual Director` 四选一决策、MG Motion Grammar、Advanced Motion Spec、Asset Manifest、Edit Map、自然语言 Human Review、Gates、Fallback、V1/Later 分界及第一条真实 episode 验收设计。
+
+### 重要文件
+
+- `docs/superpowers/specs/2026-08-24-visual-asset-engine-mvp-design.md`：完整设计草案。
+- `CHANGELOG.md`：只记录本轮实际完成的设计工作。
+- 本仓库外研究证据保持在 `/Users/hwang/Movies/自媒体创意库/Codex动画参考/研究报告/`，未进入 Git。
+
+### 当前建议架构
+
+`reviewed Script + approved Research + reviewed Material + Clean A-roll + Alignment` → `Visual Director` →
+`KEEP_A_ROLL / REAL_MATERIAL / MG_MOTION / ADVANCED_MOTION` → 自然语言 Visual Plan Review →
+Spec/Asset QA → 独立 Asset Pack + Edit Map → 用户 NLE 手工剪辑。
+
+时间只从 Alignment 来；事实和显示文字继续绑定 Research/Material；MG 是高频确定性解释工具；Advanced Motion 仅为少量认知高潮。核心路径不依赖用户额外 API Key，图像生成只可作为未来 optional/experimental adapter。
+
+### 已经可以运行什么 / 仍不能运行什么
+
+现有 Research、Material、Production、Alignment、Edit Bridge 与 Preview 能力维持原状。本轮没有新可运行 Renderer、没有新视频、没有新真实 asset，也没有修改 reviewed Script、approved Research、reviewed Material、Transcript、Alignment 或 Production 工件。新合同尚未实现，必须先经 ChatGPT Review 后另开实现轮。
+
+### 产品决策与待定问题
+
+- 首批真实验收建议只测 3 个不同 MG、1 个 SVG/path、1 个概念隐喻，而不是全片自动制作。
+- 建议 V1 先用中性、克制、非角色 IP 的视觉 Profile；不得复制“小黑”IP或参考作者表达。
+- 需 ChatGPT 决定首期是否对全部 Visual Plan 一次性确认，以及 Edit Map 首批仅 Markdown+CSV 还是需要特定 NLE 项目导出。
+
+### Git / Release 状态
+
+设计完成时无功能 commit、无 push、无 PR、无 tag、无 Release；`main` 和 `v0.6.1` 未改。随后已按仓库规则将获批设计与实施计划作为独立文档 commit，功能实现将另起 feature commits。
+
+### 给用户的下一步操作
+
+把本轮 Codex 的完整交接文字原样发给 ChatGPT，请它 Review `Visual Asset Engine MVP Design`，确认 MVP 边界、首批动画能力和第一条真实 episode 验收方案，再给出下一轮正式实现任务。
