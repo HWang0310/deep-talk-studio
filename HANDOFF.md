@@ -1,5 +1,16 @@
 # DeepTalk Studio 开发交接
 
+## 2026-08-24：真实 Episode Creator Polish r3
+
+本轮没有重新研究、没有改变 Thesis、没有新增事实、没有修改产品代码。
+
+- 用户/ChatGPT 授权在 r2 通过后进行一次 Creator Polish；r2 保留不覆盖，r3 作为本地 Final Reviewed Script。
+- 主要调整：压缩重复的“票房/事件/判断权”解释；用具体现场与口语观察替代文章腔；第二 Hook 改为“票房是在给作品打分，还是在给我也在现场的经历买单”；历史案例仅作“该拉扯并非凭空出现”的短证明；结尾改为观众是否仍有“不买账的位置”。
+- Final Quality Recheck：Evidence Binding、Counter-evidence、Duration、Originality、17 项 Script Quality Gate 和 Creator Listen Test 全部 PASS。
+- 本地 Final Script 预计 5.5 分钟；没有开始 A-roll、素材、视觉、MG、字幕、Edit Map 或发布。
+- 本期创作内容、hash、source-lock 和最终稿仍只保留在用户本地，不提交 Git；正式 V1.0 前 canonical ResearchReport 迁移技术债保持。
+- 下一步只能是用户阅读 Final Reviewed Script，并决定是否自行录制。
+
 ## 2026-08-24：真实 Episode Script V1 验收运行
 
 本轮没有修改产品代码。用户与 ChatGPT 已完成 Human Thesis Confirmation，并明确允许本期用本地 Markdown 最终事实池与 SHA source-lock 作为 V1 Candidate 的先行输入。

@@ -7,6 +7,11 @@
 - Ran one user-owned real episode through the already-implemented Content Director + Script Agent V1 path using its explicitly approved local Markdown fact pool and SHA source-lock. Its first draft was held for four content-quality failures, then revised once and passed the evidence, counterevidence, duration, originality and 17-item quality review.
 - No episode thesis, research, draft, reviewed script, source text, media, hash or private creative artifact was added to Git. No product code, main branch, tag or Release changed in this run.
 
+### Local real-episode Creator Polish
+
+- Performed one permitted Creator Polish revision on the same user-owned real episode. The pass retained all evidence and thesis constraints, reduced repeated explanation and article-like phrasing, strengthened the second hook and Creator Listen Test, and produced a final reviewed local script.
+- No product code or episode creative content was committed. The final real-episode boundary remains: user reads the script and decides whether to record; no A-roll or visual stage begins.
+
 ### Content Director + Script Agent V1
 
 - Added Content Thesis Card 1, controlled Thesis Review Artifact, immutable local storage and ordinary-language review pages. A Thesis Card is bound to exact approved Research content, verified confirmed facts and counterevidence; a passing machine review still cannot start writing until an explicit human confirmation is recorded.
