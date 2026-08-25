@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 2026-08-25 — Finished Cut Review + Production Feedback Loop
+
+- 新增 `finished-cut-review/1` 与 `production-feedback/1`：在用户手工完成 NLE 成片后，只读比较 Edit Map、Asset Manifest 与 Finished Cut 的实际素材使用；计划偏差记录为 `USER_EDIT_OBSERVATION`，不是剪辑错误。
+- 新增保守的媒体探测与全画幅素材匹配。无法以可区分画面安全确认的素材一律保持 `UNKNOWN`；不会因为相同深色背景或相近静帧而误报已采用。
+- 新增本地 JSON/Markdown 复盘写入器，只会写入 episode 的 `_DeepTalk记录/` 与 `10_成片/`，绝不生成视频、NLE 工程或自动二剪。
+- 单期复盘只能生成需要人工或多期验证的 `CANDIDATE_PRODUCT_RULE`，没有自动升级为全局策略、创作者评分或爆款预测的接口。
+- 以《牛来》用户手工完成的第一版成片完成真实只读验证；本期媒体和复盘工件保持 Git 外本地保存，未创建 tag、Release，未改动 `main` 或 `v0.6.1`。
+
 ## Unreleased — 2026-08-25 — Asset Pack + Edit Map production boundary
 
 - 将 V1 Candidate 的默认后半段交付正式改为 `Final Clean A-roll → Semantic Timeline → QA-ready Asset Pack + Edit Map → 用户手工 NLE 剪辑`；历史全片 Remotion Preview 保留为兼容、预览和 QA，不再是默认产品成功标准。

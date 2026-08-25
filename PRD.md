@@ -275,7 +275,7 @@ V0.6 的成功不是“渲染命令返回 0”，而是真实文件的尺寸、�
 
 ## 10. Unreleased：Audio Alignment + Visual Edit Bridge
 
-V1.0 Candidate 的主交付是 `Final Clean A-roll → Real Timeline / Semantic Timeline → QA-ready Real Material + Original Motion → Asset Pack + Edit Map → 用户在剪映完成最终剪辑`。DeepTalk 不替用户选择 take、删除停顿/重录/废段、拼接 A-roll、决定 NLE 时间线或发布。历史自动 Preview 只保留为兼容、单素材预览和 QA，不是默认成功标准。Hook 主要在 Script 阶段完成：现有 `audience_promise + ordered Beats + closing` 继续作为结构，独立 Review 的 `narrative_structure` 明确阻断缺失 opening hook、value promise、必要 re-hook / information turn 或 conclusion payoff 的新稿，不新增重复 Script schema。
+V1.0 Candidate 的主交付是 `Final Clean A-roll → Real Timeline / Semantic Timeline → QA-ready Real Material + Original Motion → Asset Pack + Edit Map → 用户在剪映完成最终剪辑 → Finished Cut Review → Production Feedback Loop`。Finished Cut Review 只读记录计划与实际，不修改成片、不生成新成片、不替用户重新剪辑。DeepTalk 不替用户选择 take、删除停顿/重录/废段、拼接 A-roll、决定 NLE 时间线或发布。历史自动 Preview 只保留为兼容、单素材预览和 QA，不是默认成功标准。Hook 主要在 Script 阶段完成：现有 `audience_promise + ordered Beats + closing` 继续作为结构，独立 Review 的 `narrative_structure` 明确阻断缺失 opening hook、value promise、必要 re-hook / information turn 或 conclusion payoff 的新稿，不新增重复 Script schema。
 
 ### 10.1 V1 本地转写生产要求
 

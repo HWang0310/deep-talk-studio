@@ -1,5 +1,51 @@
 # DeepTalk Studio 开发交接
 
+## 2026-08-25：Finished Cut Review + Production Feedback Loop — 《牛来》第一轮完整生产闭环
+
+### 本轮任务
+
+在用户已于剪映手工完成《牛来》第一版成片后，建立只读的成片复盘与生产反馈能力，核对 DeepTalk 的 Asset Pack/Edit Map 在真实剪辑中的可用性。严格不重剪、不改成片、不创建 NLE 工程或第二版视频。
+
+### 已完成
+
+- 新增 `finished-cut-review/1`：绑定 Finished Cut SHA、`edit-map/1` digest、`visual-asset-manifest/1` digest，逐条记录计划与实际、实际时钟、呈现方式、使用长度、证据及 `USER_EDIT_OBSERVATION`。
+- 新增 `production-feedback/1`：单期发现只能成为 `CANDIDATE_PRODUCT_RULE`，必须经人工或多期证据 Review；系统没有自动改写全局 Visual Director / Edit Map 策略的接口。
+- 新增 ffprobe 只读媒体检查、低分辨率帧指纹匹配和静态画面保护。若素材不能从深色背景/近似静帧中可靠区分，机器必须报 `UNKNOWN`，不会误称已使用。
+- 新增本地 JSON 与普通中文 Markdown 复盘写入器；写入器拒绝不相符的 Review/Feedback digest，且不会生成 `.mp4`、`.mov`、`.fcpxml`、`.xml` 或任何剪辑工程。
+- 已对《牛来》第一版 Finished Cut 完成真实人工画面核验。三条 MG 都在正确语义点以全屏、缩短形式出现：MG_01 实际 `6.8–11.0s`（计划 `6.22–18.70s`）；MG_02 实际 `21.1–37.1s`（计划 `18.78–36.48s`）；MG_03 实际 `206.0–214.8s`（计划 `204.44–215.56s`）。这些都是合法创作者剪辑选择，不是错误。
+
+### 重要文件
+
+- 产品实现：`src/deeptalk_studio/finished_cut_review.py`
+- 回归：`tests/test_finished_cut_review.py`
+- 正式合同：`docs/FINISHED_CUT_REVIEW_CONTRACT.md`
+- 本地、Git 外真实工件：
+  - `/Users/hwang/Movies/自媒体创意库/牛来_电影话语权反噬/_DeepTalk记录/finished-cut-review-r0001.json`
+  - `/Users/hwang/Movies/自媒体创意库/牛来_电影话语权反噬/_DeepTalk记录/production-feedback-r0001.json`
+  - `/Users/hwang/Movies/自媒体创意库/牛来_电影话语权反噬/10_成片/《牛来》第一版成片复盘.md`
+  - `/Users/hwang/Movies/自媒体创意库/牛来_电影话语权反噬/10_成片/《牛来》Asset Pack 使用复盘.md`
+
+### 当前架构
+
+`Topic → Competitive Research → Fact Check → Content Thesis → Reviewed Script → User Recording → Final Clean A-roll → ASR → Script Alignment → Real Timeline → Semantic Timeline → Visual Director → Asset Generation → Asset QA → Asset Pack → Edit Map → User Manual NLE Assembly → Finished Cut → Finished Cut Review → Production Feedback Loop`
+
+Finished Cut Review 只能观察计划和实际。它不评判用户“剪得对不对”，不做播放量/爆款/审美评分，不自动提出已生效的全局规则。
+
+### 已验证与真实结论
+
+- Finished Cut：`/Users/hwang/Movies/自媒体创意库/牛来_电影话语权反噬/10_成片/牛来8月25日.mp4`，`294.452245s`，1920×1080、H.264、60fps、AAC 双声道 44.1kHz，SHA-256 `0fe0424b221be33f69b7a13de07952aa5c7216c34788bf6273468a3049057715`；ffprobe/decode 可读。
+- Edit Map digest：`a50407032cf77e3861027318fc845519ca3c14dfb8c46730c15f6fd7fa2dc56e`；Asset Manifest digest：`0a038b0cf6201d98c2248738c41a1bbdb422652f55ede6c57ae9c7159e010d40`；review digest：`a16f3969ca4619d0fbbd79f3c0658844d8680b1471d102ee319be297ac0b8999`；feedback digest：`2bd6335ed6a13cee1048fa1b65a3ff8d0ad60d0c6896ba31f4c0cabe4a4b4a3f`。
+- MG_02 的日期/场次/票房转折最有效；MG_01 与 MG_03 语义正确但用户只保留了核心信息窗口。三个动画都没有遮挡必须保留的 A-roll 论述。
+- 前 37 秒有两条 MG；随后到约 206 秒以 A-roll 为主。全片 MG 约 29 秒（约 9.8%）。这不是错误，但事实密集的中段仍可在未来积累可审计 REAL material 候选；不应凭一集就提升全局动画密度。
+- Edit Map 已减少了素材搜索和落点判断，但未来可审阅地探索“推荐试放范围、核心信息出现点、回到 A-roll 提示”；它们目前仅为候选方向。
+- 机器匹配已被证明不宜单独用来确认近似深色静帧：本轮正确做法是机器保持 `UNKNOWN`，再由可审计的人工画面核验填入实际采用状态。
+
+### 当前边界与下一步
+
+- 本轮不重新渲染 Finished Cut：迁移前后的产品树未改变，且本轮交付是只读复盘；已重新执行媒体探测和产物绑定检查。下一步不应自动开始下一期生产或任何二剪。
+- 需要 ChatGPT Review：确认这轮第一条真实 Episode 的完整生产闭环是否可作为第一份多期反馈基线；Review 三条 MG 的缩短使用、Edit Map 易用性与候选规则，但不得把单期观察自动当全局标准。
+- 本轮没有创建 Release、tag 或修改 `main`/`v0.6.1`；完成后仅提交产品代码与文档至当前开发分支。
+
 ## 2026-08-25：Asset Pack + Edit Map 主产品路径 — 《牛来》真实验证完成
 
 ### 本轮最终状态

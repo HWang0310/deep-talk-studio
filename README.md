@@ -8,7 +8,7 @@ DeepTalk Studio 是一个面向长期 B 站个人 IP 的 AI 内容生产项目�
 
 当前版本是 **V0.6.1**。研究、独立事实核查、原创写稿、素材准备和制作已连成可验证链路。已审查素材包可由 Remotion 或 HyperFrames 中的一个引擎生成真实 MP4 动画、粗剪视觉预览、PNG 定帧和制作质检报告；四类图表会按内部元素真正运动，不再只是整张 SVG 进场。
 
-Audio Alignment + Visual Edit Bridge 的正式主用户路径是：用户先完成最终 A-roll 的人工清理，DeepTalk 以真实转写和全局对齐建立语义时间轴，生成通过 QA 的视觉素材和普通中文剪辑表（Asset Pack + Edit Map），最后由用户自己在剪映完成剪辑。DeepTalk **不替用户剪辑最终视频**：不选择 take、不删停顿或重录、不拼 A-roll、不决定剪映时间线，也不发布。历史 Remotion 全片 Preview 保留为兼容、预览和 QA 能力，不是默认交付。详见 `docs/ASSET_PACK_EDIT_MAP_CONTRACT.md`。
+Audio Alignment + Visual Edit Bridge 的正式主用户路径是：用户先完成最终 A-roll 的人工清理，DeepTalk 以真实转写和全局对齐建立语义时间轴，生成通过 QA 的视觉素材和普通中文剪辑表（Asset Pack + Edit Map），最后由用户自己在剪映完成剪辑。剪完后的 **Finished Cut Review + Production Feedback Loop** 只读比较计划与实际，沉淀候选改进规律；它不修改成片，也不替用户重新剪辑。DeepTalk **不替用户剪辑最终视频**：不选择 take、不删停顿或重录、不拼 A-roll、不决定剪映时间线，也不发布。历史 Remotion 全片 Preview 保留为兼容、预览和 QA 能力，不是默认交付。详见 `docs/ASSET_PACK_EDIT_MAP_CONTRACT.md` 与 `docs/FINISHED_CUT_REVIEW_CONTRACT.md`。
 
 V1 的本地转写默认是官方完整精度 `whisper.cpp` multilingual `large-v3`（v1.9.2、Apple Silicon Metal、`--dtw large.v3`）。它由仓库内的生产 Provider 自动准备运行时和模型，使用项目外部的 `~/.cache/deep-talk-studio/transcription/` 缓存，并在每次使用前核对版本、SHA-256、大小和 provenance；普通用户不需要安装、找 URL、设置 PATH 或配置任何 API Key。Provider 只接受 runtime 直接给出的 token offsets，缺少或重叠时间就停止，不插值、不调用云端兜底。此前 medium 的 Selection Gate 仍是保留的历史评测，不再是生产默认。OpenAI Provider 仍保留为未来可选能力，不是 V1 默认或 preflight blocker。
 

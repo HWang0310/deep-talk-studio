@@ -121,7 +121,7 @@
 - Speech-to-Text provider 与确定性 Alignment Core 解耦，按真实 timestamp granularity 对齐 reviewed Script Beat、Material Cue 和现有 Production Scene。
 - 对齐只执行一次全局、单调、顺序保持的 Script→Transcript evidence pass；Beat 与 Cue 只能投影该 mapping，不能各自扫描整条录音。B011 类真实局部缺口继续 review，Script 外真人尾段继续保留为 trailing ad-lib。
 - 将 A-roll、真实图片/截图、真实视频和 QA-ready Motion 放入统一 Visual Placement timeline，自动推导 IN、OUT、duration 与基础 layout。
-- 默认输出真实语义时间轴、QA-ready Asset Pack、普通中文 Markdown/CSV 与 machine JSON Edit Map；用户在剪映手工剪辑。`ALIGNED_PREVIEW.mp4` 仅保留为兼容/QA 输出，不是正式成片或默认交付。
+- 默认输出真实语义时间轴、QA-ready Asset Pack、普通中文 Markdown/CSV 与 machine JSON Edit Map；用户在剪映手工剪辑。用户完成后可进入只读 Finished Cut Review + Production Feedback Loop：记录计划/实际差异和 candidate product rules，不修改成片、不自动二剪。`ALIGNED_PREVIEW.mp4` 仅保留为兼容/QA 输出，不是正式成片或默认交付。
 - 不自动选择 take、删停顿/重录/废段、裁剪/拼接 A-roll、决定 NLE 时间线或发布。没有 Final Clean A-roll Alignment 禁止正式视觉；`FACT_CONFLICT` 记录真实时间并阻止错误 display asset。
 - 唯一具体生产入口和 repository-owned canonical QA 已完成；word/segment 真实时间戳安全降级、完整 Cue 语义 OUT、Material 图片/视频字段保真、自然语言 Preview revision 已通过回归与真实合成入口验证。
 - 历史 rights/reuse 信息保持兼容读取，但不作为新制作 Gate；文件、SHA、格式、安全、grounding、binding 与 QA 仍严格验证。
