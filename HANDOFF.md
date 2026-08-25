@@ -46,6 +46,14 @@ Finished Cut Review 只能观察计划和实际。它不评判用户“剪得对
 - 需要 ChatGPT Review：确认这轮第一条真实 Episode 的完整生产闭环是否可作为第一份多期反馈基线；Review 三条 MG 的缩短使用、Edit Map 易用性与候选规则，但不得把单期观察自动当全局标准。
 - 本轮没有创建 Release、tag 或修改 `main`/`v0.6.1`；完成后仅提交产品代码与文档至当前开发分支。
 
+## 2026-08-25：A-roll lineage reconciliation — 《牛来》真实 Episode
+
+- 当前 canonical Final Clean A-roll：`/Users/hwang/Movies/口播/牛来8月24日.mp4`
+- 当前真实媒体字节 SHA-256：`5bd61172cbbdf3e5743f6066f904ed951808cc29914dc0ccc93473085a7ecb20`
+- 历史值 `822288c456fcd94702a2b7b08636eeb8652dd60c5c121c53ba60f0353aba3569` 并非另一份媒体的 SHA；它是 `narration-media/1` 对象的 `artifact_digest`，出现在本期 `05_A-roll/_DeepTalk转写工件-r0003/run-summary.json`，并被旧 Clean A-roll Gate 的 `media_digest` 字段复用。旧记录保留不覆盖，已在 `/Users/hwang/Movies/自媒体创意库/牛来_电影话语权反噬/_DeepTalk记录/niulai-aroll-lineage-reconciliation-r0001.json` 中记录澄清。
+- 本期 source、r0001/r0003 immutable narration-media copies 的字节 SHA 均为 `5bd…`；没有发现 SHA 为 `822…` 的视频文件，也没有发现 remux/re-export 后的第二个 A-roll。
+- 下游 Alignment、Semantic Timeline、Asset Manifest/Edit Map 通过 alignment/transcript lineage 间接绑定 `5bd…`；Finished Cut Review 绑定 Finished Cut SHA、Edit Map digest 和 Asset Manifest digest，并未把 `822…` 当作源视频 SHA。无需重新生成 Asset Pack、Edit Map、MG 或 Finished Cut。
+
 ## 2026-08-25：Asset Pack + Edit Map 主产品路径 — 《牛来》真实验证完成
 
 ### 本轮最终状态
@@ -56,7 +64,7 @@ Finished Cut Review 只能观察计划和实际。它不评判用户“剪得对
 
 ### 真实 Episode 输入与不可变边界
 
-- 真人视频：`/Users/hwang/Movies/口播/牛来8月24日.mp4`，1920×1080、30fps、H.264/AAC、`294.382585s`；媒体 SHA-256：`822288c456fcd94702a2b7b08636eeb8652dd60c5c121c53ba60f0353aba3569`。
+- 真人视频：`/Users/hwang/Movies/口播/牛来8月24日.mp4`，1920×1080、30fps、H.264/AAC、`294.382585s`；真实媒体字节 SHA-256：`5bd61172cbbdf3e5743f6066f904ed951808cc29914dc0ccc93473085a7ecb20`。历史 `822…` 为本期 `narration-media/1` 的 `artifact_digest`，不是媒体 SHA-256。
 - Script：本地 Final Reviewed r4，SHA-256 `5b8308dba915ae91b21f849ccc0ecd5da0a0181f8fa383bfb57385875cfe45ef`；未修改 reviewed Script、approved Research、reviewed Material Package 或用户原始视频。
 - 本地 ASR：`whisper.cpp v1.9.2` 的 multilingual `large-v3` + `--dtw large.v3`，一段真实转写，`1,243` token，运行 `1137.910327s`，RTF `3.865413`；没有云端上传、API Key、fixture 或第二转写器。
 
