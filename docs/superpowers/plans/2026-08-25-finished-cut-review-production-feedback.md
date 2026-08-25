@@ -85,7 +85,7 @@
 - [x] Add the contract/docs. Run the local episode runner: probe/decode Finished Cut, conservatively match assets, bind to existing map/manifest/media SHA, and write only local JSON/Markdown.
 - [x] Run focused tests: `PYTHONPATH=src python3 -m unittest tests.test_finished_cut_review tests.test_asset_pack_workflow tests.test_visual_asset_pack -v`.
 - [x] Run full tests: `PYTHONPATH=src python3 -m unittest discover -s tests -v`; run `git diff --check`; verify no episode output is staged.
-- [ ] Commit/push only product code/docs to `agent/audio-alignment-edit-bridge`; do not merge, tag, or release.
+- [x] Commit/push only product code/docs to `agent/audio-alignment-edit-bridge`; do not merge, tag, or release.
 
 ## Plan Review
 
