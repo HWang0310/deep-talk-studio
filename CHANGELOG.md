@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — 2026-08-27 — Multi-Asset Studio research
+
+- Added Product / Technical Reconnaissance for Multi-Asset Studio repositioning. It is explicitly a proposal awaiting ChatGPT Product Review and does not change production contracts, schemas, or behaviour.
+
 ## Unreleased — 2026-08-25 — Finished Cut Review + Production Feedback Loop
 
 - 新增 `finished-cut-review/1` 与 `production-feedback/1`：在用户手工完成 NLE 成片后，只读比较 Edit Map、Asset Manifest 与 Finished Cut 的实际素材使用；计划偏差记录为 `USER_EDIT_OBSERVATION`，不是剪辑错误。

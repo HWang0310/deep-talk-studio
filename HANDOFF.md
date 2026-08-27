@@ -1,5 +1,9 @@
 # DeepTalk Studio 开发交接
 
+## 2026-08-27：Multi-Asset Studio repositioning research
+
+Multi-Asset Studio repositioning research completed; awaiting ChatGPT Product Review. Research entry: `docs/plans/2026-08-27-multi-asset-studio-repositioning.md`. This is a proposal only: no production code, formal production contract/schema, Episode artifact, media, tag, Release, or `main` change was made.
+
 ## 2026-08-25：Finished Cut Review + Production Feedback Loop — 《牛来》第一轮完整生产闭环
 
 ### 本轮任务
