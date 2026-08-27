@@ -10,7 +10,7 @@
 | Latest Formal Release | [`v0.6.1`](docs/releases/v0.6.1.md), commit `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`. |
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
-| Current documentation branch | `docs/project-memory-consolidation`, created from `agent/multi-asset-studio` at `4929ff2de1106bf218812915afa22f7b99a63932`. |
+| Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
 | Current work | Consolidate canonical project memory; no product implementation is authorised by this work. |
 
 ## Current Product Positioning
