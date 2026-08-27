@@ -1,8 +1,15 @@
 # Changelog
 
+## Unreleased — 2026-08-27 — Project Memory Consolidation
+
+- Added `PROJECT_STATE.md` as the concise canonical current-state owner and `docs/INDEX.md` as the documentation reading map.
+- Reclassified the accepted Multi-Asset Studio Product Review outcome as accepted/unreleased with implementation not started; no production contract, schema, or code changed.
+- Reconciled README, PRD, ROADMAP, ARCHITECTURE, AGENTS, and historical entry points so `v0.6.1` remains the latest formal release and V1 Candidate remains unreleased.
+- Preserved plans, specs, release notes, evaluations, and the chronological HANDOFF log. They remain historical evidence rather than competing current-state sources.
+
 ## Unreleased — 2026-08-27 — Multi-Asset Studio research
 
-- Added Product / Technical Reconnaissance for Multi-Asset Studio repositioning. It is explicitly a proposal awaiting ChatGPT Product Review and does not change production contracts, schemas, or behaviour.
+- Added Product / Technical Reconnaissance for Multi-Asset Studio repositioning. Its research/proposal material remains preserved; the 2026-08-27 Product Review subsequently accepted the core direction, while implementation has not started.
 
 ## Unreleased — 2026-08-25 — Finished Cut Review + Production Feedback Loop
 

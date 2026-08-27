@@ -1,0 +1,139 @@
+# DeepTalk Studio — Canonical Project State
+
+> **Read this first for current truth.** This file is the concise, canonical state of the product as of 2026-08-27. Historical evidence remains in [HANDOFF.md](HANDOFF.md), release notes, plans, and specs; those sources do not override this file.
+
+## Identity
+
+| Field | Current truth |
+|---|---|
+| Product | A content and visual-asset system for creators making human-led, deep spoken videos. |
+| Latest Formal Release | [`v0.6.1`](docs/releases/v0.6.1.md), commit `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`. |
+| Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
+| Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
+| Current documentation branch | `docs/project-memory-consolidation`, created from `agent/multi-asset-studio` at `4929ff2de1106bf218812915afa22f7b99a63932`. |
+| Current work | Consolidate canonical project memory; no product implementation is authorised by this work. |
+
+## Current Product Positioning
+
+DeepTalk Studio helps a creator turn a defensible topic into a reviewed spoken script, then prepare evidence-bound visual assets and precise placement suggestions against the creator's final clean A-roll.
+
+DeepTalk is responsible for topic discovery, research, fact check, Content Thesis, reviewed script, final-clean-A-roll semantic timing, visual-material preparation, asset QA, Asset Pack, and Edit Map. The creator retains content judgment, human confirmation, recording, final material selection, and final NLE aesthetic decisions.
+
+### Roles
+
+- **Creator / user:** content judgment, confirmations, human recording, and final edit selection.
+- **ChatGPT:** product manager, architect, and product reviewer.
+- **Codex:** engineer and operator.
+
+## Current Accepted Workflow
+
+### Implemented V1 path — accepted, unreleased
+
+```text
+Topic → Research → Fact Check → Content Thesis → human confirmation
+→ Reviewed Script → Final Clean A-roll → local ASR → Alignment
+→ Semantic Timeline → Visual Director → individual asset QA
+→ Asset Pack + Edit Map → creator manual NLE assembly
+→ Finished Cut Review + Production Feedback
+```
+
+- The timing source is final clean A-roll, not script estimates.
+- Asset Pack and creator-facing Markdown Edit Map are the primary delivery. CSV supports finding/sorting; JSON remains the machine contract.
+- Finished Cut Review is read-only and non-judgmental: it observes plan/actual differences and does not alter the cut.
+- The historical full-video/Aligned Preview renderer remains compatibility, QA, and optional preview infrastructure — not primary UX or a finished-video product promise.
+
+### Accepted V2 target — implementation not started
+
+```text
+Semantic Timeline → Visual Opportunity → Candidate Portfolio
+→ family-specific generation → Candidate QA → Candidate Asset Pack
+→ Multi-option Edit Map → creator manual NLE selection
+```
+
+This is an **ACCEPTED_UNRELEASED product direction**, not an implemented schema, contract, or production workflow. Candidates are intentionally non-exclusive: they may overlap, have different durations, come from multiple families, and be used singly, together, or not at all.
+
+## Hard Product Boundaries
+
+DeepTalk does **not**:
+
+- automatically choose takes or final visual winners;
+- delete, clean up, shorten, retime, splice, or replace A-roll; delete pauses/re-records; or synthesize a human talking edit;
+- generate a 剪映/NLE project, resolve candidate overlap, assemble a final edit, output a final finished video, or publish;
+- decide which visual material a creator must use;
+- treat generated illustration as documentary evidence, weaken factual/provenance/rights QA, or silently fabricate timing;
+- infer a global aesthetic rule from one episode's feedback.
+
+A-roll is always the base layer. In the accepted V2 model, absence of a Visual Opportunity simply means no extra material is generated.
+
+## Released
+
+- **v0.6.1:** formally released Motion Production Layer with reviewed-material safety, renderer adapters, real MP4 QA, and release evidence.
+
+Earlier releases are historical milestones; see [CHANGELOG.md](CHANGELOG.md) and [docs/releases](docs/releases/).
+
+## Accepted, Implemented, Unreleased
+
+- Topic, Research, independent Fact Check, and topic discovery gates.
+- Content Director + Script Agent V1: Content Thesis, human confirmation, reviewed script, and quality gates.
+- Final Clean A-roll gate, local `whisper.cpp` `large-v3` ASR, global monotonic alignment, and Semantic Timeline.
+- V1 Visual Director with `KEEP_A_ROLL`, `REAL_MATERIAL`, `MG_MOTION`, and `ADVANCED_MOTION` decisions.
+- Individual asset QA, Asset Pack + Edit Map, and read-only Finished Cut Review / Production Feedback.
+
+“Implemented” means repository code and tests exist. It does **not** mean formally released.
+
+## Real Episode Validation
+
+### 《牛来》 — first complete production-loop baseline
+
+Completed locally and kept out of Git: Final Clean A-roll → local ASR → Alignment → Semantic Timeline → visual planning → asset generation → asset QA → Asset Pack → Edit Map → creator manual NLE assembly → Finished Cut → Finished Cut Review → Production Feedback.
+
+Observed: 25 spans, including 22 `KEEP_A_ROLL` and 3 MG assets. All three MG assets were actually used, but shortened; one was visibly more useful. This validates the value of real A-roll timing, Edit Map, and creator-owned final editing. It also shows that MG quantity and quality need improvement, and that planned semantic windows differ from final creator windows. These are episode findings, **not** global automatic rules.
+
+### 《恒大》 — script ready, recording not started
+
+Competitive Research, Fact Check, Content Thesis, human thesis confirmation, and a Final Reviewed Script are complete. Status: **READY_FOR_RECORDING**. No A-roll production, material generation, or edit work has started.
+
+Episode research, scripts, A-roll, assets, finished cuts, and private media stay local and gitignored. Git stores only product-level validation findings.
+
+## Accepted but Not Yet Implemented
+
+- Visual Opportunity → non-exclusive Candidate Portfolio model.
+- V2 migration away from planning new `KEEP_A_ROLL` artifacts, while retaining V1 readers/adapters and immutable lineage.
+- Candidate Asset Pack and multi-option Edit Map semantics.
+- `REAL_MATERIAL` as an independent documentary/evidence family, distinct from generated explanation families.
+- Machine retention of candidate states (for example READY, FAILED, BLOCKED, QA_REJECTED, UNAVAILABLE) while creator packs default to READY candidates only. Final enums and contracts are not designed.
+
+## Approved Next / Experimental
+
+- **MG Quality V2 — Approved Next, not implemented:** improve composition, typography, hierarchy, motion grammar, easing, transitions, primitive combinations, information density, template feeling, and art direction before increasing output volume.
+- **Hand-drawn Animation — Approved V1 experiment:** not a released or implemented renderer.
+- **Xiaohei — Prototype / experimental only:** upstream is primarily a static 16:9 illustration / shot-list skill, not a ready video system. It is not DeepTalk IP. Long-term product vocabulary must remain independent, such as Illustrated Metaphor or Character Metaphor Motion.
+- **Candidate density:** maximise useful choice density, not asset count. LEAN/STANDARD/RICH may remain soft creator profiles; `RICH` is a current creator preference, not a schema invariant or fixed quota.
+
+## Known Limitations
+
+- Current MG assets are usable but visually insufficient and too template-like.
+- V1 makes a single visual decision per span; the multi-candidate architecture is not built.
+- Candidate diversity, family comparison, and creator-facing failed-candidate handling have not been validated in V2.
+- `KEEP_A_ROLL` remains a real V1 artifact and historical compatibility concern; its V2 migration has not begun.
+
+## Historical / Superseded Directions
+
+- Full-video/rough-preview output was once framed as a primary V1 path. It is now compatibility/QA/optional preview, not current primary UX.
+- Automatic final editing is not planned. Old plans and handoffs that describe preview gates or rough cuts reflect the state at their time; consult them only for lineage.
+- A plan or spec is not accepted merely because it exists. Implemented work is not released merely because it exists on a branch.
+
+## Current Next Step
+
+Finish and review this Project Memory Consolidation. After review, the next product work is **Multi-Asset implementation planning** — not direct implementation and not automatic editing.
+
+## Read Next
+
+1. [docs/INDEX.md](docs/INDEX.md) for reading order and document ownership.
+2. [README.md](README.md) for a fast product introduction.
+3. [PRD.md](PRD.md), [ROADMAP.md](ROADMAP.md), and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for canonical product, state, and architecture detail.
+4. Only when needed: [HANDOFF.md](HANDOFF.md), historical plans/specs, release notes, and evaluation records.
+
+## Memory Maintenance Rule
+
+Update the canonical owner when truth changes. Ordinary fixes usually need only CHANGELOG and, when useful, HANDOFF. A change to product positioning, a hard boundary, primary workflow, canonical architecture, release state, validated capability, or major accepted direction must also update its owner in this file, PRD, ROADMAP, ARCHITECTURE, and README when newcomer understanding changes. Do not mechanically duplicate every fact into every Markdown file.

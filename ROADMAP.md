@@ -1,159 +1,85 @@
-# DeepTalk Studio 路线图
+# DeepTalk Studio Roadmap
 
-路线图描述方向，不代表所有功能必须一次完成。每一阶段都应先用真实内容验证价值，再扩展自动化。
+> **Canonical owner:** delivery-state classification. Read [PROJECT_STATE.md](PROJECT_STATE.md) first. A plan or a branch is not a release; an implementation is not a release.
 
-## V0.1：项目基础与 Research Workflow（已完成）
+## Released
 
-- 正式仓库、长期协作文档和版本记录；
-- 仓库级 `research-topic` Skill；
-- 来源、主张、观点、冲突、角度和 Script Agent 交接契约；
-- Markdown/JSON 双格式报告；
-- 校验器、命令行、离线示例和自动测试；
-- 可替换的 OpenAI 联网研究提供器。
+### v0.6.1 — Formal Release
 
-## V0.2：研究质量与事实核查（已完成）
+- Released at `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`.
+- Includes the Motion Production Layer: reviewed-material safety, renderer adapters, actual MP4 QA, and release evidence.
+- Earlier releases (`v0.1.0` through `v0.6.0`) remain documented in [docs/releases](docs/releases/) and [CHANGELOG.md](CHANGELOG.md).
 
-- Research Report 0.2、Evidence Ledger 和完整 Schema 校验；
-- 独立 FactCheck Artifact、第二次搜索和反证记录；
-- 来源 provenance、去重、转载识别和独立性分组；
-- 高风险主张队列和透明质量 Gate；
-- 不可覆盖的报告修订、补充来源和更正历史；
-- 三类真实题材评测和人工 Review 表。
+## Accepted / Implemented / Unreleased
 
-### V0.2.1：Quality Gate Hardening（已完成）
+### V1.0 Candidate
 
-- 修正 unknown / related / duplicate / syndicated 来源的独立确认计数；
-- API Research 改为只接收研究内容，机器字段由程序确定；
-- Fact Check 新来源与原来源统一规范化和独立性归组；
-- 收紧 context-only、未匹配 attribution、重复转载对质量指标的影响；
-- 保持 Research Report 0.2 契约和原质量阈值不变。
+- Topic discovery, Research, independent Fact Check, and approval lineage.
+- Content Director + Script Agent V1, including Content Thesis, human confirmation, and reviewed-script quality gates.
+- Final Clean A-roll, local `whisper.cpp` `large-v3` ASR, global monotonic alignment, Semantic Timeline, and timing safeguards.
+- V1 Visual Director, asset generation/QA, Asset Pack + Edit Map, manual creator NLE assembly, and read-only Finished Cut Review / Production Feedback.
+- No later tag or GitHub Release exists: this remains **V1.0 Candidate — Unreleased**.
 
-## V0.3：Topic Discovery（已完成）
+## Current Validation
 
-- 支持“我不知道今天讲什么”的入口；
-- 聚合近期社会、商业、科技、网络和公共事件；
-- 结合新鲜度、讨论度、观点冲突、可核查性和频道匹配度评分；
-- 输出候选选题卡，由用户简单确认后进入 Research Workflow；
-- 参考创作者关注方向，但不抓取或模仿其稿件。
-- 保持人工选题确认，确认后才进入 V0.2 Research Workflow。
-- 新增 Channel Profile、Topic Candidate Set 0.3、Source Seed Preflight、透明五维评分、资格 Gate、事件去重、类别多样性和不可覆盖的 discovery 历史；
-- 新增 `discover-topics` Skill，支持用户回复编号后直接交给 `research-topic`，不重复要求标题；
-- 三类真实 Discovery 评测和去内容化汇总。
+### 《牛来》 — first complete real production loop
 
-### V0.3.1：Discovery Gate Hardening（已完成并验收）
+- Completed local A-roll through Finished Cut Review / Production Feedback.
+- 25 spans: 22 `KEEP_A_ROLL`, 3 MG; all three MG assets were used but shortened.
+- Validates real A-roll timing, Edit Map usefulness, and creator-owned final editing.
+- Reveals insufficient MG quantity/quality and plan-versus-actual window differences.
+- Findings are episode evidence, not self-executing global policy.
 
-- 新增 Codex 实际打开页面的后台 inspection manifest，未在其中的 Seed 必须保持 `unmatched`；
-- Candidate Artifact 全部关键机器字段改为确定性重新推导和 fail-closed 校验；
-- 收紧不同研究方向、时间一致性和 Raw Candidate 最小池规则；
-- 类别多样性升级为先多样、再补位的软约束，并移除无效的 `--count` 参数；
-- 重新执行三类真实 Discovery 评测，明确记录 `pass` / `fail` / `not_applicable`。
+### 《恒大》 — ready for recording
 
-## V0.4：原创 Script Agent（已完成）
+- Competitive Research, Fact Check, Content Thesis, human confirmation, and Final Reviewed Script are complete.
+- Status is **READY_FOR_RECORDING**. A-roll, assets, and editing have not started.
 
-- 只读取完成 Fact Check、通过 Quality Gate、并有用户确认的新 Research Revision；
-- 新增 Script Profile 0.4、Script Draft Artifact 0.4 和独立 Script Review Artifact 0.4；
-- 生成原创分析框架、故事线、Editor Markdown 与纯口播 Teleprompter Markdown；
-- 每个 Beat 明确区分事实、归因、分析、转场和问题，并保留 Claim / Evidence 回链；
-- 硬阻止未批准 Research、直接使用禁讲结论、伪造机器字段和未核查高风险事实；
-- 计算 must-keep coverage、口播字数与时长，支持自然语言调整时长和结构；
-- Writer 与 Reviewer 分离，Reviewer 必须完成 15 个检查维度，阻断问题不能进入 `reviewed`；
-- 稿件修订不可覆盖，并支持比较两个 revision；
-- 完成稳定商业、争议公共议题和未批准输入三类真实评测。
+## Current Work
 
-## Unreleased：Content Director + Script Agent V1（开发完成，等待本期人工 Thesis 确认）
+### Project Memory Consolidation
 
-- 在 approved Research 与写稿之间增加不可覆盖的 Content Thesis Card：核心问题、原创判断、反常识点、情绪/共鸣/评论张力、嘴替价值、价值认同、反证和不确定性边界；
-- Content Thesis 必须绑定已核验 confirmed fact 和反证 Claim，并经过受控 Thesis Gate；机器通过不等于写稿，仍要用户普通语言确认；
-- Script Agent V1 只使用已确认 Thesis Card + approved Research，竞争参考只允许提供高层机制，不能成为事实来源；
-- 固定 5–6 分钟实际口播时长，保留旧 V0.4 兼容路径；
-- 在原有事实安全 Review 外新增 17 项 Script Quality Gate；包含纯听是否仍有冲突、推进、转折和新问题，任何失败均为 blocking；
-- 本期《牛来》已经生成待确认 Thesis Card 与 Thesis Review；未获人工确认前不写最终稿、不进入 A-roll 或视觉制作。
+- Establish `PROJECT_STATE.md` as canonical current truth and `docs/INDEX.md` as navigation.
+- Reconcile stale preview/blocker/release claims without deleting historical records.
+- Finish review before starting further product work.
 
-## V0.4.1：Script Gate Hardening（已完成并验收）
+## Approved Next
 
-- 将 15 项 Script Review checks 与受控 issue mapping 绑定；任一失败检查必须有对应 issue，八项事实安全检查必须对应 blocking issue；
-- 仅 `counterargument_fairness` 可使用 `not_applicable`，事实安全检查不能借此绕过；
-- `reviewed` Script 绑定可复验的 Review Artifact、来源 revision 与内容指纹；旧 Review 不随内容修订继承；
-- Beat ID 采用稳定、递增、不可复用策略，版本比较能区分插入、删除、移动与实际修改；
-- 完成 V0.4.1 受控 A/B/C 评测和 synthetic fail-closed 场景。
+### Multi-Asset Candidate Architecture — accepted direction; implementation not started
 
-## V0.5：素材与视觉辅助（V0.5.1 已完成并验收）
+```text
+Semantic Timeline → Visual Opportunity → Candidate Portfolio
+→ Candidate QA → Candidate Asset Pack → Multi-option Edit Map
+→ creator manual NLE selection
+```
 
-- reviewed Script + exact Research + V0.4.1 Review linkage 输入 Gate；
-- Material Package 0.5、Cue Sheet、真实 inspection、Rights/Reuse Gate、Claim/Evidence binding；
-- 安全静态文件获取、网页/PDF capture 登记、视频 reference-only 边界；
-- Research update escalation，不用素材搜索静默改稿或制图；
-- 原创 timeline/bar/comparison/diagram Visual Spec 和 1920×1080 SVG；
-- 独立 Material Review、item 隔离、package Gate 和不可覆盖存储；
-- `prepare-materials` Skill、API Provider、CLI 和三类真实评测；
-- Remotion / HyperFrames 只保留 render target hints，未创建完整视频工程。
+- Candidates are non-exclusive and may overlap.
+- V2 removes `KEEP_A_ROLL` from new candidate planning but preserves V1 compatibility readers/adapters.
+- `REAL_MATERIAL` stays an independent evidence/documentary family.
+- V2 schemas, contracts, migration, and product code have not started.
 
-### V0.5.1：Material Gate Hardening（已完成并验收）
+### MG Quality V2
 
-- Rights actual-open provenance、rights evidence page 和工具引用一一绑定；
-- Visual Spec 内部 timeline/bar/comparison/diagram grounding 全部 fail-closed；
-- reviewed Material Package 通过 r1 provenance → Review → r2 的确定性重新证明；
-- SVG sanitizer 与 PDF/截图校验加固；
-- 仍未开始 Remotion / HyperFrames 制作层。
+- Approved next; not implemented.
+- Improve visual quality and art direction before increasing MG output volume.
 
-## V0.6：Motion Production Layer（V0.6.1 已完成并通过正式 Review）
+## Experimental / Under Product Validation
 
-- V0.5.1 canonical input Gate、Production Plan 0.6.1、结构化 scene payload 与统一 Production Profile；
-- Remotion / HyperFrames 两个适配器共用同一计划和 QA，普通流程只选一个引擎；
-- 真实 motion clips、rough visual preview、hero still、Motion Asset Manifest 与 Production QA；
-- timeline、bar、comparison、diagram、document/screenshot、static image 与 A-roll placeholder 映射；
-- timeline、bar、comparison、diagram 按内部元素真正运动，两套 renderer 消费同一 payload；
-- render-time SHA/path/MIME/eligibility、非数字 Display Text grounding、raw PDF/capture boundary 与 check→issue→gate fail-closed；
-- Basic Subtitle V1 已纳入当前 Unreleased V1 路径；BGM、标题、封面和发布仍保留到后续。
+- **Hand-drawn Animation V1:** approved experiment, not a renderer.
+- **Xiaohei:** third-party prototype/experimental reference; no claim of DeepTalk IP and no long-term identity commitment.
+- **Candidate density:** soft LEAN/STANDARD/RICH profiles; current creator prefers RICH, but no fixed counts or hard schema rules.
+- **Original DeepTalk character / visual identity:** undecided.
 
-## V0.7：第一轮真实用户端到端试用（Material + Motion 与 canonical lineage 均已通过）
+## Deferred / Not Planned
 
-- 用一期真实内容从选题跑到可导入剪辑软件的素材包；
-- 收集普通用户对完整粗剪、字幕和画面时机的阻塞点，再决定后续发布辅助优先级；
-- 不默认自动发布。
-- 2026-08-13 已完成真实 Topic → Research → Script → Material Review → Motion Production QA；没有使用 fixture，稿件与 Research 均为已审核正式版本。
-- 本轮暴露并修复 timeline safe area、diagram 长中文与 edge label、comparison 错误标题与强制左右栏问题；新预览已通过 Production QA 和 ChatGPT 实际观看核验。
-- 当前保留 5 个历史 reference-only 素材位和真人口播音频时间码；ChatGPT 已通过 Preview 与 canonical lineage Review。
+- Automatic final editing, automatic candidate choice, or visual-overlap resolution.
+- Take choice, A-roll deletion/cleanup, pause/re-record removal, retiming, or human-speech splicing.
+- 剪映/NLE project generation, final-cut output, automatic publishing, TTS/fake presenter, BGM/SFX, cover/title automation, or engagement prediction.
+- Treating a single episode as sufficient evidence to rewrite global aesthetic policy.
 
-## Unreleased：Audio Alignment + Visual Edit Bridge + Basic Subtitle V1（Asset Pack + Edit Map 主 UX）
+## Historical Milestones
 
-- 以用户先行剪好口气的 immutable Clean A-roll 为 canonical timeline；不自动删停顿、废句或重录。
-- Speech-to-Text provider 与确定性 Alignment Core 解耦，按真实 timestamp granularity 对齐 reviewed Script Beat、Material Cue 和现有 Production Scene。
-- 对齐只执行一次全局、单调、顺序保持的 Script→Transcript evidence pass；Beat 与 Cue 只能投影该 mapping，不能各自扫描整条录音。B011 类真实局部缺口继续 review，Script 外真人尾段继续保留为 trailing ad-lib。
-- 将 A-roll、真实图片/截图、真实视频和 QA-ready Motion 放入统一 Visual Placement timeline，自动推导 IN、OUT、duration 与基础 layout。
-- 默认输出真实语义时间轴、QA-ready Asset Pack、普通中文 Markdown/CSV 与 machine JSON Edit Map；用户在剪映手工剪辑。用户完成后可进入只读 Finished Cut Review + Production Feedback Loop：记录计划/实际差异和 candidate product rules，不修改成片、不自动二剪。`ALIGNED_PREVIEW.mp4` 仅保留为兼容/QA 输出，不是正式成片或默认交付。
-- 不自动选择 take、删停顿/重录/废段、裁剪/拼接 A-roll、决定 NLE 时间线或发布。没有 Final Clean A-roll Alignment 禁止正式视觉；`FACT_CONFLICT` 记录真实时间并阻止错误 display asset。
-- 唯一具体生产入口和 repository-owned canonical QA 已完成；word/segment 真实时间戳安全降级、完整 Cue 语义 OUT、Material 图片/视频字段保真、自然语言 Preview revision 已通过回归与真实合成入口验证。
-- 历史 rights/reuse 信息保持兼容读取，但不作为新制作 Gate；文件、SHA、格式、安全、grounding、binding 与 QA 仍严格验证。
-- Design 已从 Conditional Pass 升级为正式通过；presentation timestamp mapping、frame-rate-neutral canonical timecode、placement/conflict 正交语义和长 still Preview exposure safeguard 均为 approved contract。
-- Implementation Plan Conditional Pass 后新增独立的版本化 PCM natural-pause chunk Task，风险由 Provider/Transcript/Alignment/QA 全链路保留；总计 29 个依赖有序的 TDD Tasks。
-- Preview audio mux 已复验 Clean A-roll audio presentation start、internal gaps、codec conversion timing 与 audio/video 关系；A–AI、CB1–CB7、PA1–PA7 与真实合成渲染已通过。
-- Hook-aware Script contract 已最小加固，不改变 Script schema；Basic Subtitle V1 已接入唯一正式入口、自然语言重渲染、Remotion 与 canonical QA。
-- 两版 synthetic Remotion 粗剪已验证烧录字幕、Material/Motion Placement、单一 Clean A-roll 音轨和 revision binding；本轮又用真实 whisper.cpp 跑通无 API Key 的短版正式入口，保留原 A-roll 音频并生成 Aligned Preview。
-- `LocalWhisperCppTranscriptionProvider` 已接入唯一正式生产入口，自动准备锁定的 whisper.cpp v1.9.2/runtime、full multilingual large-v3 模型、`--dtw large.v3` 和 Apple Silicon Metal；运行时 provenance、模型 SHA/大小/DTW、chunk/raw response digest 均绑定到 ProviderTranscript。
-- 本地 Provider 使用版本化 `transcription-local-whisper-profile/1` 长音频分块，继续复用现有 local→global mapping；只接受 runtime 直接 token offsets，缺失、越界或重叠时 fail closed，不插值、不调用云端兜底。
-- 同一份 272 秒音频的 no-key full large-v3 smoke 已通过：1,167 token、无 overlap、Timed Transcript 与 Alignment 均通过。274 秒非私人 synthetic Clean A-roll 的完整 E2E 已成功生成 1920×1080/30fps H.264/AAC Preview；Basic Subtitle、Alignment、Material、Motion、Edit Bridge、Remotion 与 canonical QA 均有真实产物，QA 仅有预期 `partial_placement_unready` warning。
-- 完整用户 Clean A-roll 尚未提供，故 `REAL USER CLEAN A-ROLL GATE` 仍为 BLOCKED/PENDING，不能宣称 V1.0；但此前 medium 的 5 处 overlap 和长版 render 未证明已由 large-v3 的实际长版运行消除。
-
-## V1 Candidate：Local ASR Selection Gate + Local Production Integration（Selection PASS，集成已完成）
-
-- 用同一份 272.367 秒、24 kHz 单声道、非私人中文评测音频真实比较官方 `whisper.cpp`
-  multilingual medium 与 Microsoft `VibeASR.cpp + VibeVoice-ASR-BitNet`。
-- `whisper.cpp v1.9.2` 在 Apple M4 Metal 上输出直接 token offsets，实际跑通
-  `ProviderTranscript → Timed Transcript → Script Alignment`，通过时间戳 hard gate。
-- VibeASR 本机真实输出没有 machine-owned media timestamps，两个官方 CLI 模式均出现
-  重复文本并耗尽 max tokens；在 ProviderTranscript 处 fail closed，不进入 Alignment。
-- Selection Gate 历史曾推荐 `whisper.cpp multilingual medium`；用户的 quality-first 决策已将生产默认升级为 full `large-v3`，模型和运行时
-  放在项目外 `~/.cache/deep-talk-studio/transcription/`，不依赖任何 API Key。普通用户不需
-  选择 Provider、安装依赖或配置环境变量。
-- 生产入口的 no-key short E2E 已通过，但真实用户 Clean A-roll 和完整长版 render 仍需
-  单独 Gate；本轮不创建新版本、tag 或 Release，正式状态仍是 `V1.0 Candidate — Unreleased`。
-- 评测报告与可复现 adapter spike 位于 `evaluations/local_asr_selection/`；模型、音频和
-  原始长日志不提交仓库。合成 TTS 不是用户真人音色，真实 Clean A-roll 仍是最终 Gate。
-
-## 暂不承诺
-
-- 全自动无人审查发布；
-- 自动采信网络传言；
-- 大规模下载或保存受版权保护素材；
-- 为追求“像某位创作者”而建立模仿模型。
+- v0.1–v0.4.1: research, fact check, topic discovery, script workflow, and gate hardening.
+- v0.5–v0.5.1: material provenance, rights, and review gates.
+- v0.6–v0.6.1: Motion Production Layer and formal release.
+- Historical rough/full preview paths: preserved for compatibility and QA, not the current primary UX.

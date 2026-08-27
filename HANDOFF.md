@@ -1,8 +1,17 @@
 # DeepTalk Studio 开发交接
 
+> **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
+
+## 2026-08-27：Project Memory Consolidation
+
+- Established `PROJECT_STATE.md` as the concise canonical state and `docs/INDEX.md` as documentation navigation.
+- Reconciled historical preview/blocker language with the accepted current primary UX: Asset Pack + Edit Map → creator manual NLE; full preview remains compatibility/QA.
+- Recorded that Multi-Asset Studio is Product Review accepted but V2 schema/contract/implementation has not started.
+- No product code, schema, episode media, tag, Release, or `main` change was made.
+
 ## 2026-08-27：Multi-Asset Studio repositioning research
 
-Multi-Asset Studio repositioning research completed; awaiting ChatGPT Product Review. Research entry: `docs/plans/2026-08-27-multi-asset-studio-repositioning.md`. This is a proposal only: no production code, formal production contract/schema, Episode artifact, media, tag, Release, or `main` change was made.
+Multi-Asset Studio repositioning research completed. Research entry: `docs/plans/2026-08-27-multi-asset-studio-repositioning.md`. The research document preserves proposal detail; a later 2026-08-27 Product Review accepted its core product direction, while no production code, formal V2 contract/schema, Episode artifact, media, tag, Release, or `main` change has been made.
 
 ## 2026-08-25：Finished Cut Review + Production Feedback Loop — 《牛来》第一轮完整生产闭环
 
