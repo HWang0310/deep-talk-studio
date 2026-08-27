@@ -35,6 +35,7 @@ Multi-Asset Studio 的 Visual Opportunity → non-exclusive Candidate Portfolio 
 - 主动完成设计、实现、测试、调试、文档和安全的 Git 操作。
 - 合理工程决策由 Codex 自行完成；只有会实质改变产品方向或需要新权限时才问用户。
 - 面向用户只说结果、影响和下一步，不要求其自己总结技术内容。
+- 本开发机访问 GitHub 等公网服务可能依赖 macOS 系统级代理或 VPN。若终端访问 GitHub 超时但主机网络可用，先检查系统代理，并仅向当前 terminal/Git 进程临时传递代理后再判断网络阻塞；绝不把代理端点、凭据或 cookie 写入仓库、Git 配置或日志。
 - 任何功能或修复先写失败测试，再做最小实现。
 - 不削弱校验器来迁就错误的模型输出。
 - 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
