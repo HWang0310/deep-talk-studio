@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Planning only. This plan is **AWAITING ChatGPT Implementation Plan Review**; it does not implement the runtime, schemas, adapters, output writers, or any episode work.
+**Status:** **ACCEPTED implementation plan.** It remains unreleased and unimplemented; this planning artifact does not implement the runtime, schemas, adapters, output writers, or any episode work. Phase 0 may begin only in a separate implementation session, branch, and review.
 
 **Goal:** Add a local, plugin-first, multi-candidate visual-asset path that turns real-A-roll-bound Visual Opportunities into audited non-exclusive Candidate Portfolios and creator-facing Candidate Asset Packs, without changing V1 history or making edit decisions.
 
@@ -25,7 +25,7 @@
 - Candidate assets are non-exclusive. Core must not select a winner, resolve overlap, create NLE tracks/projects, alter A-roll, or create a finished cut.
 - Existing `visual-asset-manifest/1`, `edit-map/1`, V1 Asset Packs, and `finished-cut-review/1` remain immutable and readable.
 - Initial development uses only a sanitized synthetic fixture. No private or real episode is a development fixture.
-- Plugin repositories are independently versioned and must not become Core imports. No dynamic marketplace, discovery service, cloud RPC, release, tag, or `main` change is in scope.
+- Plugin repositories are independently versioned and must not become Core imports. No dynamic marketplace, discovery service, cloud RPC, formal release, tag, or `main` change is in scope.
 
 ---
 
@@ -197,7 +197,7 @@ The full request/response evidence is retained by locator from each audit record
 
 ### Plugin runner prerequisite
 
-Before a real adapter is enabled, each plugin repository must independently release a small runner that accepts the Core-supplied request/result/output paths, supports both `suitability` and `generation`, emits Contract V1 result JSON, and records native manifest/QA artifacts in the supplied output root. It translates Contract V1 to its own native grammar, routes, fixtures, and renderer flags inside its repository.
+Before a real adapter is enabled, each plugin repository must independently implement, review, and provide an accepted/pinned small runner commit that accepts the Core-supplied request/result/output paths, supports both `suitability` and `generation`, emits Contract V1 result JSON, and records native manifest/QA artifacts in the supplied output root. It translates Contract V1 to its own native grammar, routes, fixtures, and renderer flags inside its repository.
 
 The Core planning branch must not write those runners. The existing plugin files that demonstrate the native boundary are `deeptalk-mg/scripts/render-variants.mjs`, `deeptalk-illustrated-metaphor/scripts/render_prototypes.py` plus `src/illustrated_metaphor/cli.py`, and `deeptalk-handdrawn-animation/src/cli.js` plus `src/render.js`. Each plugin implementation session must add its own tests and exact files in that repository; Core only consumes an independently reviewed and accepted pinned commit, reported plugin version, and deterministic runner contract. This gate does not authorize a Git tag, GitHub Release, or formal product release.
 
@@ -318,7 +318,7 @@ Existing conventions identify artifacts as scoped names such as `edit-map/1`, `v
 
 - `src/deeptalk_studio/asset_pack_workflow.py`, `visual_asset_pack.py`, and `edit_map.py`: V1 writers/readers stay behaviorally frozen.
 - `src/deeptalk_studio/visual_director.py`, `motion_spec.py`, `visual_asset_renderer.py`, and all legacy renderers: no new portfolio behavior is inserted into a V1 decision/render path.
-- `src/deeptalk_studio/finished_cut_review.py`: first release validates its V1 regression only; it does not claim `candidate-edit-map/1` support.
+- `src/deeptalk_studio/finished_cut_review.py`: first implementation line validates its V1 regression only; it does not claim `candidate-edit-map/1` support.
 - `src/deeptalk_studio/post_alignment_visual_plan.py`: no in-place conversion from its mutually exclusive `visual_kind` design.
 - All three plugin repositories: this Core plan performs no changes. Their runner work is separately reviewed and pinned before Phase 3.
 

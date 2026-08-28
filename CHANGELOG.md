@@ -1,10 +1,10 @@
 # Changelog
 
-## Unreleased — 2026-08-28 — Multi-Asset Implementation Plan
+## Unreleased — 2026-08-28 — Accepted Multi-Asset Implementation Plan
 
-- Added a review-ready, implementation-only plan for the accepted Visual Asset Plugin Contract V1. It records the inspected Core and three-plugin runtime baseline, a local subprocess plus Core-owned request/result-file protocol, static local plugin configuration, Core-side acceptance/lineage QA, opaque local artifact locators, deterministic LEAN/STANDARD/RICH policy, non-exclusive portfolios, Candidate Asset Pack, and `candidate-edit-map/1`.
+- Added and formally accepted an implementation-only plan for the accepted Visual Asset Plugin Contract V1. It records the inspected Core and three-plugin runtime baseline, a local subprocess plus Core-owned request/result-file protocol, static local plugin configuration, Core-side acceptance/lineage QA, opaque local artifact locators, deterministic LEAN/STANDARD/RICH policy, non-exclusive portfolios, Candidate Asset Pack, and `candidate-edit-map/1`.
 - Sequenced additive contract fixtures, fake-runner vertical slice, Core portfolio/QA, separately pinned real plugin runners, creator pack/map, three-plugin synthetic integration, and a distinct real-episode gate. It preserves V1 readers/artifacts and defers REAL retrieval, automatic editing, registry/cloud work, and a new Finished Cut Review contract.
-- This documentation-only change does not implement a schema, runtime, adapter, portfolio, plugin runner, episode output, tag, Release, merge, or `main` change.
+- Clarified that Phase 0 — Contract fixtures + frozen V1 compatibility baseline — is the next gate and requires a separate implementation session, branch, and review. This documentation-only acceptance does not start Phase 0 or implement a schema, runtime, adapter, portfolio, plugin runner, episode output, tag, Release, merge, or `main` change.
 
 ## Unreleased — 2026-08-28 — Visual Asset Plugin Contract V1 design
 
