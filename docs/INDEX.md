@@ -37,7 +37,7 @@ Before acting, also inspect the current Git branch, HEAD, and working-tree statu
 - [Asset Pack + Edit Map Contract (V1)](ASSET_PACK_EDIT_MAP_CONTRACT.md)
 - [Finished Cut Review + Production Feedback Contract (V1)](FINISHED_CUT_REVIEW_CONTRACT.md)
 - [Remotion Adapter](REMOTION_ADAPTER.md) and [HyperFrames Adapter](HYPERFRAMES_ADAPTER.md)
-- [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) — evidence-derived target design pending Architecture Review; not an implemented runtime contract.
+- [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) — ACCEPTED_UNRELEASED architecture; not an implemented runtime contract.
 
 Contracts describe the version named in their title. They do not by themselves establish release status or make a future plan current.
 

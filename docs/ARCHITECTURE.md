@@ -102,7 +102,7 @@ Target requirements:
 - New V2 writer contracts must preserve V1 readers/adapters, V1 `KEEP_A_ROLL` lineage, old `edit-map/1`, old manifests, and Finished Cut Review history.
 - `REAL_MATERIAL` remains a distinct evidence/documentary family. Generated explanation families cannot displace factual/provenance requirements.
 - `suggested_review_order` may guide inspection but must never encode an automatic selected winner.
-- The evidence-derived [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) defines the accepted two-stage `Suitability → Generation` direction, normal `ABSTAIN`, eligible `BORDERLINE`, role-based artifacts, independent plugin/contract versions, and opaque plugin metadata. Its clarification revision awaits final ChatGPT confirmation; it is not implemented architecture.
+- The evidence-derived [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture: two-stage `Suitability → Generation`, normal `ABSTAIN`, eligible `BORDERLINE`, role-based artifacts, independent plugin/contract versions, and opaque plugin metadata. It is not runtime implementation or production-schema adoption.
 
 No V2 runtime schema, migration, renderer, candidate pack, `edit-map/2`, or production default exists yet. Target diagrams and the Contract V1 design are architecture direction, not proof of code.
 

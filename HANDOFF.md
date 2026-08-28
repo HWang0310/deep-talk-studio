@@ -8,7 +8,7 @@
 - Added `docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md`, an evidence-derived minimum design for the accepted multi-repo, plugin-first ecosystem. It keeps native plugin grammar/renderer details opaque, separates suitability from Generation operation and produced Candidate state, treats ABSTAIN as normal, permits BORDERLINE generation, keeps candidates non-exclusive, and uses role-based artifact evidence.
 - Architecture Review clarification adds per-call request IDs, stable opportunity/proposal/candidate IDs, required proposal linkage in Generation Result, placement constrained to each real A-roll Opportunity window, and opaque artifact URI locators. Generation `FAILED`/`BLOCKED`/`UNAVAILABLE` therefore produce no fabricated candidate; produced assets are only `READY` or `QA_REJECTED`.
 - `REAL_MATERIAL` remains deferred to a separate retrieval/evidence adapter or V1.x extension. No Core runtime, registry, portfolio, migration, Episode workflow, automatic editing, tag, release, or merge was implemented.
-- The clarification revision requires final ChatGPT confirmation before implementation planning.
+- ChatGPT Architecture Review formally accepted Contract V1 as ACCEPTED_UNRELEASED architecture. The next gate is a separate Multi-Asset Implementation Planning session; implementation remains prohibited until that planning is accepted.
 
 ## 2026-08-27：Project Memory Consolidation
 

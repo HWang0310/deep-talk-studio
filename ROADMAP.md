@@ -37,11 +37,11 @@
 
 ## Current Work
 
-### Project Memory Consolidation
+### Visual Asset Plugin Contract V1 — accepted architecture
 
-- Establish `PROJECT_STATE.md` as canonical current truth and `docs/INDEX.md` as navigation.
-- Reconcile stale preview/blocker/release claims without deleting historical records.
-- Finish review before starting further product work.
+- Contract V1 is ACCEPTED_UNRELEASED architecture, integrated as canonical design documentation only.
+- Preserve the accepted multi-repo, plugin-first boundary; do not start runtime implementation or schema adoption.
+- The next gate is a separate Multi-Asset Implementation Planning session.
 
 ## Approved Next
 
@@ -57,7 +57,7 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 - The accepted ecosystem is multi-repo and plugin-first: independent visual families evolve behind a minimal Core contract rather than being absorbed into Core internals.
 - V2 removes `KEEP_A_ROLL` from new candidate planning but preserves V1 compatibility readers/adapters.
 - `REAL_MATERIAL` stays an independent evidence/documentary family.
-- An evidence-derived Contract V1 clarification revision is ready for final ChatGPT confirmation; V2 runtime schemas, migration, and product code have not started.
+- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. The next gate is separate Multi-Asset Implementation Planning; V2 runtime schemas, migration, and product code have not started.
 
 ### MG Quality V2
 

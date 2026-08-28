@@ -1,6 +1,6 @@
 # Visual Asset Plugin Contract V1 — Architecture Design
 
-> **Status:** Architecture direction accepted; this clarification revision is prepared on `agent/visual-asset-plugin-contract-v1` for final ChatGPT confirmation. It is not production code, a migration, or an accepted production schema.
+> **Status:** **ACCEPTED_UNRELEASED** architecture. It is not production code, runtime-schema adoption, a migration, a release, a tag, or a `main` change. The next gate is separate Multi-Asset Implementation Planning.
 
 ## Decision
 
@@ -279,6 +279,6 @@ The mapping proves that observed suitability outcomes, candidate forms, evidence
 
 ## Risks and review criteria
 
-The trial is a fixed synthetic brief set, not real multi-plugin episode validation. V1 is ready for implementation planning only if Architecture Review accepts that: the two-stage split is sufficient; `BORDERLINE` is a Core policy concern rather than forced rejection; normal abstention is not operational failure; artifact roles are enough without a universal media schema; and keeping `REAL_MATERIAL` outside V1 is safer than premature abstraction.
+The trial is a fixed synthetic brief set, not real multi-plugin episode validation. Architecture Review accepted V1 on the basis that the two-stage split is sufficient; `BORDERLINE` is a Core policy concern rather than forced rejection; normal abstention is not operational failure; artifact roles are enough without a universal media schema; and keeping `REAL_MATERIAL` outside V1 is safer than premature abstraction. The next gate is separate implementation planning, not direct implementation.
 
 No plugin repository was modified. No DeepTalk production integration code was implemented.
