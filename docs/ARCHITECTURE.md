@@ -98,11 +98,11 @@ Target requirements:
 - DeepTalk Visual Asset Ecosystem is multi-repo and plugin-first. Core owns the stable opportunity/portfolio boundary; each visual family independently owns research, optimization, benchmarking, QA, versioning, and native rendering internals.
 - `Visual Opportunity` replaces V1's forced single-decision planning model; an absence of opportunity produces no additional material.
 - `Candidate Portfolio` holds non-exclusive alternatives. Candidate overlap, duration differences, and use of none/one/multiple options are valid outcomes, not planner conflicts.
-- Candidate QA is per candidate. Machine records retain failed/blocked/unavailable/QA-rejected states; creator-facing packs default to READY items.
+- Candidate QA is per candidate. Machine records separate Generation operation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) from produced Candidate outcomes (`READY`, `QA_REJECTED`); creator-facing packs default to READY items.
 - New V2 writer contracts must preserve V1 readers/adapters, V1 `KEEP_A_ROLL` lineage, old `edit-map/1`, old manifests, and Finished Cut Review history.
 - `REAL_MATERIAL` remains a distinct evidence/documentary family. Generated explanation families cannot displace factual/provenance requirements.
 - `suggested_review_order` may guide inspection but must never encode an automatic selected winner.
-- The evidence-derived [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) proposes a two-stage `Suitability → Generation` boundary, normal `ABSTAIN`, eligible `BORDERLINE`, role-based artifacts, independent plugin/contract versions, and opaque plugin metadata. It is pending Architecture Review, not implemented architecture.
+- The evidence-derived [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) defines the accepted two-stage `Suitability → Generation` direction, normal `ABSTAIN`, eligible `BORDERLINE`, role-based artifacts, independent plugin/contract versions, and opaque plugin metadata. Its clarification revision awaits final ChatGPT confirmation; it is not implemented architecture.
 
 No V2 runtime schema, migration, renderer, candidate pack, `edit-map/2`, or production default exists yet. Target diagrams and the Contract V1 design are architecture direction, not proof of code.
 

@@ -5,9 +5,10 @@
 ## 2026-08-28：Visual Asset Plugin Contract V1 architecture design
 
 - Read-only inspected `deeptalk-mg` at `2e8fc15a7a2fba800b593f70da014c42dca7de49`, `deeptalk-illustrated-metaphor` at `cf1cdfe6855aa8d2902b4506184c6d6fd0c60d74`, and `deeptalk-handdrawn-animation` at `33422715f1627d7eaef7cc1ccbea7434b833d360`; none was modified.
-- Added `docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md`, an evidence-derived minimum design for the accepted multi-repo, plugin-first ecosystem. It keeps native plugin grammar/renderer details opaque, separates suitability from execution, treats ABSTAIN as normal, permits BORDERLINE generation, keeps candidates non-exclusive, and uses role-based artifact evidence.
+- Added `docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md`, an evidence-derived minimum design for the accepted multi-repo, plugin-first ecosystem. It keeps native plugin grammar/renderer details opaque, separates suitability from Generation operation and produced Candidate state, treats ABSTAIN as normal, permits BORDERLINE generation, keeps candidates non-exclusive, and uses role-based artifact evidence.
+- Architecture Review clarification adds per-call request IDs, stable opportunity/proposal/candidate IDs, required proposal linkage in Generation Result, placement constrained to each real A-roll Opportunity window, and opaque artifact URI locators. Generation `FAILED`/`BLOCKED`/`UNAVAILABLE` therefore produce no fabricated candidate; produced assets are only `READY` or `QA_REJECTED`.
 - `REAL_MATERIAL` remains deferred to a separate retrieval/evidence adapter or V1.x extension. No Core runtime, registry, portfolio, migration, Episode workflow, automatic editing, tag, release, or merge was implemented.
-- The design branch requires ChatGPT Architecture Review before implementation planning.
+- The clarification revision requires final ChatGPT confirmation before implementation planning.
 
 ## 2026-08-27：Project Memory Consolidation
 

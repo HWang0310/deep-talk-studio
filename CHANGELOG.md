@@ -3,7 +3,8 @@
 ## Unreleased — 2026-08-28 — Visual Asset Plugin Contract V1 design
 
 - Recorded the accepted multi-repo, plugin-first Visual Asset Ecosystem principle in canonical product and architecture documents.
-- Added an evidence-derived Contract V1 design from read-only MG, Illustrated Metaphor, and Hand-drawn Common Brief trials: two-stage suitability/generation, normal ABSTAIN, eligible BORDERLINE, non-exclusive candidates, role-based artifacts, separated execution state, independent versioning, and opaque plugin metadata.
+- Added an evidence-derived Contract V1 design from read-only MG, Illustrated Metaphor, and Hand-drawn Common Brief trials: two-stage suitability/generation, normal ABSTAIN, eligible BORDERLINE, non-exclusive candidates, role-based artifacts, separate operation/candidate state, independent versioning, and opaque plugin metadata.
+- Clarified Contract V1 lineage and boundaries after Architecture Review: per-call request IDs, stable opportunity/proposal/candidate IDs, Generation Result proposal linkage, bounded placement, opaque artifact URI locators, and operation states separate from candidate asset states.
 - Kept `REAL_MATERIAL` outside generated-plugin V1 pending a dedicated evidence/retrieval adapter design. No production code, registry, runtime integration, migration, tag, release, or `main` change was made.
 
 ## Unreleased — 2026-08-27 — Project Memory Consolidation

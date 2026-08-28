@@ -1,6 +1,6 @@
 # Visual Asset Plugin Contract V1 — Architecture Design
 
-> **Status:** Evidence-derived design prepared on `agent/visual-asset-plugin-contract-v1`. It is not production code, a migration, or an accepted production schema. ChatGPT Architecture Review is required before implementation planning.
+> **Status:** Architecture direction accepted; this clarification revision is prepared on `agent/visual-asset-plugin-contract-v1` for final ChatGPT confirmation. It is not production code, a migration, or an accepted production schema.
 
 ## Decision
 
@@ -48,16 +48,25 @@ The two-stage boundary is required by evidence. A one-stage generator-only API c
 
 ## Contract envelope and identity
 
-Every message has `contract_version: "visual-asset-plugin-contract/1"`. This identifies the compatibility boundary and is unrelated to an individual plugin release. Every response includes a plugin-owned `plugin_id` and `plugin_version`, which may advance independently. `request_id` correlates a call and `opportunity_id` binds results to the Core-owned opportunity; both are opaque to plugins.
+Every operation message has `contract_version: "visual-asset-plugin-contract/1"`. This identifies the compatibility boundary and is unrelated to an individual plugin release. Every response includes a plugin-owned `plugin_id` and `plugin_version`, which may advance independently.
+
+The identifiers have deliberately separate scopes:
+
+| Identifier | Scope and rule |
+|---|---|
+| `request_id` | Correlation ID for one contract operation/call. A Suitability call and a Generation call use different IDs; each response echoes the request ID of the call it answers. It is never cross-stage workflow identity. |
+| `opportunity_id` | Stable identity for one Core Visual Opportunity across all stages. |
+| `proposal_id` | Stable identity of one completed suitability proposal. It links the Generation Request and Generation Result back to that proposal. |
+| `candidate_id` | Stable identity of one actually produced candidate asset. It exists only when generation completes with a candidate. |
+
+`Visual Opportunity` is the stable payload identified by `opportunity_id`; `request_id` belongs to an operation envelope, not to that durable payload.
 
 ## Visual Opportunity input
 
-The minimum required input is:
+The minimum required Visual Opportunity payload is:
 
 ```json
 {
-  "contract_version": "visual-asset-plugin-contract/1",
-  "request_id": "req_…",
   "opportunity_id": "opp_…",
   "spoken_semantics": "The viewer-facing meaning to explain.",
   "visual_purpose": "What visual understanding should add.",
@@ -68,7 +77,7 @@ The minimum required input is:
 }
 ```
 
-`a_roll_window` is Core-derived real time, never script-estimated time. `target_duration_ms` is a target rather than a forced equality because the families have different natural duration ranges. `spoken_semantics`, `visual_purpose`, duration, language, and canvas are evidenced by all three trials or natural-I/O documents.
+`a_roll_window` is Core-derived real time, never script-estimated time. `target_duration_ms` is a target rather than a forced equality because the families have different natural duration ranges. `spoken_semantics`, `visual_purpose`, duration, language, and canvas are evidenced by all three trials or natural-I/O documents. A Suitability Request wraps this payload with `contract_version` and a suitability-call `request_id`.
 
 Optional fields are deliberately narrow:
 
@@ -82,12 +91,30 @@ No maximum duration, grammar, route, renderer, prompt, primitive, scene state, o
 
 ## Suitability proposal
 
-Each enabled plugin responds before generation:
+Each enabled plugin receives a Suitability Request before generation. Its operation envelope has a suitability-call correlation ID and wraps the full Visual Opportunity payload defined above:
 
 ```json
 {
   "contract_version": "visual-asset-plugin-contract/1",
-  "request_id": "req_…",
+  "request_id": "suit-req_…",
+  "opportunity": {
+    "opportunity_id": "opp_…",
+    "spoken_semantics": "The viewer-facing meaning to explain.",
+    "visual_purpose": "What visual understanding should add.",
+    "a_roll_window": { "start_ms": 182400, "end_ms": 190400 },
+    "target_duration_ms": 7000,
+    "language": "zh-CN",
+    "canvas": { "width": 1920, "height": 1080 }
+  }
+}
+```
+
+The response echoes that suitability-call ID:
+
+```json
+{
+  "contract_version": "visual-asset-plugin-contract/1",
+  "request_id": "suit-req_…",
   "opportunity_id": "opp_…",
   "plugin_id": "org.deeptalk.illustrated-metaphor",
   "plugin_version": "0.x",
@@ -119,16 +146,14 @@ Core logs every proposal for audit. A normal creator-facing Candidate Asset Pack
 
 ## Generation request and result
 
-Core sends generation only for a completed `SUITABLE` or `BORDERLINE` proposal. The request includes the complete Visual Opportunity plus `proposal_id`; plugins must not rely on hidden assessment-call state.
+Core sends generation only for a completed `SUITABLE` or `BORDERLINE` proposal. The request has a new generation-call `request_id`, includes the complete Visual Opportunity plus `proposal_id`, and plugins must not rely on hidden assessment-call state.
 
 ```json
 {
   "contract_version": "visual-asset-plugin-contract/1",
-  "request_id": "req_…",
+  "request_id": "gen-req_…",
   "proposal_id": "prop_…",
   "opportunity": {
-    "contract_version": "visual-asset-plugin-contract/1",
-    "request_id": "req_…",
     "opportunity_id": "opp_…",
     "spoken_semantics": "The viewer-facing meaning to explain.",
     "visual_purpose": "What visual understanding should add.",
@@ -140,15 +165,17 @@ Core sends generation only for a completed `SUITABLE` or `BORDERLINE` proposal. 
 }
 ```
 
-A Generation Result has common identity fields and exactly one `candidate` when one was created, or a `problem` when none can be returned. Candidate execution state is separate from suitability:
+A Generation Result echoes the generation-call `request_id` and must include `proposal_id`, so the complete lineage is explicit: `Visual Opportunity → Suitability Proposal → Generation Request → Generation Result → Candidate`. Generation operation state is separate from candidate asset state:
 
 ```json
 {
   "contract_version": "visual-asset-plugin-contract/1",
-  "request_id": "req_…",
+  "request_id": "gen-req_…",
   "opportunity_id": "opp_…",
+  "proposal_id": "prop_…",
   "plugin_id": "org.deeptalk.mg",
   "plugin_version": "0.x",
+  "operation_status": "COMPLETED",
   "candidate": {
     "candidate_id": "cand_…",
     "asset_family": "MG",
@@ -156,9 +183,9 @@ A Generation Result has common identity fields and exactly one `candidate` when 
     "duration_ms": 8000,
     "suggested_placement": { "start_ms": 182400, "end_ms": 190400 },
     "artifacts": [
-      { "role": "PRIMARY_MEDIA", "uri": "plugin://asset.mp4", "media_type": "video/mp4", "sha256": "…", "duration_ms": 8000 },
-      { "role": "MANIFEST", "uri": "plugin://manifest.json", "media_type": "application/json" },
-      { "role": "QA_REPORT", "uri": "plugin://qa.json", "media_type": "application/json" }
+      { "role": "PRIMARY_MEDIA", "uri": "opaque-locator-for-asset", "media_type": "video/mp4", "sha256": "…", "duration_ms": 8000 },
+      { "role": "MANIFEST", "uri": "opaque-locator-for-manifest", "media_type": "application/json" },
+      { "role": "QA_REPORT", "uri": "opaque-locator-for-qa", "media_type": "application/json" }
     ],
     "qa": { "status": "PASSED", "summary": "all required checks passed" },
     "provenance": { "origin": "plugin-generated", "source_ref": "plugin-native manifest reference" },
@@ -167,25 +194,24 @@ A Generation Result has common identity fields and exactly one `candidate` when 
 }
 ```
 
-Generation Result required fields are `contract_version`, `request_id`, `opportunity_id`, `plugin_id`, and `plugin_version`, plus either `candidate` or `problem`. Candidate required fields are `candidate_id`, `asset_family`, and `candidate_status` in addition to enclosing plugin identity. A `READY` candidate also requires `duration_ms`, `suggested_placement`, at least one `PRIMARY_MEDIA` artifact, `qa.status: PASSED`, and provenance. `asset_family` is a stable plugin-supplied display/category string, not a Core-controlled closed enum.
+Generation Result required fields are `contract_version`, `request_id`, `opportunity_id`, `proposal_id`, `plugin_id`, `plugin_version`, and `operation_status`. Generation `operation_status` is exactly `COMPLETED`, `FAILED`, `BLOCKED`, or `UNAVAILABLE`. `FAILED`, `BLOCKED`, and `UNAVAILABLE` require `problem` and normally contain no `candidate`. `COMPLETED` contains exactly one candidate with a candidate asset status.
 
-`suggested_placement` is a recommendation within or anchored to the opportunity's real A-roll window. It may differ from the original window because a candidate can be shorter; it is not an edit decision and never alters A-roll.
+Candidate required fields are `candidate_id`, `asset_family`, and `candidate_status` in addition to enclosing plugin/proposal identity. A `READY` candidate also requires `duration_ms`, `suggested_placement`, at least one `PRIMARY_MEDIA` artifact, `qa.status: PASSED`, and provenance. `asset_family` is a stable plugin-supplied display/category string, not a Core-controlled closed enum.
+
+`suggested_placement` is a recommendation strictly within the opportunity's real A-roll window. It must satisfy `a_roll_window.start_ms <= suggested_placement.start_ms < suggested_placement.end_ms <= a_roll_window.end_ms`. A plugin must not expand the real-time boundary. Future pre-roll, post-roll, or transition extension requires a Core-expanded Opportunity or a contract revision. `duration_ms` is the duration of the complete media asset; suggested placement is the recommended A-roll use window. They are distinct, and candidate duration may exceed placement duration because a creator may use only part of an asset.
 
 ## Status, failures, and artifacts
 
-`candidate_status` is exactly one of:
+Generation operation status and candidate asset status are different domains. `candidate_status` exists only when a candidate was actually produced and is exactly one of:
 
 | Status | Meaning |
 |---|---|
 | `READY` | Candidate exists and required QA passed. |
-| `FAILED` | An unexpected generation or artifact process failure prevented a usable candidate. |
-| `BLOCKED` | A declared prerequisite, policy gate, or safe input condition prevented generation. |
 | `QA_REJECTED` | A candidate was produced but failed required QA. |
-| `UNAVAILABLE` | The plugin, a required local capability, or runtime is unavailable. |
 
-Every non-READY candidate and every generation result without a candidate has a `problem`; a `QA_REJECTED` candidate may retain partial artifacts and a QA report for machine audit, but never enters the normal creator pack. `ABSTAIN` is intentionally absent from this enum.
+`QA_REJECTED` requires the actual candidate identity and `qa.status: FAILED`; it may retain artifacts and a QA report for machine audit, but never enters the normal creator pack. There is no third produced-but-incomplete candidate state in V1. Whether one is needed is explicitly deferred. `ABSTAIN` is intentionally absent from this enum.
 
-Every artifact has required `role` and `uri`, with optional `media_type`, `sha256`, `duration_ms`, and `metadata`. Roles are:
+Every artifact has required `role` and `uri`, with optional `media_type`, `sha256`, `duration_ms`, and `metadata`. In V1, `uri` is an opaque artifact locator: the contract does not prescribe `file://`, `http://`, `plugin://`, absolute paths, storage backends, runtime resolution, or URI validation. Those runtime questions belong to implementation planning. Roles are:
 
 - `PRIMARY_MEDIA` — usable visual media; required for `READY`.
 - `PREVIEW` — a still, frame sequence, or contact sheet.
@@ -223,13 +249,15 @@ No migration is implemented. A future adapter layer, rather than a rewrite, shou
 
 | Real trial case | Proposal | Generation / Candidate representation | Internal facts deliberately not exposed |
 |---|---|---|---|
-| MG CB08 Numeric Evidence | `SUITABLE` with MG reason | `READY` MG candidate, 8s placement, primary MP4 + preview + manifest + QA report | `delta-metric`, `editorial-cn-v1`, semantic variant, Remotion composition. |
-| Illustrated CB03 Accumulation Pressure | `SUITABLE` with physical-load reason | `READY` Illustrated candidate, 5s placement, MP4/sequence/contact sheet + manifest + QA | B1 vocabulary, actor/object choice, `structured_hybrid`, state names, focal treatment. |
-| Illustrated CB01 Core Judgment | `BORDERLINE` with recursive-dependency limitation | Core may request; if generated, `READY` candidate remains in portfolio with borderline-derived review hint | wheel interpretation, generic actor, route, and overreach rubric. |
-| Illustrated CB08 Numeric Evidence | `ABSTAIN` with precision/evidence reason | No generation request or candidate; machine proposal retained, creator pack unchanged | attempted metaphor/scene details. |
-| Hand-drawn CB02 Causal Transmission | `SUITABLE` with staged-reveal reason | `READY` Hand-drawn candidate, 9s placement, primary media + preview/contact sheet + QA | composition grammar, SVG elements, groups, reveal timing, warnings. |
-| Hand-drawn CB06 Surface vs Mechanism | `BORDERLINE` with hidden-mechanism limitation | Generation permitted; if rendered and QA passes, valid non-exclusive candidate | SVG composition pattern, focus warnings, element IDs. |
-| Hand-drawn CB01 Core Judgment | `ABSTAIN` with headline-misfit reason | No candidate; successful proposal audit record only | any forced object/scene implementation. |
+| MG CB08 Numeric Evidence | `SUITABLE` proposal | New generation request ID + `proposal_id`; completed result echoes both and returns a `READY` MG candidate, 8s media, placement inside the Opportunity, media/preview/manifest/QA | `delta-metric`, `editorial-cn-v1`, semantic variant, Remotion composition. |
+| Illustrated CB03 Accumulation Pressure | `SUITABLE` proposal | New generation request ID + `proposal_id`; completed result returns a `READY` 5s candidate with placement inside the Opportunity and evidence bundle | B1 vocabulary, actor/object choice, `structured_hybrid`, state names, focal treatment. |
+| Illustrated CB01 Core Judgment | `BORDERLINE` proposal | Core may generate; completed result echoes `proposal_id` and a QA-passing result is `READY`, not a special borderline status | wheel interpretation, generic actor, route, and overreach rubric. |
+| Illustrated CB08 Numeric Evidence | `ABSTAIN` proposal | No Generation Request and no candidate; successful proposal audit record only | attempted metaphor/scene details. |
+| Hand-drawn CB02 Causal Transmission | `SUITABLE` proposal | New generation request ID + `proposal_id`; completed result returns a `READY` 9s candidate with placement inside the Opportunity and evidence bundle | composition grammar, SVG elements, groups, reveal timing, warnings. |
+| Hand-drawn CB06 Surface vs Mechanism | `BORDERLINE` proposal | Generation permitted; a completed QA-passing result is `READY` and stays non-exclusive | SVG composition pattern, focus warnings, element IDs. |
+| Hand-drawn CB01 Core Judgment | `ABSTAIN` proposal | No Generation Request and no candidate; successful proposal audit record only | any forced object/scene implementation. |
+
+For every generation-eligible mapping, a runtime `FAILED`, `BLOCKED`, or `UNAVAILABLE` outcome returns its generation operation status plus `problem` and no fabricated candidate. If an actual candidate is produced but required QA fails, the completed Generation Result carries that candidate as `QA_REJECTED` with machine evidence. Every generated candidate is linked through its enclosing `proposal_id`; no plugin internals or placement outside its Opportunity are required.
 
 The mapping proves that observed suitability outcomes, candidate forms, evidence, QA, and abstentions all fit without Core learning native scene models.
 
@@ -237,6 +265,7 @@ The mapping proves that observed suitability outcomes, candidate forms, evidence
 
 - Core implementation shape, registry/discovery, transport/security, storage URI, and authentication.
 - Exact Portfolio/Candidate Asset Pack schemas, creator diagnostics UI, and calculation of a review-order hint.
+- Whether a future contract needs a third produced-but-incomplete candidate state; V1 intentionally has only `READY` and `QA_REJECTED`.
 - Complete Core-side validation of URIs/hashes and integration with source/rights/factual binding gates.
 - Legacy V1 adapter mechanics and a future `edit-map/2`.
 - `REAL_MATERIAL` retrieval/evidence contract.
