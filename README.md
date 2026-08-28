@@ -8,7 +8,7 @@
 
 DeepTalk Studio is a content and visual-asset system for creators making human-led, deep spoken videos. It helps turn a defensible topic into a reviewed script, then prepares evidence-bound visual assets and precise placement suggestions against the creator's final clean A-roll.
 
-The creator always owns content judgment, recording, final visual selection, and final NLE aesthetics. DeepTalk does not automatically edit the finished video.
+The creator always owns content judgment, recording, final visual selection, and final NLE aesthetics. DeepTalk 不替用户剪辑最终视频，也不会自动编辑成片。
 
 ## The Current Product Path
 

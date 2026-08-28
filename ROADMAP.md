@@ -41,7 +41,7 @@
 
 - Contract V1 is ACCEPTED_UNRELEASED architecture, integrated as canonical design documentation only.
 - Preserve the accepted multi-repo, plugin-first boundary; do not start runtime implementation or schema adoption.
-- The next gate is a separate Multi-Asset Implementation Planning session.
+- The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is prepared for ChatGPT review. Runtime implementation and schema adoption remain unstarted.
 
 ## Approved Next
 
@@ -57,7 +57,7 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 - The accepted ecosystem is multi-repo and plugin-first: independent visual families evolve behind a minimal Core contract rather than being absorbed into Core internals.
 - V2 removes `KEEP_A_ROLL` from new candidate planning but preserves V1 compatibility readers/adapters.
 - `REAL_MATERIAL` stays an independent evidence/documentary family.
-- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. The next gate is separate Multi-Asset Implementation Planning; V2 runtime schemas, migration, and product code have not started.
+- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. The implementation plan awaits review; V2 runtime schemas, migration, and product code have not started.
 
 ### MG Quality V2
 

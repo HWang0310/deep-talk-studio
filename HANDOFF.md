@@ -2,6 +2,14 @@
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-08-28：Multi-Asset Implementation Planning
+
+- Created `docs/plans/2026-08-28-multi-asset-implementation-plan.md` on a separate planning branch based on `agent/multi-asset-studio` at accepted HEAD `0644c3f24c3a5cdc0cf6e3cba5d35b3e1461a840`.
+- Read-only inspection confirmed that current Core V1 still writes the one-decision `visual-asset-manifest/1` / `edit-map/1` path and that `finished-cut-review/1` accepts those versions only. The plan therefore uses additive Visual Opportunity, Candidate Portfolio, Candidate Asset Pack, and `candidate-edit-map/1` artifacts while keeping V1 history/readers immutable.
+- Read-only plugin inspection at `deeptalk-mg` `2e8fc15a7a2fba800b593f70da014c42dca7de49`, `deeptalk-illustrated-metaphor` `cf1cdfe6855aa8d2902b4506184c6d6fd0c60d74`, and `deeptalk-handdrawn-animation` `33422715f1627d7eaef7cc1ccbea7434b833d360` found local deterministic benchmark/prototype CLIs, but no dynamic Contract V1 request/result runner. The plan makes a separately reviewed plugin-owned runner a hard prerequisite for real invocation.
+- Recommended runtime is one-shot local subprocess execution with Core-owned JSON request/result files, Core-owned output roots, bounded logs/timeouts, and static local configuration; it rejects direct imports, a stdout-only protocol, and premature registry/RPC work. It contains no production code, no plugin changes, no real episode run, no merge/tag/release, and no `main` change.
+- Next gate: ChatGPT Implementation Plan Review. The plan is not itself acceptance to start implementation.
+
 ## 2026-08-28：Visual Asset Plugin Contract V1 architecture design
 
 - Read-only inspected `deeptalk-mg` at `2e8fc15a7a2fba800b593f70da014c42dca7de49`, `deeptalk-illustrated-metaphor` at `cf1cdfe6855aa8d2902b4506184c6d6fd0c60d74`, and `deeptalk-handdrawn-animation` at `33422715f1627d7eaef7cc1ccbea7434b833d360`; none was modified.

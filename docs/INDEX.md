@@ -38,6 +38,7 @@ Before acting, also inspect the current Git branch, HEAD, and working-tree statu
 - [Finished Cut Review + Production Feedback Contract (V1)](FINISHED_CUT_REVIEW_CONTRACT.md)
 - [Remotion Adapter](REMOTION_ADAPTER.md) and [HyperFrames Adapter](HYPERFRAMES_ADAPTER.md)
 - [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) — ACCEPTED_UNRELEASED architecture; not an implemented runtime contract.
+- [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) — review-ready implementation sequencing; not an implementation or release claim.
 
 Contracts describe the version named in their title. They do not by themselves establish release status or make a future plan current.
 

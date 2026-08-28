@@ -11,7 +11,7 @@
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
-| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED; the next product step is separate Multi-Asset Implementation Planning, not direct implementation. |
+| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. A separate Multi-Asset Implementation Plan is prepared for ChatGPT review; production implementation has not started. |
 
 ## Current Product Positioning
 
@@ -128,7 +128,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 
 ## Current Next Step
 
-Begin a separate **Multi-Asset Implementation Planning** session. That planning must determine runtime shape, adapters, Candidate Portfolio/Asset Pack/Edit Map schemas, Core-side QA/lineage validation, artifact locator strategy, and V1 compatibility before any implementation begins.
+ChatGPT reviews the separate [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md). It defines a proposed local runtime shape, adapters, Candidate Portfolio/Asset Pack/Edit Map schemas, Core-side QA/lineage validation, artifact locator strategy, and V1 compatibility. No production implementation may begin until that review accepts the plan.
 
 ## Read Next
 
