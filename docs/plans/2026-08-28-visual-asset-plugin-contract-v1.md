@@ -125,7 +125,13 @@ The response echoes that suitability-call ID:
 }
 ```
 
-Required: `contract_version`, `request_id`, `opportunity_id`, `plugin_id`, `plugin_version`, `proposal_id`, and `operation_status`. A `COMPLETED` proposal also requires `suitability` and short `reason`.
+Suitability Response common required fields are `contract_version`, `request_id`, `opportunity_id`, `plugin_id`, `plugin_version`, and `operation_status`.
+
+If `operation_status` is `COMPLETED`, the response additionally requires `proposal_id`, `suitability`, and a short `reason`. Only this successfully completed Suitability Proposal creates `proposal_id`:
+
+- `COMPLETED` + `SUITABLE`: `proposal_id` exists and Generation may be requested.
+- `COMPLETED` + `BORDERLINE`: `proposal_id` exists and Generation may be requested under Core policy.
+- `COMPLETED` + `ABSTAIN`: `proposal_id` exists as a successful audit record, but no Generation Request is sent.
 
 `suitability` is exactly one of:
 
@@ -133,7 +139,7 @@ Required: `contract_version`, `request_id`, `opportunity_id`, `plugin_id`, `plug
 - `BORDERLINE`: a candidate may be valuable, but naturalness or semantic precision has an evidenced limitation.
 - `ABSTAIN`: the family should not generate this opportunity; this is a normal successful capability judgment.
 
-`operation_status` is separately `COMPLETED`, `FAILED`, or `UNAVAILABLE`. The latter two require a structured `problem` (`code`, human-readable `message`, optional retryability) and omit `suitability`; they never masquerade as `ABSTAIN`.
+`operation_status` is separately `COMPLETED`, `FAILED`, or `UNAVAILABLE`. `FAILED` and `UNAVAILABLE` require a structured `problem` (`code`, human-readable `message`, optional retryability), omit `proposal_id`, `suitability`, and `reason`, and never send a Generation Request. They never masquerade as `ABSTAIN`.
 
 Core logs every proposal for audit. A normal creator-facing Candidate Asset Pack omits abstentions, while an optional diagnostics view may say that a family declined because it was not a natural fit. ABSTAIN does not count against plugin health; health measures operational failures and availability separately.
 
