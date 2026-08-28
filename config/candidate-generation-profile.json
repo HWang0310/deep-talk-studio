@@ -1,0 +1,10 @@
+{
+  "profile_version": "candidate-generation-profile/1",
+  "profiles": {
+    "LEAN": {"generate_suitability": ["SUITABLE"]},
+    "STANDARD": {"generate_suitability": ["SUITABLE"], "generate_borderline_when_no_suitable": true},
+    "RICH": {"generate_suitability": ["SUITABLE", "BORDERLINE"]}
+  },
+  "never_generate_suitability": ["ABSTAIN"],
+  "notes": "Static policy shape only; Phase 0 does not execute policy."
+}

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-08-28 — Multi-Asset Phase 0 contract baseline
+
+- Added strict `visual-asset-plugin-contract/1` request/response validators with frozen enum, identifier, failure-envelope, artifact, raw candidate-status, READY/QA_REJECTED, duration, and real A-roll placement invariants.
+- Added a sanitized synthetic Contract V1 corpus, a clock-free `visual-opportunity-directives/1` fixture, a deterministic test-only fake fixture emitter, and disabled placeholder plugin/policy configuration examples.
+- Preserved all V1 writers/readers: no Visual Opportunity runtime, subprocess adapter, Candidate Portfolio, Candidate Pack, real plugin invocation, Episode work, merge, tag, Release, or `main` change is included. Phase 0 remains implemented/unreleased pending ChatGPT review.
+
 ## Unreleased — 2026-08-28 — Accepted Multi-Asset Implementation Plan
 
 - Added and formally accepted an implementation-only plan for the accepted Visual Asset Plugin Contract V1. It records the inspected Core and three-plugin runtime baseline, a local subprocess plus Core-owned request/result-file protocol, static local plugin configuration, Core-side acceptance/lineage QA, opaque local artifact locators, deterministic LEAN/STANDARD/RICH policy, non-exclusive portfolios, Candidate Asset Pack, and `candidate-edit-map/1`.

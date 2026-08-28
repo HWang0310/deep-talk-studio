@@ -1,0 +1,1 @@
+{"contract_version":"visual-asset-plugin-contract/1","request_id":"gen-req-synthetic-03","opportunity_id":"opp-synthetic-market-shift-01","proposal_id":"prop-synthetic-01","plugin_id":"org.example.synthetic-motion","plugin_version":"0.0.0-test","operation_status":"FAILED","problem":{"code":"SYNTHETIC_GENERATION_FAILED","message":"合成测试生成失败。","retryability":true}}

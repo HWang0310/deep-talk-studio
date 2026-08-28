@@ -38,3 +38,5 @@ edit_bridge_assets/**
 edit_bridge_projects/**
 !edit_bridge_projects/.gitkeep
 .cache/
+config/visual-asset-plugins.local.json
+candidate_plugin_runs/**

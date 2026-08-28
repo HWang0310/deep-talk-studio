@@ -2,6 +2,13 @@
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-08-28：Multi-Asset Phase 0 — Contract Fixtures + Frozen V1 Baseline
+
+- On separate branch `agent/multi-asset-phase0-contract-baseline`, added the narrow `visual_asset_plugin_contract.py` Core boundary for `visual-asset-plugin-contract/1`: structural/enumeration checks for both requests and both response envelopes; identifier/proposal rules; failure problem shape; opaque artifact locators; READY/QA_REJECTED invariants; and real A-roll placement containment. Raw plugin `candidate_status` remains exactly `READY | QA_REJECTED`; Core acceptance is not implemented.
+- Added only sanitized synthetic material under `tests/fixtures/multi_asset_synthetic/`, including normal suitability/generation/failure paths, closed invalid cases, and one clock-free `visual-opportunity-directives/1` fixture. It contains no private Episode, private script, real A-roll, `KEEP_A_ROLL`, V1 decision, `visual_kind`, or renderer output.
+- Added a deterministic test-only fixture emitter and disabled placeholder configuration examples. No Core adapter, subprocess supervision, Visual Opportunity writer, Candidate Portfolio, real plugin invocation, Candidate Pack, `candidate-edit-map/1`, or Episode workflow is present.
+- V1 frozen regressions were run before Phase 0 changes; Phase 0 remains implemented/unreleased and awaits ChatGPT review. No plugin repository, `main`, tag, GitHub Release, or formal release was changed.
+
 ## 2026-08-28：Multi-Asset Implementation Planning
 
 - Created `docs/plans/2026-08-28-multi-asset-implementation-plan.md` on a separate planning branch based on `agent/multi-asset-studio` at accepted HEAD `0644c3f24c3a5cdc0cf6e3cba5d35b3e1461a840`.

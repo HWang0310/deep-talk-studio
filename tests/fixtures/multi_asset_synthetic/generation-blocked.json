@@ -1,0 +1,1 @@
+{"contract_version":"visual-asset-plugin-contract/1","request_id":"gen-req-synthetic-04","opportunity_id":"opp-synthetic-market-shift-01","proposal_id":"prop-synthetic-01","plugin_id":"org.example.synthetic-motion","plugin_version":"0.0.0-test","operation_status":"BLOCKED","problem":{"code":"SYNTHETIC_INPUT_BLOCKED","message":"合成测试输入被阻止。","retryability":false}}

@@ -39,9 +39,9 @@
 
 ### Visual Asset Plugin Contract V1 — accepted architecture
 
-- Contract V1 is ACCEPTED_UNRELEASED architecture, integrated as canonical design documentation only.
-- Preserve the accepted multi-repo, plugin-first boundary; do not start runtime implementation or schema adoption.
-- The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Runtime implementation and schema adoption remain unstarted; the next gate is Phase 0 (Contract fixtures + frozen V1 compatibility baseline) in a separate implementation session, branch, and review.
+- Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0's strict validators, sanitized fixtures, test-only fake runner, and static configuration examples are implemented/unreleased and await ChatGPT review.
+- Preserve the accepted multi-repo, plugin-first boundary; no runtime implementation or production-schema adoption has started.
+- The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. The next gate after Phase 0 review is Phase 1; Phase 0 does not implement a Visual Opportunity runtime, adapter, portfolio, or episode workflow.
 
 ## Approved Next
 
@@ -57,7 +57,7 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 - The accepted ecosystem is multi-repo and plugin-first: independent visual families evolve behind a minimal Core contract rather than being absorbed into Core internals.
 - V2 removes `KEEP_A_ROLL` from new candidate planning but preserves V1 compatibility readers/adapters.
 - `REAL_MATERIAL` stays an independent evidence/documentary family.
-- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. The implementation plan is accepted; V2 runtime schemas, migration, and product code have not started. Phase 0 is the next gate and must begin in a separate implementation session, branch, and review.
+- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0 contract validation/test baseline is implemented/unreleased on its separate review branch; V2 runtime schemas, migration, adapter, portfolio, and product workflow have not started.
 
 ### MG Quality V2
 

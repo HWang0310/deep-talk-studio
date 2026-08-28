@@ -11,7 +11,7 @@
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
-| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. The Multi-Asset Implementation Plan is ACCEPTED; production implementation has not started. The next gate is Phase 0 in a separate implementation session, branch, and review. |
+| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phase 0 contract fixtures and the frozen V1 compatibility baseline are implemented on `agent/multi-asset-phase0-contract-baseline`, remain unreleased, and await ChatGPT review. This adds strict Contract V1 validators, sanitized fixtures, a test-only fake runner, and static examples only; no Multi-Asset runtime, adapter, portfolio, or episode workflow is implemented. |
 
 ## Current Product Positioning
 
@@ -103,8 +103,8 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 - V2 migration away from planning new `KEEP_A_ROLL` artifacts, while retaining V1 readers/adapters and immutable lineage.
 - Candidate Asset Pack and multi-option Edit Map semantics.
 - `REAL_MATERIAL` as an independent documentary/evidence family, distinct from generated explanation families.
-- Machine records will distinguish Generation operation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) from produced Candidate asset outcomes (`READY`, `QA_REJECTED`); creator packs default to READY candidates only. Contract V1 is accepted architecture; production-schema adoption is not started.
-- The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are accepted. No registry, adapter, runtime, migration, or portfolio code exists.
+- Machine records will distinguish Generation operation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) from produced Candidate asset outcomes (`READY`, `QA_REJECTED`); creator packs default to READY candidates only. Phase 0 implements only strict Contract V1 validation and its synthetic test baseline, not production-schema adoption.
+- The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are accepted. No registry, adapter, runtime, migration, portfolio, Candidate Pack, or episode code exists.
 
 ## Approved Next / Experimental
 
