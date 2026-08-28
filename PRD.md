@@ -92,14 +92,15 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 
 Requirements for the future implementation:
 
+- DeepTalk Visual Asset Ecosystem is multi-repo and plugin-first: Core remains stable while each visual family is independently researched, optimized, benchmarked, QA'd, and versioned as a Visual Asset Plugin.
 - Candidate assets are non-exclusive. Multiple candidates can overlap fully or partly, have different durations, and come from different families.
 - `suggested_review_order` (or equivalent) may tell a creator what to inspect first; it must never mean that the machine chose a winner.
 - No Visual Opportunity means no additional asset. New candidate planning removes `KEEP_A_ROLL` as an outcome, but V1 readers/adapters and immutable historical lineage remain compatible.
 - `REAL_MATERIAL` remains an independent evidence/documentary family. Generated explanation families do not replace it.
-- Machine records must preserve failed/blocked/unavailable/QA-rejected candidates. Creator-facing packs default to READY candidates only. Final enum and schema design are still pending.
+- Machine records must preserve failed/blocked/unavailable/QA-rejected candidates. Creator-facing packs default to READY candidates only. Contract V1 enum design is pending Architecture Review; production-schema adoption is not started.
 - The product maximises useful choice density, not file count. LEAN/STANDARD/RICH are soft profiles only; no fixed opportunity/candidate count is a schema invariant.
 
-This direction is accepted; V2 contracts, schemas, migrations, and implementation have **not** begun.
+The evidence-derived [`Visual Asset Plugin Contract V1 design`](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md) defines a proposed minimum two-stage suitability/generation boundary and is awaiting ChatGPT Architecture Review. V2 runtime contracts, schemas, migrations, and implementation have **not** begun.
 
 ### Approved next / experimental work
 

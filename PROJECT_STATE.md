@@ -11,7 +11,7 @@
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
-| Current work | Consolidate canonical project memory; no product implementation is authorised by this work. |
+| Current work | Visual Asset Plugin Contract V1 architecture design is prepared on a dedicated design branch for ChatGPT review; no product implementation is authorised. |
 
 ## Current Product Positioning
 
@@ -51,6 +51,8 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 ```
 
 This is an **ACCEPTED_UNRELEASED product direction**, not an implemented schema, contract, or production workflow. Candidates are intentionally non-exclusive: they may overlap, have different durations, come from multiple families, and be used singly, together, or not at all.
+
+The accepted ecosystem principle is **multi-repo, plugin-first**: Core stays stable while visual capabilities are independently researched, optimized, benchmarked, QA'd, and versioned as Visual Asset Plugins. The evidence-derived Contract V1 design is recorded in [`docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md`](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md); it remains pending ChatGPT Architecture Review and is not production implementation.
 
 ## Hard Product Boundaries
 
@@ -101,7 +103,8 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 - V2 migration away from planning new `KEEP_A_ROLL` artifacts, while retaining V1 readers/adapters and immutable lineage.
 - Candidate Asset Pack and multi-option Edit Map semantics.
 - `REAL_MATERIAL` as an independent documentary/evidence family, distinct from generated explanation families.
-- Machine retention of candidate states (for example READY, FAILED, BLOCKED, QA_REJECTED, UNAVAILABLE) while creator packs default to READY candidates only. Final enums and contracts are not designed.
+- Machine retention of candidate states (for example READY, FAILED, BLOCKED, QA_REJECTED, UNAVAILABLE) while creator packs default to READY candidates only. Contract V1 enum design is pending Architecture Review; production-schema adoption is not started.
+- The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are ready for Architecture Review; no registry, adapter, runtime, migration, or portfolio code exists.
 
 ## Approved Next / Experimental
 
@@ -125,7 +128,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 
 ## Current Next Step
 
-Finish and review this Project Memory Consolidation. After review, the next product work is **Multi-Asset implementation planning** — not direct implementation and not automatic editing.
+Complete ChatGPT Architecture Review of Visual Asset Plugin Contract V1. Only if accepted should the next product work be **Multi-Asset implementation planning** — not direct implementation and not automatic editing.
 
 ## Read Next
 

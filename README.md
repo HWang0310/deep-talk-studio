@@ -58,7 +58,7 @@ The repository skills and contracts guide the necessary gates. Private research,
 
 The accepted and implemented V1 path includes Content Thesis and Script V1, local `whisper.cpp` `large-v3` ASR, alignment, Semantic Timeline, V1 Visual Director, Asset Pack + Edit Map, and Finished Cut Review. This work is unreleased; no version later than v0.6.1 has been tagged or released.
 
-The next accepted product direction is **Multi-Asset Studio**: `Semantic Timeline → Visual Opportunity → non-exclusive Candidate Portfolio → Candidate Asset Pack → Multi-option Edit Map → creator selection`. Its V2 schemas, contracts, and implementation have **not started**.
+The next accepted product direction is **Multi-Asset Studio**: `Semantic Timeline → Visual Opportunity → non-exclusive Candidate Portfolio → Candidate Asset Pack → Multi-option Edit Map → creator selection`. Its ecosystem is multi-repo and plugin-first: families evolve independently behind a stable Core boundary. An evidence-derived Contract V1 design is awaiting Architecture Review; V2 runtime schemas and implementation have **not started**.
 
 MG Quality V2 is approved next but unimplemented. Hand-drawn Animation is an approved V1 experiment. Xiaohei is prototype/experimental only and is not DeepTalk-owned IP.
 
