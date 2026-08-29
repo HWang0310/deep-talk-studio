@@ -133,17 +133,20 @@ def _validate_candidate(value: Any, opportunity: Mapping[str, Any]) -> None:
     _identifier(data["candidate_id"], "candidate_id")
     _text(data["asset_family"], "asset_family")
     status = _enum(data["candidate_status"], CANDIDATE_STATUSES, "candidate_status")
+    if "duration_ms" in data:
+        _positive_int(data["duration_ms"], "duration_ms")
+    if "suggested_placement" in data:
+        _validate_placement(data["suggested_placement"], opportunity)
     if "artifacts" in data:
         _validate_artifacts(data["artifacts"])
+    if "provenance" in data:
+        _mapping(data["provenance"], "provenance")
     if status == "READY":
         _required_fields(data, {"duration_ms", "suggested_placement", "artifacts", "qa", "provenance"}, "READY candidate")
-        _positive_int(data["duration_ms"], "duration_ms")
-        _validate_placement(data["suggested_placement"], opportunity)
         if not any(item["role"] == "PRIMARY_MEDIA" for item in data["artifacts"]):
             raise VisualAssetPluginContractError("READY candidate 必须包含 PRIMARY_MEDIA artifact")
         _validate_qa(data["qa"], "PASSED")
-        provenance = _mapping(data["provenance"], "provenance")
-        if not provenance:
+        if not data["provenance"]:
             raise VisualAssetPluginContractError("provenance 不能为空")
     else:
         _required_fields(data, {"qa"}, "QA_REJECTED candidate")
@@ -153,18 +156,13 @@ def _validate_candidate(value: Any, opportunity: Mapping[str, Any]) -> None:
 def _validate_artifacts(value: Any) -> None:
     if not isinstance(value, list):
         raise VisualAssetPluginContractError("artifacts 必须是列表")
-    seen = set()
     for index, raw in enumerate(value):
         artifact = _mapping(raw, f"artifacts[{index}]")
         allowed = {"role", "uri", "media_type", "sha256", "duration_ms", "metadata"}
         _only_fields(artifact, allowed, f"artifacts[{index}]")
         _required_fields(artifact, {"role", "uri"}, f"artifacts[{index}]")
-        role = _enum(artifact["role"], ARTIFACT_ROLES, f"artifacts[{index}].role")
-        uri = _text(artifact["uri"], f"artifacts[{index}].uri")
-        key = (role, uri)
-        if key in seen:
-            raise VisualAssetPluginContractError("artifacts 不能包含重复 role/uri")
-        seen.add(key)
+        _enum(artifact["role"], ARTIFACT_ROLES, f"artifacts[{index}].role")
+        _text(artifact["uri"], f"artifacts[{index}].uri")
         if "media_type" in artifact:
             _text(artifact["media_type"], f"artifacts[{index}].media_type")
         if "sha256" in artifact:

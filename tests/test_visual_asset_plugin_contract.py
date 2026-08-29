@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 from deeptalk_studio.visual_asset_plugin_contract import (
@@ -76,6 +77,36 @@ class VisualAssetPluginContractTests(unittest.TestCase):
                 fixture("invalid/qa-rejected-qa-not-failed.json"), fixture("opportunity.json")
             )
 
+    def test_qa_rejected_without_ready_delivery_fields_remains_valid(self):
+        result = fixture("generation-completed-qa-rejected.json")
+        validate_generation_result(result, fixture("opportunity.json"))
+
+    def test_qa_rejected_validates_optional_duration_placement_and_provenance_when_present(self):
+        result = fixture("generation-completed-qa-rejected.json")
+        candidate = result["candidate"]
+        candidate["duration_ms"] = 6800
+        candidate["suggested_placement"] = {"start_ms": 12500, "end_ms": 18500}
+        candidate["provenance"] = {"origin": "plugin-generated"}
+        validate_generation_result(result, fixture("opportunity.json"))
+
+    def test_qa_rejected_rejects_invalid_optional_duration(self):
+        result = fixture("generation-completed-qa-rejected.json")
+        result["candidate"]["duration_ms"] = 0
+        with self.assertRaisesRegex(VisualAssetPluginContractError, "duration_ms"):
+            validate_generation_result(result, fixture("opportunity.json"))
+
+    def test_qa_rejected_rejects_invalid_optional_placement_ordering(self):
+        result = fixture("generation-completed-qa-rejected.json")
+        result["candidate"]["suggested_placement"] = {"start_ms": 18500, "end_ms": 12500}
+        with self.assertRaisesRegex(VisualAssetPluginContractError, "suggested_placement"):
+            validate_generation_result(result, fixture("opportunity.json"))
+
+    def test_qa_rejected_rejects_optional_placement_outside_aroll_window(self):
+        result = fixture("generation-completed-qa-rejected.json")
+        result["candidate"]["suggested_placement"] = {"start_ms": 11000, "end_ms": 18500}
+        with self.assertRaisesRegex(VisualAssetPluginContractError, "a_roll_window"):
+            validate_generation_result(result, fixture("opportunity.json"))
+
     def test_generation_and_candidate_statuses_are_separate_closed_enums(self):
         with self.assertRaisesRegex(VisualAssetPluginContractError, "operation_status"):
             validate_generation_result(
@@ -103,13 +134,12 @@ class VisualAssetPluginContractTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaisesRegex(VisualAssetPluginContractError, expected):
                 validate_generation_result(fixture(name), fixture("opportunity.json"))
 
-    def test_rejects_malformed_problem_missing_ids_versions_invalid_duration_and_duplicate_artifacts(self):
+    def test_rejects_malformed_problem_missing_ids_versions_and_invalid_duration(self):
         invalid_cases = (
             ("invalid/malformed-problem.json", validate_suitability_response, None, "problem"),
             ("invalid/missing-request-id.json", validate_suitability_response, None, "request_id"),
             ("invalid/wrong-contract-version.json", validate_suitability_response, None, "contract_version"),
             ("invalid/invalid-duration.json", validate_generation_result, fixture("opportunity.json"), "duration_ms"),
-            ("invalid/duplicate-artifacts.json", validate_generation_result, fixture("opportunity.json"), "重复"),
         )
         for name, validator, opportunity, expected in invalid_cases:
             with self.subTest(name=name), self.assertRaisesRegex(VisualAssetPluginContractError, expected):
@@ -117,6 +147,19 @@ class VisualAssetPluginContractTests(unittest.TestCase):
                     validator(fixture(name))
                 else:
                     validator(fixture(name), opportunity)
+
+    def test_duplicate_role_uri_artifacts_are_valid_contract_evidence(self):
+        validate_generation_result(
+            fixture("generation-completed-ready-duplicate-artifacts.json"), fixture("opportunity.json")
+        )
+
+    def test_validator_preserves_the_only_raw_plugin_candidate_statuses(self):
+        ready = deepcopy(fixture("generation-completed-ready.json"))
+        rejected = deepcopy(fixture("generation-completed-qa-rejected.json"))
+        validate_generation_result(ready, fixture("opportunity.json"))
+        validate_generation_result(rejected, fixture("opportunity.json"))
+        self.assertEqual(ready["candidate"]["candidate_status"], "READY")
+        self.assertEqual(rejected["candidate"]["candidate_status"], "QA_REJECTED")
 
 
 class SyntheticFixtureBoundaryTests(unittest.TestCase):
