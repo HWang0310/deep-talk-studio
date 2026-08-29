@@ -11,7 +11,7 @@
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
-| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phase 0 and Phase 1 are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Phase 1 is a sanitized fake-only Visual Opportunity → subprocess → Candidate Portfolio slice; no real plugin, Candidate Pack, V2 production migration, or episode workflow is implemented. |
+| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phase 0 and Phase 1 are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Phase 2 is IMPLEMENTED_UNRELEASED and awaiting ChatGPT Review: it broadens the sanitized fake-only Candidate Portfolio with policy, Core QA, production directive authoring, and audit. No real plugin, Candidate Pack, V2 production migration, or episode workflow is implemented. |
 
 ## Current Product Positioning
 
@@ -42,7 +42,7 @@ Topic → Research → Fact Check → Content Thesis → human confirmation
 - Finished Cut Review is read-only and non-judgmental: it observes plan/actual differences and does not alter the cut.
 - The historical full-video/Aligned Preview renderer remains compatibility, QA, and optional preview infrastructure — not primary UX or a finished-video product promise.
 
-### Accepted V2 target — implementation not started
+### Accepted V2 target — partially implemented, unreleased
 
 ```text
 Semantic Timeline → Visual Opportunity → Candidate Portfolio
@@ -99,11 +99,10 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 
 ## Accepted but Not Yet Implemented
 
-- Visual Opportunity → non-exclusive Candidate Portfolio model.
 - V2 migration away from planning new `KEEP_A_ROLL` artifacts, while retaining V1 readers/adapters and immutable lineage.
 - Candidate Asset Pack and multi-option Edit Map semantics.
 - `REAL_MATERIAL` as an independent documentary/evidence family, distinct from generated explanation families.
-- Machine records will distinguish Generation operation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) from produced Candidate asset outcomes (`READY`, `QA_REJECTED`); creator packs default to READY candidates only. Phase 0 implements only strict Contract V1 validation and its synthetic test baseline, not production-schema adoption.
+- Machine records distinguish Generation operation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) from produced Candidate asset outcomes (`READY`, `QA_REJECTED`); Core acceptance is separate and creator packs will default to raw READY plus Core ACCEPTED candidates only. Phase 2 implements this only through sanitized fake subprocess data, not production-schema migration.
 - The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are accepted. No registry, adapter, runtime, migration, portfolio, Candidate Pack, or episode code exists.
 
 ## Approved Next / Experimental
@@ -128,7 +127,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 
 ## Current Next Step
 
-The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 1 is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. The next gate is Phase 2: Portfolio breadth, deterministic policy, Core QA, and the production directive boundary; it still excludes real plugin integration.
+The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2 is IMPLEMENTED_UNRELEASED and awaiting ChatGPT Review. It provides fake-only portfolio breadth, deterministic policy, Core QA, hardened immutable storage, and production directive authoring; the next gate after review is Phase 3A's independently reviewed real-plugin preflight, which is not implemented.
 
 ## Read Next
 

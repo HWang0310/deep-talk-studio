@@ -12,7 +12,7 @@ from typing import Any, Mapping
 DIRECTIVES_VERSION = "visual-opportunity-directives/1"
 _ROOT_FIELDS = frozenset({
     "artifact_version", "directives_id", "revision", "semantic_timeline_digest",
-    "reviewed_script_digest", "directives",
+    "reviewed_script_digest", "factual_context_digest", "directives",
 })
 _DIRECTIVE_FIELDS = frozenset({
     "directive_id", "span_id", "visual_purpose", "why_opportunity",
@@ -41,7 +41,7 @@ def normalize_visual_opportunity_directives(value: Any) -> dict:
     """Validate and return a detached, deterministic V2 directives artifact."""
     data = _mapping(value, "directives")
     _only_fields(data, _ROOT_FIELDS, "directives")
-    _required_fields(data, _ROOT_FIELDS, "directives")
+    _required_fields(data, _ROOT_FIELDS - {"factual_context_digest"}, "directives")
     if data["artifact_version"] != DIRECTIVES_VERSION:
         raise VisualOpportunityDirectiveError("artifact_version 必须是 visual-opportunity-directives/1")
     _identifier(data["directives_id"], "directives_id")
@@ -49,6 +49,8 @@ def normalize_visual_opportunity_directives(value: Any) -> dict:
         raise VisualOpportunityDirectiveError("revision 必须是正整数")
     _digest(data["semantic_timeline_digest"], "semantic_timeline_digest")
     _digest(data["reviewed_script_digest"], "reviewed_script_digest")
+    if "factual_context_digest" in data:
+        _digest(data["factual_context_digest"], "factual_context_digest")
     if not isinstance(data["directives"], list):
         raise VisualOpportunityDirectiveError("directives 必须是列表")
     _reject_forbidden(value)
@@ -91,7 +93,57 @@ def normalize_visual_opportunity_directives(value: Any) -> dict:
         "reviewed_script_digest": str(data["reviewed_script_digest"]),
         "directives": normalized,
     }
+    if "factual_context_digest" in data:
+        result["factual_context_digest"] = str(data["factual_context_digest"])
     return result
+
+
+def author_visual_opportunity_directives(semantic_timeline: Mapping[str, Any], reviewed_script: Mapping[str, Any], factual_context: list[Mapping[str, Any]], editorial_directives: list[Mapping[str, Any]], *, directives_id: str, revision: int) -> dict:
+    """Create the production directive boundary from canonical, verifiable inputs.
+
+    Callers author only visual intent and why; Core derives all lineage digests,
+    canonicalizes fact references, and never accepts supplied timing or V1
+    decisions.
+    """
+    timeline_digest = semantic_timeline.get("timeline_digest")
+    if semantic_timeline.get("artifact_version") != "semantic-timeline/1" or semantic_timeline.get("timing_provenance") != "actual_aroll_alignment":
+        raise VisualOpportunityDirectiveError("需要已验证的 semantic-timeline/1")
+    _digest(timeline_digest, "semantic_timeline_digest")
+    timeline_payload = dict(semantic_timeline)
+    timeline_payload.pop("timeline_digest", None)
+    if hashlib.sha256(_canonical_json(timeline_payload).encode("utf-8")).hexdigest() != timeline_digest:
+        raise VisualOpportunityDirectiveError("semantic-timeline/1 digest 不匹配")
+    reviewed_digest = reviewed_script.get("reviewed_content_digest")
+    _digest(reviewed_digest, "reviewed_script_digest")
+    from .script_validation import script_content_digest
+    try:
+        actual_script_digest = script_content_digest(reviewed_script)
+    except (KeyError, TypeError) as exc:
+        raise VisualOpportunityDirectiveError("需要 canonical reviewed Script") from exc
+    if reviewed_script.get("status") != "reviewed" or actual_script_digest != reviewed_digest:
+        raise VisualOpportunityDirectiveError("Reviewed Script digest 不匹配")
+    if not isinstance(factual_context, list):
+        raise VisualOpportunityDirectiveError("factual_context 必须是列表")
+    allowed_facts = []
+    for fact in factual_context:
+        mapping = _mapping(fact, "factual_context")
+        _only_fields(mapping, {"claim_id", "evidence_id"}, "factual_context")
+        _required_fields(mapping, {"claim_id", "evidence_id"}, "factual_context")
+        _identifier(mapping["claim_id"], "claim_id"); _identifier(mapping["evidence_id"], "evidence_id")
+        allowed_facts.append({"claim_id": mapping["claim_id"], "evidence_id": mapping["evidence_id"]})
+    facts_digest = hashlib.sha256(_canonical_json(allowed_facts).encode("utf-8")).hexdigest()
+    if not isinstance(editorial_directives, list):
+        raise VisualOpportunityDirectiveError("editorial_directives 必须是列表")
+    converted = []
+    for item in editorial_directives:
+        source = _mapping(item, "editorial_directive")
+        _only_fields(source, {"directive_id", "span_id", "visual_intent", "why_visual", "semantic_context_selector", "factual_context_refs"}, "editorial_directive")
+        _required_fields(source, {"directive_id", "span_id", "visual_intent", "why_visual"}, "editorial_directive")
+        refs = source.get("factual_context_refs", allowed_facts)
+        if refs != allowed_facts:
+            raise VisualOpportunityDirectiveError("factual_context_refs 必须绑定已批准事实")
+        converted.append({"directive_id": source["directive_id"], "span_id": source["span_id"], "visual_purpose": source["visual_intent"], "why_opportunity": source["why_visual"], "semantic_context_selector": source.get("semantic_context_selector", {"include_neighboring_spans": 0}), "factual_context_refs": copy.deepcopy(refs)})
+    return normalize_visual_opportunity_directives({"artifact_version": DIRECTIVES_VERSION, "directives_id": directives_id, "revision": revision, "semantic_timeline_digest": timeline_digest, "reviewed_script_digest": reviewed_digest, "factual_context_digest": facts_digest, "directives": converted})
 
 
 def _canonical_json(value: Mapping[str, Any]) -> str:

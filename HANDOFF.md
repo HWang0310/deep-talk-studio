@@ -2,6 +2,14 @@
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-08-29：Multi-Asset Phase 2 — Portfolio Core QA
+
+- Implemented an additive, sanitized fake-only `candidate-portfolio/1` breadth path: independent plugin records retain suitability, generation/no-call, raw response, Core acceptance, typed problems, config/policy digest, audit data, and non-winner `suggested_review_order`.
+- Added deterministic LEAN/STANDARD/RICH policy; `ABSTAIN`, unavailable/failed, disabled plugins, and policy-gated borderline results retain no-call evidence rather than disappearing.
+- Added production directive authoring that derives semantic timeline and reviewed-script digests and binds approved fact references. Only clock-free editorial `visual_intent` / `why_visual` data may be authored.
+- Core QA resolves only fake local-runner URIs inside its output root, checks SHA-256 and ffprobe duration with a 100 ms tolerance, and rejects malformed lineage, duplicate candidate IDs, unsafe paths, missing/bad media, plugin mismatch, factual mismatch, and generated-as-real provenance. Raw `READY` never becomes Core accepted implicitly.
+- Tests create only temporary synthetic video; valid MP4 ffprobe acceptance, invalid media rejection, multi-candidate RICH, failure isolation, and raw READY/Core REJECTED are covered. No real plugin repo, private Episode material, V1 writer, release, tag, or canonical merge changed. The branch awaits ChatGPT Review.
+
 ## 2026-08-29：Multi-Asset Phase 1 — Fake Vertical Slice
 
 - ChatGPT formally accepted Phase 1 as ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Follow-up schema hardening belongs to Phase 2, and SIGTERM-resistant child regression plus configured identity/version matching belong to the pre-Phase-3A real-plugin gate; neither is implemented here.

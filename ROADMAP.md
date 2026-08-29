@@ -41,11 +41,11 @@
 
 - Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0's strict validators, sanitized fixtures, test-only fake runner, and static configuration examples are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation.
 - Preserve the accepted multi-repo, plugin-first boundary; no runtime implementation or production-schema adoption has started.
-- The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 1's fake-only Visual Opportunity + subprocess + Candidate Portfolio slice is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation; the next gate is Phase 2 portfolio breadth, deterministic policy, Core QA, and the production directive boundary.
+- The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2's fake-only portfolio breadth, deterministic policy, Core QA, storage hardening, and production directive boundary are IMPLEMENTED_UNRELEASED and await ChatGPT Review; the next gate after review is Phase 3A's independently reviewed real-plugin preflight.
 
 ## Approved Next
 
-### Multi-Asset Candidate Architecture — accepted direction; implementation not started
+### Multi-Asset Candidate Architecture — accepted direction; partially implemented, unreleased
 
 ```text
 Semantic Timeline → Visual Opportunity → Candidate Portfolio
@@ -57,7 +57,7 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 - The accepted ecosystem is multi-repo and plugin-first: independent visual families evolve behind a minimal Core contract rather than being absorbed into Core internals.
 - V2 removes `KEEP_A_ROLL` from new candidate planning but preserves V1 compatibility readers/adapters.
 - `REAL_MATERIAL` stays an independent evidence/documentary family.
-- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0 contract validation/test baseline is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation; V2 runtime schemas, migration, adapter, portfolio, and product workflow have not started.
+- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 2 provides a sanitized fake-only runtime portfolio and Core QA boundary; real plugin integration, Candidate Pack, migration, and production workflow have not started.
 
 ### MG Quality V2
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-08-29 — Multi-Asset Phase 2 portfolio Core QA
+
+- Added production-safe `visual-opportunity-directives/1` authoring from verified synthetic timeline, reviewed-script digest, and approved factual bindings; only clock-free `visual_intent` / `why_visual` semantics cross the authoring boundary.
+- Added deterministic no-quota LEAN/STANDARD/RICH generation policy, fake-only multi-plugin `candidate-portfolio/1` histories, no-call evidence, audit records, and raw READY plus separate Core acceptance projection.
+- Added Core-owned local-runner artifact resolution, SHA-256, ffprobe duration, placement, lineage, provenance, duplicate-ID, and generated-as-real rejection checks, plus structural fail-closed reload validation for portfolios and opportunity plans.
+- This is sanitized synthetic fake-runner implementation only and awaits ChatGPT Review. It does not integrate a real plugin, create a Candidate Pack, alter V1 writers, migrate production schemas, or release a product version.
+
 ## Unreleased — 2026-08-28 — Multi-Asset Phase 0 contract baseline
 
 - Multi-Asset Phase 1 review-branch implementation: added clock-free directives, Visual Opportunity artifacts and storage, fake-only subprocess configuration/protocol, and the minimal raw-plugin/Core-acceptance Candidate Portfolio slice. No real plugin, Episode, Candidate Pack, release, or V1 writer change is included.

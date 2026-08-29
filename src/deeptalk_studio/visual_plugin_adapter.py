@@ -57,7 +57,7 @@ def run_visual_plugin(plugin: Mapping[str, Any], *, operation: str, opportunity:
             raise ValueError("correlation")
     except Exception:
         return _failure(job, "invalid_result")
-    return {"execution": {"status": "COMPLETED", "retryable": False, "reason": "completed", "job_locator": f"local-plugin-job://{request_id}"}, "raw_response": response}
+    return {"execution": {"status": "COMPLETED", "retryable": False, "reason": "completed", "request_id": request_id, "job_locator": f"local-plugin-job://{request_id}"}, "raw_response": response}
 
 
 def _logs(job: Path, stdout: str, stderr: str) -> None:
