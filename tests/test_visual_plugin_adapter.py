@@ -31,6 +31,13 @@ class VisualPluginAdapterTests(unittest.TestCase):
         self.assertTrue(result["execution"]["retryable"])
         self.assertIsNone(result["raw_response"])
 
+    def test_invalid_operation_or_generation_without_proposal_fails_before_launch(self):
+        with tempfile.TemporaryDirectory() as root:
+            with self.assertRaisesRegex(ValueError, "operation"):
+                run_visual_plugin(plugin("suitable"), operation="unknown", opportunity=OPPORTUNITY, job_root=Path(root))
+            with self.assertRaisesRegex(ValueError, "proposal_id"):
+                run_visual_plugin(plugin("ready"), operation="generation", opportunity=OPPORTUNITY, job_root=Path(root))
+
     def test_generation_ready_and_malformed_or_timeout_results_are_separated(self):
         with tempfile.TemporaryDirectory() as root:
             ready = run_visual_plugin(plugin("ready"), operation="generation", opportunity=OPPORTUNITY, proposal_id="PROP-01", job_root=Path(root))

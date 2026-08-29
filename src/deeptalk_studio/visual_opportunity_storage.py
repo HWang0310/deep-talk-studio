@@ -1,6 +1,6 @@
 """Immutable storage for machine-only ``visual-opportunity-plan/1`` artifacts."""
 from __future__ import annotations
-import json, os, re
+import hashlib, json, os, re
 from pathlib import Path
 from typing import Any, Mapping
 class VisualOpportunityStorageError(ValueError): pass
@@ -16,4 +16,7 @@ def load_visual_opportunity_plan(path: Path) -> dict:
     if Path(path).parent.name != value["plan_id"]: raise VisualOpportunityStorageError("opportunity plan 路径无效")
     return value
 def _valid(value: Any) -> None:
-    if not isinstance(value,Mapping) or value.get("artifact_version")!="visual-opportunity-plan/1" or not re.fullmatch(r"VOP-[0-9a-f]{24}",str(value.get("plan_id",""))) or len(str(value.get("plan_digest","")))!=64: raise VisualOpportunityStorageError("opportunity plan schema 无效")
+    if not isinstance(value,Mapping) or value.get("artifact_version")!="visual-opportunity-plan/1" or not re.fullmatch(r"VOP-[0-9a-f]{24}",str(value.get("plan_id",""))) or not isinstance(value.get("opportunities"),list) or not isinstance(value.get("span_audit"),list): raise VisualOpportunityStorageError("opportunity plan schema 无效")
+    payload=dict(value); digest=payload.pop("plan_digest",None)
+    actual=hashlib.sha256(json.dumps(payload,ensure_ascii=False,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+    if digest != actual: raise VisualOpportunityStorageError("opportunity plan digest 无效")

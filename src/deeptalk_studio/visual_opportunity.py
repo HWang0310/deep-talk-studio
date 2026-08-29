@@ -46,6 +46,8 @@ def build_visual_opportunity_plan(
     directives_by_span = {item["span_id"]: item for item in directive_artifact["directives"]}
     input_identity = {
         "semantic_timeline_digest": timeline["timeline_digest"],
+        "alignment_digest": timeline["alignment_digest"],
+        "transcript_digest": timeline["transcript_digest"],
         "directives_id": directive_artifact["directives_id"],
         "revision": directive_artifact["revision"],
         "directives_digest": directive_digest(directive_artifact),
@@ -93,6 +95,8 @@ def build_visual_opportunity_plan(
         "artifact_version": "visual-opportunity-plan/1",
         "plan_id": plan_id,
         "semantic_timeline_digest": timeline["timeline_digest"],
+        "alignment_digest": timeline["alignment_digest"],
+        "transcript_digest": timeline["transcript_digest"],
         "directives_digest": input_identity["directives_digest"],
         "reviewed_script_digest": directive_artifact["reviewed_script_digest"],
         "defaults_digest": _digest(core_defaults),
@@ -108,9 +112,13 @@ def _validate_timeline(value: Mapping[str, Any]) -> dict:
         raise VisualOpportunityError("需要 semantic-timeline/1")
     if value.get("timing_provenance") != "actual_aroll_alignment":
         raise VisualOpportunityError("Semantic Timeline 必须来自 actual_aroll_alignment")
-    digest = value.get("timeline_digest")
-    if not isinstance(digest, str) or len(digest) != 64:
-        raise VisualOpportunityError("Semantic Timeline 缺少 timeline_digest")
+    for field in ("timeline_digest", "alignment_digest", "transcript_digest"):
+        digest = value.get(field)
+        if not isinstance(digest, str) or len(digest) != 64:
+            raise VisualOpportunityError(f"Semantic Timeline 缺少 {field}")
+    payload = dict(value); supplied_digest = payload.pop("timeline_digest")
+    if _digest(payload) != supplied_digest:
+        raise VisualOpportunityError("Semantic Timeline timeline_digest 不匹配")
     spans = value.get("spans")
     if not isinstance(spans, list):
         raise VisualOpportunityError("Semantic Timeline spans 无效")
@@ -128,7 +136,7 @@ def _validate_timeline(value: Mapping[str, Any]) -> dict:
         if not isinstance(span.get("summary"), str) or not span["summary"].strip():
             raise VisualOpportunityError("Semantic Timeline summary 无效")
         normalized.append(dict(span))
-    return {"timeline_digest": digest, "spans": normalized}
+    return {"timeline_digest": supplied_digest, "alignment_digest": value["alignment_digest"], "transcript_digest": value["transcript_digest"], "spans": normalized}
 
 
 def _validate_defaults(value: Mapping[str, Any]) -> dict:

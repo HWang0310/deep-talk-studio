@@ -1,6 +1,6 @@
 """Immutable JSON storage for minimal Candidate Portfolio artifacts."""
 from __future__ import annotations
-import json, os, re
+import hashlib, json, os, re
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -21,4 +21,7 @@ def load_candidate_portfolio(path: Path) -> dict:
     return value
 
 def _validate(value: Any) -> None:
-    if not isinstance(value, Mapping) or value.get("artifact_version") != "candidate-portfolio/1" or not re.fullmatch(r"CP-[0-9a-f]{24}", str(value.get("portfolio_id",""))) or not value.get("opportunity_id") or not value.get("proposal") or len(str(value.get("portfolio_digest",""))) != 64: raise CandidatePortfolioStorageError("portfolio schema 无效")
+    if not isinstance(value, Mapping) or value.get("artifact_version") != "candidate-portfolio/1" or not re.fullmatch(r"CP-[0-9a-f]{24}", str(value.get("portfolio_id",""))) or not value.get("opportunity_id") or not isinstance(value.get("proposal"),Mapping) or value.get("generation_call") not in {"REQUESTED","NOT_REQUESTED"}: raise CandidatePortfolioStorageError("portfolio schema 无效")
+    payload=dict(value); digest=payload.pop("portfolio_digest",None)
+    actual=hashlib.sha256(json.dumps(payload,ensure_ascii=False,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+    if digest != actual: raise CandidatePortfolioStorageError("portfolio digest 无效")

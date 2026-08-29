@@ -1,4 +1,6 @@
 import copy
+import hashlib
+import json
 import unittest
 
 from deeptalk_studio.visual_opportunity import (
@@ -8,25 +10,26 @@ from deeptalk_studio.visual_opportunity import (
 
 
 def timeline():
-    return {
+    result = {
         "artifact_version": "semantic-timeline/1",
         "timeline_id": "ST-synthetic-01",
         "timing_provenance": "actual_aroll_alignment",
         "alignment_digest": "c" * 64,
         "transcript_digest": "d" * 64,
-        "timeline_digest": "a" * 64,
         "spans": [
             {"span_id": "ST001", "actual_start_seconds": "1.234", "actual_end_seconds": "4.567", "summary": "Synthetic safe semantics.", "visual_eligibility": "safe", "reason": "safe_real_alignment"},
             {"span_id": "ST002", "actual_start_seconds": "4.567", "actual_end_seconds": "7.000", "summary": "Conflict semantics.", "visual_eligibility": "keep_only", "reason": "FACT_CONFLICT"},
             {"span_id": "ST003", "actual_start_seconds": "7.000", "actual_end_seconds": "9.000", "summary": "Safe base layer semantics.", "visual_eligibility": "safe", "reason": "safe_real_alignment"},
         ],
     }
+    result["timeline_digest"] = hashlib.sha256(json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return result
 
 
 def directives():
     return {
         "artifact_version": "visual-opportunity-directives/1", "directives_id": "VOD-synthetic-01", "revision": 1,
-        "semantic_timeline_digest": "a" * 64, "reviewed_script_digest": "b" * 64,
+        "semantic_timeline_digest": timeline()["timeline_digest"], "reviewed_script_digest": "b" * 64,
         "directives": [{
             "directive_id": "vod-synthetic-01", "span_id": "ST001", "visual_purpose": "Explain the synthetic sequence.",
             "why_opportunity": "A synthetic causal sequence.", "semantic_context_selector": {"include_neighboring_spans": 1},
@@ -58,17 +61,30 @@ class VisualOpportunityTests(unittest.TestCase):
         mismatch = directives(); mismatch["semantic_timeline_digest"] = "e" * 64
         with self.assertRaisesRegex(VisualOpportunityError, "semantic_timeline_digest"):
             build_visual_opportunity_plan(timeline(), mismatch, defaults=DEFAULTS)
-        fractional = timeline(); fractional["spans"][0]["actual_end_seconds"] = "4.5678"
+        fractional = timeline(); fractional["spans"][0]["actual_end_seconds"] = "4.5678"; payload = dict(fractional); payload.pop("timeline_digest"); fractional["timeline_digest"] = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+        fractional_directives = directives(); fractional_directives["semantic_timeline_digest"] = fractional["timeline_digest"]
         with self.assertRaisesRegex(VisualOpportunityError, "millisecond"):
-            build_visual_opportunity_plan(fractional, directives(), defaults=DEFAULTS)
+            build_visual_opportunity_plan(fractional, fractional_directives, defaults=DEFAULTS)
         leaky = directives(); leaky["directives"][0]["start_ms"] = 1
         with self.assertRaises(VisualOpportunityError):
             build_visual_opportunity_plan(timeline(), leaky, defaults=DEFAULTS)
+
+    def test_rejects_tampered_or_incomplete_semantic_timeline_lineage(self):
+        for field, value in (("actual_start_seconds", "1.000"), ("summary", "tampered")):
+            changed = timeline(); changed["spans"][0][field] = value
+            with self.subTest(field=field), self.assertRaisesRegex(VisualOpportunityError, "timeline_digest"):
+                build_visual_opportunity_plan(changed, directives(), defaults=DEFAULTS)
+        for field in ("alignment_digest", "transcript_digest"):
+            missing = timeline(); missing[field] = ""
+            with self.subTest(field=field), self.assertRaisesRegex(VisualOpportunityError, field):
+                build_visual_opportunity_plan(missing, directives(), defaults=DEFAULTS)
 
     def test_opportunity_identity_is_deterministic_but_changes_for_revised_directives(self):
         first = build_visual_opportunity_plan(timeline(), directives(), defaults=DEFAULTS)
         second = build_visual_opportunity_plan(copy.deepcopy(timeline()), copy.deepcopy(directives()), defaults=copy.deepcopy(DEFAULTS))
         self.assertEqual(first["plan_id"], second["plan_id"])
+        self.assertEqual(first["alignment_digest"], "c" * 64)
+        self.assertEqual(first["transcript_digest"], "d" * 64)
         self.assertEqual(first["opportunities"][0]["opportunity_id"], second["opportunities"][0]["opportunity_id"])
         revised = directives(); revised["revision"] = 2
         changed = build_visual_opportunity_plan(timeline(), revised, defaults=DEFAULTS)

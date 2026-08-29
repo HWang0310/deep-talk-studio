@@ -10,14 +10,22 @@ import uuid
 from pathlib import Path
 from typing import Any, Mapping
 
-from .visual_asset_plugin_contract import validate_generation_result, validate_suitability_request, validate_suitability_response
+from .visual_asset_plugin_contract import validate_generation_request, validate_generation_result, validate_suitability_request, validate_suitability_response
 
 
 def run_visual_plugin(plugin: Mapping[str, Any], *, operation: str, opportunity: Mapping[str, Any], job_root: Path, proposal_id: str | None = None) -> dict:
+    if operation not in {"suitability", "generation"}:
+        raise ValueError("operation 必须是 suitability 或 generation")
+    if operation == "generation" and (not isinstance(proposal_id, str) or not proposal_id):
+        raise ValueError("generation 需要有效 proposal_id")
     request_id = "REQ-" + uuid.uuid4().hex
     request = {"contract_version": "visual-asset-plugin-contract/1", "request_id": request_id, "opportunity": dict(opportunity)}
     if operation == "generation":
         request["proposal_id"] = proposal_id
+    if operation == "suitability":
+        validate_suitability_request(request)
+    else:
+        validate_generation_request(request)
     job = Path(job_root) / request_id; output = job / "output"; job.mkdir(parents=True, exist_ok=False); output.mkdir()
     request_path = job / "request.json"; result_path = job / "result.json"
     request_path.write_text(json.dumps(request, ensure_ascii=False, sort_keys=True), encoding="utf-8")
@@ -29,7 +37,11 @@ def run_visual_plugin(plugin: Mapping[str, Any], *, operation: str, opportunity:
         return _failure(job, "missing_executable")
     except subprocess.TimeoutExpired:
         os.killpg(process.pid, signal.SIGTERM)
-        stdout, stderr = process.communicate()
+        try:
+            stdout, stderr = process.communicate(timeout=1)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            stdout, stderr = process.communicate()
         _logs(job, stdout, stderr); return _failure(job, "timeout")
     _logs(job, stdout, stderr)
     if process.returncode:

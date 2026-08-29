@@ -3,6 +3,7 @@
 ## Unreleased — 2026-08-28 — Multi-Asset Phase 0 contract baseline
 
 - Multi-Asset Phase 1 review-branch implementation: added clock-free directives, Visual Opportunity artifacts and storage, fake-only subprocess configuration/protocol, and the minimal raw-plugin/Core-acceptance Candidate Portfolio slice. No real plugin, Episode, Candidate Pack, release, or V1 writer change is included.
+- Phase 1 review correction: verified canonical Semantic Timeline lineage, made raw Contract cross-stage evidence and Core acceptance explicit, preserved adapter execution locators in portfolios, and made storage reload checks recompute artifact digests.
 
 - Added strict `visual-asset-plugin-contract/1` request/response validators with frozen enum, identifier, failure-envelope, artifact, raw candidate-status, READY/QA_REJECTED, duration, and real A-roll placement invariants.
 - Added a sanitized synthetic Contract V1 corpus, a clock-free `visual-opportunity-directives/1` fixture, a deterministic test-only fake fixture emitter, and disabled placeholder plugin/policy configuration examples.

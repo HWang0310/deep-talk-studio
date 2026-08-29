@@ -4,6 +4,8 @@
 
 ## 2026-08-29：Multi-Asset Phase 1 — Fake Vertical Slice
 
+- Review correction round verifies Semantic Timeline lineage before opportunity construction, requires explicit Core acceptance, validates raw Contract cross-stage identity, preserves operation evidence, and recomputes stored artifact digests on load.
+
 - On `agent/multi-asset-phase1-fake-vertical-slice`, added a sanitized fake-only path: clock-free directives bind to safe `semantic-timeline/1` spans, Core derives exact millisecond windows, and one-shot subprocess jobs write Contract V1 results under Core-owned roots.
 - The minimal immutable `candidate-portfolio/1` preserves raw `READY` / `QA_REJECTED` evidence while recording independent Core `ACCEPTED` / `REJECTED`; ABSTAIN is retained as `NOT_REQUESTED` with no Generation Result or candidate.
 - This is IMPLEMENTED_UNRELEASED on a review branch only. No real plugin repository was opened or invoked; no Candidate Pack, production policy/QA, Episode, merge, tag, GitHub Release, formal release, or `main` change occurred.
