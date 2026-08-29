@@ -11,7 +11,7 @@
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
-| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phase 0 is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Phase 1 is IMPLEMENTED_UNRELEASED on its review branch: a sanitized fake-only Visual Opportunity → subprocess → Candidate Portfolio slice; no real plugin, Candidate Pack, V2 production migration, or episode workflow is implemented. |
+| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phase 0 and Phase 1 are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Phase 1 is a sanitized fake-only Visual Opportunity → subprocess → Candidate Portfolio slice; no real plugin, Candidate Pack, V2 production migration, or episode workflow is implemented. |
 
 ## Current Product Positioning
 
@@ -128,7 +128,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 
 ## Current Next Step
 
-The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 1 is IMPLEMENTED_UNRELEASED on its review branch and awaits ChatGPT review; the next gate after review is Phase 2 breadth, policy, and Core QA. It still excludes real plugin integration.
+The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 1 is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. The next gate is Phase 2: Portfolio breadth, deterministic policy, Core QA, and the production directive boundary; it still excludes real plugin integration.
 
 ## Read Next
 

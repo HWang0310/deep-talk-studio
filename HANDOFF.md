@@ -4,6 +4,8 @@
 
 ## 2026-08-29：Multi-Asset Phase 1 — Fake Vertical Slice
 
+- ChatGPT formally accepted Phase 1 as ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Follow-up schema hardening belongs to Phase 2, and SIGTERM-resistant child regression plus configured identity/version matching belong to the pre-Phase-3A real-plugin gate; neither is implemented here.
+
 - Review correction round verifies Semantic Timeline lineage before opportunity construction, requires explicit Core acceptance, validates raw Contract cross-stage identity, preserves operation evidence, and recomputes stored artifact digests on load.
 
 - On `agent/multi-asset-phase1-fake-vertical-slice`, added a sanitized fake-only path: clock-free directives bind to safe `semantic-timeline/1` spans, Core derives exact millisecond windows, and one-shot subprocess jobs write Contract V1 results under Core-owned roots.

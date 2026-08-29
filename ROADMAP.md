@@ -41,7 +41,7 @@
 
 - Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0's strict validators, sanitized fixtures, test-only fake runner, and static configuration examples are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation.
 - Preserve the accepted multi-repo, plugin-first boundary; no runtime implementation or production-schema adoption has started.
-- The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 1's fake-only Visual Opportunity + subprocess + Candidate Portfolio slice is IMPLEMENTED_UNRELEASED on its review branch and awaits review; it does not integrate a real plugin or create an episode workflow.
+- The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 1's fake-only Visual Opportunity + subprocess + Candidate Portfolio slice is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation; the next gate is Phase 2 portfolio breadth, deterministic policy, Core QA, and the production directive boundary.
 
 ## Approved Next
 
