@@ -27,6 +27,13 @@ def config(specs):
     return {"config_version":"visual-asset-plugin-config/1","plugins":plugins}
 
 class Phase2ReviewOrchestrationTests(unittest.TestCase):
+    def test_review_order_is_stable_when_plugin_config_order_is_shuffled(self):
+        specs=[("B","suitable",True),("A","suitable",True),("C","borderline",True)]
+        with tempfile.TemporaryDirectory() as one, tempfile.TemporaryDirectory() as two:
+            first=orchestrate_candidate_portfolio([O],config(specs),production_profile="RICH",policy=load_candidate_generation_policy(ROOT / "config/candidate-generation-profile.json"),job_root=Path(one))
+            second=orchestrate_candidate_portfolio([O],config(list(reversed(specs))),production_profile="RICH",policy=load_candidate_generation_policy(ROOT / "config/candidate-generation-profile.json"),job_root=Path(two))
+            def order(value): return [(x["plugin_id"],x["suggested_review_order"]) for x in sorted(value["opportunities"][0]["candidates"],key=lambda x:x["plugin_id"])]
+            self.assertEqual(order(first),order(second))
     def test_full_canonical_directive_to_fake_subprocess_portfolio_e2e(self):
         report=ResearchReport.from_dict(approved_report_data()); profile=load_script_profile()
         draft=prepare_script_draft(valid_script_content(),report,profile,created_at="2026-08-29T00:00:00+00:00",script_id="SCR-e2e")
