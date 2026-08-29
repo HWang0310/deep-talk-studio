@@ -1,6 +1,6 @@
 # DeepTalk Studio — Canonical Project State
 
-> **Read this first for current truth.** This file is the concise, canonical state of the product as of 2026-08-28. Historical evidence remains in [HANDOFF.md](HANDOFF.md), release notes, plans, and specs; those sources do not override this file.
+> **Read this first for current truth.** This file is the concise, canonical state of the product as of 2026-08-29. Historical evidence remains in [HANDOFF.md](HANDOFF.md), release notes, plans, and specs; those sources do not override this file.
 
 ## Identity
 
@@ -11,7 +11,7 @@
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
-| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phase 0 and Phase 1 are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Phase 2 is IMPLEMENTED_UNRELEASED and awaiting ChatGPT Review: it broadens the sanitized fake-only Candidate Portfolio with policy, Core QA, production directive authoring, and audit. No real plugin, Candidate Pack, V2 production migration, or episode workflow is implemented. |
+| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phases 0, 1, and 2 are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Phase 2 provides sanitized fake-only Core orchestration, `candidate-portfolio/1`, policy, Core QA, production directive authoring, and immutable audit history. No real plugin, Candidate Asset Pack, `candidate-edit-map/1`, V2 production migration, or episode workflow is implemented. The next gate is Phase 3A. |
 
 ## Current Product Positioning
 
@@ -50,7 +50,7 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 → Multi-option Edit Map → creator manual NLE selection
 ```
 
-This is an **ACCEPTED_UNRELEASED product direction**, not an implemented schema, contract, or production workflow. Candidates are intentionally non-exclusive: they may overlap, have different durations, come from multiple families, and be used singly, together, or not at all.
+This is an **ACCEPTED_UNRELEASED product direction** with a fake-only Core Phase 2 implementation, not a production schema migration, real-plugin integration, or production workflow. Candidates are intentionally non-exclusive: they may overlap, have different durations, come from multiple families, and be used singly, together, or not at all.
 
 The accepted ecosystem principle is **multi-repo, plugin-first**: Core stays stable while visual capabilities are independently researched, optimized, benchmarked, QA'd, and versioned as Visual Asset Plugins. The evidence-derived [Contract V1 design](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture. It is not production implementation, runtime-schema adoption, a release, a tag, or a `main` change.
 
@@ -103,7 +103,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 - Candidate Asset Pack and multi-option Edit Map semantics.
 - `REAL_MATERIAL` as an independent documentary/evidence family, distinct from generated explanation families.
 - Machine records distinguish Generation operation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) from produced Candidate asset outcomes (`READY`, `QA_REJECTED`); Core acceptance is separate and creator packs will default to raw READY plus Core ACCEPTED candidates only. Phase 2 implements this only through sanitized fake subprocess data, not production-schema migration.
-- The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are accepted. No registry, adapter, runtime, migration, portfolio, Candidate Pack, or episode code exists.
+- The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are accepted. Phase 2 implements only the fake-only Core adapter/runtime and `candidate-portfolio/1`; no real plugin registry or runner, migration, Candidate Asset Pack, `candidate-edit-map/1`, or episode code exists.
 
 ## Approved Next / Experimental
 
@@ -127,7 +127,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 
 ## Current Next Step
 
-The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2 is IMPLEMENTED_UNRELEASED and awaiting ChatGPT Review. It provides fake-only portfolio breadth, deterministic policy, Core QA, hardened immutable storage, and production directive authoring; the next gate after review is Phase 3A's independently reviewed real-plugin preflight, which is not implemented.
+The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2 is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation: fake-only portfolio breadth, deterministic policy, Core QA, hardened immutable storage, and production directive authoring. The next gate is Phase 3A's first independently reviewed and pinned real-plugin runner plus one synthetic Core integration; it has not started.
 
 ## Read Next
 

@@ -4,13 +4,13 @@
 
 ## 2026-08-29：Multi-Asset Phase 2 — Portfolio Core QA
 
-- Review correction runs each configured fake plugin through actual Suitability/Generation subprocesses, resolves its fake runtime version through argv-only configuration, stores complete Core execution evidence, and writes the canonical multi-opportunity-shaped `candidate-portfolio/1`. It remains fake-only and awaits ChatGPT Review.
+- ChatGPT formally accepted Phase 2 as ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. The reviewed branch contains fake-only Suitability/Generation subprocess orchestration, resolved fake runtime versions, complete Core execution evidence, and canonical multi-opportunity `candidate-portfolio/1`; it remains synthetic and unreleased.
 
 - Implemented an additive, sanitized fake-only `candidate-portfolio/1` breadth path: independent plugin records retain suitability, generation/no-call, raw response, Core acceptance, typed problems, config/policy digest, audit data, and non-winner `suggested_review_order`.
 - Added deterministic LEAN/STANDARD/RICH policy; `ABSTAIN`, unavailable/failed, disabled plugins, and policy-gated borderline results retain no-call evidence rather than disappearing.
 - Added production directive authoring that derives semantic timeline and reviewed-script digests and binds approved fact references. Only clock-free editorial `visual_intent` / `why_visual` data may be authored.
 - Core QA resolves only fake local-runner URIs inside its output root, checks SHA-256 and ffprobe duration with a 100 ms tolerance, and rejects malformed lineage, duplicate candidate IDs, unsafe paths, missing/bad media, plugin mismatch, factual mismatch, and generated-as-real provenance. Raw `READY` never becomes Core accepted implicitly.
-- Tests create only temporary synthetic video; valid MP4 ffprobe acceptance, invalid media rejection, multi-candidate RICH, failure isolation, and raw READY/Core REJECTED are covered. No real plugin repo, private Episode material, V1 writer, release, tag, or canonical merge changed. The branch awaits ChatGPT Review.
+- Tests create only temporary synthetic video; valid MP4 ffprobe acceptance, invalid media rejection, multi-candidate RICH, failure isolation, and raw READY/Core REJECTED are covered. No real plugin repo, private Episode material, V1 writer, release, tag, Candidate Asset Pack, or `candidate-edit-map/1` work is included. Phase 3A is the next separate gate and has not started.
 
 ## 2026-08-29：Multi-Asset Phase 1 — Fake Vertical Slice
 
