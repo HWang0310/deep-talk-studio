@@ -8,7 +8,7 @@
 - Added only sanitized synthetic material under `tests/fixtures/multi_asset_synthetic/`, including normal suitability/generation/failure paths, closed invalid cases, and one clock-free `visual-opportunity-directives/1` fixture. It contains no private Episode, private script, real A-roll, `KEEP_A_ROLL`, V1 decision, `visual_kind`, or renderer output.
 - Added a deterministic test-only fixture emitter and disabled placeholder configuration examples. No Core adapter, subprocess supervision, Visual Opportunity writer, Candidate Portfolio, real plugin invocation, Candidate Pack, `candidate-edit-map/1`, or Episode workflow is present.
 - Phase 0 review correction removed an invented duplicate `(role, uri)` artifact rejection: Contract V1 permits repeated artifact entries. `QA_REJECTED` remains free of READY delivery requirements, while any optional duration, placement, artifacts, or provenance supplied by a plugin is structurally validated.
-- V1 frozen regressions were run before Phase 0 changes; Phase 0 remains implemented/unreleased and awaits ChatGPT review. No plugin repository, `main`, tag, GitHub Release, or formal release was changed.
+- V1 frozen regressions were run before Phase 0 changes. ChatGPT formally accepted Phase 0 as ACCEPTED / IMPLEMENTED_UNRELEASED; canonical integration is a fast-forward only. The next gate is Phase 1's Visual Opportunity + fake subprocess vertical slice, which has not started. No plugin repository, `main`, tag, GitHub Release, or formal release was changed.
 
 ## 2026-08-28：Multi-Asset Implementation Planning
 

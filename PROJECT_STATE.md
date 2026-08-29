@@ -11,7 +11,7 @@
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
-| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phase 0 contract fixtures and the frozen V1 compatibility baseline are implemented on `agent/multi-asset-phase0-contract-baseline`, remain unreleased, and await ChatGPT review. This adds strict Contract V1 validators, sanitized fixtures, a test-only fake runner, and static examples only; no Multi-Asset runtime, adapter, portfolio, or episode workflow is implemented. |
+| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phase 0 contract fixtures and the frozen V1 compatibility baseline are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. This adds strict Contract V1 validators, sanitized fixtures, a test-only fake runner, and static examples only; no Multi-Asset runtime, adapter, portfolio, or episode workflow is implemented. |
 
 ## Current Product Positioning
 
@@ -128,7 +128,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 
 ## Current Next Step
 
-The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. It defines the proposed local runtime shape, adapters, Candidate Portfolio/Asset Pack/Edit Map schemas, Core-side QA/lineage validation, artifact locator strategy, and V1 compatibility. The next gate is **Phase 0: Contract fixtures + frozen V1 compatibility baseline**, which requires a separate implementation session, branch, and review; production implementation has not started.
+The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 0 is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. The next gate is **Phase 1: Visual Opportunity + fake subprocess vertical slice**; it has not started and still excludes real plugin integration.
 
 ## Read Next
 
