@@ -89,6 +89,9 @@ def core_accept_candidate(opportunity: Mapping[str, Any], suitability_raw: Mappi
     if generation_raw.get("plugin_id") != plugin.get("plugin_id") or suitability_raw.get("plugin_id") != plugin.get("plugin_id"): problems.append(_problem("PLUGIN_ID_MISMATCH", "configured plugin id differs"))
     if generation_raw.get("plugin_version") != plugin.get("plugin_version") or suitability_raw.get("plugin_version") != plugin.get("plugin_version"): problems.append(_problem("PLUGIN_VERSION_MISMATCH", "resolved plugin version differs"))
     if candidate.get("candidate_id") in (seen_candidate_ids or set()): problems.append(_problem("DUPLICATE_CANDIDATE_ID", "candidate id is already present in this portfolio"))
+    if candidate.get("candidate_status") == "QA_REJECTED":
+        problems.append(_problem("PLUGIN_QA_REJECTED", "raw plugin candidate was QA_REJECTED"))
+        return {"status": "REJECTED", "problems": problems}
     if candidate.get("candidate_status") != "READY": problems.append(_problem("PLUGIN_QA_NOT_READY", "raw plugin candidate is not READY"))
     placement, window = candidate.get("suggested_placement", {}), opportunity.get("a_roll_window", {})
     if not isinstance(placement, Mapping) or placement.get("start_ms", -1) < window.get("start_ms", 0) or placement.get("end_ms", -1) > window.get("end_ms", -1): problems.append(_problem("PLACEMENT_OUTSIDE_OPPORTUNITY", "candidate placement escapes opportunity"))
@@ -155,8 +158,8 @@ def orchestrate_candidate_portfolio(opportunities: Sequence[Mapping[str, Any]], 
     """Run the accepted fake-only Core sequence and produce canonical portfolio/1."""
     config = normalize_visual_plugin_config(plugin_config); config_sha = config_digest(config); policy_sha = generation_policy_digest(policy)
     if not opportunities: raise ValueError("at least one opportunity is required")
-    plan_sha = visual_opportunity_plan_digest or _digest({"opportunities": list(opportunities)})
-    if not isinstance(plan_sha,str) or len(plan_sha)!=64: raise ValueError("visual opportunity plan digest invalid")
+    plan_sha = visual_opportunity_plan_digest
+    if not isinstance(plan_sha,str) or len(plan_sha)!=64 or any(char not in "0123456789abcdef" for char in plan_sha): raise ValueError("visual opportunity plan digest invalid")
     identity={"visual_opportunity_plan_digest":plan_sha,"plugin_config_digest":config_sha,"generation_policy_digest":policy_sha,"production_profile":production_profile}
     portfolio_id="CP-"+_digest(identity)[:24]; all_opportunities=[]; audit=[]
     for opportunity in opportunities:

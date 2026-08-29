@@ -56,27 +56,90 @@ def _validate_phase2(value: Mapping[str, Any]) -> None:
         if not isinstance(block,Mapping) or set(block)!={"opportunity","proposals","policy_records","generation_records","candidates"} or not isinstance(block["opportunity"],Mapping) or not _identifier(block["opportunity"].get("opportunity_id")) or block["opportunity"]["opportunity_id"] in seen_opportunities or not all(isinstance(block[k],list) for k in ("proposals","policy_records","generation_records","candidates")): raise CandidatePortfolioStorageError("opportunity portfolio schema 无效")
         seen_opportunities.add(block["opportunity"]["opportunity_id"]); policy={item.get("plugin_id"):item for item in block["policy_records"] if isinstance(item,Mapping)}
         if len(policy)!=len(block["policy_records"]): raise CandidatePortfolioStorageError("policy record 无效")
+        proposal_by_plugin={}
         for proposal in block["proposals"]:
             if not isinstance(proposal,Mapping) or set(proposal)!={"plugin_id","resolved_plugin_version","suitability_execution","suitability_raw"} or not _identifier(proposal.get("plugin_id")): raise CandidatePortfolioStorageError("proposal record 无效")
             raw=proposal["suitability_raw"]
             _validate_execution(proposal["suitability_execution"])
+            if proposal["suitability_execution"] is not None and (proposal["suitability_execution"]["plugin_id"] != proposal["plugin_id"] or proposal["suitability_execution"]["operation"] != "suitability" or proposal["suitability_execution"]["config_digest"] != value["plugin_config_digest"]): raise CandidatePortfolioStorageError("proposal execution lineage 无效")
+            if raw is None and proposal["suitability_execution"] is not None and proposal["suitability_execution"]["status"] != "FAILED": raise CandidatePortfolioStorageError("missing suitability raw 无效")
             if raw is not None:
                 from .visual_asset_plugin_contract import validate_suitability_response
                 try: validate_suitability_response(raw)
                 except Exception as exc: raise CandidatePortfolioStorageError("raw suitability 无效") from exc
+                if raw["plugin_id"] != proposal["plugin_id"] or raw["opportunity_id"] != block["opportunity"]["opportunity_id"] or (proposal["suitability_execution"] is not None and (raw["request_id"] != proposal["suitability_execution"]["request_id"] or raw["plugin_version"] != proposal["resolved_plugin_version"])): raise CandidatePortfolioStorageError("suitability lineage 无效")
+            proposal_by_plugin[proposal["plugin_id"]]=proposal
+        if set(policy)!=set(proposal_by_plugin): raise CandidatePortfolioStorageError("policy/proposal coverage 无效")
+        generation_by_plugin={}
         for record in block["generation_records"]:
             if not isinstance(record,Mapping) or set(record)!={"plugin_id","generation_execution","generation_raw"}: raise CandidatePortfolioStorageError("generation record 无效")
+            _validate_execution(record["generation_execution"])
+            execution=record["generation_execution"]
+            if execution is None or execution["plugin_id"] != record["plugin_id"] or execution["operation"] != "generation" or execution["config_digest"] != value["plugin_config_digest"]: raise CandidatePortfolioStorageError("generation execution lineage 无效")
+            if record["generation_raw"] is None and execution["status"] != "FAILED": raise CandidatePortfolioStorageError("missing generation raw 无效")
             if record["generation_raw"] is not None:
-                _validate_execution(record["generation_execution"])
                 from .visual_asset_plugin_contract import validate_generation_result
                 try: validate_generation_result(record["generation_raw"],block["opportunity"])
                 except Exception as exc: raise CandidatePortfolioStorageError("raw generation 无效") from exc
+                proposal=proposal_by_plugin.get(record["plugin_id"])
+                if proposal is None or execution is None or record["generation_raw"]["request_id"]!=execution["request_id"] or record["generation_raw"]["plugin_id"]!=record["plugin_id"] or record["generation_raw"]["plugin_version"]!=proposal["resolved_plugin_version"] or proposal["suitability_raw"] is None or record["generation_raw"]["proposal_id"]!=proposal["suitability_raw"]["proposal_id"]: raise CandidatePortfolioStorageError("generation lineage 无效")
+            generation_by_plugin[record["plugin_id"]]=record
+        for plugin_id, policy_record in policy.items():
+            if not isinstance(policy_record,Mapping) or set(policy_record)-{"plugin_id","generation_call","no_call_reason"} or policy_record.get("generation_call") not in {"REQUESTED","NOT_REQUESTED"}: raise CandidatePortfolioStorageError("policy shape 无效")
+            if policy_record["generation_call"]=="REQUESTED" and plugin_id not in generation_by_plugin: raise CandidatePortfolioStorageError("requested generation 缺失")
+            if policy_record["generation_call"]=="NOT_REQUESTED" and (plugin_id in generation_by_plugin or not _identifier(policy_record.get("no_call_reason"))): raise CandidatePortfolioStorageError("no-call consistency 无效")
+        accepted=[]
         for candidate in block["candidates"]:
             if not isinstance(candidate,Mapping) or set(candidate)-{"plugin_id","proposal_id","suitability","plugin_candidate","core_acceptance","suggested_review_order"} or not isinstance(candidate.get("plugin_candidate"),Mapping) or not _identifier(candidate["plugin_candidate"].get("candidate_id")): raise CandidatePortfolioStorageError("candidate record 无效")
             candidate_ids.append(candidate["plugin_candidate"]["candidate_id"]); _validate_acceptance(candidate.get("core_acceptance"))
-    if len(candidate_ids)!=len(set(candidate_ids)): raise CandidatePortfolioStorageError("candidate_id 不可重复")
-    if len(value["audit_records"]) < 1 or any(not isinstance(item,Mapping) or set(item)!={"opportunity_id","plugin_id","operation","execution","raw_response","request_snapshot"} or item.get("operation") not in {"suitability","generation"} for item in value["audit_records"]): raise CandidatePortfolioStorageError("audit records 无效")
-    for audit in value["audit_records"]: _validate_execution(audit["execution"])
+            generation=generation_by_plugin.get(candidate["plugin_id"]); proposal=proposal_by_plugin.get(candidate["plugin_id"])
+            if generation is None or generation.get("generation_raw") is None or generation["generation_raw"].get("candidate") != candidate["plugin_candidate"] or proposal is None or proposal["suitability_raw"] is None or candidate.get("proposal_id") != proposal["suitability_raw"].get("proposal_id") or candidate.get("suitability") != proposal["suitability_raw"].get("suitability"): raise CandidatePortfolioStorageError("candidate/raw lineage 无效")
+            if candidate["core_acceptance"].get("status")=="ACCEPTED" and candidate["plugin_candidate"].get("candidate_status")=="READY": accepted.append(candidate)
+            elif "suggested_review_order" in candidate: raise CandidatePortfolioStorageError("rejected candidate 不可有 review order")
+        expected=sorted(accepted,key=lambda item:(0 if item["suitability"]=="SUITABLE" else 1,item["plugin_id"],item["plugin_candidate"]["candidate_id"]))
+        if any(item.get("suggested_review_order")!=index for index,item in enumerate(expected,1)): raise CandidatePortfolioStorageError("suggested_review_order 无效")
+    duplicates={candidate_id for candidate_id in candidate_ids if candidate_ids.count(candidate_id)>1}
+    if duplicates:
+        for block in value["opportunities"]:
+            for candidate in block["candidates"]:
+                if candidate["plugin_candidate"]["candidate_id"] in duplicates:
+                    acceptance=candidate.get("core_acceptance",{}); codes={item.get("code") for item in acceptance.get("problems",[]) if isinstance(item,Mapping)}
+                    if acceptance.get("status")!="REJECTED" or "DUPLICATE_CANDIDATE_ID" not in codes: raise CandidatePortfolioStorageError("duplicate candidate evidence 无效")
+    if any(not isinstance(item,Mapping) or set(item)!={"opportunity_id","plugin_id","operation","execution","raw_response","request_snapshot"} or item.get("operation") not in {"suitability","generation"} for item in value["audit_records"]): raise CandidatePortfolioStorageError("audit records 无效")
+    opportunities={block["opportunity"]["opportunity_id"]:block for block in value["opportunities"]}
+    for audit in value["audit_records"]:
+        _validate_execution(audit["execution"])
+        opportunity_block=opportunities.get(audit["opportunity_id"])
+        execution=audit["execution"]
+        if opportunity_block is None or execution["plugin_id"]!=audit["plugin_id"] or execution["operation"]!=audit["operation"] or execution["config_digest"]!=value["plugin_config_digest"]: raise CandidatePortfolioStorageError("audit lineage 无效")
+        if audit["raw_response"] is None and execution["status"] != "FAILED": raise CandidatePortfolioStorageError("missing audit raw 无效")
+        if audit["request_snapshot"] is None:
+            if execution["status"] != "FAILED": raise CandidatePortfolioStorageError("missing audit request 无效")
+            continue
+        try:
+            if audit["operation"] == "suitability":
+                from .visual_asset_plugin_contract import validate_suitability_request, validate_suitability_response
+                validate_suitability_request(audit["request_snapshot"])
+                if audit["request_snapshot"]["opportunity"] != opportunity_block["opportunity"] or audit["request_snapshot"]["request_id"] != execution["request_id"]: raise CandidatePortfolioStorageError("audit suitability request lineage 无效")
+                if audit["raw_response"] is not None:
+                    validate_suitability_response(audit["raw_response"])
+                    if audit["raw_response"]["request_id"] != execution["request_id"] or audit["raw_response"]["opportunity_id"] != audit["opportunity_id"] or audit["raw_response"]["plugin_id"] != audit["plugin_id"] or audit["raw_response"]["plugin_version"] != execution["resolved_plugin_version"]: raise CandidatePortfolioStorageError("audit suitability raw lineage 无效")
+                    proposal=next((item for item in opportunity_block["proposals"] if item["plugin_id"] == audit["plugin_id"]), None)
+                    if proposal is None or proposal["suitability_raw"] != audit["raw_response"]: raise CandidatePortfolioStorageError("audit suitability history lineage 无效")
+            else:
+                from .visual_asset_plugin_contract import validate_generation_request, validate_generation_result
+                validate_generation_request(audit["request_snapshot"])
+                if audit["request_snapshot"]["opportunity"] != opportunity_block["opportunity"] or audit["request_snapshot"]["request_id"] != execution["request_id"]: raise CandidatePortfolioStorageError("audit generation request lineage 无效")
+                if audit["raw_response"] is not None:
+                    validate_generation_result(audit["raw_response"], opportunity_block["opportunity"])
+                    if audit["raw_response"]["request_id"] != execution["request_id"] or audit["raw_response"]["opportunity_id"] != audit["opportunity_id"] or audit["raw_response"]["plugin_id"] != audit["plugin_id"] or audit["raw_response"]["plugin_version"] != execution["resolved_plugin_version"] or audit["raw_response"]["proposal_id"] != audit["request_snapshot"]["proposal_id"]: raise CandidatePortfolioStorageError("audit generation raw lineage 无效")
+                    proposal=next((item for item in opportunity_block["proposals"] if item["plugin_id"] == audit["plugin_id"]), None)
+                    generation=next((item for item in opportunity_block["generation_records"] if item["plugin_id"] == audit["plugin_id"]), None)
+                    if proposal is None or proposal["suitability_raw"] is None or proposal["suitability_raw"]["proposal_id"] != audit["request_snapshot"]["proposal_id"] or generation is None or generation["generation_raw"] != audit["raw_response"]: raise CandidatePortfolioStorageError("audit generation history lineage 无效")
+        except CandidatePortfolioStorageError:
+            raise
+        except Exception as exc:
+            raise CandidatePortfolioStorageError("audit request or raw response 无效") from exc
 
 def _validate_execution(value: Any) -> None:
     if value is None: return
