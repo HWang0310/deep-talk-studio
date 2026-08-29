@@ -2,6 +2,8 @@
 
 ## Unreleased — 2026-08-29 — Multi-Asset Phase 2 portfolio Core QA
 
+- Review correction: completed real fake-subprocess multi-plugin orchestration, runtime-version and bounded execution evidence, declarative policy loading, canonical `opportunities[]` portfolio/audit shape, verified Reviewed Script directive binding, and Core-owned request factual lineage.
+
 - Added production-safe `visual-opportunity-directives/1` authoring from verified synthetic timeline, reviewed-script digest, and approved factual bindings; only clock-free `visual_intent` / `why_visual` semantics cross the authoring boundary.
 - Added deterministic no-quota LEAN/STANDARD/RICH generation policy, fake-only multi-plugin `candidate-portfolio/1` histories, no-call evidence, audit records, and raw READY plus separate Core acceptance projection.
 - Added Core-owned local-runner artifact resolution, SHA-256, ffprobe duration, placement, lineage, provenance, duplicate-ID, and generated-as-real rejection checks, plus structural fail-closed reload validation for portfolios and opportunity plans.

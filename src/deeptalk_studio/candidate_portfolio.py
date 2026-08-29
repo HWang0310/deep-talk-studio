@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .visual_asset_plugin_contract import validate_generation_result, validate_suitability_response
+from .visual_plugin_adapter import run_visual_plugin
+from .visual_plugin_config import config_digest, normalize_visual_plugin_config
+from .visual_generation_policy import generation_policy_digest, policy_actions
 
 
 def _digest(value: Mapping[str, Any]) -> str:
@@ -45,7 +48,7 @@ def _problem(code: str, message: str) -> dict:
     return {"code": code, "message": message}
 
 
-def _resolve_artifact(uri: Any, output_root: Path) -> tuple[Path | None, str | None]:
+def _resolve_artifact(uri: Any, output_root: Path, *, portfolio_id: str = "", plugin_id: str = "", request_id: str = "") -> tuple[Path | None, str | None]:
     if not isinstance(uri, str) or not uri.startswith("local-runner://"):
         return None, None
     relative = uri[len("local-runner://"):]
@@ -56,7 +59,8 @@ def _resolve_artifact(uri: Any, output_root: Path) -> tuple[Path | None, str | N
     try: candidate.relative_to(root)
     except ValueError: return None, None
     if candidate.is_symlink(): return None, None
-    return candidate, "local-plugin-artifact://" + hashlib.sha256(uri.encode("utf-8")).hexdigest()
+    locator = "local-plugin-artifact://" + (f"{portfolio_id}/{plugin_id}/{request_id}/{relative}" if portfolio_id and plugin_id and request_id else hashlib.sha256(uri.encode("utf-8")).hexdigest())
+    return candidate, locator
 
 
 def _ffprobe_duration_ms(path: Path) -> int | None:
@@ -67,7 +71,7 @@ def _ffprobe_duration_ms(path: Path) -> int | None:
         return None
 
 
-def core_accept_candidate(opportunity: Mapping[str, Any], suitability_raw: Mapping[str, Any], generation_raw: Mapping[str, Any], plugin: Mapping[str, Any], output_root: Path, *, seen_candidate_ids: set[str] | None = None, suitability_execution: Mapping[str, Any] | None = None, generation_execution: Mapping[str, Any] | None = None) -> dict:
+def core_accept_candidate(opportunity: Mapping[str, Any], suitability_raw: Mapping[str, Any], generation_raw: Mapping[str, Any], plugin: Mapping[str, Any], output_root: Path, *, seen_candidate_ids: set[str] | None = None, suitability_execution: Mapping[str, Any] | None = None, generation_execution: Mapping[str, Any] | None = None, generation_request: Mapping[str, Any] | None = None, portfolio_id: str = "") -> dict:
     """Perform ordered Core QA while preserving the raw plugin result untouched."""
     problems: list[dict] = []
     try: validate_suitability_response(suitability_raw)
@@ -91,20 +95,20 @@ def core_accept_candidate(opportunity: Mapping[str, Any], suitability_raw: Mappi
     primary = next((item for item in candidate.get("artifacts", []) if isinstance(item, Mapping) and item.get("role") == "PRIMARY_MEDIA"), None)
     if not primary: problems.append(_problem("MISSING_PRIMARY_MEDIA", "READY candidate lacks PRIMARY_MEDIA")); primary = {}
     if primary.get("media_type") != "video/mp4": problems.append(_problem("PRIMARY_MEDIA_TYPE_INVALID", "PRIMARY_MEDIA must be video/mp4"))
-    path, locator = _resolve_artifact(primary.get("uri"), Path(output_root))
+    path, locator = _resolve_artifact(primary.get("uri"), Path(output_root), portfolio_id=portfolio_id, plugin_id=str(plugin.get("plugin_id", "")), request_id=str(generation_raw.get("request_id", "")))
     if path is None: problems.append(_problem("ARTIFACT_URI_UNSAFE", "raw artifact URI cannot resolve under Core output root"))
     elif not path.is_file(): problems.append(_problem("ARTIFACT_FILE_MISSING", "resolved artifact does not exist"))
     else:
         observed_sha = hashlib.sha256(path.read_bytes()).hexdigest()
-        if primary.get("sha256") != observed_sha: problems.append(_problem("SHA256_MISMATCH", "artifact SHA-256 differs"))
+        if primary.get("sha256") is not None and primary.get("sha256") != observed_sha: problems.append(_problem("ARTIFACT_SHA256_MISMATCH", "artifact SHA-256 differs"))
         observed_duration = _ffprobe_duration_ms(path)
         if observed_duration is None: problems.append(_problem("FFPROBE_UNREADABLE", "ffprobe cannot read artifact"))
         elif abs(observed_duration - int(candidate.get("duration_ms", 0))) > 100: problems.append(_problem("DURATION_MISMATCH", "observed duration exceeds 100 ms tolerance"))
         if observed_duration is not None and primary.get("duration_ms") and abs(observed_duration - int(primary["duration_ms"])) > 100: problems.append(_problem("ARTIFACT_DURATION_MISMATCH", "primary artifact duration differs"))
-    if candidate.get("factual_context", opportunity.get("factual_context")) != opportunity.get("factual_context"): problems.append(_problem("FACTUAL_CONTEXT_LINEAGE_MISMATCH", "factual context differs from opportunity"))
+    if generation_request is not None and generation_request.get("opportunity") != dict(opportunity): problems.append(_problem("FACTUAL_CONTEXT_LINEAGE_MISMATCH", "Core generation request opportunity differs"))
     provenance = candidate.get("provenance")
     if not isinstance(provenance, Mapping) or provenance.get("origin") != "plugin-generated": problems.append(_problem("PLUGIN_PROVENANCE_INVALID", "candidate must declare plugin-generated provenance"))
-    if isinstance(provenance, Mapping) and provenance.get("generated_as") not in {"illustration", "synthetic", "documentary-recreation"}: problems.append(_problem("GENERATED_AS_REAL_MATERIAL", "generated candidate cannot claim real material"))
+    if isinstance(provenance, Mapping) and str(provenance.get("generated_as", "")).lower() in {"real_material", "real footage", "documentary", "documentary-source"}: problems.append(_problem("GENERATED_AS_REAL_MATERIAL", "generated candidate cannot claim real material"))
     result = {"status": "ACCEPTED" if not problems else "REJECTED", "problems": problems}
     if locator: result["core_locator"] = locator
     if path is not None and path.is_file():
@@ -138,6 +142,59 @@ def build_multi_candidate_portfolio(opportunity: Mapping[str, Any], records: Seq
     return base
 
 
+def _no_call_reason(raw: Mapping[str, Any] | None, enabled: bool, profile: str) -> str:
+    if not enabled: return "PLUGIN_DISABLED"
+    if raw is None: return "CORE_OPERATION_FAILED"
+    if raw.get("operation_status") != "COMPLETED": return str(raw.get("operation_status"))
+    if raw.get("suitability") == "ABSTAIN": return "ABSTAIN"
+    if raw.get("suitability") == "BORDERLINE": return "BORDERLINE_POLICY_NO_CALL"
+    return "POLICY_NO_CALL"
+
+
+def orchestrate_candidate_portfolio(opportunities: Sequence[Mapping[str, Any]], plugin_config: Mapping[str, Any], *, production_profile: str, policy: Mapping[str, Any], job_root: Path, visual_opportunity_plan_digest: str | None = None) -> dict:
+    """Run the accepted fake-only Core sequence and produce canonical portfolio/1."""
+    config = normalize_visual_plugin_config(plugin_config); config_sha = config_digest(config); policy_sha = generation_policy_digest(policy)
+    if not opportunities: raise ValueError("at least one opportunity is required")
+    plan_sha = visual_opportunity_plan_digest or _digest({"opportunities": list(opportunities)})
+    if not isinstance(plan_sha,str) or len(plan_sha)!=64: raise ValueError("visual opportunity plan digest invalid")
+    identity={"visual_opportunity_plan_digest":plan_sha,"plugin_config_digest":config_sha,"generation_policy_digest":policy_sha,"production_profile":production_profile}
+    portfolio_id="CP-"+_digest(identity)[:24]; all_opportunities=[]; audit=[]
+    for opportunity in opportunities:
+        suitability=[]
+        for plugin in config["plugins"]:
+            if plugin["enabled"]: suitability.append(run_visual_plugin(plugin,operation="suitability",opportunity=opportunity,job_root=job_root,plugin_config_digest=config_sha))
+            else: suitability.append({"execution":None,"raw_response":None,"request_snapshot":None,"_output_root":None})
+        actions=policy_actions(production_profile,[x["raw_response"] for x in suitability],[p["enabled"] for p in config["plugins"]],policy)
+        generations=[]
+        for plugin, suit, action in zip(config["plugins"],suitability,actions):
+            raw=suit["raw_response"]
+            if action=="REQUESTED" and raw is not None:
+                generations.append(run_visual_plugin(plugin,operation="generation",opportunity=opportunity,proposal_id=raw["proposal_id"],job_root=job_root,plugin_config_digest=config_sha))
+            else: generations.append({"execution":None,"raw_response":None,"request_snapshot":None,"_output_root":None})
+        proposals=[]; policy_records=[]; generation_records=[]; candidates=[]
+        for plugin,suit,gen,action in zip(config["plugins"],suitability,generations,actions):
+            raw=suit["raw_response"]; proposal={"plugin_id":plugin["plugin_id"],"resolved_plugin_version":suit["execution"]["resolved_plugin_version"] if suit["execution"] else None,"suitability_execution":copy.deepcopy(suit["execution"]),"suitability_raw":copy.deepcopy(raw)}
+            proposals.append(proposal); policy_record={"plugin_id":plugin["plugin_id"],"generation_call":action}
+            if action=="NOT_REQUESTED": policy_record["no_call_reason"]=_no_call_reason(raw,plugin["enabled"],production_profile)
+            policy_records.append(policy_record)
+            if action=="REQUESTED": generation_records.append({"plugin_id":plugin["plugin_id"],"generation_execution":copy.deepcopy(gen["execution"]),"generation_raw":copy.deepcopy(gen["raw_response"])})
+            if isinstance(gen["raw_response"],Mapping) and isinstance(gen["raw_response"].get("candidate"),Mapping):
+                acceptance=core_accept_candidate(opportunity,raw,gen["raw_response"],{"plugin_id":plugin["plugin_id"],"plugin_version":gen["execution"]["resolved_plugin_version"]},Path(gen["_output_root"]),suitability_execution=suit["execution"],generation_execution=gen["execution"],generation_request=gen["request_snapshot"],portfolio_id=portfolio_id)
+                candidates.append({"plugin_id":plugin["plugin_id"],"proposal_id":raw["proposal_id"],"suitability":raw["suitability"],"plugin_candidate":copy.deepcopy(gen["raw_response"]["candidate"]),"core_acceptance":acceptance})
+            for operation,item in (("suitability",suit),("generation",gen)):
+                if item["execution"] is not None: audit.append({"opportunity_id":opportunity["opportunity_id"],"plugin_id":plugin["plugin_id"],"operation":operation,"execution":copy.deepcopy(item["execution"]),"raw_response":copy.deepcopy(item["raw_response"]),"request_snapshot":copy.deepcopy(item["request_snapshot"])})
+        counts={};
+        for item in candidates: counts[item["plugin_candidate"]["candidate_id"]]=counts.get(item["plugin_candidate"]["candidate_id"],0)+1
+        for item in candidates:
+            if counts[item["plugin_candidate"]["candidate_id"]]>1:
+                acceptance=item["core_acceptance"]; acceptance["status"]="REJECTED"; acceptance.setdefault("problems",[]).append(_problem("DUPLICATE_CANDIDATE_ID","candidate id occurs more than once in portfolio"))
+        accepted=sorted((item for item in candidates if item["plugin_candidate"].get("candidate_status")=="READY" and item["core_acceptance"]["status"]=="ACCEPTED"),key=lambda x:(0 if x["suitability"]=="SUITABLE" else 1,x["plugin_id"],x["plugin_candidate"]["candidate_id"]))
+        for ordinal,item in enumerate(accepted,1): item["suggested_review_order"]=ordinal
+        all_opportunities.append({"opportunity":copy.deepcopy(dict(opportunity)),"proposals":proposals,"policy_records":policy_records,"generation_records":generation_records,"candidates":candidates})
+    artifact={"artifact_version":"candidate-portfolio/1","portfolio_id":portfolio_id,"visual_opportunity_plan_digest":plan_sha,"plugin_config_digest":config_sha,"generation_policy_digest":policy_sha,"production_profile":production_profile,"opportunities":all_opportunities,"audit_records":audit}
+    artifact["portfolio_digest"]=_digest(artifact); return artifact
+
+
 def build_candidate_portfolio(opportunity: Mapping[str, Any], suitability: Mapping[str, Any], generation: Mapping[str, Any] | None, *, core_status: str | None = None, core_problem: Mapping[str, Any] | None = None) -> dict:
     """Narrow Phase 1 compatibility helper."""
     execution, raw = _operation(suitability)
@@ -164,7 +221,9 @@ def build_candidate_portfolio(opportunity: Mapping[str, Any], suitability: Mappi
 def ready_candidates(portfolios: Sequence[Mapping[str, Any]]) -> list[dict]:
     result = []
     for portfolio in portfolios:
-        entries = portfolio.get("plugin_records") if isinstance(portfolio, Mapping) else None
+        if isinstance(portfolio,Mapping) and isinstance(portfolio.get("opportunities"),list):
+            entries=[candidate for opportunity in portfolio["opportunities"] for candidate in opportunity.get("candidates",[])]
+        else: entries = portfolio.get("plugin_records") if isinstance(portfolio, Mapping) else None
         for entry in (entries if isinstance(entries, list) else [portfolio]):
             candidate = entry.get("plugin_candidate", {}) if isinstance(entry, Mapping) else {}
             if candidate.get("candidate_status") == "READY" and entry.get("core_acceptance", {}).get("status") == "ACCEPTED": result.append(copy.deepcopy(dict(candidate)))

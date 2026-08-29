@@ -4,6 +4,8 @@
 
 ## 2026-08-29：Multi-Asset Phase 2 — Portfolio Core QA
 
+- Review correction runs each configured fake plugin through actual Suitability/Generation subprocesses, resolves its fake runtime version through argv-only configuration, stores complete Core execution evidence, and writes the canonical multi-opportunity-shaped `candidate-portfolio/1`. It remains fake-only and awaits ChatGPT Review.
+
 - Implemented an additive, sanitized fake-only `candidate-portfolio/1` breadth path: independent plugin records retain suitability, generation/no-call, raw response, Core acceptance, typed problems, config/policy digest, audit data, and non-winner `suggested_review_order`.
 - Added deterministic LEAN/STANDARD/RICH policy; `ABSTAIN`, unavailable/failed, disabled plugins, and policy-gated borderline results retain no-call evidence rather than disappearing.
 - Added production directive authoring that derives semantic timeline and reviewed-script digests and binds approved fact references. Only clock-free editorial `visual_intent` / `why_visual` data may be authored.

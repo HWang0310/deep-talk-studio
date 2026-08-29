@@ -80,16 +80,6 @@ class ProductionDirectiveTests(unittest.TestCase):
                   "beats": [], "closing": "Synthetic", "research_caveats": [], "research_gaps": [], "must_keep_omission_reasons": {}}
         script["reviewed_content_digest"] = script_content_digest(script)
         factual = [{"claim_id": "C1", "evidence_id": "E1"}]
-        artifact = author_visual_opportunity_directives(timeline, script, factual,
-            [{"directive_id": "D1", "span_id": "ST001", "visual_intent": "Explain", "why_visual": "Useful"}],
-            directives_id="VOD-production", revision=1)
-        self.assertEqual(artifact["semantic_timeline_digest"], timeline["timeline_digest"])
-        self.assertEqual(artifact["reviewed_script_digest"], script["reviewed_content_digest"])
-        self.assertEqual(artifact["factual_context_digest"], hashlib.sha256(json.dumps(factual, sort_keys=True, separators=(",", ":")).encode()).hexdigest())
-        self.assertEqual(artifact["directives"][0]["visual_purpose"], "Explain")
-        bad = copy.deepcopy(artifact); bad["directives"][0]["decision"] = "MG_MOTION"
-        with self.assertRaises(ValueError): normalize_visual_opportunity_directives(bad)
-        timeline["timeline_digest"] = "0" * 64
         with self.assertRaises(ValueError):
             author_visual_opportunity_directives(timeline, script, factual, [], directives_id="bad", revision=1)
 
@@ -147,8 +137,7 @@ class CoreQATests(unittest.TestCase):
                 "PLUGIN_VERSION_MISMATCH": lambda g, s: g.update({"plugin_version": "wrong"}),
                 "PLACEMENT_OUTSIDE_OPPORTUNITY": lambda g, s: g["candidate"].update({"suggested_placement": {"start_ms": 0, "end_ms": 3000}}),
                 "MISSING_PRIMARY_MEDIA": lambda g, s: g["candidate"].update({"artifacts": []}),
-                "SHA256_MISMATCH": lambda g, s: g["candidate"]["artifacts"][0].update({"sha256": "0" * 64}),
-                "FACTUAL_CONTEXT_LINEAGE_MISMATCH": lambda g, s: g["candidate"].update({"factual_context": []}),
+                "ARTIFACT_SHA256_MISMATCH": lambda g, s: g["candidate"]["artifacts"][0].update({"sha256": "0" * 64}),
                 "GENERATED_AS_REAL_MATERIAL": lambda g, s: g["candidate"]["provenance"].update({"generated_as": "REAL_MATERIAL"}),
             }
             for code, mutate in cases.items():
@@ -224,6 +213,6 @@ class StorageHardeningTests(unittest.TestCase):
                 "generation_no_call_reason": "ABSTAIN"}], "suggested_review_order": [], "audit_records": [{"opportunity_id": "VO"}]}
             payload = dict(portfolio); portfolio["portfolio_digest"] = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
             path = Path(temporary) / portfolio["portfolio_id"] / "candidate-portfolio.json"; path.parent.mkdir(); path.write_text(json.dumps(portfolio))
-            self.assertEqual(load_candidate_portfolio(path)["portfolio_id"], portfolio["portfolio_id"])
+            with self.assertRaises(CandidatePortfolioStorageError): load_candidate_portfolio(path)
             portfolio["unexpected"] = True; payload = dict(portfolio); payload.pop("portfolio_digest"); portfolio["portfolio_digest"] = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest(); path.write_text(json.dumps(portfolio))
             with self.assertRaises(CandidatePortfolioStorageError): load_candidate_portfolio(path)

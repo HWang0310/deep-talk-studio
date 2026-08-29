@@ -11,7 +11,7 @@ OPPORTUNITY = {"opportunity_id": "VO-synthetic-01", "spoken_semantics": "Synthet
 
 
 def plugin(scenario, timeout=2):
-    return {"plugin_id": "fake-visual-plugin", "plugin_root": str(ROOT), "argv_prefix": [sys.executable, "tests/visual_asset_plugin_fakes.py", "--scenario", scenario], "timeout_seconds": timeout, "environment": {}, "enabled": True, "plugin_version_command": [sys.executable, "--version"], "expected_source_revision": "fake-only", "require_clean_worktree": False}
+    return {"plugin_id": "fake-visual-plugin", "plugin_root": str(ROOT), "argv_prefix": [sys.executable, "tests/visual_asset_plugin_fakes.py", "--scenario", scenario], "timeout_seconds": timeout, "environment": {}, "enabled": True, "plugin_version_command": [sys.executable, "tests/visual_asset_plugin_fakes.py", "--version"], "expected_source_revision": "fake-only", "require_clean_worktree": False}
 
 
 class VisualPluginAdapterTests(unittest.TestCase):

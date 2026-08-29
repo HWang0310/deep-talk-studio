@@ -30,10 +30,12 @@ def _is_digest(value: Any) -> bool: return isinstance(value, str) and re.fullmat
 def _identifier(value: Any) -> bool: return isinstance(value, str) and bool(value.strip())
 
 def _validate(value: Any) -> None:
-    if not isinstance(value, Mapping) or value.get("artifact_version") != "candidate-portfolio/1" or not re.fullmatch(r"CP-[0-9a-f]{24}", str(value.get("portfolio_id", ""))) or not _identifier(value.get("opportunity_id")):
+    if not isinstance(value, Mapping) or value.get("artifact_version") != "candidate-portfolio/1" or not re.fullmatch(r"CP-[0-9a-f]{24}", str(value.get("portfolio_id", ""))):
         raise CandidatePortfolioStorageError("portfolio schema 无效")
-    if "plugin_records" in value: _validate_phase2(value)
-    else: _validate_phase1(value)
+    if "opportunities" in value: _validate_phase2(value)
+    else:
+        if not _identifier(value.get("opportunity_id")): raise CandidatePortfolioStorageError("portfolio schema 无效")
+        _validate_phase1(value)
     payload=dict(value); digest=payload.pop("portfolio_digest",None)
     if digest != _digest(payload): raise CandidatePortfolioStorageError("portfolio digest 无效")
 
@@ -47,24 +49,39 @@ def _validate_phase1(value: Mapping[str, Any]) -> None:
     _validate_acceptance(value.get("core_acceptance"))
 
 def _validate_phase2(value: Mapping[str, Any]) -> None:
-    allowed={"artifact_version","portfolio_id","opportunity_id","policy_profile","policy_digest","config_digest","plugin_records","suggested_review_order","audit_records","portfolio_digest"}
-    if set(value) != allowed or value.get("policy_profile") not in {"LEAN","STANDARD","RICH"} or not _is_digest(value.get("policy_digest")) or not _is_digest(value.get("config_digest")) or not isinstance(value.get("plugin_records"), list) or not isinstance(value.get("suggested_review_order"), list) or not isinstance(value.get("audit_records"), list): raise CandidatePortfolioStorageError("Phase 2 portfolio schema 无效")
-    plugin_ids=set(); accepted_ids=[]
-    for entry in value["plugin_records"]:
-        if not isinstance(entry, Mapping): raise CandidatePortfolioStorageError("plugin record 无效")
-        allowed_record={"plugin_id","resolved_plugin_version","enabled","suitability_execution","suitability_raw","generation_call","generation_no_call_reason","generation_execution","generation_raw","plugin_candidate","core_acceptance"}
-        if set(entry) - allowed_record or not _identifier(entry.get("plugin_id")) or not isinstance(entry.get("enabled"), bool) or not _identifier(entry.get("resolved_plugin_version")) or not isinstance(entry.get("suitability_raw"), Mapping) or entry.get("generation_call") not in {"REQUESTED","NOT_REQUESTED"} or entry["plugin_id"] in plugin_ids: raise CandidatePortfolioStorageError("plugin record schema 无效")
-        plugin_ids.add(entry["plugin_id"])
-        if entry["generation_call"] == "NOT_REQUESTED":
-            if not _identifier(entry.get("generation_no_call_reason")) or any(key in entry for key in ("generation_raw","generation_execution","plugin_candidate","core_acceptance")): raise CandidatePortfolioStorageError("no-call evidence 无效")
-        elif "generation_raw" not in entry: raise CandidatePortfolioStorageError("generation evidence 缺失")
-        _validate_acceptance(entry.get("core_acceptance"))
-        candidate=entry.get("plugin_candidate")
-        if candidate is not None:
-            if not isinstance(candidate, Mapping) or not _identifier(candidate.get("candidate_id")): raise CandidatePortfolioStorageError("candidate schema 无效")
-            if entry.get("core_acceptance", {}).get("status") == "ACCEPTED": accepted_ids.append(candidate["candidate_id"])
-    if len(accepted_ids) != len(set(accepted_ids)) or value["suggested_review_order"] != accepted_ids: raise CandidatePortfolioStorageError("review order 或 candidate uniqueness 无效")
-    if len(value["audit_records"]) != len(value["plugin_records"]): raise CandidatePortfolioStorageError("audit record 数量无效")
+    allowed={"artifact_version","portfolio_id","visual_opportunity_plan_digest","plugin_config_digest","generation_policy_digest","production_profile","opportunities","audit_records","portfolio_digest"}
+    if set(value) != allowed or not all(_is_digest(value.get(k)) for k in ("visual_opportunity_plan_digest","plugin_config_digest","generation_policy_digest")) or value.get("production_profile") not in {"LEAN","STANDARD","RICH"} or not isinstance(value.get("opportunities"),list) or not isinstance(value.get("audit_records"),list): raise CandidatePortfolioStorageError("Phase 2 portfolio schema 无效")
+    seen_opportunities=set(); candidate_ids=[]
+    for block in value["opportunities"]:
+        if not isinstance(block,Mapping) or set(block)!={"opportunity","proposals","policy_records","generation_records","candidates"} or not isinstance(block["opportunity"],Mapping) or not _identifier(block["opportunity"].get("opportunity_id")) or block["opportunity"]["opportunity_id"] in seen_opportunities or not all(isinstance(block[k],list) for k in ("proposals","policy_records","generation_records","candidates")): raise CandidatePortfolioStorageError("opportunity portfolio schema 无效")
+        seen_opportunities.add(block["opportunity"]["opportunity_id"]); policy={item.get("plugin_id"):item for item in block["policy_records"] if isinstance(item,Mapping)}
+        if len(policy)!=len(block["policy_records"]): raise CandidatePortfolioStorageError("policy record 无效")
+        for proposal in block["proposals"]:
+            if not isinstance(proposal,Mapping) or set(proposal)!={"plugin_id","resolved_plugin_version","suitability_execution","suitability_raw"} or not _identifier(proposal.get("plugin_id")): raise CandidatePortfolioStorageError("proposal record 无效")
+            raw=proposal["suitability_raw"]
+            _validate_execution(proposal["suitability_execution"])
+            if raw is not None:
+                from .visual_asset_plugin_contract import validate_suitability_response
+                try: validate_suitability_response(raw)
+                except Exception as exc: raise CandidatePortfolioStorageError("raw suitability 无效") from exc
+        for record in block["generation_records"]:
+            if not isinstance(record,Mapping) or set(record)!={"plugin_id","generation_execution","generation_raw"}: raise CandidatePortfolioStorageError("generation record 无效")
+            if record["generation_raw"] is not None:
+                _validate_execution(record["generation_execution"])
+                from .visual_asset_plugin_contract import validate_generation_result
+                try: validate_generation_result(record["generation_raw"],block["opportunity"])
+                except Exception as exc: raise CandidatePortfolioStorageError("raw generation 无效") from exc
+        for candidate in block["candidates"]:
+            if not isinstance(candidate,Mapping) or set(candidate)-{"plugin_id","proposal_id","suitability","plugin_candidate","core_acceptance","suggested_review_order"} or not isinstance(candidate.get("plugin_candidate"),Mapping) or not _identifier(candidate["plugin_candidate"].get("candidate_id")): raise CandidatePortfolioStorageError("candidate record 无效")
+            candidate_ids.append(candidate["plugin_candidate"]["candidate_id"]); _validate_acceptance(candidate.get("core_acceptance"))
+    if len(candidate_ids)!=len(set(candidate_ids)): raise CandidatePortfolioStorageError("candidate_id 不可重复")
+    if len(value["audit_records"]) < 1 or any(not isinstance(item,Mapping) or set(item)!={"opportunity_id","plugin_id","operation","execution","raw_response","request_snapshot"} or item.get("operation") not in {"suitability","generation"} for item in value["audit_records"]): raise CandidatePortfolioStorageError("audit records 无效")
+    for audit in value["audit_records"]: _validate_execution(audit["execution"])
+
+def _validate_execution(value: Any) -> None:
+    if value is None: return
+    fields={"plugin_id","resolved_plugin_version","config_digest","request_id","operation","job_locator","request_locator","result_locator","stdout_locator","stderr_locator","output_locator","status","retryable","reason","started_at","finished_at","runtime_duration_ms"}
+    if not isinstance(value,Mapping) or set(value)!=fields or not _identifier(value.get("plugin_id")) or not isinstance(value.get("resolved_plugin_version"),str) or not _is_digest(value.get("config_digest")) or not _identifier(value.get("request_id")) or value.get("operation") not in {"suitability","generation"} or value.get("status") not in {"COMPLETED","FAILED"} or not isinstance(value.get("retryable"),bool) or not _identifier(value.get("reason")) or not isinstance(value.get("runtime_duration_ms"),int) or value["runtime_duration_ms"]<0 or not all(isinstance(value.get(k),str) and value[k] for k in ("job_locator","request_locator","result_locator","stdout_locator","stderr_locator","output_locator","started_at","finished_at")): raise CandidatePortfolioStorageError("execution evidence 无效")
 
 def _validate_acceptance(value: Any) -> None:
     if value is None: return

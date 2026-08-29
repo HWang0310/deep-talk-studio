@@ -40,7 +40,7 @@
 ### Visual Asset Plugin Contract V1 — accepted architecture
 
 - Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0's strict validators, sanitized fixtures, test-only fake runner, and static configuration examples are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation.
-- Preserve the accepted multi-repo, plugin-first boundary; no runtime implementation or production-schema adoption has started.
+- Preserve the accepted multi-repo, plugin-first boundary; the fake-only Phase 2 runtime exists, while production-schema adoption and real-plugin integration have not started.
 - The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2's fake-only portfolio breadth, deterministic policy, Core QA, storage hardening, and production directive boundary are IMPLEMENTED_UNRELEASED and await ChatGPT Review; the next gate after review is Phase 3A's independently reviewed real-plugin preflight.
 
 ## Approved Next

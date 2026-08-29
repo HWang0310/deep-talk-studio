@@ -16,7 +16,7 @@ T={"artifact_version":"semantic-timeline/1","timeline_id":"ST-01","timing_proven
 T["timeline_digest"]=hashlib.sha256(json.dumps(T,ensure_ascii=False,sort_keys=True,separators=(",",":" )).encode("utf-8")).hexdigest()
 D={"artifact_version":"visual-opportunity-directives/1","directives_id":"VOD-01","revision":1,"semantic_timeline_digest":T["timeline_digest"],"reviewed_script_digest":"b"*64,"directives":[{"directive_id":"D-01","span_id":"ST001","visual_purpose":"Explain.","why_opportunity":"Useful.","semantic_context_selector":{"include_neighboring_spans":0},"factual_context_refs":[]}]}
 DEFAULTS={"language":"zh-CN","canvas":{"width":1920,"height":1080},"target_duration_ms":1500}
-def plugin(scenario): return {"plugin_id":"fake-visual-plugin","plugin_root":str(ROOT),"argv_prefix":[sys.executable,"tests/visual_asset_plugin_fakes.py","--scenario",scenario],"timeout_seconds":2,"environment":{},"enabled":True,"plugin_version_command":[sys.executable,"--version"],"expected_source_revision":"fake-only","require_clean_worktree":False}
+def plugin(scenario): return {"plugin_id":"fake-visual-plugin","plugin_root":str(ROOT),"argv_prefix":[sys.executable,"tests/visual_asset_plugin_fakes.py","--scenario",scenario],"timeout_seconds":2,"environment":{},"enabled":True,"plugin_version_command":[sys.executable,"tests/visual_asset_plugin_fakes.py","--version"],"expected_source_revision":"fake-only","require_clean_worktree":False}
 
 class Phase1VerticalSliceTests(unittest.TestCase):
  def test_synthetic_safe_opportunity_reaches_immutable_accepted_ready_portfolio(self):

@@ -6,5 +6,5 @@
     "RICH": {"generate_suitability": ["SUITABLE", "BORDERLINE"]}
   },
   "never_generate_suitability": ["ABSTAIN"],
-  "notes": "Static policy shape only; Phase 0 does not execute policy."
+  "notes": "Declarative Phase 2 Core policy source; no plugin code is executable from this file."
 }
