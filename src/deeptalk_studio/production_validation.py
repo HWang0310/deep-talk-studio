@@ -81,7 +81,8 @@ def _validate_file_type(path: Path) -> None:
 
 
 def validate_render_asset(
-    asset: Mapping[str, Any], allowed_root: Path, *, generated_visual: bool = False
+    asset: Mapping[str, Any], allowed_root: Path, *, generated_visual: bool = False,
+    artifact_resolver=None, package_id: str = "",
 ) -> Path:
     status = str(asset.get("eligibility_status", ""))
     if status != "ready_to_use":
@@ -93,7 +94,22 @@ def validate_render_asset(
     raw_path = str(asset.get("local_path", "")).strip()
     if not raw_path:
         raise ProductionValidationError("可渲染素材缺少 local_path")
-    path = Path(raw_path).resolve()
+    if artifact_resolver is not None:
+        if not package_id:
+            raise ProductionValidationError("runtime Material resolution 缺少 package identity")
+        try:
+            observation = (
+                artifact_resolver.resolve_generated_visual(package_id, asset)
+                if generated_visual
+                else artifact_resolver.resolve_acquired_material(package_id, asset)
+            )
+        except ValueError as exc:
+            raise ProductionValidationError(
+                f"Material runtime resolution 失败：{exc}"
+            ) from None
+        path = observation.resolved_path
+    else:
+        path = Path(raw_path).resolve()
     root = Path(allowed_root).resolve()
     if not _inside(path, root):
         raise ProductionValidationError("素材文件不在允许的素材目录")

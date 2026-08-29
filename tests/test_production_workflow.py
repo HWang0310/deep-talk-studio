@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+import json
+import shutil
 from pathlib import Path
 
 from deeptalk_studio.material_profile import load_material_profile
@@ -35,7 +37,10 @@ def passing_review():
 class FakeRenderer:
     name = "remotion"
 
-    def prepare_project(self, plan, package, profile, material_root, projects_root):
+    def prepare_project(
+        self, plan, package, profile, material_root, projects_root, *,
+        artifact_resolver=None,
+    ):
         project = Path(projects_root) / plan["production_id"] / self.name
         project.mkdir(parents=True)
         plan_path = project / "production-plan.json"
@@ -129,6 +134,46 @@ class ProductionWorkflowTests(unittest.TestCase):
             manifest_id="MAM-one-renderer", qa_id="PQA-one-renderer", probe_func=self.probe,
         )
         self.assertEqual(requested, ["remotion"])
+
+    def test_relocated_reviewed_material_runs_without_rewriting_package(self):
+        old_repo = self.root / "old" / "deep-talk-studio"
+        new_repo = self.root / "new" / "deep-talk-studio"
+        prepared = prepare_codex_materials(
+            valid_material_content(), self.script, self.report,
+            old_repo / "material_packages", old_repo / "material_assets",
+            load_material_profile(), inspection_manifest(), rights_manifest(),
+            created_at="2026-08-11T10:00:00+08:00", package_id="MAT-relocated",
+        )
+        reviewed = run_codex_material_review(
+            passing_review(), prepared.package, self.script, self.report,
+            old_repo / "material_packages", load_material_profile(),
+            created_at="2026-08-11T11:00:00+08:00", review_id="MRV-relocated",
+        )
+        package_bytes = reviewed.paths.json.read_bytes()
+        shutil.copytree(old_repo, new_repo)
+        shutil.rmtree(old_repo)
+        new_package = new_repo / reviewed.paths.json.relative_to(old_repo)
+        config = new_repo / "config/artifact-runtime.local.json"
+        config.parent.mkdir()
+        config.write_text(json.dumps({
+            "config_version": "artifact-runtime/1",
+            "canonical_repository_root": str(new_repo.resolve()),
+            "trusted_historical_repository_roots": [str(old_repo.resolve())],
+            "current_production_id": "",
+        }), encoding="utf-8")
+        result = run_production_workflow(
+            new_package, self.script, self.report,
+            material_asset_root=new_repo / "material_assets",
+            package_root=new_repo / "production_packages",
+            asset_root=new_repo / "production_assets",
+            project_root=new_repo / "production_projects",
+            renderer_mode="remotion", renderer_factory=lambda name: FakeRenderer(),
+            created_at="2026-08-11T12:00:00+08:00", production_id="PROD-relocated",
+            manifest_id="MAM-relocated", qa_id="PQA-relocated", probe_func=self.probe,
+        )
+
+        self.assertEqual(result.qa["package_gate_status"], "pass")
+        self.assertEqual(new_package.read_bytes(), package_bytes)
 
 
 if __name__ == "__main__":

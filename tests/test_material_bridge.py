@@ -132,5 +132,65 @@ class MaterialBridgeTests(unittest.TestCase):
             self.assertEqual(view["items"][0]["production_status"], "ready")
             self.assertEqual(view["items"][0]["local_path"], str(capture.resolve()))
 
+    def test_relocated_capture_resolves_from_immutable_manifest_and_package(self):
+        from deeptalk_studio.artifact_runtime import RuntimeArtifactResolver, load_artifact_runtime_config
+        from deeptalk_studio.material_capture_manifest import build_material_capture_manifest, save_material_capture_manifest
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            (base / "package-history").mkdir()
+            package_path, _, original = self._reviewed_reference_package(
+                base / "package-history", attach_package_file=False
+            )
+            old_repo = base / "old" / "deep-talk-studio"
+            new_repo = base / "new" / "deep-talk-studio"
+            old_asset_root = old_repo / "material_assets" / original.package_id
+            capture = old_asset_root / "captures/registered/M001-capture.png"
+            capture.parent.mkdir(parents=True)
+            capture.write_bytes(PNG)
+            item = original.materials[0]
+            record = {
+                "material_id": "M001", "source_url": item["source_url"], "source_title": item["title"],
+                "page_number": item["capture"]["page_number"], "capture_region": item["capture"]["capture_region"],
+                "local_path": str(capture.resolve()), "mime_type": "image/png", "byte_size": capture.stat().st_size,
+                "sha256": hashlib.sha256(capture.read_bytes()).hexdigest(), "cue_ids": item["cue_ids"],
+                "captured_at": "2026-08-14T10:00:00+08:00",
+            }
+            capture_manifest_path = save_material_capture_manifest(
+                build_material_capture_manifest(
+                    original.to_dict(), [record], created_at="2026-08-14T10:00:00+08:00"
+                ), old_asset_root,
+            )
+            package_bytes = package_path.read_bytes()
+            manifest_bytes = capture_manifest_path.read_bytes()
+            new_repo.mkdir(parents=True)
+            shutil.copytree(old_repo / "material_assets", new_repo / "material_assets")
+            shutil.rmtree(old_repo)
+            config_path = base / "artifact-runtime.json"
+            config_path.write_text(json.dumps({
+                "config_version": "artifact-runtime/1",
+                "canonical_repository_root": str(new_repo.resolve()),
+                "trusted_historical_repository_roots": [str(old_repo.resolve())],
+                "current_production_id": "",
+            }), encoding="utf-8")
+            resolver = RuntimeArtifactResolver(load_artifact_runtime_config(new_repo, config_path))
+            new_asset_root = new_repo / "material_assets" / original.package_id
+
+            view = build_material_production_view(
+                package_path, self.script, self.report, self.profile, new_asset_root,
+                artifact_resolver=resolver,
+            )
+
+            projected = view["items"][0]
+            self.assertEqual(projected["production_status"], "ready")
+            self.assertEqual(projected["recorded_local_path"], record["local_path"])
+            self.assertEqual(projected["local_path"], str(
+                (new_asset_root / "captures/registered/M001-capture.png").resolve()
+            ))
+            self.assertEqual(package_path.read_bytes(), package_bytes)
+            self.assertEqual(
+                (new_asset_root / "captures/material-capture-manifest-r0001.json").read_bytes(),
+                manifest_bytes,
+            )
+
 
 if __name__ == "__main__": unittest.main()

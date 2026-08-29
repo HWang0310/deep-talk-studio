@@ -83,7 +83,10 @@ def _binding(package: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _validate_record(record: Mapping[str, Any], package: Mapping[str, Any], *, asset_root: Optional[Path]) -> Dict[str, Any]:
+def _validate_record(
+    record: Mapping[str, Any], package: Mapping[str, Any], *,
+    asset_root: Optional[Path], artifact_resolver=None,
+) -> Dict[str, Any]:
     materials = {item.get("material_id"): item for item in package.get("materials", [])}
     material_id = record.get("material_id")
     item = materials.get(material_id)
@@ -108,8 +111,20 @@ def _validate_record(record: Mapping[str, Any], package: Mapping[str, Any], *, a
     raw = record.get("local_path")
     if not isinstance(raw, str) or not raw.strip():
         raise MaterialCaptureManifestError("Capture 缺少本地文件路径")
-    path = Path(raw).resolve()
-    if asset_root is not None and (not _inside(path, asset_root) or path.is_symlink()):
+    recorded_path = Path(raw)
+    if artifact_resolver is not None:
+        try:
+            observation = artifact_resolver.resolve_material_capture(
+                str(package.get("package_id", "")), record
+            )
+        except ValueError as exc:
+            raise MaterialCaptureManifestError(
+                f"Capture runtime resolution 失败：{exc}"
+            ) from None
+        path = observation.resolved_path
+    else:
+        path = recorded_path.resolve()
+    if asset_root is not None and (not _inside(path, Path(asset_root).resolve()) or path.is_symlink()):
         raise MaterialCaptureManifestError("Capture 文件必须位于允许的素材目录且不能是符号链接")
     if not path.is_file() or path.stat().st_size <= 0:
         raise MaterialCaptureManifestError("Capture 文件不存在或为空")
@@ -123,7 +138,8 @@ def _validate_record(record: Mapping[str, Any], package: Mapping[str, Any], *, a
     return {
         "material_id": material_id, "source_url": source_url,
         "source_title": expected["source_title"], "page_number": expected["page_number"],
-        "capture_region": expected["capture_region"], "local_path": str(path),
+        "capture_region": expected["capture_region"],
+        "local_path": raw if artifact_resolver is not None else str(path),
         "mime_type": mime, "byte_size": size, "sha256": digest,
         "cue_ids": expected["cue_ids"], "captured_at": record["captured_at"],
     }
@@ -177,7 +193,9 @@ def save_material_capture_manifest(manifest: Mapping[str, Any], asset_root: Path
     return target
 
 
-def load_material_capture_manifest(asset_root: Path, package: Any) -> Dict[str, Any]:
+def load_material_capture_manifest(
+    asset_root: Path, package: Any, *, artifact_resolver=None
+) -> Dict[str, Any]:
     """Replay an immutable capture manifest and fail closed on any change."""
 
     target = _manifest_path(Path(asset_root))
@@ -200,7 +218,13 @@ def load_material_capture_manifest(asset_root: Path, package: Any) -> Dict[str, 
     records = manifest.get("records")
     if not isinstance(records, list) or not records:
         raise MaterialCaptureManifestError("Capture manifest records 无效")
-    normalized = [_validate_record(record, package_data, asset_root=Path(asset_root).resolve()) for record in records]
+    normalized = [
+        _validate_record(
+            record, package_data, asset_root=Path(asset_root).resolve(),
+            artifact_resolver=artifact_resolver,
+        )
+        for record in records
+    ]
     ids = [record["material_id"] for record in normalized]
     if len(ids) != len(set(ids)):
         raise MaterialCaptureManifestError("Capture manifest 包含重复 Material capture")

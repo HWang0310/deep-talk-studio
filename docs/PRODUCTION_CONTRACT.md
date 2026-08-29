@@ -14,6 +14,8 @@
 
 每次制作都重新检查 allowed root、路径越界、文件存在、真实扩展/MIME、byte size、SHA-256、generated render status 和 eligibility。只有 `ready_to_use` 可 stage。reference-only、permission-required、rejected、missing 或 tampered asset 必须使用原创 Visual、A-roll placeholder 或 Production gap。
 
+工作区迁移后，Motion Manifest 与 Material Package 内 digest-covered 绝对路径仍是不可变历史证据。Core 只允许把位于显式可信历史仓库根、且与 Production/Asset/format 推导出的相对身份完全一致的记录映射到 machine-local 配置的 canonical repository root；映射结果是运行时 observation，不进入原 Manifest、Plan、Package 或 QA digest。任意未知根、路径穿越、身份错配、symlink、越界、缺失、size/SHA 不符或 Manifest 篡改均失败关闭。配置文件 `config/artifact-runtime.local.json` 必须 gitignored，不属于 Production Artifact。
+
 ## Display Text Gate
 
 - 只有版本化 `machine_editorial` 白名单短语可不绑定；“无数字”不再等于 editorial。

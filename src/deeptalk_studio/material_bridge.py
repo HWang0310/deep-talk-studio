@@ -69,7 +69,9 @@ def _review_issues(path: Path, package) -> list:
     return list(artifact.get("issues", []))
 
 
-def build_material_production_view(package_path, script, report, profile, asset_root) -> Dict[str, Any]:
+def build_material_production_view(
+    package_path, script, report, profile, asset_root, *, artifact_resolver=None
+) -> Dict[str, Any]:
     try:
         package = load_material_package(Path(package_path), script, report, profile)
     except MaterialStorageError as exc:
@@ -84,7 +86,9 @@ def build_material_production_view(package_path, script, report, profile, asset_
         for item_id in issue.get("material_ids", [])
     }
     try:
-        capture_manifest = load_material_capture_manifest(Path(asset_root), package)
+        capture_manifest = load_material_capture_manifest(
+            Path(asset_root), package, artifact_resolver=artifact_resolver
+        )
     except MaterialCaptureManifestNotFound:
         capture_manifest = None
         captured_by_material_id = {}
@@ -97,13 +101,37 @@ def build_material_production_view(package_path, script, report, profile, asset_
     items = []
     for item in package.materials:
         production_item = deepcopy(item)
+        recorded_local_path = str(production_item.get("local_path", ""))
         capture_record = captured_by_material_id.get(item["material_id"])
         if capture_record is not None:
+            recorded_local_path = capture_record["local_path"]
+            if artifact_resolver is not None:
+                try:
+                    capture_path = artifact_resolver.resolve_material_capture(
+                        package.package_id, capture_record
+                    ).resolved_path
+                except ValueError as exc:
+                    raise MaterialBridgeError(
+                        f"Material Capture runtime resolution 失败：{exc}"
+                    ) from None
+            else:
+                capture_path = Path(capture_record["local_path"]).resolve()
             production_item.update(
-                local_path=capture_record["local_path"],
+                local_path=str(capture_path),
                 byte_size=capture_record["byte_size"],
                 sha256=capture_record["sha256"],
             )
+        elif artifact_resolver is not None and recorded_local_path:
+            try:
+                production_item["local_path"] = str(
+                    artifact_resolver.resolve_acquired_material(
+                        package.package_id, production_item
+                    ).resolved_path
+                )
+            except ValueError as exc:
+                raise MaterialBridgeError(
+                    f"Material Package runtime resolution 失败：{exc}"
+                ) from None
         if item["material_id"] in non_rights_blocks or item["provenance_status"] != "inspected":
             status = "rejected"
         else:
@@ -117,11 +145,25 @@ def build_material_production_view(package_path, script, report, profile, asset_
             "provenance_status": item["provenance_status"],
             "historical_eligibility_status": item["eligibility_status"],
             "rights_status": item["rights_status"], "rights_basis": item["rights_basis"],
+            "recorded_local_path": recorded_local_path,
             "local_path": production_item["local_path"], "byte_size": production_item["byte_size"], "sha256": production_item["sha256"],
             "production_status": status,
         })
     for visual in package.generated_visuals:
-        status = _validate_local(visual, Path(asset_root)) if visual["render_status"] == "rendered" else "missing_asset"
+        production_visual = deepcopy(visual)
+        recorded_local_path = str(visual.get("local_path", ""))
+        if artifact_resolver is not None and visual["render_status"] == "rendered" and recorded_local_path:
+            try:
+                production_visual["local_path"] = str(
+                    artifact_resolver.resolve_generated_visual(
+                        package.package_id, visual
+                    ).resolved_path
+                )
+            except ValueError as exc:
+                raise MaterialBridgeError(
+                    f"Generated Visual runtime resolution 失败：{exc}"
+                ) from None
+        status = _validate_local(production_visual, Path(asset_root)) if visual["render_status"] == "rendered" else "missing_asset"
         if visual["eligibility_status"] == "rejected": status = "rejected"
         items.append({
             "source_kind": "generated_visual", "source_id": visual["visual_id"],
@@ -131,7 +173,8 @@ def build_material_production_view(package_path, script, report, profile, asset_
             "source_url": "", "normalized_source_url": "", "provenance_status": "inspected",
             "historical_eligibility_status": visual["eligibility_status"],
             "rights_status": "not_applicable", "rights_basis": "DeepTalk Studio generated visual",
-            "local_path": visual["local_path"], "byte_size": visual["byte_size"], "sha256": visual["sha256"],
+            "recorded_local_path": recorded_local_path,
+            "local_path": production_visual["local_path"], "byte_size": visual["byte_size"], "sha256": visual["sha256"],
             "production_status": status,
         })
     view = {
@@ -148,7 +191,12 @@ def build_material_production_view(package_path, script, report, profile, asset_
     return view
 
 
-def validate_material_production_view(view, package_path, script, report, profile, asset_root) -> None:
-    expected = build_material_production_view(package_path, script, report, profile, asset_root)
+def validate_material_production_view(
+    view, package_path, script, report, profile, asset_root, *, artifact_resolver=None
+) -> None:
+    expected = build_material_production_view(
+        package_path, script, report, profile, asset_root,
+        artifact_resolver=artifact_resolver,
+    )
     if dict(view) != expected or view.get("view_digest") != _digest(view):
         raise MaterialBridgeError("Material Production View 与 canonical replay 不一致")

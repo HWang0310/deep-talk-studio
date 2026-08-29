@@ -1,4 +1,6 @@
 import hashlib
+import json
+import shutil
 import tempfile
 import unittest
 from copy import deepcopy
@@ -13,6 +15,7 @@ from deeptalk_studio.production_qa import (
 )
 from deeptalk_studio.production_renderers.base import RenderBatch, RenderOutput
 from deeptalk_studio.production_profile import ProductionValidationError
+from deeptalk_studio.artifact_runtime import RuntimeArtifactResolver, load_artifact_runtime_config
 
 
 def tiny_plan():
@@ -74,6 +77,56 @@ class ProductionQATests(unittest.TestCase):
         self.assertEqual(asset["source_visual_ids"], ["V001"])
         self.assertEqual(asset["production_plan_digest"], "plan-digest")
         validate_motion_manifest(result.manifest, tiny_plan())
+
+    def test_relocated_manifest_validates_runtime_file_without_rewriting_history(self):
+        base = self.root
+        historical_root = base / "historical-repository"
+        canonical_root = base / "canonical-repository"
+        historical_root.mkdir()
+        canonical_root.mkdir()
+        old_clip = historical_root / "production_assets/PROD-qa/assets/MA001.mp4"
+        old_clip.parent.mkdir(parents=True)
+        old_clip.write_bytes(b"sanitized relocated motion")
+        result = build_motion_asset_manifest(
+            tiny_plan(), "remotion",
+            RenderBatch((RenderOutput("MA001", "S001", "motion_clip", old_clip, "ok"),), ()),
+            created_at="2026-08-11T13:00:00+08:00", manifest_id="MAM-relocated",
+            probe_func=self.probe,
+        )
+        original = json.dumps(result.manifest, ensure_ascii=False, sort_keys=True)
+        target = canonical_root / "production_assets/PROD-qa/assets/MA001.mp4"
+        target.parent.mkdir(parents=True)
+        shutil.copy2(old_clip, target)
+        shutil.rmtree(historical_root)
+        config_path = base / "artifact-runtime.json"
+        config_path.write_text(json.dumps({
+            "config_version": "artifact-runtime/1",
+            "canonical_repository_root": str(canonical_root),
+            "trusted_historical_repository_roots": [str(historical_root.resolve())],
+            "current_production_id": "PROD-qa",
+        }), encoding="utf-8")
+        resolver = RuntimeArtifactResolver(
+            load_artifact_runtime_config(canonical_root, config_path)
+        )
+
+        observations = validate_motion_manifest(
+            result.manifest, tiny_plan(), artifact_resolver=resolver
+        )
+
+        self.assertEqual(observations["MA001"].resolved_path, target.resolve())
+        self.assertEqual(
+            json.dumps(result.manifest, ensure_ascii=False, sort_keys=True), original
+        )
+        tampered = deepcopy(result.manifest)
+        tampered["assets"][0]["output_path"] = str(
+            historical_root.resolve() / "production_assets/PROD-qa/assets/MA999.mp4"
+        )
+        from deeptalk_studio.production_qa import _digest
+        tampered["manifest_digest"] = _digest(tampered, "manifest_digest")
+        with self.assertRaisesRegex(ProductionValidationError, "identity"):
+            validate_motion_manifest(
+                tampered, tiny_plan(), artifact_resolver=resolver
+            )
 
     def test_zero_byte_wrong_dimensions_and_missing_output_become_clip_failures(self):
         zero = self.root / "zero.mp4"

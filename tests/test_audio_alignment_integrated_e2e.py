@@ -32,7 +32,7 @@ class AudioAlignmentIntegratedE2E(unittest.TestCase):
    upstream=Path(temp)/"upstream";report,script,package,asset_root,plan,manifest,production_qa=create_integrated_roots(upstream)
    session=Path(temp)/"session";session.mkdir();source=build_media_fixture(session,MediaFixtureSpec(name="clean-aroll",duration="2",internal_gap=True))
    from deeptalk_studio.edit_bridge_session import RealEditBridgeSessionInputs
-   output=session/"DeepTalk-Aligned-Edit";inputs=RealEditBridgeSessionInputs(session,source,report,script,package,plan,manifest,production_qa,asset_root,(asset_root,upstream/"production-assets",output,session),output)
+   output=session/"DeepTalk-Aligned-Edit";inputs=RealEditBridgeSessionInputs(session,source,report,script,package,plan,manifest,production_qa,asset_root,(asset_root,upstream/"production_assets",output,session),output)
    result=run_real_edit_bridge_session(inputs,ScriptProvider(inputs.script),clock=lambda:"2026-08-13T21:00:00+08:00",id_factory=lambda kind:{"MEDIA":"NM-E2E","MAPPING":"MAP-E2E","TRANSCRIPT":"TR-E2E","SUBTITLE":"SUB-E2E","ALIGNMENT":"AL-E2E","BRIDGE":"EB-E2E"}[kind])
    self.assertTrue(result.preview_path.is_file());self.assertGreater(result.preview_path.stat().st_size,0)
    self.assertIn(result.qa["package_gate_status"],{"pass","warnings"})

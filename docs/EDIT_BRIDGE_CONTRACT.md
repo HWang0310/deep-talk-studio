@@ -15,4 +15,6 @@
 - Clean A-roll 音频是唯一主音轨，原正偏移和内部静音必须保留。
 - 字幕只使用真实 Transcript unit boundary。segment-only 保持 coarse；Subtitle/Profile/Transcript digest、renderer enablement 和 Preview Manifest binding 必须由 QA 重推导。
 - Rights/Reuse 提示不进入制作 Gate；来源、身份、事实 grounding、文件 path/SHA/MIME/codec 仍必须通过。
+- historical absolute path 是 digest-covered 证据，不因工作区迁移而改写。`align-video` 通过 machine-local canonical root、显式可信 historical roots 和消费者推导的 artifact-relative identity 生成独立 runtime observation；任何 unknown root、traversal、identity mismatch、symlink、missing、size/SHA mismatch 或 artifact tampering 均失败关闭。
+- machine-local 配置若给出 `current_production_id`，只接受该精确且 bindings 合格的 Production。未配置时的兼容 fallback 只按 Artifact 自有时间、revision、identity 与 lexical path 确定性排序，不读取 filesystem mtime；正式不可变 current-production index 仍是后续架构项。
 - synthetic pass 只说明实现和对抗测试通过；真实用户拖入实际 Clean A-roll 并审看成片前，不得声称真实 E2E 或 V1.0 pass。

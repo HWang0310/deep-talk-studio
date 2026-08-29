@@ -148,6 +148,45 @@ class ProductionValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(ProductionValidationError, "SHA|大小"):
                 validate_render_asset(asset, root, generated_visual=True)
 
+    def test_relocated_generated_visual_is_resolved_without_changing_material_record(self):
+        import json
+        from copy import deepcopy
+        from deeptalk_studio.artifact_runtime import RuntimeArtifactResolver, load_artifact_runtime_config
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base = Path(temp_dir)
+            old_repo = base / "old" / "deep-talk-studio"
+            new_repo = base / "new" / "deep-talk-studio"
+            old_path = old_repo / "material_assets/MAT1/generated/V001.svg"
+            old_path.parent.mkdir(parents=True)
+            payload = b'<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+            old_path.write_bytes(payload)
+            new_path = new_repo / "material_assets/MAT1/generated/V001.svg"
+            new_path.parent.mkdir(parents=True)
+            new_path.write_bytes(payload)
+            asset = {
+                "visual_id": "V001", "local_path": str(old_path.resolve()),
+                "byte_size": len(payload), "sha256": hashlib.sha256(payload).hexdigest(),
+                "render_status": "rendered", "eligibility_status": "ready_to_use",
+            }
+            original = deepcopy(asset)
+            old_path.unlink()
+            config = base / "artifact-runtime.json"
+            config.write_text(json.dumps({
+                "config_version": "artifact-runtime/1",
+                "canonical_repository_root": str(new_repo.resolve()),
+                "trusted_historical_repository_roots": [str(old_repo.resolve())],
+                "current_production_id": "",
+            }), encoding="utf-8")
+            resolver = RuntimeArtifactResolver(load_artifact_runtime_config(new_repo, config))
+
+            resolved = validate_render_asset(
+                asset, new_repo / "material_assets/MAT1", generated_visual=True,
+                artifact_resolver=resolver, package_id="MAT1",
+            )
+
+            self.assertEqual(resolved, new_path.resolve())
+            self.assertEqual(asset, original)
+
     def test_render_asset_rejects_missing_path_traversal_and_unsafe_statuses(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

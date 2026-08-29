@@ -39,4 +39,5 @@ edit_bridge_projects/**
 !edit_bridge_projects/.gitkeep
 .cache/
 config/visual-asset-plugins.local.json
+config/artifact-runtime.local.json
 candidate_plugin_runs/**

@@ -2,6 +2,14 @@
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-08-30：Core relocation-safe artifact semantics
+
+- Root cause: Motion Manifest, reviewed Material Package, and Capture Manifest correctly retained digest-covered absolute paths from the former workspace, while consumers incorrectly treated those historical locations as current runtime truth. The same code path also chose “current” Production by filesystem mtime.
+- Added one strict Core resolver backed by ignored machine-local canonical/historical-root configuration. It maps only exact lineage-derived identities and rechecks containment, symlinks, existence, size, SHA-256, artifact bindings, and outer digests; historical JSON bytes and digests are never rewritten.
+- Motion, Material/Capture replay, Production planning/staging, Edit Bridge placement, and canonical QA now share the verified runtime observation. Explicit current Production selection is exact; fallback is deterministic from artifact fields and documents the absence of a formal immutable current-production index.
+- Sanitized old-root → new-root regressions cover success plus unknown root, traversal/unexpected absolute path, symlink, missing file, size/SHA/identity mismatch, and manifest tampering. The existing machine-local current Production chain replayed successfully without committing Episode data or user-specific configuration.
+- This is Core-only and unreleased. MG, Illustrated, Hand-drawn, historical artifacts, `main`, tags, and Releases remain untouched.
+
 ## 2026-08-29：Multi-Asset Phase 2 — Portfolio Core QA
 
 - ChatGPT formally accepted Phase 2 as ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. The reviewed branch contains fake-only Suitability/Generation subprocess orchestration, resolved fake runtime versions, complete Core execution evidence, and canonical multi-opportunity `candidate-portfolio/1`; it remains synthetic and unreleased.

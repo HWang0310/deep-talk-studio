@@ -28,6 +28,7 @@ class CanonicalEditBridgeQAContext:
  subtitle_artifact:Optional[Mapping[str,Any]]=None;subtitle_profile:Optional[Mapping[str,Any]]=None
  episode_visual_preference:Optional[Mapping[str,Any]]=None;post_alignment_visual_plan:Optional[Mapping[str,Any]]=None
  output_truth_evidence:Optional[Mapping[str,Any]]=None
+ artifact_resolver:Optional[Any]=None
 
 REQUIRED_GROUPS={"root","transcript","alignment","placement","preview"}
 
@@ -77,7 +78,7 @@ def _validate_root_chain(context):
  if sha256_file(source)!=context.media["sha256"]:raise EditBridgeQAError("Clean A-roll SHA 已变化")
  evidence=probe_narration_media(source)
  if Decimal(evidence.presentation_duration_seconds)!=Decimal(str(context.media["presentation_duration_seconds"])):raise EditBridgeQAError("Clean A-roll presentation duration 已变化")
- validate_motion_manifest(context.motion_manifest,context.production_plan)
+ validate_motion_manifest(context.motion_manifest,context.production_plan,artifact_resolver=context.artifact_resolver)
  validate_production_qa(context.production_qa,context.production_plan,context.motion_manifest)
  expected={
   "narration_media_digest":_root_digest(context.media,"artifact_digest"),
@@ -122,11 +123,11 @@ def _validate_placement_chain(context):
  from .edit_bridge_planner import build_base_aroll_placement,build_visual_placements,build_visual_plan_placements,derive_placement_timing
  from .edit_bridge_validation import validate_edit_bridge
  from .material_bridge import validate_material_production_view
- validate_material_production_view(context.material_view,context.material_package_path,context.script,context.report,context.material_profile,context.material_asset_root)
+ validate_material_production_view(context.material_view,context.material_package_path,context.script,context.report,context.material_profile,context.material_asset_root,artifact_resolver=context.artifact_resolver)
  if getattr(context,"post_alignment_visual_plan",None) is not None:
-  raw=(build_base_aroll_placement(context.media),)+build_visual_plan_placements(context.post_alignment_visual_plan,context.material_view,context.production_plan,context.motion_manifest,context.allowed_roots)
+  raw=(build_base_aroll_placement(context.media),)+build_visual_plan_placements(context.post_alignment_visual_plan,context.material_view,context.production_plan,context.motion_manifest,context.allowed_roots,artifact_resolver=context.artifact_resolver)
  else:
-  raw=build_visual_placements(context.alignment,context.material_view,context.production_plan,context.motion_manifest,context.media,context.allowed_roots,context.production_qa)
+  raw=build_visual_placements(context.alignment,context.material_view,context.production_plan,context.motion_manifest,context.media,context.allowed_roots,context.production_qa,artifact_resolver=context.artifact_resolver)
  derived=derive_placement_timing(raw,context.timing_profiles)
  if tuple(context.timing_result.placements)!=tuple(derived.placements) or tuple(context.timing_result.conflicts)!=tuple(derived.conflicts) or tuple(context.timing_result.adjustments)!=tuple(derived.adjustments):raise EditBridgeQAError("Placement timing 无法从 canonical roots 重推导")
  if context.previous_bridge is not None:

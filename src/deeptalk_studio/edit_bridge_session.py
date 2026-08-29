@@ -26,6 +26,8 @@ class RealEditBridgeSessionInputs:
     material_asset_root: Path
     allowed_roots: Sequence[Path]
     output_root: Path
+    artifact_resolver: Optional[Any] = None
+    material_view: Optional[Mapping[str, Any]] = None
 
 
 @dataclass(frozen=True)
@@ -46,7 +48,16 @@ def _json(path: Path):
     return value
 
 
-def _newest(paths, predicate, label):
+def _artifact_order(path, value):
+    return (
+        str(value.get("created_at") or value.get("generated_at") or ""),
+        int(value.get("revision", 0) or 0),
+        str(value.get("production_id") or value.get("package_id") or value.get("script_id") or value.get("report_id") or ""),
+        str(path),
+    )
+
+
+def _matching_artifacts(paths, predicate):
     candidates = []
     for path in paths:
         try:
@@ -54,37 +65,63 @@ def _newest(paths, predicate, label):
         except RealEditBridgeSessionError:
             continue
         if predicate(value):
-            candidates.append((path.stat().st_mtime_ns, str(path), path, value))
+            candidates.append((path, value))
+    return candidates
+
+
+def _newest(paths, predicate, label):
+    candidates = _matching_artifacts(paths, predicate)
     if not candidates:
         raise RealEditBridgeSessionError(f"没有找到可用的{label}")
-    candidates.sort()
-    return candidates[-1][2], candidates[-1][3]
+    candidates.sort(key=lambda item: _artifact_order(item[0], item[1]))
+    return candidates[-1]
+
+
+def _select_current_production(paths, predicate, current_production_id):
+    """Select explicit current truth, or deterministic artifact-owned fallback."""
+    candidates = _matching_artifacts(paths, predicate)
+    if current_production_id:
+        candidates = [
+            item for item in candidates
+            if item[1].get("production_id") == current_production_id
+        ]
+        if len(candidates) != 1:
+            raise RealEditBridgeSessionError("configured current Production Plan 不存在或不唯一")
+        return candidates[0]
+    if not candidates:
+        raise RealEditBridgeSessionError("没有找到可用的Production Plan")
+    candidates.sort(key=lambda item: _artifact_order(item[0], item[1]))
+    return candidates[-1]
 
 
 def resolve_real_edit_bridge_session(session_root, repo_root=None):
     """Find one user video and its newest matching approved canonical roots."""
     from .material_profile import load_material_profile
+    from .material_bridge import build_material_production_view
     from .material_storage import load_material_package
     from .production_qa import validate_motion_manifest, validate_production_qa
     from .script_profile import load_script_profile
     from .script_storage import load_script
     from .validation import validate_report
+    from .artifact_runtime import RuntimeArtifactResolver, load_artifact_runtime_config
 
     session = Path(session_root).resolve()
     root = Path(repo_root or Path(__file__).resolve().parents[2]).resolve()
+    runtime_config = load_artifact_runtime_config(root)
+    artifact_resolver = RuntimeArtifactResolver(runtime_config)
     videos = [
         path for path in session.iterdir()
         if path.is_file() and not path.is_symlink() and path.suffix.casefold() in {".mp4", ".mov", ".m4v"}
     ] if session.is_dir() else []
     if len(videos) != 1:
         raise RealEditBridgeSessionError("请只放入一个已经剪好口气的真人口播视频")
-    production_path, plan = _newest(
+    production_path, plan = _select_current_production(
         (root / "production_packages").rglob("production-plan-r*.json"),
         lambda value: (
             value.get("qa_state", {}).get("state") if isinstance(value.get("qa_state"), dict)
             else value.get("qa_state")
         ) in {"pass", "warnings", "not_run"},
-        "Production Plan",
+        runtime_config.current_production_id,
     )
     production_dir = production_path.parent
     manifest_path, manifest = _newest(
@@ -97,7 +134,7 @@ def resolve_real_edit_bridge_session(session_root, repo_root=None):
         lambda value: value.get("production_plan_digest") == plan.get("plan_digest"),
         "Production QA",
     )
-    validate_motion_manifest(manifest, plan)
+    validate_motion_manifest(manifest, plan, artifact_resolver=artifact_resolver)
     validate_production_qa(production_qa, plan, manifest)
     # Production 0.6 does not carry report_id. Bind via reviewed Script first,
     # then resolve its exact report identity/revision.
@@ -124,14 +161,19 @@ def resolve_real_edit_bridge_session(session_root, repo_root=None):
         and value.get("status") in {"reviewed", "reviewed_with_warnings"},
         "已审查 Material Package",
     )
-    load_material_package(material_path, script, report, load_material_profile())
+    material_profile = load_material_profile()
+    load_material_package(material_path, script, report, material_profile)
     material_asset_root = root / "material_assets" / str(plan["material_package_id"])
+    material_view = build_material_production_view(
+        material_path, script, report, material_profile, material_asset_root,
+        artifact_resolver=artifact_resolver,
+    )
     output_root = session / "DeepTalk-Aligned-Edit"
     return RealEditBridgeSessionInputs(
         session, videos[0], report, script, material_path, plan, manifest, production_qa,
         material_asset_root,
         (material_asset_root, root / "production_assets", output_root, session),
-        output_root,
+        output_root, artifact_resolver, material_view,
     )
 
 
@@ -192,14 +234,21 @@ def run_real_edit_bridge_session(
     subtitle_profile = load_subtitle_profile()
     subtitle = build_subtitle_artifact(transcript, media, subtitle_profile, subtitle_id=id_factory("SUBTITLE"), created_at=now)
     material_profile = load_material_profile()
-    material_view = build_material_production_view(inputs.material_package_path, inputs.script, inputs.report, material_profile, inputs.material_asset_root)
+    material_view = build_material_production_view(
+        inputs.material_package_path, inputs.script, inputs.report, material_profile,
+        inputs.material_asset_root, artifact_resolver=inputs.artifact_resolver,
+    )
     material_package = json.loads(inputs.material_package_path.read_text(encoding="utf-8"))
     cues = material_package["cue_sheet"]
     alignment_profile = load_alignment_profile()
     alignment = build_script_alignment(inputs.script, transcript, mapping, alignment_profile, cues, alignment_id=id_factory("ALIGNMENT"), created_at=now, media=media)
     rough_profile = load_rough_cut_profile(material_profile); preview_profile = load_aligned_preview_profile()
     allowed_roots = tuple(Path(path).resolve() for path in inputs.allowed_roots) + (root,)
-    raw_placements = build_visual_placements(alignment, material_view, inputs.production_plan, inputs.motion_manifest, media, allowed_roots, inputs.production_qa)
+    raw_placements = build_visual_placements(
+        alignment, material_view, inputs.production_plan, inputs.motion_manifest,
+        media, allowed_roots, inputs.production_qa,
+        artifact_resolver=inputs.artifact_resolver,
+    )
     timing_profiles = (rough_profile, preview_profile, media["presentation_duration_seconds"])
     timing = derive_placement_timing(raw_placements, timing_profiles)
     report_digest = canonical_digest(inputs.report.data)
@@ -231,7 +280,10 @@ def run_real_edit_bridge_session(
         preview_profile, preview_manifest, preview_path, project.staged_placement_ids,
         allowed_roots, project, renderer,
     )
-    context = replace(context, subtitle_artifact=subtitle, subtitle_profile=subtitle_profile)
+    context = replace(
+        context, subtitle_artifact=subtitle, subtitle_profile=subtitle_profile,
+        artifact_resolver=inputs.artifact_resolver,
+    )
     qa = run_canonical_edit_bridge_qa(context)
     if qa["package_gate_status"] == "fail":
         raise RealEditBridgeSessionError("正式 Edit Bridge QA 未通过")
@@ -275,11 +327,11 @@ def load_real_edit_bridge_session_result(session_root, *, renderer=None):
     )
     chunk_plan=plan_transcription_chunks(bundle.extracted_audio,bundle.mapping,chunk_profile)
     alignment=load_script_alignment(sorted((root/"alignment").rglob("script-alignment-r*.json"))[-1])
-    material_profile=load_material_profile();material_view=build_material_production_view(inputs.material_package_path,inputs.script,inputs.report,material_profile,inputs.material_asset_root)
+    material_profile=load_material_profile();material_view=build_material_production_view(inputs.material_package_path,inputs.script,inputs.report,material_profile,inputs.material_asset_root,artifact_resolver=inputs.artifact_resolver)
     material_package=_json(inputs.material_package_path);cues=material_package["cue_sheet"];alignment_profile=load_alignment_profile()
     rough=load_rough_cut_profile(material_profile);preview_profile=load_aligned_preview_profile();timing_profiles=(rough,preview_profile,bundle.media["presentation_duration_seconds"])
     allowed=tuple(Path(path).resolve() for path in inputs.allowed_roots)+(root,)
-    raw=build_visual_placements(alignment,material_view,inputs.production_plan,inputs.motion_manifest,bundle.media,allowed,inputs.production_qa);timing=derive_placement_timing(raw,timing_profiles)
+    raw=build_visual_placements(alignment,material_view,inputs.production_plan,inputs.motion_manifest,bundle.media,allowed,inputs.production_qa,artifact_resolver=inputs.artifact_resolver);timing=derive_placement_timing(raw,timing_profiles)
     bridge=load_edit_bridge(sorted((root/"bridge").rglob("edit-bridge-r*.json"))[-1]);preview_path=root/"outputs"/"ALIGNED_PREVIEW.mp4"
     revised_previews=sorted((root/"outputs").glob("ALIGNED_PREVIEW-r*.mp4"))
     if revised_previews:preview_path=revised_previews[-1]
@@ -287,7 +339,7 @@ def load_real_edit_bridge_session_result(session_root, *, renderer=None):
     manifest_path=(root/"outputs"/"aligned-preview-manifest.json") if revision==1 else (root/"outputs"/f"aligned-preview-manifest-r{revision:04d}.json")
     qa_path=(root/"outputs"/"edit-bridge-qa.json") if revision==1 else (root/"outputs"/f"edit-bridge-qa-r{revision:04d}.json")
     manifest=_json(manifest_path);qa=_json(qa_path)
-    context=CanonicalEditBridgeQAContext(bundle.media,bundle.extracted_audio,bundle.mapping,chunk_plan,chunk_profile,bundle.transcript,inputs.script,alignment_profile,cues,alignment,material_view,inputs.material_package_path,inputs.report,material_profile,inputs.material_asset_root,inputs.production_plan,inputs.motion_manifest,inputs.production_qa,tuple(bridge["visual_placements"]),timing_profiles,timing,bridge,preview_profile,manifest,preview_path,tuple(manifest["used_placement_ids"]),allowed,None,renderer or RemotionAlignedPreviewRenderer(),subtitle_artifact=subtitle,subtitle_profile=subtitle_profile)
+    context=CanonicalEditBridgeQAContext(bundle.media,bundle.extracted_audio,bundle.mapping,chunk_plan,chunk_profile,bundle.transcript,inputs.script,alignment_profile,cues,alignment,material_view,inputs.material_package_path,inputs.report,material_profile,inputs.material_asset_root,inputs.production_plan,inputs.motion_manifest,inputs.production_qa,tuple(bridge["visual_placements"]),timing_profiles,timing,bridge,preview_profile,manifest,preview_path,tuple(manifest["used_placement_ids"]),allowed,None,renderer or RemotionAlignedPreviewRenderer(),subtitle_artifact=subtitle,subtitle_profile=subtitle_profile,artifact_resolver=inputs.artifact_resolver)
     artifacts={"media":bundle.media,"extracted":bundle.extracted_audio,"mapping":bundle.mapping,"chunk_plan":chunk_plan,"transcript":bundle.transcript,"subtitle":subtitle,"subtitle_profile":subtitle_profile,"alignment":alignment,"material_view":material_view,"timing":timing,"bridge":bridge,"preview_manifest":manifest,"qa_context":context}
     return RealEditBridgeSessionResult(artifacts,{"bridge":sorted((root/"bridge").rglob("edit-bridge-r*.json"))[-1],"preview":preview_path},preview_path,qa)
 

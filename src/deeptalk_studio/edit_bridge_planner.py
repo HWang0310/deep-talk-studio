@@ -65,7 +65,7 @@ def _semantic(p,cue):
       canonical_in_timecode=format_canonical_timecode(start),canonical_out_timecode=format_canonical_timecode(end),target_duration_seconds=str(end-start),confidence=cue.get("confidence","none"))
 
 
-def build_visual_placements(alignment,material_view,production_plan,motion_manifest,media,allowed_roots,production_qa=None):
+def build_visual_placements(alignment,material_view,production_plan,motion_manifest,media,allowed_roots,production_qa=None,*,artifact_resolver=None):
     result=[]
     for item in material_view.get("items",[]):
         p=_base_fields(); p.update(placement_id=f"VP{len(result)+1:04d}",track_order=len(result)+1,source_id=item["source_id"],
@@ -86,16 +86,25 @@ def build_visual_placements(alignment,material_view,production_plan,motion_manif
         else: p.update(placement_status="ready",layout_mode="full_screen_broll",duration_status="natural")
         result.append(p)
     if motion_manifest:
+        motion_observations={}
         if production_qa is None:
             if motion_manifest.get("qa_status")!="ready": raise EditBridgePlanningError("Motion Manifest QA 未通过")
+            if artifact_resolver is not None:
+                try:
+                    motion_observations={
+                        asset.get("motion_asset_id"):artifact_resolver.resolve_motion_asset(production_plan,asset)
+                        for asset in motion_manifest.get("assets",[])
+                    }
+                except ValueError as exc:
+                    raise EditBridgePlanningError(f"Motion Asset runtime resolution 失败：{exc}") from None
         else:
             from .production_qa import validate_motion_manifest,validate_production_qa
-            validate_motion_manifest(motion_manifest,production_plan)
+            motion_observations=validate_motion_manifest(motion_manifest,production_plan,artifact_resolver=artifact_resolver)
             validate_production_qa(production_qa,production_plan,motion_manifest)
             if production_qa.get("package_gate_status") not in {"pass","warnings"}:raise EditBridgePlanningError("Production QA 未通过")
         scenes={s["scene_id"]:s for s in production_plan.get("scenes",[])}
         for asset in motion_manifest.get("assets",[]):
-            scene=scenes.get(asset.get("scene_id")); asset_path=asset.get("local_path") or asset.get("output_path","")
+            scene=scenes.get(asset.get("scene_id")); observation=motion_observations.get(asset.get("motion_asset_id")) if artifact_resolver is not None else None; asset_path=str(observation.resolved_path) if observation is not None else asset.get("local_path") or asset.get("output_path","")
             if asset.get("asset_kind") and asset.get("asset_kind")!="motion_clip":continue
             if scene is not None and "source_visual_ids" in scene and not scene.get("source_visual_ids"):continue
             asset_ready=asset.get("qa_status")=="ready" if production_qa is None else True
@@ -125,7 +134,7 @@ def _plan_semantic(placement, opportunity):
         placement["canonical_out_timecode"] = format_canonical_timecode(placement["semantic_out_seconds"])
 
 
-def build_visual_plan_placements(visual_plan, material_view, production_plan, motion_manifest, allowed_roots):
+def build_visual_plan_placements(visual_plan, material_view, production_plan, motion_manifest, allowed_roots, *, artifact_resolver=None):
     """Turn a reviewed Post-Alignment Visual Plan into safe existing-source placements.
 
     The plan owns semantic timing. This adapter never projects, extends, or guesses time.
@@ -212,7 +221,13 @@ def build_visual_plan_placements(visual_plan, material_view, production_plan, mo
                     scene_id = matching_scenes[0]
             asset = motion_by_scene.get(scene_id)
             scene = scenes.get(scene_id)
-            asset_path = (asset or {}).get("local_path") or (asset or {}).get("output_path", "")
+            if asset is not None and artifact_resolver is not None:
+                try:
+                    asset_path = str(artifact_resolver.resolve_motion_asset(production_plan, asset).resolved_path)
+                except ValueError as exc:
+                    raise EditBridgePlanningError(f"Motion Asset runtime resolution 失败：{exc}") from None
+            else:
+                asset_path = (asset or {}).get("local_path") or (asset or {}).get("output_path", "")
             placement.update(
                 source_kind="original_motion", source_id=scene_id, scene_id=scene_id,
                 safe_filename=Path(asset_path).name, asset_type="original_motion", local_path=asset_path,

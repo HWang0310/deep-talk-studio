@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-08-30 — Relocation-safe Core artifact semantics
+
+- Added a strict machine-local runtime resolver for digest-covered Motion Manifest, reviewed Material Package, and Material Capture paths after a canonical workspace move. Historical artifacts and digests remain unchanged; only separately verified runtime observations use the new canonical location.
+- Core now rejects unknown roots, arbitrary prefix replacement, traversal, identity mismatch, symlink escape, missing/non-file targets, byte-size/SHA mismatch, and outer-manifest tampering across Motion validation, Material replay, Edit Bridge QA, production planning, and renderer staging.
+- `align-video` may select an exact configured current Production and no longer uses filesystem mtime. Its compatibility fallback uses artifact-owned time/revision/identity fields; a formal immutable current-production index remains deferred.
+- This is an unreleased Core-only repair. No historical JSON, private Episode fixture, visual plugin, `main`, tag, or Release was changed.
+
 ## Unreleased — 2026-08-29 — Multi-Asset Phase 2 portfolio Core QA
 
 - Review correction: completed real fake-subprocess multi-plugin orchestration, runtime-version and bounded execution evidence, declarative policy loading, canonical `opportunities[]` portfolio/audit shape, verified Reviewed Script directive binding, and Core-owned request factual lineage.

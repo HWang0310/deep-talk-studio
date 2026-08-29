@@ -68,6 +68,8 @@ Relevant contract: [FINISHED_CUT_REVIEW_CONTRACT.md](FINISHED_CUT_REVIEW_CONTRAC
 
 - Repository code owns schemas, validation, stable examples, tests, and de-contented evaluations.
 - Versioned production/review artifacts are immutable. Readers validate linkage, digests, and input identities rather than trusting a handwritten status.
+- Digest-covered absolute paths remain immutable historical evidence after a workspace move. Core may map only a lineage-derived relative identity from an explicitly trusted historical repository root into the configured canonical repository root; this produces a separate runtime observation and never rewrites the artifact.
+- Runtime resolution rejects unknown roots, traversal, identity mismatch, symlink components, root escape, missing/non-file targets, byte-size mismatch, and SHA-256 mismatch. The ignored machine-local runtime config may also identify the exact current Production; compatibility fallback uses artifact-owned time/revision/identity fields and never filesystem mtime.
 - `reports/`, `script_drafts/`, `material_packages/`, `material_assets/`, `production_packages/`, `production_assets/`, `production_projects/`, A-roll media, and finished-cut media are local/gitignored.
 - Renderer command success is insufficient: assets must pass typed checks, `ffprobe`, dimensions/fps/duration/size/SHA checks, and binding QA.
 - Generated imagery cannot masquerade as evidence; raw PDFs and unsafe/unreviewed materials cannot enter renderers.

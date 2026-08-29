@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Mapping, Optional
 
 from .material_profile import load_material_profile
 from .production_planner import prepare_production_plan
-from .production_profile import load_production_profile
+from .production_profile import ProductionValidationError, load_production_profile
 from .production_qa import (
     Probe,
     build_motion_asset_manifest,
@@ -23,6 +23,9 @@ from .production_renderers.base import (
 )
 from .production_storage import save_production_artifact, save_production_plan
 from .production_validation import validate_production_input
+from .artifact_runtime import (
+    ArtifactRuntimeError, RuntimeArtifactResolver, load_artifact_runtime_config,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -76,6 +79,23 @@ def _generated_id(prefix: str, created_at: str) -> str:
     return f"{prefix}-{timestamp}"
 
 
+def _configured_artifact_resolver(material_asset_root: Path):
+    """Load repo-local runtime truth only for the canonical material layout."""
+    material_root = Path(material_asset_root).resolve()
+    if material_root.name == "material_assets":
+        repository_root = material_root.parent
+    elif material_root.parent.name == "material_assets":
+        repository_root = material_root.parent.parent
+    else:
+        return None
+    try:
+        return RuntimeArtifactResolver(load_artifact_runtime_config(repository_root))
+    except ArtifactRuntimeError as exc:
+        raise ProductionValidationError(
+            f"Artifact runtime configuration 无效：{exc}"
+        ) from None
+
+
 def run_production_workflow(
     package_path: Path,
     script: Any,
@@ -96,6 +116,7 @@ def run_production_workflow(
     probe_func: Probe = probe_media,
     episode_visual_preference: Optional[Mapping[str, Any]] = None,
     post_alignment_visual_plan: Optional[Mapping[str, Any]] = None,
+    artifact_resolver=None,
 ) -> ProductionWorkflowResult:
     """Validate V0.5.1 input, produce one plan, render, probe, gate and store."""
 
@@ -105,6 +126,8 @@ def run_production_workflow(
     chosen_qa_id = qa_id or _generated_id("PQA", timestamp)
     material_config = dict(material_profile or load_material_profile())
     production_config = dict(production_profile or load_production_profile())
+    if artifact_resolver is None:
+        artifact_resolver = _configured_artifact_resolver(Path(material_asset_root))
     package = validate_production_input(
         Path(package_path), script, report, material_config
     )
@@ -114,6 +137,7 @@ def run_production_workflow(
         renderer_mode=renderer_mode,
         episode_visual_preference=episode_visual_preference,
         post_alignment_visual_plan=post_alignment_visual_plan,
+        artifact_resolver=artifact_resolver,
     )
     plan_path = save_production_plan(plan, Path(package_root))
 
@@ -134,7 +158,8 @@ def run_production_workflow(
     if not missing:
         try:
             prepared = renderer.prepare_project(
-                plan, package, production_config, Path(material_asset_root), Path(project_root)
+                plan, package, production_config, Path(material_asset_root), Path(project_root),
+                artifact_resolver=artifact_resolver,
             )
             validation_checks = list(renderer.validate_project(prepared))
             for item in validation_checks:

@@ -202,9 +202,9 @@ class HyperFramesRenderer:
     def __init__(self, template_root: Path = DEFAULT_TEMPLATE):
         self.template_root = Path(template_root)
 
-    def prepare_project(self, plan: Mapping[str, Any], package: Any, profile: Mapping[str, Any], material_root: Path, projects_root: Path) -> PreparedProject:
+    def prepare_project(self, plan: Mapping[str, Any], package: Any, profile: Mapping[str, Any], material_root: Path, projects_root: Path, *, artifact_resolver=None) -> PreparedProject:
         project = prepare_project_directory(self.template_root, projects_root, str(plan["production_id"]), self.name)
-        staged, asset_map = stage_plan_assets(plan, package, material_root, project / "assets", prefix="assets")
+        staged, asset_map = stage_plan_assets(plan, package, material_root, project / "assets", prefix="assets", artifact_resolver=artifact_resolver)
         plan_path = project / "production-plan.json"
         write_json(plan_path, plan); write_json(project / "production-profile.json", profile); write_json(project / "asset-map.json", asset_map)
         (project / "DESIGN.md").write_text(_design(profile), encoding="utf-8")

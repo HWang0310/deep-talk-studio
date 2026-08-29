@@ -206,6 +206,7 @@ def prepare_production_plan(
     renderer_mode: str = "auto",
     episode_visual_preference: Mapping[str, Any] = None,
     post_alignment_visual_plan: Mapping[str, Any] = None,
+    artifact_resolver=None,
 ) -> Dict[str, Any]:
     if package.status not in {"reviewed", "reviewed_with_warnings"}:
         raise ProductionValidationError("Production Plan 只接受正式 reviewed Material Package")
@@ -239,7 +240,10 @@ def prepare_production_plan(
         selected_visual = visual_candidates[0] if visual_candidates else None
         selected_material = None
         if selected_visual is not None:
-            validate_render_asset(selected_visual, material_asset_root, generated_visual=True)
+            validate_render_asset(
+                selected_visual, material_asset_root, generated_visual=True,
+                artifact_resolver=artifact_resolver, package_id=package.package_id,
+            )
             selected_visuals.append(selected_visual)
             scene_type = VISUAL_SCENE_TYPES[selected_visual["visual_type"]]
             source_visual_ids = [selected_visual["visual_id"]]
@@ -268,7 +272,10 @@ def prepare_production_plan(
                         "在 V0.5 Material Workflow 登记带页码和区域信息的 PNG/JPEG/WebP 截图。",
                     )
                     continue
-                validate_render_asset(item, material_asset_root)
+                validate_render_asset(
+                    item, material_asset_root, artifact_resolver=artifact_resolver,
+                    package_id=package.package_id,
+                )
                 if item["asset_type"] in MATERIAL_SCENE_TYPES:
                     selected_material = item
                     break
