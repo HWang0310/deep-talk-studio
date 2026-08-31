@@ -1,6 +1,17 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: 'f3f5b739-c4f2-4e31-babe-80523e6550d8'
+  PropagateID: 'f3f5b739-c4f2-4e31-babe-80523e6550d8'
+  ReservedCode1: '68914856-fa7a-4614-97de-3510e0f56348'
+  ReservedCode2: '68914856-fa7a-4614-97de-3510e0f56348'
+---
+
 # DeepTalk Studio — Canonical Project State
 
-> **Read this first for current truth.** This file is the concise, canonical state of the product as of 2026-08-29. Historical evidence remains in [HANDOFF.md](HANDOFF.md), release notes, plans, and specs; those sources do not override this file.
+> **Read this first for current truth.** This file is the concise, canonical state of the product as of 2026-08-30. Historical evidence remains in [HANDOFF.md](HANDOFF.md), release notes, plans, and specs; those sources do not override this file.
 
 ## Identity
 
@@ -11,7 +22,7 @@
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
-| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phases 0, 1, and 2 are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Phase 2 provides sanitized fake-only Core orchestration, `candidate-portfolio/1`, policy, Core QA, production directive authoring, and immutable audit history. No real plugin, Candidate Asset Pack, `candidate-edit-map/1`, V2 production migration, or episode workflow is implemented. The next gate is Phase 3A. |
+| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phases 0, 1, and 2 are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Phase 2 provides sanitized fake-only Core orchestration, `candidate-portfolio/1`, policy, Core QA, production directive authoring, and immutable audit history. Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED: it separates immutable historical recorded paths from Core-owned verified runtime locations, preserving historical Production/Material/Capture manifests without rewriting them. No real plugin, Candidate Asset Pack, `candidate-edit-map/1`, V2 production migration, or episode workflow is implemented. Phase 3A is IN PROGRESS. |
 
 ## Current Product Positioning
 
@@ -104,6 +115,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 - `REAL_MATERIAL` as an independent documentary/evidence family, distinct from generated explanation families.
 - Machine records distinguish Generation operation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) from produced Candidate asset outcomes (`READY`, `QA_REJECTED`); Core acceptance is separate and creator packs will default to raw READY plus Core ACCEPTED candidates only. Phase 2 implements this only through sanitized fake subprocess data, not production-schema migration.
 - The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are accepted. Phase 2 implements only the fake-only Core adapter/runtime and `candidate-portfolio/1`; no real plugin registry or runner, migration, Candidate Asset Pack, `candidate-edit-map/1`, or episode code exists.
+- Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED. Runtime resolution validates configured trusted historical roots, canonical artifact-relative identity, containment, symlink rejection, file existence, byte size, and SHA-256. Historical manifests are preserved without rewriting. Current Production selection is explicit via machine-local `current_production_id`; filesystem mtime is no longer semantic truth. A formal immutable current-production index/pointer schema remains deferred.
 
 ## Approved Next / Experimental
 
@@ -127,7 +139,9 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 
 ## Current Next Step
 
-The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2 is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation: fake-only portfolio breadth, deterministic policy, Core QA, hardened immutable storage, and production directive authoring. The next gate is Phase 3A's first independently reviewed and pinned real-plugin runner plus one synthetic Core integration; it has not started.
+The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2 is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation: fake-only portfolio breadth, deterministic policy, Core QA, hardened immutable storage, and production directive authoring. Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED: runtime resolution validates configured trusted historical roots, canonical artifact-relative identity, containment, symlink rejection, file existence, byte size, and SHA-256. Historical Production/Material/Capture manifests are not rewritten. Current Production may be explicitly selected by machine-local `current_production_id`; filesystem mtime is no longer semantic current-production truth. A formal immutable current-production index/pointer schema remains deferred. Machine-specific canonical repository root belongs to gitignored local config, not product invariants.
+
+Phase 3A is IN PROGRESS. The first MG Contract V1 runner has an implementation on its plugin review branch, but is NOT yet accepted/pinned because a focused correction remains. Core real-plugin Phase 3A-2 integration has NOT started. No real plugin runner is accepted or pinned.
 
 ## Read Next
 

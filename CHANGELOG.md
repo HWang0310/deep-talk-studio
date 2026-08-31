@@ -1,11 +1,24 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: 'f6024d66-23c5-4a9f-bbab-37a669b911a8'
+  PropagateID: 'f6024d66-23c5-4a9f-bbab-37a669b911a8'
+  ReservedCode1: '00482778-51c0-498b-a40d-b9cd7aafa516'
+  ReservedCode2: '00482778-51c0-498b-a40d-b9cd7aafa516'
+---
+
 # Changelog
 
-## Unreleased — 2026-08-30 — Relocation-safe Core artifact semantics
+## Unreleased — 2026-08-30 — Relocation-safe Core artifact semantics — ACCEPTED / IMPLEMENTED_UNRELEASED
 
 - Added a strict machine-local runtime resolver for digest-covered Motion Manifest, reviewed Material Package, and Material Capture paths after a canonical workspace move. Historical artifacts and digests remain unchanged; only separately verified runtime observations use the new canonical location.
 - Core now rejects unknown roots, arbitrary prefix replacement, traversal, identity mismatch, symlink escape, missing/non-file targets, byte-size/SHA mismatch, and outer-manifest tampering across Motion validation, Material replay, Edit Bridge QA, production planning, and renderer staging.
 - `align-video` may select an exact configured current Production and no longer uses filesystem mtime. Its compatibility fallback uses artifact-owned time/revision/identity fields; a formal immutable current-production index remains deferred.
-- This is an unreleased Core-only repair. No historical JSON, private Episode fixture, visual plugin, `main`, tag, or Release was changed.
+- Machine-specific canonical repository root belongs to gitignored local config; the architecture remains portable. No user-specific absolute paths are committed as product invariants.
+- **ChatGPT independently reviewed and accepted the implementation** at SHA `e4dbbd089d6253cf053e55f0b2a1ae1c38a58bc1` on branch `agent/relocation-safe-artifact-resolution`. The accepted implementation was fast-forwarded to canonical branch `agent/multi-asset-studio` without merge commit, rebase, or force push. This acceptance commit is docs-only; no implementation source code was modified during acceptance.
+- This is ACCEPTED / IMPLEMENTED_UNRELEASED — not RELEASED. No historical JSON, private Episode fixture, visual plugin, `main`, tag, or Release was changed. Phase 3A remains IN PROGRESS: the first MG Contract V1 runner has an implementation on its plugin review branch but is NOT yet accepted/pinned. Core real-plugin Phase 3A-2 integration has NOT started.
 
 ## Unreleased — 2026-08-29 — Multi-Asset Phase 2 portfolio Core QA
 

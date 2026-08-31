@@ -1,3 +1,14 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '8d48561d-3a57-4032-842d-0fa6ea1c8cf2'
+  PropagateID: '8d48561d-3a57-4032-842d-0fa6ea1c8cf2'
+  ReservedCode1: 'bbfd5f2a-8eec-4203-bd97-ed6941cc41c0'
+  ReservedCode2: 'bbfd5f2a-8eec-4203-bd97-ed6941cc41c0'
+---
+
 # DeepTalk Studio Roadmap
 
 > **Canonical owner:** delivery-state classification. Read [PROJECT_STATE.md](PROJECT_STATE.md) first. A plan or a branch is not a release; an implementation is not a release.
@@ -41,7 +52,8 @@
 
 - Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0's strict validators, sanitized fixtures, test-only fake runner, and static configuration examples are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation.
 - Preserve the accepted multi-repo, plugin-first boundary; Phase 2's fake-only Core orchestration and `candidate-portfolio/1` are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation, while production-schema adoption and real-plugin integration have not started.
-- The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2's fake-only portfolio breadth, deterministic policy, Core QA, storage hardening, and production directive boundary are ACCEPTED / IMPLEMENTED_UNRELEASED. The next gate is Phase 3A's first independently reviewed and pinned real-plugin runner plus one synthetic Core integration.
+- Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED: runtime resolution validates configured trusted historical roots, canonical artifact-relative identity, containment, symlink rejection, file existence, byte size, and SHA-256. Historical manifests are preserved. Current Production selection is explicit via machine-local `current_production_id`; filesystem mtime is no longer semantic truth. A formal immutable current-production index remains deferred.
+- The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2's fake-only portfolio breadth, deterministic policy, Core QA, storage hardening, and production directive boundary are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 3A is IN PROGRESS: the first MG Contract V1 runner has an implementation on its plugin review branch but is NOT yet accepted/pinned. Core real-plugin Phase 3A-2 integration has NOT started.
 
 ## Approved Next
 

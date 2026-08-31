@@ -1,14 +1,27 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: 'e503ed8c-30e3-4d52-ba38-09e7ce06d8f2'
+  PropagateID: 'e503ed8c-30e3-4d52-ba38-09e7ce06d8f2'
+  ReservedCode1: '1356a798-6b68-42cd-bb2f-da64bca9a66d'
+  ReservedCode2: '1356a798-6b68-42cd-bb2f-da64bca9a66d'
+---
+
 # DeepTalk Studio 开发交接
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
-## 2026-08-30：Core relocation-safe artifact semantics
+## 2026-08-30：Core relocation-safe artifact semantics — ACCEPTED / IMPLEMENTED_UNRELEASED
 
-- Root cause: Motion Manifest, reviewed Material Package, and Capture Manifest correctly retained digest-covered absolute paths from the former workspace, while consumers incorrectly treated those historical locations as current runtime truth. The same code path also chose “current” Production by filesystem mtime.
+- Root cause: Motion Manifest, reviewed Material Package, and Capture Manifest correctly retained digest-covered absolute paths from the former workspace, while consumers incorrectly treated those historical locations as current runtime truth. The same code path also chose "current" Production by filesystem mtime.
 - Added one strict Core resolver backed by ignored machine-local canonical/historical-root configuration. It maps only exact lineage-derived identities and rechecks containment, symlinks, existence, size, SHA-256, artifact bindings, and outer digests; historical JSON bytes and digests are never rewritten.
 - Motion, Material/Capture replay, Production planning/staging, Edit Bridge placement, and canonical QA now share the verified runtime observation. Explicit current Production selection is exact; fallback is deterministic from artifact fields and documents the absence of a formal immutable current-production index.
 - Sanitized old-root → new-root regressions cover success plus unknown root, traversal/unexpected absolute path, symlink, missing file, size/SHA/identity mismatch, and manifest tampering. The existing machine-local current Production chain replayed successfully without committing Episode data or user-specific configuration.
-- This is Core-only and unreleased. MG, Illustrated, Hand-drawn, historical artifacts, `main`, tags, and Releases remain untouched.
+- **ChatGPT independently reviewed and accepted the implementation** at SHA `e4dbbd089d6253cf053e55f0b2a1ae1c38a58bc1` on branch `agent/relocation-safe-artifact-resolution`. The accepted implementation was fast-forwarded to canonical branch `agent/multi-asset-studio` without merge commit, rebase, or force push. This acceptance commit is docs-only; no implementation source code was modified during acceptance.
+- Accepted implementation SHA: `e4dbbd089d6253cf053e55f0b2a1ae1c38a58bc1`. Parent: `d1c990c25e44aa55ffc2789f7b00ee2374a198be`. Lineage: exactly 1 descendant commit, verified by `git rev-list --count`.
+- This is ACCEPTED / IMPLEMENTED_UNRELEASED, not RELEASED. MG, Illustrated, Hand-drawn, historical artifacts, `main`, tags, and Releases remain untouched. Phase 3A is IN PROGRESS: the first MG Contract V1 runner has an implementation on its plugin review branch but is NOT yet accepted/pinned. Core real-plugin Phase 3A-2 integration has NOT started.
 
 ## 2026-08-29：Multi-Asset Phase 2 — Portfolio Core QA
 
