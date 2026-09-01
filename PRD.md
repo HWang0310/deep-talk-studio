@@ -100,7 +100,7 @@ Requirements for the future implementation:
 - Machine records must preserve Generation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) separately from produced Candidate outcomes (`READY`, `QA_REJECTED`). Creator-facing packs default to READY candidates only. Contract V1 is ACCEPTED_UNRELEASED architecture; production-schema adoption is not started.
 - The product maximises useful choice density, not file count. LEAN/STANDARD/RICH are soft profiles only; no fixed opportunity/candidate count is a schema invariant.
 
-The evidence-derived [`Visual Asset Plugin Contract V1 design`](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md) is the accepted minimum two-stage suitability/generation architecture. Its [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. V2 runtime contracts, schemas, migrations, and implementation have **not** begun; the next gate is Phase 0 (Contract fixtures + frozen V1 compatibility baseline) in a separate implementation session, branch, and review.
+The evidence-derived [`Visual Asset Plugin Contract V1 design`](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md) is the accepted minimum two-stage suitability/generation architecture. Its [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Core Phases 0–2 are accepted/implemented-unreleased; Phase 3A-2 connects one accepted, exact-pinned MG runner to the existing synthetic portfolio path and is implemented-unreleased awaiting ChatGPT review. Candidate delivery, multi-plugin integration, V2 production migration, and production adoption have not begun.
 
 ### Approved next / experimental work
 

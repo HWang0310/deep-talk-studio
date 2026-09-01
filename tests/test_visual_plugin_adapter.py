@@ -1,4 +1,5 @@
 import sys
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,11 +8,12 @@ from deeptalk_studio.visual_plugin_adapter import run_visual_plugin
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CORE_SHA = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, text=True, capture_output=True).stdout.strip()
 OPPORTUNITY = {"opportunity_id": "VO-synthetic-01", "spoken_semantics": "Synthetic semantics.", "visual_purpose": "Explain.", "a_roll_window": {"start_ms": 1000, "end_ms": 3000}, "target_duration_ms": 1500, "language": "zh-CN", "canvas": {"width": 1920, "height": 1080}}
 
 
 def plugin(scenario, timeout=2):
-    return {"plugin_id": "fake-visual-plugin", "plugin_root": str(ROOT), "argv_prefix": [sys.executable, "tests/visual_asset_plugin_fakes.py", "--scenario", scenario], "timeout_seconds": timeout, "environment": {}, "enabled": True, "plugin_version_command": [sys.executable, "tests/visual_asset_plugin_fakes.py", "--version"], "expected_source_revision": "fake-only", "require_clean_worktree": False}
+    return {"plugin_id": "fake-visual-plugin", "plugin_version": "fake-1", "plugin_root": str(ROOT), "argv_prefix": [sys.executable, "tests/visual_asset_plugin_fakes.py", "--scenario", scenario], "timeout_seconds": timeout, "environment": {}, "enabled": True, "plugin_version_command": [sys.executable, "tests/visual_asset_plugin_fakes.py", "--version"], "expected_source_revision": CORE_SHA, "require_clean_worktree": False}
 
 
 class VisualPluginAdapterTests(unittest.TestCase):

@@ -116,6 +116,8 @@ def _validate_phase2(value: Mapping[str, Any]) -> None:
         if audit["request_snapshot"] is None:
             if execution["status"] != "FAILED": raise CandidatePortfolioStorageError("missing audit request 无效")
             continue
+        if "request_identity" in execution and execution["request_identity"] != _record_identity(audit["request_snapshot"]): raise CandidatePortfolioStorageError("audit request identity evidence 无效")
+        if "result_identity" in execution and execution["result_identity"] != _record_identity(audit["raw_response"]): raise CandidatePortfolioStorageError("audit result identity evidence 无效")
         try:
             if audit["operation"] == "suitability":
                 from .visual_asset_plugin_contract import validate_suitability_request, validate_suitability_response
@@ -140,11 +142,61 @@ def _validate_phase2(value: Mapping[str, Any]) -> None:
             raise
         except Exception as exc:
             raise CandidatePortfolioStorageError("audit request or raw response 无效") from exc
+    audit_executions={
+        (audit["opportunity_id"],audit["plugin_id"],audit["operation"]):audit["execution"]
+        for audit in value["audit_records"]
+    }
+    if len(audit_executions)!=len(value["audit_records"]): raise CandidatePortfolioStorageError("audit execution identity 不可重复")
+    for block in value["opportunities"]:
+        opportunity_id=block["opportunity"]["opportunity_id"]
+        for proposal in block["proposals"]:
+            if proposal["suitability_execution"]!=audit_executions.get((opportunity_id,proposal["plugin_id"],"suitability")): raise CandidatePortfolioStorageError("proposal/audit execution evidence 不一致")
+        for generation in block["generation_records"]:
+            if generation["generation_execution"]!=audit_executions.get((opportunity_id,generation["plugin_id"],"generation")): raise CandidatePortfolioStorageError("generation/audit execution evidence 不一致")
 
 def _validate_execution(value: Any) -> None:
     if value is None: return
-    fields={"plugin_id","resolved_plugin_version","config_digest","request_id","operation","job_locator","request_locator","result_locator","stdout_locator","stderr_locator","output_locator","status","retryable","reason","started_at","finished_at","runtime_duration_ms"}
-    if not isinstance(value,Mapping) or set(value)!=fields or not _identifier(value.get("plugin_id")) or not isinstance(value.get("resolved_plugin_version"),str) or not _is_digest(value.get("config_digest")) or not _identifier(value.get("request_id")) or value.get("operation") not in {"suitability","generation"} or value.get("status") not in {"COMPLETED","FAILED"} or not isinstance(value.get("retryable"),bool) or not _identifier(value.get("reason")) or not isinstance(value.get("runtime_duration_ms"),int) or value["runtime_duration_ms"]<0 or not all(isinstance(value.get(k),str) and value[k] for k in ("job_locator","request_locator","result_locator","stdout_locator","stderr_locator","output_locator","started_at","finished_at")): raise CandidatePortfolioStorageError("execution evidence 无效")
+    legacy_fields={"plugin_id","resolved_plugin_version","config_digest","request_id","operation","job_locator","request_locator","result_locator","stdout_locator","stderr_locator","output_locator","status","retryable","reason","started_at","finished_at","runtime_duration_ms"}
+    fields=legacy_fields|{"task_id","environment_digest","preflight","configured_runner","configured_version_command","resolved_argv","request_identity","result_identity"}
+    if not isinstance(value,Mapping): raise CandidatePortfolioStorageError("execution evidence 无效")
+    evidence_fields=set(value)-{"termination"}
+    if evidence_fields != legacy_fields and evidence_fields != fields: raise CandidatePortfolioStorageError("execution evidence 无效")
+    if not _identifier(value.get("plugin_id")) or not isinstance(value.get("resolved_plugin_version"),str) or not _is_digest(value.get("config_digest")) or not _identifier(value.get("request_id")) or value.get("operation") not in {"suitability","generation"} or value.get("status") not in {"COMPLETED","FAILED"} or not isinstance(value.get("retryable"),bool) or not _identifier(value.get("reason")) or not isinstance(value.get("runtime_duration_ms"),int) or isinstance(value.get("runtime_duration_ms"),bool) or value["runtime_duration_ms"]<0 or not all(isinstance(value.get(k),str) and value[k] for k in ("job_locator","request_locator","result_locator","stdout_locator","stderr_locator","output_locator","started_at","finished_at")): raise CandidatePortfolioStorageError("execution evidence 无效")
+    if evidence_fields == legacy_fields:
+        if "termination" in value: raise CandidatePortfolioStorageError("legacy execution termination evidence 无效")
+        return
+    if not _identifier(value.get("task_id")) or not _is_digest(value.get("environment_digest")): raise CandidatePortfolioStorageError("execution evidence 无效")
+    for name in ("configured_runner","configured_version_command"):
+        if not isinstance(value[name],list) or not value[name] or any(not _identifier(part) for part in value[name]): raise CandidatePortfolioStorageError("configured argv evidence 无效")
+    if not isinstance(value["resolved_argv"],list) or any(not _identifier(part) for part in value["resolved_argv"]): raise CandidatePortfolioStorageError("resolved argv evidence 无效")
+    preflight=value["preflight"]
+    required={"resolved_plugin_root","expected_source_revision","actual_source_revision","require_clean_worktree","clean_worktree"}
+    if not isinstance(preflight,Mapping) or set(preflight)-{"reported_plugin_version"}!=required or not isinstance(preflight["resolved_plugin_root"],str) or not isinstance(preflight["expected_source_revision"],str) or not isinstance(preflight["actual_source_revision"],str) or not isinstance(preflight["require_clean_worktree"],bool) or (preflight["clean_worktree"] is not None and not isinstance(preflight["clean_worktree"],bool)) or ("reported_plugin_version" in preflight and not _identifier(preflight["reported_plugin_version"])): raise CandidatePortfolioStorageError("plugin preflight evidence 无效")
+    identity_fields={"contract_version","request_id","opportunity_id","proposal_id","plugin_id","plugin_version"}
+    for identity in (value["request_identity"],value["result_identity"]):
+        if identity is not None and (not isinstance(identity,Mapping) or not set(identity) <= identity_fields or not all(_identifier(item) for item in identity.values())): raise CandidatePortfolioStorageError("request/result identity evidence 无效")
+    if value["status"]=="COMPLETED":
+        expected=preflight["expected_source_revision"]; actual=preflight["actual_source_revision"]
+        request_identity=value["request_identity"]; result_identity=value["result_identity"]
+        request_fields={"contract_version","request_id","opportunity_id"}
+        result_base={"contract_version","request_id","opportunity_id","plugin_id","plugin_version"}
+        valid_result_fields={frozenset(result_base),frozenset(result_base|{"proposal_id"})}
+        if value["operation"]=="generation":
+            request_fields.add("proposal_id")
+            valid_result_fields={frozenset(result_base|{"proposal_id"})}
+        if not value["resolved_argv"] or value["resolved_argv"][:len(value["configured_runner"])]!=value["configured_runner"] or set(request_identity or {})!=request_fields or frozenset(result_identity or {}) not in valid_result_fields or not value["resolved_plugin_version"] or not preflight["resolved_plugin_root"] or not isinstance(preflight["clean_worktree"],bool) or re.fullmatch(r"[0-9a-f]{40}",expected) is None or actual!=expected or (preflight["require_clean_worktree"] and preflight["clean_worktree"] is not True) or preflight.get("reported_plugin_version")!=value["resolved_plugin_version"] or request_identity.get("request_id")!=value["request_id"] or result_identity.get("request_id")!=value["request_id"] or result_identity.get("plugin_id")!=value["plugin_id"] or result_identity.get("plugin_version")!=value["resolved_plugin_version"]: raise CandidatePortfolioStorageError("completed execution evidence 无效")
+    if "termination" in value:
+        termination=value["termination"]
+        allowed={"terminate_signal","kill_signal","escalated","reaped"}
+        if not isinstance(termination,Mapping) or set(termination) not in {frozenset(allowed),frozenset(allowed|{"process_group_terminated"})} or termination["terminate_signal"]!=15 or (termination["kill_signal"] is not None and termination["kill_signal"]!=9) or not isinstance(termination["escalated"],bool) or not isinstance(termination["reaped"],bool) or termination["escalated"]!=(termination["kill_signal"]==9) or value["reason"]!="timeout" or not termination["reaped"] or ("process_group_terminated" in termination and termination["process_group_terminated"] is not True): raise CandidatePortfolioStorageError("termination evidence 无效")
+
+def _record_identity(value: Any) -> dict | None:
+    if not isinstance(value,Mapping): return None
+    fields=("contract_version","request_id","opportunity_id","proposal_id","plugin_id","plugin_version")
+    result={field:value[field] for field in fields if field in value}
+    opportunity=value.get("opportunity")
+    if isinstance(opportunity,Mapping) and "opportunity_id" in opportunity: result["opportunity_id"]=opportunity["opportunity_id"]
+    return result
 
 def _validate_acceptance(value: Any) -> None:
     if value is None: return

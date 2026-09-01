@@ -11,8 +11,12 @@ from typing import Any, Mapping
 
 CONFIG_VERSION = "visual-asset-plugin-config/1"
 _ROOT_FIELDS = frozenset({"config_version", "plugins"})
-_PLUGIN_FIELDS = frozenset({
+_LEGACY_PLUGIN_FIELDS = frozenset({
     "plugin_id", "plugin_root", "argv_prefix", "timeout_seconds", "environment", "enabled",
+    "plugin_version_command", "expected_source_revision", "require_clean_worktree",
+})
+_PLUGIN_FIELDS = frozenset({
+    "plugin_id", "plugin_version", "plugin_root", "argv_prefix", "timeout_seconds", "environment", "enabled",
     "plugin_version_command", "expected_source_revision", "require_clean_worktree",
 })
 
@@ -22,7 +26,10 @@ class VisualPluginConfigError(ValueError):
 
 
 def config_digest(value: Mapping[str, Any]) -> str:
-    return hashlib.sha256(json.dumps(normalize_visual_plugin_config(value), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    portable = normalize_visual_plugin_config(value)
+    for plugin in portable["plugins"]:
+        plugin["plugin_root"] = "<runtime-plugin-root>"
+    return hashlib.sha256(json.dumps(portable, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
 def normalize_visual_plugin_config(value: Any) -> dict:
@@ -32,17 +39,22 @@ def normalize_visual_plugin_config(value: Any) -> dict:
         raise VisualPluginConfigError("plugin config 版本或 plugins 无效")
     seen = set(); plugins = []
     for item in value["plugins"]:
-        if not isinstance(item, Mapping) or set(item) != _PLUGIN_FIELDS:
+        if not isinstance(item, Mapping) or set(item) not in {_LEGACY_PLUGIN_FIELDS, _PLUGIN_FIELDS}:
             raise VisualPluginConfigError("plugin 字段无效")
         plugin = copy.deepcopy(dict(item)); plugin_id = _identifier(plugin["plugin_id"], "plugin_id")
         if plugin_id in seen: raise VisualPluginConfigError("plugin_id 不可重复")
         seen.add(plugin_id)
+        if "plugin_version" in plugin:
+            if not isinstance(plugin["plugin_version"], str) or not plugin["plugin_version"].strip(): raise VisualPluginConfigError("plugin_version 无效")
+        elif plugin["enabled"] and plugin["expected_source_revision"] != "0" * 40:
+            raise VisualPluginConfigError("enabled pinned plugin 需要 plugin_version")
         if not isinstance(plugin["plugin_root"], str) or not plugin["plugin_root"].strip(): raise VisualPluginConfigError("plugin_root 无效")
         _argv(plugin["argv_prefix"], "argv_prefix"); _argv(plugin["plugin_version_command"], "plugin_version_command")
         if not isinstance(plugin["timeout_seconds"], (int, float)) or isinstance(plugin["timeout_seconds"], bool) or plugin["timeout_seconds"] <= 0: raise VisualPluginConfigError("timeout_seconds 必须为正数")
         if not isinstance(plugin["environment"], Mapping) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in plugin["environment"].items()): raise VisualPluginConfigError("environment 无效")
         if not isinstance(plugin["enabled"], bool) or not isinstance(plugin["require_clean_worktree"], bool): raise VisualPluginConfigError("enabled 或 require_clean_worktree 无效")
-        if not isinstance(plugin["expected_source_revision"], str) or not plugin["expected_source_revision"]: raise VisualPluginConfigError("expected_source_revision 无效")
+        revision = plugin["expected_source_revision"]
+        if not isinstance(revision, str) or re.fullmatch(r"[0-9a-f]{40}", revision) is None: raise VisualPluginConfigError("expected_source_revision 无效")
         plugins.append(plugin)
     return {"config_version": CONFIG_VERSION, "plugins": plugins}
 

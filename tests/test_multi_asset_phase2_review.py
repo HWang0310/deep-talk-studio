@@ -2,13 +2,18 @@ import copy
 import hashlib
 import json
 import sys
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 from deeptalk_studio.candidate_portfolio import orchestrate_candidate_portfolio, ready_candidates
 from deeptalk_studio.candidate_portfolio import core_accept_candidate
-from deeptalk_studio.candidate_portfolio_storage import load_candidate_portfolio, save_candidate_portfolio
+from deeptalk_studio.candidate_portfolio_storage import (
+    _validate_execution,
+    load_candidate_portfolio,
+    save_candidate_portfolio,
+)
 from deeptalk_studio.visual_generation_policy import load_candidate_generation_policy
 from deeptalk_studio.visual_opportunity import build_visual_opportunity_plan
 from deeptalk_studio.visual_opportunity_directive import author_visual_opportunity_directives
@@ -19,12 +24,13 @@ from deeptalk_studio.script_review import prepare_script_review
 from tests.fixtures import approved_report_data, valid_script_content, valid_script_review_content
 
 ROOT = Path(__file__).resolve().parents[1]
+CORE_SHA = subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,check=True,text=True,capture_output=True).stdout.strip()
 O = {"opportunity_id":"VO-e2e", "spoken_semantics":"synthetic", "visual_purpose":"explain", "a_roll_window":{"start_ms":0,"end_ms":1000}, "target_duration_ms":1000, "language":"zh-CN", "canvas":{"width":16,"height":16}, "factual_context":[{"claim_id":"C1","evidence_id":"E1"}]}
 
 def config(specs):
     plugins=[]
     for plugin_id, scenario, enabled in specs:
-        plugins.append({"plugin_id":plugin_id,"plugin_root":str(ROOT),"argv_prefix":[sys.executable,"tests/visual_asset_plugin_fakes.py","--scenario",scenario],"timeout_seconds":3,"environment":{"FAKE_PLUGIN_ID":plugin_id,"FAKE_PLUGIN_VERSION":"fake-1","FAKE_CANDIDATE_ID":"CAN-"+plugin_id,"FAKE_WRITE_MEDIA":"1"},"enabled":enabled,"plugin_version_command":[sys.executable,"tests/visual_asset_plugin_fakes.py","--version"],"expected_source_revision":"fake-only","require_clean_worktree":False})
+        plugins.append({"plugin_id":plugin_id,"plugin_version":"fake-1","plugin_root":str(ROOT),"argv_prefix":[sys.executable,"tests/visual_asset_plugin_fakes.py","--scenario",scenario],"timeout_seconds":3,"environment":{"FAKE_PLUGIN_ID":plugin_id,"FAKE_PLUGIN_VERSION":"fake-1","FAKE_CANDIDATE_ID":"CAN-"+plugin_id,"FAKE_WRITE_MEDIA":"1"},"enabled":enabled,"plugin_version_command":[sys.executable,"tests/visual_asset_plugin_fakes.py","--version"],"expected_source_revision":CORE_SHA,"require_clean_worktree":False})
     return {"config_version":"visual-asset-plugin-config/1","plugins":plugins}
 
 def redigest(artifact):
@@ -55,7 +61,8 @@ class Phase2ReviewOrchestrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             artifact=orchestrate_candidate_portfolio([O],config([("A","non-zero",True)]),production_profile="LEAN",policy=load_candidate_generation_policy(ROOT / "config/candidate-generation-profile.json"),job_root=Path(root),visual_opportunity_plan_digest="f"*64)
             audit=artifact["audit_records"][0]
-            self.assertEqual(audit["execution"]["status"],"FAILED"); self.assertIsNone(audit["raw_response"]); self.assertIsNone(audit["request_snapshot"])
+            self.assertEqual(audit["execution"]["status"],"FAILED"); self.assertIsNone(audit["raw_response"])
+            self.assertEqual(audit["request_snapshot"]["request_id"], audit["execution"]["request_id"])
             self.assertEqual(load_candidate_portfolio(save_candidate_portfolio(artifact,Path(root))),artifact)
 
     def test_duplicate_raw_candidate_ids_remain_reloadable_only_when_all_are_rejected_with_evidence(self):
@@ -85,6 +92,13 @@ class Phase2ReviewOrchestrationTests(unittest.TestCase):
             "candidate differs from raw":lambda a: a["opportunities"][0]["candidates"][0]["plugin_candidate"].__setitem__("asset_family","tampered"),
             "audit request snapshot":lambda a: a["audit_records"][0]["request_snapshot"].__setitem__("request_id","REQ-tampered"),
             "audit raw response":lambda a: a["audit_records"][1]["raw_response"].__setitem__("proposal_id","P-tampered"),
+            "result identity version":lambda a: a["audit_records"][0]["execution"]["result_identity"].__setitem__("plugin_version","tampered"),
+            "preflight revision":lambda a: a["audit_records"][0]["execution"]["preflight"].__setitem__("actual_source_revision","0"*40),
+            "resolved argv prefix":lambda a: a["audit_records"][0]["execution"].__setitem__("resolved_argv",["other-runner"]),
+            "proposal execution root":lambda a: a["opportunities"][0]["proposals"][0]["suitability_execution"]["preflight"].__setitem__("resolved_plugin_root",""),
+            "proposal execution clean result":lambda a: a["opportunities"][0]["proposals"][0]["suitability_execution"]["preflight"].__setitem__("clean_worktree",None),
+            "proposal execution incomplete request identity":lambda a: a["opportunities"][0]["proposals"][0]["suitability_execution"]["request_identity"].pop("contract_version"),
+            "generation execution incomplete result identity":lambda a: a["opportunities"][0]["generation_records"][0]["generation_execution"]["result_identity"].pop("opportunity_id"),
             "suggested review order":lambda a: a["opportunities"][0]["candidates"][0].__setitem__("suggested_review_order",2),
         }
         for name, mutate in cases.items():
@@ -141,5 +155,26 @@ class Phase2ReviewOrchestrationTests(unittest.TestCase):
             self.assertEqual(execution["resolved_plugin_version"],"fake-1")
             self.assertEqual(execution["config_digest"],artifact["plugin_config_digest"])
             self.assertTrue(all(key in execution for key in ("plugin_id","request_id","operation","job_locator","request_locator","result_locator","stdout_locator","stderr_locator","output_locator","started_at","finished_at","runtime_duration_ms")))
+
+    def test_legacy_config_v1_execution_evidence_remains_readable(self):
+        _validate_execution({
+            "plugin_id": "legacy-plugin",
+            "resolved_plugin_version": "legacy-1",
+            "config_digest": "a" * 64,
+            "request_id": "REQ-legacy",
+            "operation": "suitability",
+            "job_locator": "local-plugin-job://REQ-legacy",
+            "request_locator": "local-plugin-request://REQ-legacy/request.json",
+            "result_locator": "local-plugin-result://REQ-legacy/result.json",
+            "stdout_locator": "local-plugin-log://REQ-legacy/stdout.log",
+            "stderr_locator": "local-plugin-log://REQ-legacy/stderr.log",
+            "output_locator": "local-plugin-output://REQ-legacy",
+            "status": "COMPLETED",
+            "retryable": False,
+            "reason": "completed",
+            "started_at": "2026-08-31T00:00:00+00:00",
+            "finished_at": "2026-08-31T00:00:01+00:00",
+            "runtime_duration_ms": 1000,
+        })
 
 if __name__ == "__main__": unittest.main()

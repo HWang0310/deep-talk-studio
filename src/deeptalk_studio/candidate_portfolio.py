@@ -154,8 +154,8 @@ def _no_call_reason(raw: Mapping[str, Any] | None, enabled: bool, profile: str) 
     return "POLICY_NO_CALL"
 
 
-def orchestrate_candidate_portfolio(opportunities: Sequence[Mapping[str, Any]], plugin_config: Mapping[str, Any], *, production_profile: str, policy: Mapping[str, Any], job_root: Path, visual_opportunity_plan_digest: str | None = None) -> dict:
-    """Run the accepted fake-only Core sequence and produce canonical portfolio/1."""
+def orchestrate_candidate_portfolio(opportunities: Sequence[Mapping[str, Any]], plugin_config: Mapping[str, Any], *, production_profile: str, policy: Mapping[str, Any], job_root: Path, visual_opportunity_plan_digest: str | None = None, task_id: str = "UNSPECIFIED") -> dict:
+    """Run configured Contract V1 plugins and produce canonical portfolio/1."""
     config = normalize_visual_plugin_config(plugin_config); config_sha = config_digest(config); policy_sha = generation_policy_digest(policy)
     if not opportunities: raise ValueError("at least one opportunity is required")
     plan_sha = visual_opportunity_plan_digest
@@ -165,14 +165,14 @@ def orchestrate_candidate_portfolio(opportunities: Sequence[Mapping[str, Any]], 
     for opportunity in opportunities:
         suitability=[]
         for plugin in config["plugins"]:
-            if plugin["enabled"]: suitability.append(run_visual_plugin(plugin,operation="suitability",opportunity=opportunity,job_root=job_root,plugin_config_digest=config_sha))
+            if plugin["enabled"]: suitability.append(run_visual_plugin(plugin,operation="suitability",opportunity=opportunity,job_root=job_root,plugin_config_digest=config_sha,task_id=task_id))
             else: suitability.append({"execution":None,"raw_response":None,"request_snapshot":None,"_output_root":None})
         actions=policy_actions(production_profile,[x["raw_response"] for x in suitability],[p["enabled"] for p in config["plugins"]],policy)
         generations=[]
         for plugin, suit, action in zip(config["plugins"],suitability,actions):
             raw=suit["raw_response"]
             if action=="REQUESTED" and raw is not None:
-                generations.append(run_visual_plugin(plugin,operation="generation",opportunity=opportunity,proposal_id=raw["proposal_id"],job_root=job_root,plugin_config_digest=config_sha))
+                generations.append(run_visual_plugin(plugin,operation="generation",opportunity=opportunity,proposal_id=raw["proposal_id"],job_root=job_root,plugin_config_digest=config_sha,task_id=task_id))
             else: generations.append({"execution":None,"raw_response":None,"request_snapshot":None,"_output_root":None})
         proposals=[]; policy_records=[]; generation_records=[]; candidates=[]
         for plugin,suit,gen,action in zip(config["plugins"],suitability,generations,actions):

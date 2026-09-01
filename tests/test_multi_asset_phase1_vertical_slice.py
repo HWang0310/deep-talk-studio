@@ -1,4 +1,5 @@
 import sys
+import subprocess
 import hashlib
 import json
 import tempfile
@@ -12,11 +13,12 @@ from deeptalk_studio.visual_opportunity_storage import load_visual_opportunity_p
 from deeptalk_studio.visual_plugin_adapter import run_visual_plugin
 
 ROOT=Path(__file__).resolve().parents[1]
+CORE_SHA=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,check=True,text=True,capture_output=True).stdout.strip()
 T={"artifact_version":"semantic-timeline/1","timeline_id":"ST-01","timing_provenance":"actual_aroll_alignment","alignment_digest":"c"*64,"transcript_digest":"d"*64,"spans":[{"span_id":"ST001","actual_start_seconds":"0.000","actual_end_seconds":"2.000","summary":"Synthetic semantics.","visual_eligibility":"safe","reason":"safe_real_alignment"}]}
 T["timeline_digest"]=hashlib.sha256(json.dumps(T,ensure_ascii=False,sort_keys=True,separators=(",",":" )).encode("utf-8")).hexdigest()
 D={"artifact_version":"visual-opportunity-directives/1","directives_id":"VOD-01","revision":1,"semantic_timeline_digest":T["timeline_digest"],"reviewed_script_digest":"b"*64,"directives":[{"directive_id":"D-01","span_id":"ST001","visual_purpose":"Explain.","why_opportunity":"Useful.","semantic_context_selector":{"include_neighboring_spans":0},"factual_context_refs":[]}]}
 DEFAULTS={"language":"zh-CN","canvas":{"width":1920,"height":1080},"target_duration_ms":1500}
-def plugin(scenario): return {"plugin_id":"fake-visual-plugin","plugin_root":str(ROOT),"argv_prefix":[sys.executable,"tests/visual_asset_plugin_fakes.py","--scenario",scenario],"timeout_seconds":2,"environment":{},"enabled":True,"plugin_version_command":[sys.executable,"tests/visual_asset_plugin_fakes.py","--version"],"expected_source_revision":"fake-only","require_clean_worktree":False}
+def plugin(scenario): return {"plugin_id":"fake-visual-plugin","plugin_version":"fake-1","plugin_root":str(ROOT),"argv_prefix":[sys.executable,"tests/visual_asset_plugin_fakes.py","--scenario",scenario],"timeout_seconds":2,"environment":{},"enabled":True,"plugin_version_command":[sys.executable,"tests/visual_asset_plugin_fakes.py","--version"],"expected_source_revision":CORE_SHA,"require_clean_worktree":False}
 
 class Phase1VerticalSliceTests(unittest.TestCase):
  def test_synthetic_safe_opportunity_reaches_immutable_accepted_ready_portfolio(self):

@@ -11,6 +11,15 @@ AIGC:
 
 # Changelog
 
+## Unreleased — 2026-09-01 — Core Phase 3A-2 real MG integration — AWAITING_CHATGPT_REVIEW
+
+- Connected the existing Contract V1 subprocess adapter and Candidate Portfolio orchestration to MG `org.deeptalk.mg` version `1.0.0-contract-v1`, exact-pinned at `7ae59f1115da8a011113c81f31d320783b0ce8a4`, through `node scripts/contract-runner.js` and request/result/artifact files only.
+- Added fail-closed plugin-root, full-HEAD, clean-worktree, reported-version, response identity, Contract version, canonical argv, environment/config digest, request/result identity, and task evidence. No revision bypass remains for synthetic runners.
+- Added deterministic timeout evidence and controlled regressions proving SIGTERM escalation to SIGKILL both when the direct child ignores termination and when a wrapper exits while a same-group descendant survives; Core reaps its direct child, verifies group termination, and emits no raw result or Candidate. Runner launch `OSError` failures are isolated fail-closed.
+- Kept `visual-asset-plugin-config/1` and historical execution evidence readable while requiring enabled pinned entries and all newly completed evidence to bind version, exact revision, resolved argv, request/result identity, and identical proposal/generation-to-audit execution copies.
+- Proved one synthetic causal opportunity through real MG suitability (`SUITABLE`), policy-requested generation, READY/PASSED primary media, Core SHA/ffprobe/artifact-boundary acceptance, and immutable portfolio reload. The MG entry uses a 180-second budget because measured local generation completed in about 125 seconds; the previous 120-second placeholder failed closed before normal completion.
+- Status is **IMPLEMENTED_UNRELEASED / AWAITING_CHATGPT_REVIEW**, not ACCEPTED or RELEASED. No MG source, Illustrated, Hand-drawn, real Episode, Candidate Pack, Edit Map, V1 writer, `main`, tag, or Release was modified.
+
 ## Unreleased — 2026-08-30 — Relocation-safe Core artifact semantics — ACCEPTED / IMPLEMENTED_UNRELEASED
 
 - Added a strict machine-local runtime resolver for digest-covered Motion Manifest, reviewed Material Package, and Material Capture paths after a canonical workspace move. Historical artifacts and digests remain unchanged; only separately verified runtime observations use the new canonical location.

@@ -11,7 +11,7 @@ AIGC:
 
 # DeepTalk Studio — Canonical Project State
 
-> **Read this first for current truth.** This file is the concise, canonical state of the product as of 2026-08-30. Historical evidence remains in [HANDOFF.md](HANDOFF.md), release notes, plans, and specs; those sources do not override this file.
+> **Read this first for current truth.** This file is the concise, canonical state of the product as of 2026-09-01. Historical evidence remains in [HANDOFF.md](HANDOFF.md), release notes, plans, and specs; those sources do not override this file.
 
 ## Identity
 
@@ -22,7 +22,7 @@ AIGC:
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
-| Current work | Visual Asset Plugin Contract V1 architecture is ACCEPTED_UNRELEASED. Phases 0, 1, and 2 are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation. Phase 2 provides sanitized fake-only Core orchestration, `candidate-portfolio/1`, policy, Core QA, production directive authoring, and immutable audit history. Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED: it separates immutable historical recorded paths from Core-owned verified runtime locations, preserving historical Production/Material/Capture manifests without rewriting them. No real plugin, Candidate Asset Pack, `candidate-edit-map/1`, V2 production migration, or episode workflow is implemented. Phase 3A is IN PROGRESS. |
+| Current work | Visual Asset Plugin Contract V1 architecture and Phases 0–2 are ACCEPTED / IMPLEMENTED_UNRELEASED. MG Contract V1 runner `7ae59f1115da8a011113c81f31d320783b0ce8a4` is ACCEPTED / PINNED / IMPLEMENTED_UNRELEASED. Core Phase 3A-2 is IMPLEMENTED_UNRELEASED / AWAITING_CHATGPT_REVIEW: one synthetic causal opportunity completed real MG suitability, generation, and Core artifact acceptance through configured request/result files. No Candidate Asset Pack, `candidate-edit-map/1`, V2 production migration, production default, or real Episode is implemented. |
 
 ## Current Product Positioning
 
@@ -61,7 +61,7 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 → Multi-option Edit Map → creator manual NLE selection
 ```
 
-This is an **ACCEPTED_UNRELEASED product direction** with a fake-only Core Phase 2 implementation, not a production schema migration, real-plugin integration, or production workflow. Candidates are intentionally non-exclusive: they may overlap, have different durations, come from multiple families, and be used singly, together, or not at all.
+This is an **ACCEPTED_UNRELEASED product direction** with accepted fake-only Core Phase 2 foundations and a Phase 3A-2 single-pinned-MG synthetic integration awaiting ChatGPT review. It is not a production schema migration or production workflow. Candidates are intentionally non-exclusive: they may overlap, have different durations, come from multiple families, and be used singly, together, or not at all.
 
 The accepted ecosystem principle is **multi-repo, plugin-first**: Core stays stable while visual capabilities are independently researched, optimized, benchmarked, QA'd, and versioned as Visual Asset Plugins. The evidence-derived [Contract V1 design](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture. It is not production implementation, runtime-schema adoption, a release, a tag, or a `main` change.
 
@@ -114,7 +114,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 - Candidate Asset Pack and multi-option Edit Map semantics.
 - `REAL_MATERIAL` as an independent documentary/evidence family, distinct from generated explanation families.
 - Machine records distinguish Generation operation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) from produced Candidate asset outcomes (`READY`, `QA_REJECTED`); Core acceptance is separate and creator packs will default to raw READY plus Core ACCEPTED candidates only. Phase 2 implements this only through sanitized fake subprocess data, not production-schema migration.
-- The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are accepted. Phase 2 implements only the fake-only Core adapter/runtime and `candidate-portfolio/1`; no real plugin registry or runner, migration, Candidate Asset Pack, `candidate-edit-map/1`, or episode code exists.
+- The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are accepted. Phase 3A-2 connects the existing Core adapter/runtime and `candidate-portfolio/1` to the exact-pinned MG runner for synthetic integration only; no registry, second plugin, migration, Candidate Asset Pack, `candidate-edit-map/1`, production default, or episode code exists.
 - Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED. Runtime resolution validates configured trusted historical roots, canonical artifact-relative identity, containment, symlink rejection, file existence, byte size, and SHA-256. Historical manifests are preserved without rewriting. Current Production selection is explicit via machine-local `current_production_id`; filesystem mtime is no longer semantic truth. A formal immutable current-production index/pointer schema remains deferred.
 
 ## Approved Next / Experimental
@@ -141,7 +141,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 
 The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2 is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation: fake-only portfolio breadth, deterministic policy, Core QA, hardened immutable storage, and production directive authoring. Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED: runtime resolution validates configured trusted historical roots, canonical artifact-relative identity, containment, symlink rejection, file existence, byte size, and SHA-256. Historical Production/Material/Capture manifests are not rewritten. Current Production may be explicitly selected by machine-local `current_production_id`; filesystem mtime is no longer semantic current-production truth. A formal immutable current-production index/pointer schema remains deferred. Machine-specific canonical repository root belongs to gitignored local config, not product invariants.
 
-Phase 3A is IN PROGRESS. The first MG Contract V1 runner has an implementation on its plugin review branch, but is NOT yet accepted/pinned because a focused correction remains. Core real-plugin Phase 3A-2 integration has NOT started. No real plugin runner is accepted or pinned.
+Phase 3A-1 MG is ACCEPTED / PINNED / IMPLEMENTED_UNRELEASED at exact SHA `7ae59f1115da8a011113c81f31d320783b0ce8a4`, identity `org.deeptalk.mg`, version `1.0.0-contract-v1`, and canonical runner `node scripts/contract-runner.js`. Core Phase 3A-2 is IMPLEMENTED_UNRELEASED / AWAITING_CHATGPT_REVIEW. Its real-plugin path verifies exact HEAD, clean checkout, reported version, result identity, Contract V1, configured argv, timeout termination evidence, and Core-owned artifacts before accepting a candidate. The next gate is independent ChatGPT review; Phase 3B has not started.
 
 ## Read Next
 

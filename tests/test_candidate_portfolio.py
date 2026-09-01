@@ -1,4 +1,5 @@
 import sys
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,8 +7,9 @@ from deeptalk_studio.candidate_portfolio import build_candidate_portfolio, ready
 from deeptalk_studio.visual_plugin_adapter import run_visual_plugin
 
 ROOT=Path(__file__).resolve().parents[1]
+CORE_SHA=subprocess.run(["git","rev-parse","HEAD"],cwd=ROOT,check=True,text=True,capture_output=True).stdout.strip()
 O={"opportunity_id":"VO-01","spoken_semantics":"Synthetic.","visual_purpose":"Explain.","a_roll_window":{"start_ms":0,"end_ms":2000},"target_duration_ms":1500,"language":"zh-CN","canvas":{"width":1920,"height":1080}}
-def plugin(s): return {"plugin_id":"fake-visual-plugin","plugin_root":str(ROOT),"argv_prefix":[sys.executable,"tests/visual_asset_plugin_fakes.py","--scenario",s],"timeout_seconds":2,"environment":{},"enabled":True,"plugin_version_command":[sys.executable,"tests/visual_asset_plugin_fakes.py","--version"],"expected_source_revision":"fake-only","require_clean_worktree":False}
+def plugin(s): return {"plugin_id":"fake-visual-plugin","plugin_version":"fake-1","plugin_root":str(ROOT),"argv_prefix":[sys.executable,"tests/visual_asset_plugin_fakes.py","--scenario",s],"timeout_seconds":2,"environment":{},"enabled":True,"plugin_version_command":[sys.executable,"tests/visual_asset_plugin_fakes.py","--version"],"expected_source_revision":CORE_SHA,"require_clean_worktree":False}
 def responses(scenario="ready"):
  root=tempfile.TemporaryDirectory(); p=Path(root.name); s=run_visual_plugin(plugin("suitable"),operation="suitability",opportunity=O,job_root=p); g=run_visual_plugin(plugin(scenario),operation="generation",opportunity=O,proposal_id=s["raw_response"]["proposal_id"],job_root=p); return root,s,g
 class CandidatePortfolioTests(unittest.TestCase):

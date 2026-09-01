@@ -196,7 +196,7 @@ class PhaseZeroConfigExamplesTests(unittest.TestCase):
             self.assertEqual(
                 set(plugin),
                 {
-                    "plugin_id", "plugin_root", "argv_prefix", "timeout_seconds",
+                    "plugin_id", "plugin_version", "plugin_root", "argv_prefix", "timeout_seconds",
                     "environment", "enabled", "plugin_version_command",
                     "expected_source_revision", "require_clean_worktree",
                 },

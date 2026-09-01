@@ -1592,3 +1592,35 @@ Spec/Asset QA → 独立 Asset Pack + Edit Map → 用户 NLE 手工剪辑。
 ### 给用户的下一步操作
 
 你现在只需要把 Codex 回复最底部“请把以下内容复制给 ChatGPT”后面的整段文字原样发给 ChatGPT。你不需要查看代码、终端或 HANDOFF 文件。
+
+---
+
+## 2026-09-01：DT-CORE-3A2-001 — Core Phase 3A-2 real-plugin integration
+
+### 状态与固定身份
+
+- Core 起点：`76e40ea2441d834ffa30a15ca43d3c7b82cc99f9`，分支 `agent/multi-asset-studio`。
+- MG：`ACCEPTED / PINNED / IMPLEMENTED_UNRELEASED`，exact SHA `7ae59f1115da8a011113c81f31d320783b0ce8a4`，`org.deeptalk.mg`，`1.0.0-contract-v1`。
+- Core Phase 3A-2：`IMPLEMENTED_UNRELEASED / AWAITING_CHATGPT_REVIEW`。不得在 ChatGPT Review 前写成 ACCEPTED；整体仍为 V1.0 Candidate — Unreleased。
+
+### 实现与安全边界
+
+- 复用唯一的 `visual_plugin_config`、`visual_plugin_adapter`、policy orchestration、Core acceptance 和 immutable `candidate-portfolio/1`，没有创建第二套配置或 runner architecture。
+- 每次真实执行前验证 resolved plugin root、40 位 expected/actual HEAD、clean worktree，并通过配置的 `node scripts/contract-runner.js --version` 获取且核对版本；任何 root/revision/dirty/version/Contract/plugin identity mismatch 都失败关闭且没有 raw plugin response。
+- execution evidence 保存 TASK_ID、配置/环境 digest、resolved root、runner/version argv、完整 resolved argv、preflight、request/result identity 与 timeout termination；机器绝对路径只作为 runtime observation，不替代 plugin/revision/version/contract identity。
+- timeout/cancel 先向独立 process group 发 SIGTERM；无论直接 child 仍存活，还是 wrapper 已退出但同组 descendant 忽略 SIGTERM，宽限期后都会检查整个 group、必要时升级 SIGKILL，并由 `communicate()` 回收直接 child。测试确认无存活 PID、无 zombie direct child、无 raw result/假 Candidate。
+- `Popen` 启动期的 missing executable、EACCES/ENOEXEC 等 `OSError` 均隔离为 `launch_failed`，不会阻断健康插件。`config/1` 的 disabled legacy entry 与历史 execution evidence 仍可读取；新完成态 evidence 与 proposal/generation/audit 副本严格互相绑定。
+- MG 只通过 canonical command、request/result JSON 和 Core-owned output directory 交互。Core 没有 import MG source/TypeScript、vite-node internal path 或 `contract-runner-cli.ts`。
+
+### 真实 synthetic proof
+
+- Opportunity：`VO-DT-CORE-3A2-001-causal`，只含 synthetic causal/mechanism semantics，无真实 Episode。
+- Suitability：`COMPLETED / SUITABLE`；现有 STANDARD policy 请求 generation。
+- Generation：`COMPLETED`，exactly one MG Candidate，`READY`，QA `PASSED`，PRIMARY_MEDIA/manifest/QA artifact 均由真实 runner 生成并通过 Core locator、existence、SHA-256、ffprobe duration 和 placement boundary。
+- 首次 canonical 120 秒预算按设计 timeout 且无 raw result；单变量诊断证明同一 runner 在 `124699 ms` 正常完成。MG entry 调整为 180 秒后，最终 fresh real integration test 在 `127.152 s` 通过：proposal `prop_715937346ab2709c2c238a50`，candidate `cand_455048c16450791dae5e597f`，PRIMARY_MEDIA SHA-256 `43978a6a66666e5d3e3a4b73f8ccb3179b3a7b4836e6da545b940d95d8b99be2`，placement `12500–19500 ms`，declared/observed duration `7000/7061 ms`（Core ±100 ms contract 内），QA `PASSED`，Core `ACCEPTED`。
+- Final fresh validation：Core `628` tests passed（`4` gated skips）；MG `42` tests passed（`1` gated skip），MG lint/typecheck passed；aligned-preview lint/typecheck passed；独立复审无 Critical/Important finding，结论 PASS / ready to commit。
+
+### 明确未做
+
+- 没有修改 MG、Illustrated 或 Hand-drawn repository。
+- 没有真实 Episode、Candidate Asset Pack、Multi-option Edit Map、winner selection、overlap resolution、自动编辑、NLE project、Phase 3B、merge、tag 或 release。
