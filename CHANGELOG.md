@@ -11,6 +11,13 @@ AIGC:
 
 # Changelog
 
+## Unreleased — 2026-09-01 — Core Phase 3B remaining runner readiness — AWAITING_NEXUS_REVIEW
+
+- Replaced the placeholder Illustrated Metaphor record with the independently reviewed Contract V1 runner identity `org.deeptalk.illustrated-metaphor`, version `0.2.0-contract-runner`, command `python3 scripts/contract_runner.py`, and exact SHA `48848affe018fc2cff8ee15bad7a09bb002776e4`.
+- Replaced the placeholder Hand-drawn record with the independently reviewed Contract V1 runner identity `org.deeptalk.handdrawn-animation`, version `handdrawn-animation-contract/0.1.0`, command `node src/contract-runner.js`, and exact SHA `67698fd8ea09109ff91c912f51e4c2d4f0b8482f`.
+- Added static, relocation-portable, fail-closed readiness regressions for exact records, disabled state, wrong revision, dirty checkout, reported-version mismatch, and opt-in real checkout preflight/version verification. MG remains exactly unchanged at `7ae59f1115da8a011113c81f31d320783b0ce8a4`.
+- Status is **IMPLEMENTED_UNRELEASED / AWAITING_NEXUS_REVIEW**. All three records remain disabled. No plugin repository, Contract, generation orchestration, real Episode, Candidate Pack, Edit Map, `main`, tag, or Release was modified.
+
 ## Unreleased — 2026-09-01 — Core Phase 3A-2 real MG integration — AWAITING_CHATGPT_REVIEW
 
 - CORRECTION-1: Core now performs lexical `lstat` checks before path resolution and rejects a symlink output root, any existing symlink ancestor below that root, and a symlink artifact even when its resolved target remains inside the output root. Traversal, containment, existence, SHA-256, and duration checks are unchanged.

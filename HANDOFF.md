@@ -1632,3 +1632,15 @@ Spec/Asset QA → 独立 Asset Pack + Edit Map → 用户 NLE 手工剪辑。
 - 回归覆盖 output-root symlink、artifact-parent symlink、final artifact 指向 root 外、final artifact 指向 root 内、普通真实文件；inside-root symlink 不因 resolved target 仍满足 containment 而获准。
 - Contract、MG checkout、runner、preflight、timeout/reaping、traversal、containment、existence、SHA-256、ffprobe duration 语义均未改变。
 - Final fresh validation：symlink A–E `5/5` passed；相关 Phase 3A-2/security regression `31/31` passed；Core full suite `633` passed、`4` gated skips；pinned MG real regression `1/1` passed in `126.248 s`，媒体 SHA-256 仍为 `43978a6a66666e5d3e3a4b73f8ccb3179b3a7b4836e6da545b940d95d8b99be2`，Core `ACCEPTED`。
+
+## 2026-09-01：DT-CORE-3B-001 — remaining real-runner readiness
+
+- Core starting SHA：`990fc03922e527bef64b819cf898e4266d5669c1`，分支 `agent/multi-asset-studio`。
+- Illustrated Metaphor readiness：`org.deeptalk.illustrated-metaphor`，version `0.2.0-contract-runner`，runner `python3 scripts/contract_runner.py`，exact SHA `48848affe018fc2cff8ee15bad7a09bb002776e4`。
+- Hand-drawn readiness：`org.deeptalk.handdrawn-animation`，version `handdrawn-animation-contract/0.1.0`，runner `node src/contract-runner.js`，exact SHA `67698fd8ea09109ff91c912f51e4c2d4f0b8482f`。
+- MG readiness record remains exactly `org.deeptalk.mg` / `1.0.0-contract-v1` / `node scripts/contract-runner.js` / `7ae59f1115da8a011113c81f31d320783b0ce8a4`.
+- Core static regressions bind all three exact records, preserve relocation-portable config identity, prove revision/dirty/version mismatch fail closed, and provide an opt-in preflight/version-only check against the two real plugin checkouts. No generation is performed by the Phase 3B readiness test.
+- Fresh validation：Core focused `43/43` passed（`1` expected gated skip），real readiness `1/1` passed，Core full suite `637` passed（`5` gated skips）；Illustrated native `77/77` passed；Hand-drawn native `75/75`、integration `14/14` and lint passed。
+- All three config entries remain `enabled: false`. Runner readiness is not three-plugin portfolio integration, production enablement, or acceptance for release.
+- No MG, Illustrated, or Hand-drawn repository was modified. No Contract, Phase 4/5, real Episode, Candidate Asset Pack, Edit Map, merge, tag, or Release work is included.
+- Status：`IMPLEMENTED_UNRELEASED / AWAITING_NEXUS_REVIEW`。不得在 Nexus independent exact-SHA review 前写成 ACCEPTED。
