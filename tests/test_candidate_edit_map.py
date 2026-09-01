@@ -35,6 +35,7 @@ from deeptalk_studio.candidate_pack_workflow import (
 import hashlib
 from tests.test_candidate_pack_workflow import (
     OPP,
+    DEFAULT_REQUEST_ID,
     _candidate,
     _portfolio,
     _portfolio_entry,
@@ -51,12 +52,13 @@ def _build_pack(root: Path, candidates_data: list[tuple[str, str, int, int, int]
     """Build a candidate asset pack from (candidate_id, family, duration_ms, start_ms, end_ms)."""
     entries = []
     for i, (cid, family, dur, start, end) in enumerate(candidates_data, 1):
-        m, sha = _write_media(root, cid)
+        _, sha = _write_media(root, cid)
         c = _candidate(cid, family=family, duration_ms=dur, start_ms=start, end_ms=end,
                        media_uri=f"local-runner://{cid}.mp4", media_sha=sha)
-        entries.append(_portfolio_entry(c, plugin_id=f"org.example.p{i}", proposal_id=f"prop-{i}", review_order=i))
+        entries.append(_portfolio_entry(c, plugin_id=f"org.example.p{i}", proposal_id=f"prop-{i}",
+                                        review_order=i, observed_sha=sha))
     portfolio = _portfolio([_opp_block(entries)])
-    return build_candidate_asset_pack(portfolio, output_root=root, dest_root=root / "staged")
+    return build_candidate_asset_pack(portfolio, job_root=root, dest_root=root / "staged")
 
 
 # ---------------------------------------------------------------------------

@@ -4,17 +4,19 @@ This module is strictly additive to V1.  It reads a Candidate Portfolio (Phase 2
 shape with ``opportunities``) and produces a ``candidate-asset-pack/1`` whose
 entries contain only candidates satisfying **raw plugin READY + Core ACCEPTED**.
 
-Key design rules (Phase 4 acceptance):
+Key design rules (Phase 4 acceptance, post CORRECTION-1):
 
-* Machine history (failed, rejected, no-call) stays in the portfolio; it is
-  never copied into the creator pack.
+* Per-request output root: each candidate's ``local-runner://`` URI is resolved
+  relative to its own generation request's output directory
+  (``job_root/<request_id>/output/``), discovered via the portfolio's
+  ``generation_records`` execution evidence.  No shared ``output_root``.
+* Immutable staging bound to Core acceptance evidence: ``observed_sha256`` from
+  ``core_acceptance`` is the trusted SHA.  Source file is re-hashed and must
+  match.  Raw artifact ``sha256`` must also be consistent.  Missing
+  ``observed_sha256`` → fail closed.
 * No winner / best / recommended semantics — ``suggested_review_order`` is
   exposed only as "review order" (查看顺序).
-* Immutable staging: PRIMARY_MEDIA bytes are copied into a Core-owned
-  candidate asset root.  Filenames are deterministic and collision-safe;
-  existing files with differing bytes cause a fail-closed error.
-* Plugin-internal metadata (``plugin_metadata``, opaque debug fields, runner
-  argv, process logs) is never exposed to the creator.
+* Plugin-internal metadata is never exposed to the creator.
 * No A-roll modification, no NLE project, no finished video generation.
 """
 from __future__ import annotations
@@ -83,16 +85,46 @@ def _preview_artifact(candidate: Mapping[str, Any]) -> Mapping[str, Any] | None:
 
 
 # ---------------------------------------------------------------------------
-# Immutable staging
+# Per-request output root resolution
 # ---------------------------------------------------------------------------
 
-def _safe_filename(candidate_id: str, index: int, suffix: str) -> str:
-    """Deterministic collision-safe filename without exposing plugin internals."""
-    safe_id = candidate_id.replace("/", "_").replace("\\", "_").replace("..", "_")
-    return f"{safe_id}_{index:03d}{suffix}"
+def _generation_output_root(
+    block: Mapping[str, Any],
+    candidate_entry: Mapping[str, Any],
+    job_root: Path,
+) -> Path:
+    """Resolve the per-request output directory for a candidate's generation.
 
+    The portfolio's ``generation_records`` list carries execution evidence
+    including ``request_id``.  The adapter creates output at
+    ``job_root/<request_id>/output/``.  We match by ``plugin_id``.
+    """
+    plugin_id = str(candidate_entry.get("plugin_id", ""))
+    for record in block.get("generation_records", []):
+        if not isinstance(record, Mapping):
+            continue
+        if str(record.get("plugin_id", "")) != plugin_id:
+            continue
+        execution = record.get("generation_execution")
+        if not isinstance(execution, Mapping):
+            continue
+        request_id = str(execution.get("request_id", ""))
+        if not request_id:
+            continue
+        output_dir = Path(job_root) / request_id / "output"
+        if output_dir.is_dir():
+            return output_dir
+    raise CandidatePackError(
+        f"无法为 plugin_id={plugin_id} 定位 generation request 输出目录"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Symlink / traversal safety
+# ---------------------------------------------------------------------------
 
 def _lexical_path_has_symlink(root: Path, relative: Path) -> bool:
+    """Return True if any component of *root / relative* is a symlink."""
     paths: list[Path] = [root]
     current = root
     for part in relative.parts:
@@ -109,11 +141,8 @@ def _lexical_path_has_symlink(root: Path, relative: Path) -> bool:
     return False
 
 
-def _resolve_artifact_path(
-    uri: str,
-    output_root: Path,
-) -> Path | None:
-    """Resolve a ``local-runner://`` URI under the plugin output root.
+def _resolve_artifact_path(uri: str, request_output: Path) -> Path | None:
+    """Resolve a ``local-runner://`` URI under a per-request output root.
 
     Returns the resolved real path if safe, otherwise ``None``.
     """
@@ -122,10 +151,10 @@ def _resolve_artifact_path(
     relative = uri[len("local-runner://"):]
     if not relative or Path(relative).is_absolute() or ".." in Path(relative).parts:
         return None
-    if _lexical_path_has_symlink(output_root, Path(relative)):
+    if _lexical_path_has_symlink(request_output, Path(relative)):
         return None
     try:
-        root = output_root.resolve(strict=True)
+        root = request_output.resolve(strict=True)
         candidate = (root / relative).resolve(strict=False)
     except OSError:
         return None
@@ -138,19 +167,84 @@ def _resolve_artifact_path(
     return candidate
 
 
+# ---------------------------------------------------------------------------
+# Destination symlink hardening
+# ---------------------------------------------------------------------------
+
+def _dest_has_symlink_ancestor(dest_root: Path) -> bool:
+    """Return True if *dest_root* or any of its existing ancestors is a symlink.
+
+    Walks from *dest_root* upward.  For each component:
+
+    * exists + is symlink → reject
+    * exists + not symlink → stop (safe ancestor reached)
+    * does not exist → keep walking (cannot be a symlink)
+
+    This avoids false positives from OS-level symlinks such as
+    ``/var`` → ``/private/var`` on macOS, while still catching symlinks
+    within the staging area.
+    """
+    current = dest_root
+    while True:
+        try:
+            if current.is_symlink():
+                return True
+        except OSError:
+            return True
+        try:
+            if current.exists() and not current.is_symlink():
+                break  # safe non-symlink ancestor found
+        except OSError:
+            return True
+        if current == current.parent:
+            break
+        current = current.parent
+    return False
+
+
+def _ensure_safe_dest(dest_root: Path) -> None:
+    """Ensure the staging destination root is not a symlink and has no symlink ancestors."""
+    if dest_root.is_symlink():
+        raise CandidatePackError("dest_root 本身是符号链接，拒绝写入")
+    if _dest_has_symlink_ancestor(dest_root):
+        raise CandidatePackError("dest_root 路径链包含符号链接，拒绝写入")
+
+
+# ---------------------------------------------------------------------------
+# Immutable staging
+# ---------------------------------------------------------------------------
+
+def _safe_filename(candidate_id: str, index: int, suffix: str) -> str:
+    """Deterministic collision-safe filename without exposing plugin internals."""
+    safe_id = candidate_id.replace("/", "_").replace("\\", "_").replace("..", "_")
+    return f"{safe_id}_{index:03d}{suffix}"
+
+
 def _stage_media(
     source_path: Path,
     dest_root: Path,
     candidate_id: str,
     index: int,
-    expected_sha: str,
+    trusted_sha: str,
 ) -> tuple[Path, str]:
     """Copy *source_path* into *dest_root* immutably.
+
+    *trusted_sha* is the Core-accepted ``observed_sha256`` — the authoritative
+    hash.  The source file is re-hashed; mismatch → fail closed.  After copy,
+    the destination is re-hashed; mismatch → fail closed.
 
     Non-overwriting: if the destination already exists with the same bytes,
     the existing path is returned; if it exists with different bytes the
     function raises :class:`CandidatePackError`.
     """
+    # Verify source matches trusted SHA
+    source_sha = _sha256_file(source_path)
+    if source_sha != trusted_sha:
+        raise CandidatePackError(
+            f"源文件 SHA-256 与 Core 验收 observed_sha256 不一致: "
+            f"source={source_sha}, observed={trusted_sha}"
+        )
+
     dest_root.mkdir(parents=True, exist_ok=True)
     suffix = source_path.suffix or ".mp4"
     filename = _safe_filename(candidate_id, index, suffix)
@@ -160,14 +254,14 @@ def _stage_media(
         if destination.is_symlink():
             raise CandidatePackError("目标路径是符号链接，拒绝写入")
         existing_sha = _sha256_file(destination)
-        if existing_sha != expected_sha:
+        if existing_sha != trusted_sha:
             raise CandidatePackError("同名候选素材已存在且内容不同，拒绝覆盖")
         return destination, existing_sha
 
     # Copy bytes
     shutil.copy2(source_path, destination)
     observed_sha = _sha256_file(destination)
-    if observed_sha != expected_sha:
+    if observed_sha != trusted_sha:
         # Remove the bad copy to avoid leaving corrupted state
         try:
             destination.unlink()
@@ -201,10 +295,30 @@ def _creator_provenance(candidate: Mapping[str, Any]) -> dict:
     }
 
 
+def _get_trusted_sha(acceptance: Mapping[str, Any], primary: Mapping[str, Any], candidate_id: str) -> str:
+    """Get the trusted SHA from Core acceptance evidence.
+
+    * ``core_acceptance.observed_sha256`` is the authoritative hash.
+    * If raw artifact ``sha256`` is present, it must match.
+    * Missing ``observed_sha256`` → fail closed.
+    """
+    observed = str(acceptance.get("observed_sha256", ""))
+    if not observed or len(observed) != 64:
+        raise CandidatePackError(
+            f"候选 {candidate_id} 的 core_acceptance 缺少 observed_sha256，拒绝 staging"
+        )
+    raw_sha = str(primary.get("sha256", ""))
+    if raw_sha and raw_sha != observed:
+        raise CandidatePackError(
+            f"候选 {candidate_id} 的 raw artifact sha256 与 Core observed_sha256 不一致"
+        )
+    return observed
+
+
 def _build_candidate_entry(
     opportunity_block: Mapping[str, Any],
     candidate_entry: Mapping[str, Any],
-    output_root: Path,
+    job_root: Path,
     dest_root: Path,
     ordinal: int,
 ) -> dict:
@@ -218,45 +332,48 @@ def _build_candidate_entry(
             f"READY/ACCEPTED candidate {candidate.get('candidate_id')} lacks PRIMARY_MEDIA"
         )
 
-    # Resolve and stage the primary media
-    source_path = _resolve_artifact_path(str(primary.get("uri", "")), output_root)
+    # --- Resolve per-request output root from generation execution evidence ---
+    request_output = _generation_output_root(opportunity_block, candidate_entry, job_root)
+
+    # --- Get trusted SHA from Core acceptance ---
+    trusted_sha = _get_trusted_sha(acceptance, primary, str(candidate.get("candidate_id", "")))
+
+    # --- Resolve and stage the primary media ---
+    source_path = _resolve_artifact_path(str(primary.get("uri", "")), request_output)
     if source_path is None or not source_path.is_file():
         raise CandidatePackError(
             f"候选 {candidate.get('candidate_id')} 的 PRIMARY_MEDIA 无法安全解析"
         )
-    expected_sha = str(primary.get("sha256", ""))
-    if not expected_sha:
-        expected_sha = _sha256_file(source_path)
 
     staged_path, observed_sha = _stage_media(
         source_path,
         dest_root,
         str(candidate["candidate_id"]),
         ordinal,
-        expected_sha,
+        trusted_sha,
     )
 
-    # Preview artifact (optional)
+    # --- Preview artifact (optional) ---
     preview = _preview_artifact(candidate)
     preview_locator = None
     if preview is not None:
-        preview_source = _resolve_artifact_path(str(preview.get("uri", "")), output_root)
+        preview_source = _resolve_artifact_path(str(preview.get("uri", "")), request_output)
         if preview_source is not None and preview_source.is_file():
-            preview_suffix = preview_source.suffix or ".png"
-            preview_filename = _safe_filename(
-                str(candidate["candidate_id"]), ordinal, preview_suffix
-            )
-            try:
-                _, _ = _stage_media(
-                    preview_source,
-                    dest_root,
-                    str(candidate["candidate_id"]) + "_preview",
-                    ordinal,
-                    str(preview.get("sha256", "")) or _sha256_file(preview_source),
-                )
-                preview_locator = f"local-candidate-artifact://{preview_filename}"
-            except CandidatePackError:
-                preview_locator = None
+            # For preview, use the raw artifact sha256 as trusted hash
+            # (Core acceptance only verifies PRIMARY_MEDIA)
+            preview_trusted = str(preview.get("sha256", ""))
+            if preview_trusted and len(preview_trusted) == 64:
+                try:
+                    preview_staged, _ = _stage_media(
+                        preview_source,
+                        dest_root,
+                        str(candidate["candidate_id"]) + "_preview",
+                        ordinal,
+                        preview_trusted,
+                    )
+                    preview_locator = f"local-candidate-artifact://{preview_staged.name}"
+                except CandidatePackError:
+                    preview_locator = None
 
     window = opportunity.get("a_roll_window", {})
     placement = candidate.get("suggested_placement", {})
@@ -293,6 +410,7 @@ def _build_candidate_entry(
         "review_order": ordinal,
         "core_acceptance_provenance": {
             "status": str(acceptance.get("status", "")),
+            "observed_sha256": observed_sha,
         },
     }
     return entry
@@ -305,7 +423,7 @@ def _build_candidate_entry(
 def build_candidate_asset_pack(
     portfolio: Mapping[str, Any],
     *,
-    output_root: Path,
+    job_root: Path,
     dest_root: Path,
 ) -> dict:
     """Build a ``candidate-asset-pack/1`` from a Phase 2 Candidate Portfolio.
@@ -315,8 +433,10 @@ def build_candidate_asset_pack(
     portfolio
         A ``candidate-portfolio/1`` artifact in Phase 2 shape (with
         ``opportunities`` list).
-    output_root
-        The plugin job root under which ``local-runner://`` URIs resolve.
+    job_root
+        The plugin job root under which per-request ``<request_id>/output/``
+        directories resolve.  Each candidate's output root is discovered from
+        its generation execution evidence in the portfolio.
     dest_root
         Core-owned immutable staging destination for candidate media.
 
@@ -331,6 +451,12 @@ def build_candidate_asset_pack(
     if not isinstance(portfolio.get("opportunities"), list):
         raise CandidatePackError("portfolio 缺少 opportunities 列表")
 
+    job_root = Path(job_root)
+    dest_root = Path(dest_root)
+
+    # Harden destination symlink boundary
+    _ensure_safe_dest(dest_root)
+
     opportunity_entries: list[dict[str, Any]] = []
 
     for block in portfolio["opportunities"]:
@@ -342,8 +468,6 @@ def build_candidate_asset_pack(
             c for c in candidates if isinstance(c, Mapping) and _is_ready_accepted(c)
         ]
         if not ready_accepted:
-            # Zero candidates for this opportunity — still include the
-            # opportunity in the pack with an empty candidate list.
             opportunity_entries.append({
                 "opportunity_id": str(opportunity.get("opportunity_id", "")),
                 "a_roll_window": {
@@ -358,8 +482,6 @@ def build_candidate_asset_pack(
             })
             continue
 
-        # Sort ready/accepted candidates by suggested_review_order if present,
-        # otherwise by candidate_id for determinism.
         ready_accepted.sort(
             key=lambda c: (
                 c.get("suggested_review_order", 999),
@@ -369,7 +491,7 @@ def build_candidate_asset_pack(
 
         creator_candidates: list[dict[str, Any]] = []
         for ordinal, c in enumerate(ready_accepted, start=1):
-            entry = _build_candidate_entry(block, c, Path(output_root), Path(dest_root), ordinal)
+            entry = _build_candidate_entry(block, c, job_root, dest_root, ordinal)
             creator_candidates.append(entry)
 
         opportunity_entries.append({
