@@ -3,15 +3,24 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'e503ed8c-30e3-4d52-ba38-09e7ce06d8f2'
-  PropagateID: 'e503ed8c-30e3-4d52-ba38-09e7ce06d8f2'
-  ReservedCode1: '1356a798-6b68-42cd-bb2f-da64bca9a66d'
-  ReservedCode2: '1356a798-6b68-42cd-bb2f-da64bca9a66d'
+  ProduceID: '16dcb2c2-9619-4937-82b7-0f131249d90c'
+  PropagateID: '16dcb2c2-9619-4937-82b7-0f131249d90c'
+  ReservedCode1: 'f6cabd05-e705-4923-b4d1-8c399dba6538'
+  ReservedCode2: 'f6cabd05-e705-4923-b4d1-8c399dba6538'
 ---
 
 # DeepTalk Studio 开发交接
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
+
+## 2026-09-01：Core Phase 3A-2 & Phase 3B acceptance record — ACCEPTED / IMPLEMENTED_UNRELEASED
+
+- **DT-CORE-3B-ACCEPT-001 (docs-only).** Nexus completed independent GitHub exact-SHA review.
+- **DT-CORE-3A2-001** is **ACCEPTED / IMPLEMENTED_UNRELEASED** at accepted Core SHA `990fc03922e527bef64b819cf898e4266d5669c1`.
+- **DT-CORE-3B-001** is **ACCEPTED / IMPLEMENTED_UNRELEASED** at accepted implementation SHA `ec595587a378d54bd2a18270ded504707b04ddea`.
+- MG remains **ACCEPTED / PINNED / IMPLEMENTED_UNRELEASED** at `7ae59f1115da8a011113c81f31d320783b0ce8a4`. Illustrated readiness exact revision `48848affe018fc2cff8ee15bad7a09bb002776e4` and Hand-drawn readiness exact revision `67698fd8ea09109ff91c912f51e4c2d4f0b8482f` are preserved unchanged.
+- All three Core config entries remain `enabled: false`. Phase 3B acceptance **≠** Phase 5 three-plugin integration: no three-plugin generation, Candidate Asset Pack, Multi-option Edit Map, production enablement, real Episode, or release exists.
+- This acceptance record updates canonical current truth only; no `.py`, `.js`, `.json` config, test, plugin repository, runtime, or Contract was modified.
 
 ## 2026-08-30：Core relocation-safe artifact semantics — ACCEPTED / IMPLEMENTED_UNRELEASED
 

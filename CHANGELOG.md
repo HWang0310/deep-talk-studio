@@ -3,13 +3,20 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'f6024d66-23c5-4a9f-bbab-37a669b911a8'
-  PropagateID: 'f6024d66-23c5-4a9f-bbab-37a669b911a8'
-  ReservedCode1: '00482778-51c0-498b-a40d-b9cd7aafa516'
-  ReservedCode2: '00482778-51c0-498b-a40d-b9cd7aafa516'
+  ProduceID: '4c8af616-d3d8-460e-bdfe-3223f30631e0'
+  PropagateID: '4c8af616-d3d8-460e-bdfe-3223f30631e0'
+  ReservedCode1: 'f5968645-4762-4e02-9cf7-732ec3e9995e'
+  ReservedCode2: 'f5968645-4762-4e02-9cf7-732ec3e9995e'
 ---
 
 # Changelog
+
+## Unreleased — 2026-09-01 — Core Phase 3A-2 & Phase 3B acceptance record — ACCEPTED / IMPLEMENTED_UNRELEASED
+
+- **DT-CORE-3B-ACCEPT-001 (docs-only).** Nexus completed independent GitHub exact-SHA review. **DT-CORE-3A2-001** is **ACCEPTED / IMPLEMENTED_UNRELEASED** at accepted Core SHA `990fc03922e527bef64b819cf898e4266d5669c1`; **DT-CORE-3B-001** is **ACCEPTED / IMPLEMENTED_UNRELEASED** at accepted implementation SHA `ec595587a378d54bd2a18270ded504707b04ddea`.
+- MG remains **ACCEPTED / PINNED / IMPLEMENTED_UNRELEASED** at `7ae59f1115da8a011113c81f31d320783b0ce8a4`. Illustrated readiness exact revision `48848affe018fc2cff8ee15bad7a09bb002776e4` and Hand-drawn readiness exact revision `67698fd8ea09109ff91c912f51e4c2d4f0b8482f` are preserved unchanged.
+- All three Core config entries remain `enabled: false`. Phase 3B acceptance **≠** Phase 5 three-plugin integration: no three-plugin generation, Candidate Asset Pack, Multi-option Edit Map, production enablement, real Episode, or release exists.
+- This acceptance record updates canonical current truth only; no `.py`, `.js`, `.json` config, test, plugin repository, runtime, or Contract was modified.
 
 ## Unreleased — 2026-09-01 — Core Phase 3B remaining runner readiness — AWAITING_NEXUS_REVIEW
 
