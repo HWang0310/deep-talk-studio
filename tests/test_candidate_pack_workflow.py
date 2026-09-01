@@ -525,6 +525,39 @@ class SymlinkTests(unittest.TestCase):
                     portfolio, job_root=root, dest_root=sym_parent / "staged",
                 )
 
+    def test_dest_root_exists_but_parent_is_symlink_rejected(self):
+        """dest_root already exists and is a normal dir, but its parent is a
+        symlink → must still be rejected (CORRECTION-2 regression).
+
+        Setup:
+            real_parent/staged/   (staged already exists as a real dir)
+            sym_parent -> real_parent
+            dest_root = sym_parent/staged
+
+        dest_root.exists() == True and dest_root.is_symlink() == False,
+        but sym_parent is a symlink so the lexical chain is unsafe.
+        """
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            _, sha = _write_media(root, "cand-01")
+            candidate = _candidate("cand-01", media_uri="local-runner://cand-01.mp4", media_sha=sha)
+            portfolio = _portfolio([_opp_block([_portfolio_entry(candidate, observed_sha=sha)])])
+
+            real_parent = root / "real_parent"
+            staged = real_parent / "staged"
+            staged.mkdir(parents=True, exist_ok=True)  # staged already exists
+            sym_parent = root / "sym_parent"
+            os.symlink(real_parent, sym_parent)
+
+            # dest_root = sym_parent / "staged" — exists, not a symlink itself,
+            # but parent (sym_parent) is a symlink
+            dest_root = sym_parent / "staged"
+            self.assertTrue(dest_root.exists())
+            self.assertFalse(dest_root.is_symlink())
+
+            with self.assertRaises(CandidatePackError):
+                build_candidate_asset_pack(portfolio, job_root=root, dest_root=dest_root)
+
 
 # ---------------------------------------------------------------------------
 # Tests — per-request output root regression

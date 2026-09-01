@@ -172,28 +172,37 @@ def _resolve_artifact_path(uri: str, request_output: Path) -> Path | None:
 # ---------------------------------------------------------------------------
 
 def _dest_has_symlink_ancestor(dest_root: Path) -> bool:
-    """Return True if *dest_root* or any of its existing ancestors is a symlink.
+    """Return True if any ancestor of *dest_root* is a local symlink.
 
-    Walks from *dest_root* upward.  For each component:
+    Walks the **full** lexical chain from *dest_root* upward to the
+    filesystem root, checking every component with ``is_symlink()``
+    (which uses ``lstat`` — lexical, not following).
 
-    * exists + is symlink → reject
-    * exists + not symlink → stop (safe ancestor reached)
-    * does not exist → keep walking (cannot be a symlink)
+    A symlink found in the chain is classified:
 
-    This avoids false positives from OS-level symlinks such as
-    ``/var`` → ``/private/var`` on macOS, while still catching symlinks
-    within the staging area.
+    * **Local redirect** — the symlink's lexical parent and its resolved
+      target's parent are the same directory (e.g.
+      ``sym_parent -> real_parent`` where both are siblings under the
+      same parent).  This is a user-created redirect within the staging
+      area and must be **rejected**.
+
+    * **System redirect** — the symlink's parent differs from the
+      resolved target's parent (e.g. ``/var -> /private/var`` on macOS
+      where ``parent=/`` but ``resolved_parent=/private``).  This is an
+      OS-level transparent redirect and is **allowed** to avoid
+      false-positive on normal ``TemporaryDirectory`` paths.
     """
     current = dest_root
     while True:
         try:
             if current.is_symlink():
-                return True
-        except OSError:
-            return True
-        try:
-            if current.exists() and not current.is_symlink():
-                break  # safe non-symlink ancestor found
+                resolved = current.resolve(strict=False)
+                lexical_parent = current.parent.resolve(strict=False)
+                resolved_parent = resolved.parent
+                if lexical_parent == resolved_parent:
+                    # Local redirect within the same parent → reject
+                    return True
+                # System-level redirect (different parent) → allow
         except OSError:
             return True
         if current == current.parent:
