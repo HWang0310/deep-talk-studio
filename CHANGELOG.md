@@ -13,6 +13,7 @@ AIGC:
 
 ## Unreleased — 2026-09-01 — Core Phase 3A-2 real MG integration — AWAITING_CHATGPT_REVIEW
 
+- CORRECTION-1: Core now performs lexical `lstat` checks before path resolution and rejects a symlink output root, any existing symlink ancestor below that root, and a symlink artifact even when its resolved target remains inside the output root. Traversal, containment, existence, SHA-256, and duration checks are unchanged.
 - Connected the existing Contract V1 subprocess adapter and Candidate Portfolio orchestration to MG `org.deeptalk.mg` version `1.0.0-contract-v1`, exact-pinned at `7ae59f1115da8a011113c81f31d320783b0ce8a4`, through `node scripts/contract-runner.js` and request/result/artifact files only.
 - Added fail-closed plugin-root, full-HEAD, clean-worktree, reported-version, response identity, Contract version, canonical argv, environment/config digest, request/result identity, and task evidence. No revision bypass remains for synthetic runners.
 - Added deterministic timeout evidence and controlled regressions proving SIGTERM escalation to SIGKILL both when the direct child ignores termination and when a wrapper exits while a same-group descendant survives; Core reaps its direct child, verifies group termination, and emits no raw result or Candidate. Runner launch `OSError` failures are isolated fail-closed.

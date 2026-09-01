@@ -1624,3 +1624,11 @@ Spec/Asset QA → 独立 Asset Pack + Edit Map → 用户 NLE 手工剪辑。
 
 - 没有修改 MG、Illustrated 或 Hand-drawn repository。
 - 没有真实 Episode、Candidate Asset Pack、Multi-option Edit Map、winner selection、overlap resolution、自动编辑、NLE project、Phase 3B、merge、tag 或 release。
+
+### CORRECTION-1：plugin artifact lexical symlink rejection
+
+- Starting reviewed SHA：`b3ca6cdca5569a12fde1bc7b22d447a3007060f8`；状态仍为 `IMPLEMENTED_UNRELEASED / AWAITING_CHATGPT_REVIEW`。
+- `_resolve_artifact()` 在任何 `resolve()` 前对原始 lexical output root 及从 root 到 artifact 的每个已存在 component 执行 `lstat`。root、ancestor 或 final artifact 任一为 symlink，或 `lstat` 无法可靠检查，均返回 unsafe 并由 Core REJECTED。
+- 回归覆盖 output-root symlink、artifact-parent symlink、final artifact 指向 root 外、final artifact 指向 root 内、普通真实文件；inside-root symlink 不因 resolved target 仍满足 containment 而获准。
+- Contract、MG checkout、runner、preflight、timeout/reaping、traversal、containment、existence、SHA-256、ffprobe duration 语义均未改变。
+- Final fresh validation：symlink A–E `5/5` passed；相关 Phase 3A-2/security regression `31/31` passed；Core full suite `633` passed、`4` gated skips；pinned MG real regression `1/1` passed in `126.248 s`，媒体 SHA-256 仍为 `43978a6a66666e5d3e3a4b73f8ccb3179b3a7b4836e6da545b940d95d8b99be2`，Core `ACCEPTED`。

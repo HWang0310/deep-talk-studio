@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import stat
 import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -48,14 +49,38 @@ def _problem(code: str, message: str) -> dict:
     return {"code": code, "message": message}
 
 
+def _lexical_path_has_symlink(root: Path, relative: Path) -> bool:
+    paths = [root]
+    current = root
+    for part in relative.parts:
+        current = current / part
+        paths.append(current)
+    for path in paths:
+        try:
+            if stat.S_ISLNK(path.lstat().st_mode):
+                return True
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return True
+    return False
+
+
 def _resolve_artifact(uri: Any, output_root: Path, *, portfolio_id: str = "", plugin_id: str = "", request_id: str = "") -> tuple[Path | None, str | None]:
     if not isinstance(uri, str) or not uri.startswith("local-runner://"):
         return None, None
     relative = uri[len("local-runner://"):]
     if not relative or Path(relative).is_absolute() or ".." in Path(relative).parts:
         return None, None
-    root = Path(output_root).resolve(strict=True)
-    candidate = (root / relative).resolve(strict=False)
+    lexical_root = Path(output_root)
+    relative_path = Path(relative)
+    if _lexical_path_has_symlink(lexical_root, relative_path):
+        return None, None
+    try:
+        root = lexical_root.resolve(strict=True)
+        candidate = (root / relative_path).resolve(strict=False)
+    except OSError:
+        return None, None
     try: candidate.relative_to(root)
     except ValueError: return None, None
     if candidate.is_symlink(): return None, None
