@@ -171,38 +171,51 @@ def _resolve_artifact_path(uri: str, request_output: Path) -> Path | None:
 # Destination symlink hardening
 # ---------------------------------------------------------------------------
 
+def _is_trusted_system_alias(path: Path) -> bool:
+    """Return True only for a narrow, explicitly known set of OS-level symlinks.
+
+    On macOS, ``/var`` → ``/private/var`` and ``/tmp`` → ``/private/tmp``
+    are transparent system redirects created by the OS.  These are the
+    *only* symlinks we exempt; everything else — including user-created
+    cross-directory symlinks — is treated as a boundary violation.
+
+    The check is exact: the lexical path (``str(path)``, not resolved)
+    must be one of the known aliases AND the resolved target must match
+    the expected system target.  No structural heuristics are used.
+    """
+    if os.name != "posix":
+        return False
+
+    known_aliases: dict[str, str] = {
+        "/var": "/private/var",
+        "/tmp": "/private/tmp",
+    }
+    lexical = str(path)
+    expected_target = known_aliases.get(lexical)
+    if expected_target is None:
+        return False
+    try:
+        resolved = str(path.resolve(strict=False))
+    except OSError:
+        return False
+    return resolved == expected_target
+
+
 def _dest_has_symlink_ancestor(dest_root: Path) -> bool:
-    """Return True if any ancestor of *dest_root* is a local symlink.
+    """Return True if any component in the lexical chain from *dest_root*
+    upward is a symlink, with the sole exception of trusted OS-level
+    aliases (``/var``, ``/tmp`` on macOS).
 
-    Walks the **full** lexical chain from *dest_root* upward to the
-    filesystem root, checking every component with ``is_symlink()``
-    (which uses ``lstat`` — lexical, not following).
-
-    A symlink found in the chain is classified:
-
-    * **Local redirect** — the symlink's lexical parent and its resolved
-      target's parent are the same directory (e.g.
-      ``sym_parent -> real_parent`` where both are siblings under the
-      same parent).  This is a user-created redirect within the staging
-      area and must be **rejected**.
-
-    * **System redirect** — the symlink's parent differs from the
-      resolved target's parent (e.g. ``/var -> /private/var`` on macOS
-      where ``parent=/`` but ``resolved_parent=/private``).  This is an
-      OS-level transparent redirect and is **allowed** to avoid
-      false-positive on normal ``TemporaryDirectory`` paths.
+    All user-created symlinks — same-parent or cross-parent — cause
+    rejection.  This is deliberately stricter than structural heuristics:
+    only an exact-match known system alias is exempt.
     """
     current = dest_root
     while True:
         try:
             if current.is_symlink():
-                resolved = current.resolve(strict=False)
-                lexical_parent = current.parent.resolve(strict=False)
-                resolved_parent = resolved.parent
-                if lexical_parent == resolved_parent:
-                    # Local redirect within the same parent → reject
+                if not _is_trusted_system_alias(current):
                     return True
-                # System-level redirect (different parent) → allow
         except OSError:
             return True
         if current == current.parent:

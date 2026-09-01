@@ -558,6 +558,41 @@ class SymlinkTests(unittest.TestCase):
             with self.assertRaises(CandidatePackError):
                 build_candidate_asset_pack(portfolio, job_root=root, dest_root=dest_root)
 
+    def test_cross_parent_user_symlink_rejected(self):
+        """User-created cross-directory symlink ancestor → reject (CORRECTION-3 regression).
+
+        Setup:
+            outside/real_parent/staged/   (staged already exists)
+            inside/user_link -> outside/real_parent
+            dest_root = inside/user_link/staged
+
+        ``user_link`` is a cross-parent symlink (lexical_parent=inside,
+        resolved_parent=outside).  The old heuristic would mistake this
+        for a system redirect and allow it.  Must be rejected.
+        """
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            _, sha = _write_media(root, "cand-01")
+            candidate = _candidate("cand-01", media_uri="local-runner://cand-01.mp4", media_sha=sha)
+            portfolio = _portfolio([_opp_block([_portfolio_entry(candidate, observed_sha=sha)])])
+
+            outside = root / "outside"
+            real_parent = outside / "real_parent"
+            staged = real_parent / "staged"
+            staged.mkdir(parents=True, exist_ok=True)
+
+            inside = root / "inside"
+            inside.mkdir(parents=True, exist_ok=True)
+            user_link = inside / "user_link"
+            os.symlink(real_parent, user_link)
+
+            dest_root = user_link / "staged"
+            self.assertTrue(dest_root.exists())
+            self.assertFalse(dest_root.is_symlink())
+
+            with self.assertRaises(CandidatePackError):
+                build_candidate_asset_pack(portfolio, job_root=root, dest_root=dest_root)
+
 
 # ---------------------------------------------------------------------------
 # Tests — per-request output root regression
