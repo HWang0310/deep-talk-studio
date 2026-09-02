@@ -17,6 +17,27 @@ def plugin(scenario, timeout=2):
 
 
 class VisualPluginAdapterTests(unittest.TestCase):
+    def test_caller_supplied_request_id_is_preserved_and_path_safe(self):
+        with tempfile.TemporaryDirectory() as root:
+            result = run_visual_plugin(
+                plugin("suitable"), operation="suitability", opportunity=OPPORTUNITY,
+                job_root=Path(root), request_id="REQ-stable-order-proof",
+            )
+            self.assertEqual(result["execution"]["request_id"], "REQ-stable-order-proof")
+            self.assertEqual(result["raw_response"]["request_id"], "REQ-stable-order-proof")
+            self.assertTrue((Path(root) / "REQ-stable-order-proof" / "request.json").is_file())
+            with self.assertRaisesRegex(ValueError, "request_id"):
+                run_visual_plugin(
+                    plugin("suitable"), operation="suitability", opportunity=OPPORTUNITY,
+                    job_root=Path(root), request_id="../unsafe",
+                )
+            for unsafe in (".", ".."):
+                with self.subTest(request_id=unsafe), self.assertRaisesRegex(ValueError, "request_id"):
+                    run_visual_plugin(
+                        plugin("suitable"), operation="suitability", opportunity=OPPORTUNITY,
+                        job_root=Path(root), request_id=unsafe,
+                    )
+
     def test_valid_suitability_and_abstain_are_raw_contract_responses(self):
         with tempfile.TemporaryDirectory() as root:
             suitable = run_visual_plugin(plugin("suitable"), operation="suitability", opportunity=OPPORTUNITY, job_root=Path(root))
@@ -44,7 +65,9 @@ class VisualPluginAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             ready = run_visual_plugin(plugin("ready"), operation="generation", opportunity=OPPORTUNITY, proposal_id="PROP-01", job_root=Path(root))
             malformed = run_visual_plugin(plugin("malformed"), operation="generation", opportunity=OPPORTUNITY, proposal_id="PROP-01", job_root=Path(root))
-            timed_out = run_visual_plugin(plugin("timeout", timeout=0.05), operation="generation", opportunity=OPPORTUNITY, proposal_id="PROP-01", job_root=Path(root))
+            # Keep enough headroom for the separate version subprocess while
+            # remaining far below the fixture runner's deterministic 5 s sleep.
+            timed_out = run_visual_plugin(plugin("timeout", timeout=0.5), operation="generation", opportunity=OPPORTUNITY, proposal_id="PROP-01", job_root=Path(root))
         self.assertEqual(ready["raw_response"]["candidate"]["candidate_status"], "READY")
         self.assertEqual(malformed["execution"]["status"], "FAILED")
         self.assertIsNone(malformed["raw_response"])

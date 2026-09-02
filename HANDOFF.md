@@ -13,6 +13,15 @@ AIGC:
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-09-02：DT-CORE-5-001 Phase 5 real three-plugin synthetic integration — AWAITING NEXUS ACCEPTANCE
+
+- Resumed the existing Phase 5 branch from accepted Phase 4 SHA `817ca8b424f18714e4280d3990c1bc4221ec8dbe`; the Phase 4 state remains **ACCEPTED / IMPLEMENTED_UNRELEASED**.
+- Updated only the Hand-drawn exact pin to the independently accepted correction `853618bdf19ae66ec393211b77d970911f53f4bc`. MG remains `7ae59f1115da8a011113c81f31d320783b0ce8a4`; Illustrated Metaphor remains `48848affe018fc2cff8ee15bad7a09bb002776e4`.
+- Real runner-host preflight and all native repository gates passed. Hand-drawn `render:primitives` and every required benchmark/common render and hard QA gate passed, so the former primitive-sheet bounds blocker is closed without weakening QA or changing Contract/runner semantics.
+- The real synthetic run proved deterministic forward/reverse scheduling, three distinct accepted families, normal ABSTAIN/no-call, injected-plugin failure isolation, Candidate Portfolio, Candidate Asset Pack, and `candidate-edit-map/1` JSON/CSV/Markdown. The creator-facing result supports none/one/multiple choices and no automatic selection/edit.
+- Minimum product review passed: all three midpoint frames were non-placeholder, understandable, uncropped, and visibly family-specific. Detailed machine evidence is in `evaluations/visual_asset_engine/phase5_*` and the external ignored run root recorded there.
+- Full Core regression passed (691 tests, six expected opt-in skips). Status is **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE**. Latest Formal Release remains `v0.6.1`; Current Development remains **V1.0 Candidate — Unreleased**. No production enablement, real Episode, merge, tag, Release, or Phase 6 work was performed.
+
 ## 2026-09-01：Core Phase 3A-2 & Phase 3B acceptance record — ACCEPTED / IMPLEMENTED_UNRELEASED
 
 - **DT-CORE-3B-ACCEPT-001 (docs-only).** Nexus completed independent GitHub exact-SHA review.

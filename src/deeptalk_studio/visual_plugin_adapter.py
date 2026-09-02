@@ -138,14 +138,17 @@ def resolve_plugin_version(plugin: Mapping[str, Any], *, preflight: Mapping[str,
 def run_visual_plugin(
     plugin: Mapping[str, Any], *, operation: str, opportunity: Mapping[str, Any],
     job_root: Path, proposal_id: str | None = None, plugin_config_digest: str = "",
-    task_id: str = "UNSPECIFIED",
+    task_id: str = "UNSPECIFIED", request_id: str | None = None,
 ) -> dict:
     if operation not in {"suitability", "generation"}:
         raise ValueError("operation 必须是 suitability 或 generation")
     if operation == "generation" and (not isinstance(proposal_id, str) or not proposal_id):
         raise ValueError("generation 需要有效 proposal_id")
 
-    request_id = "REQ-" + uuid.uuid4().hex
+    if request_id is None:
+        request_id = "REQ-" + uuid.uuid4().hex
+    elif request_id in {".", ".."} or re.fullmatch(r"[A-Za-z0-9._-]+", request_id) is None:
+        raise ValueError("request_id invalid")
     started = _iso()
     started_clock = time.monotonic()
     job = Path(job_root).resolve() / request_id

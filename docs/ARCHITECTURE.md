@@ -1,6 +1,6 @@
 # DeepTalk Studio Architecture
 
-> **Canonical owner:** current technical architecture. Read [PROJECT_STATE.md](../PROJECT_STATE.md) first. “Accepted target” below is explicitly not implemented.
+> **Canonical owner:** current technical architecture. Read [PROJECT_STATE.md](../PROJECT_STATE.md) first. The target below is partially implemented through sanitized Phase 5 evidence, but it is not production-enabled.
 
 ## Architectural Principles
 
@@ -74,7 +74,7 @@ Relevant contract: [FINISHED_CUT_REVIEW_CONTRACT.md](FINISHED_CUT_REVIEW_CONTRAC
 - Renderer command success is insufficient: assets must pass typed checks, `ffprobe`, dimensions/fps/duration/size/SHA checks, and binding QA.
 - Generated imagery cannot masquerade as evidence; raw PDFs and unsafe/unreviewed materials cannot enter renderers.
 
-## Accepted Target Architecture — Not Yet Implemented
+## Accepted Target Architecture — Partially Implemented, Unreleased
 
 ```text
 Reviewed Script + approved Research ── factual/source binding ──┐
@@ -105,9 +105,9 @@ Target requirements:
 - `REAL_MATERIAL` remains a distinct evidence/documentary family. Generated explanation families cannot displace factual/provenance requirements.
 - `suggested_review_order` may guide inspection but must never encode an automatic selected winner.
 - The evidence-derived [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture: two-stage `Suitability → Generation`, normal `ABSTAIN`, eligible `BORDERLINE`, role-based artifacts, independent plugin/contract versions, and opaque plugin metadata. Phase 0 implements strict Core validators and a sanitized fixture baseline only; it is not runtime implementation or production-schema adoption.
-- The [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2 is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation: canonical synthetic directives, deterministic LEAN/STANDARD/RICH policy, fake-only multi-plugin records, separate Core acceptance, and hardened immutable audit storage. Phase 3A-2 reuses that architecture for one exact-pinned MG checkout: Core verifies root, full HEAD, clean worktree, reported version, configured argv, Contract/result identity, and Core-owned artifacts before candidate acceptance. It is IMPLEMENTED_UNRELEASED / AWAITING_CHATGPT_REVIEW; Candidate Pack, `candidate-edit-map/1`, V2 production migration, multi-plugin integration, and production default have not started.
+- The [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 4 adds the accepted Candidate Asset Pack + `candidate-edit-map/1` boundary at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Phase 5 invokes exact-pinned MG, Illustrated Metaphor, and Hand-drawn runners independently, canonicalizes non-semantic scheduling/config order, isolates failures, and emits deterministic synthetic Portfolio/Pack/map evidence. Phase 5 is **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE** and pins Hand-drawn at `853618bdf19ae66ec393211b77d970911f53f4bc`.
 
-No V2 production migration, Candidate Pack, `edit-map/2`, or production default exists yet. The Phase 3A-2 MG path is a synthetic Contract integration gate only and does not alter that boundary.
+No V2 production migration, production default, or `edit-map/2` exists. The implemented Candidate Asset Pack and `candidate-edit-map/1` paths remain additive, synthetic, creator-choice artifacts; they do not select a winner or alter a cut.
 
 ## Extension Rules
 

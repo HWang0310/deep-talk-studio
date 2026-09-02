@@ -38,7 +38,7 @@ Before acting, also inspect the current Git branch, HEAD, and working-tree statu
 - [Finished Cut Review + Production Feedback Contract (V1)](FINISHED_CUT_REVIEW_CONTRACT.md)
 - [Remotion Adapter](REMOTION_ADAPTER.md) and [HyperFrames Adapter](HYPERFRAMES_ADAPTER.md)
 - [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) — ACCEPTED_UNRELEASED architecture; not an implemented runtime contract.
-- [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) — accepted implementation sequencing. Phase 2 fake-only Core work is ACCEPTED / IMPLEMENTED_UNRELEASED. MG Phase 3A-1 is accepted and exact-pinned; Core Phase 3A-2 single-MG synthetic integration is IMPLEMENTED_UNRELEASED / AWAITING_CHATGPT_REVIEW. This is not a release, production default, or Phase 3B claim.
+- [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) — accepted implementation sequencing. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED; Phase 4 is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`; Phase 5 real three-plugin synthetic integration is IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE and uses accepted Hand-drawn revision `853618bdf19ae66ec393211b77d970911f53f4bc`. This is not a release, production default, real Episode, or Phase 6 claim.
 
 Contracts describe the version named in their title. They do not by themselves establish release status or make a future plan current.
 
@@ -46,6 +46,7 @@ Contracts describe the version named in their title. They do not by themselves e
 
 - [Evaluation methods](EVALS.md)
 - [Local ASR Selection evidence](../evaluations/local_asr_selection/report.md)
+- [Phase 5 runner-host preflight](../evaluations/visual_asset_engine/phase5_runner_host_preflight.md), [three-plugin synthetic evidence](../evaluations/visual_asset_engine/phase5_three_plugin_synthetic.md), and [final validation](../evaluations/visual_asset_engine/phase5_final_validation.md)
 - Product-level real-episode findings: [PROJECT_STATE.md](../PROJECT_STATE.md#real-episode-validation)
 
 Do not add private episode materials, finished videos, raw research, or credentials to Git.

@@ -6,6 +6,7 @@ import hashlib
 import json
 import stat
 import subprocess
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -179,28 +180,138 @@ def _no_call_reason(raw: Mapping[str, Any] | None, enabled: bool, profile: str) 
     return "POLICY_NO_CALL"
 
 
-def orchestrate_candidate_portfolio(opportunities: Sequence[Mapping[str, Any]], plugin_config: Mapping[str, Any], *, production_profile: str, policy: Mapping[str, Any], job_root: Path, visual_opportunity_plan_digest: str | None = None, task_id: str = "UNSPECIFIED") -> dict:
+def _plugin_order(
+    plugins: Sequence[Mapping[str, Any]], requested: Sequence[str] | None, label: str,
+) -> list[Mapping[str, Any]]:
+    canonical = sorted(plugins, key=lambda plugin: str(plugin["plugin_id"]))
+    if requested is None:
+        return canonical
+    requested_ids = list(requested)
+    canonical_ids = [str(plugin["plugin_id"]) for plugin in canonical]
+    if len(requested_ids) != len(set(requested_ids)) or set(requested_ids) != set(canonical_ids):
+        raise ValueError(f"{label} must contain every configured plugin_id exactly once")
+    by_id = {str(plugin["plugin_id"]): plugin for plugin in canonical}
+    return [by_id[plugin_id] for plugin_id in requested_ids]
+
+
+def _stable_request_id(
+    namespace: str | None,
+    *,
+    plan_digest: str,
+    opportunity_id: str,
+    plugin_id: str,
+    operation: str,
+    proposal_id: str | None = None,
+) -> str | None:
+    if namespace is None:
+        return None
+    if not isinstance(namespace, str) or not namespace.strip():
+        raise ValueError("request_namespace must be non-empty text")
+    payload = {
+        "namespace": namespace,
+        "plan_digest": plan_digest,
+        "opportunity_id": opportunity_id,
+        "plugin_id": plugin_id,
+        "operation": operation,
+        "proposal_id": proposal_id,
+    }
+    return "REQ-" + _digest(payload)[:32]
+
+
+def _collect_plugin_runs(
+    plugins: Sequence[Mapping[str, Any]],
+    collection_order: Sequence[Mapping[str, Any]],
+    submit,
+) -> dict[str, dict]:
+    enabled = [plugin for plugin in plugins if plugin["enabled"]]
+    if not enabled:
+        return {}
+    futures: dict[str, Future] = {}
+    with ThreadPoolExecutor(max_workers=len(enabled), thread_name_prefix="visual-plugin") as executor:
+        for plugin in plugins:
+            if plugin["enabled"]:
+                futures[str(plugin["plugin_id"])] = executor.submit(submit, plugin)
+        return {
+            str(plugin["plugin_id"]): futures[str(plugin["plugin_id"])].result()
+            for plugin in collection_order
+            if plugin["enabled"]
+        }
+
+
+def orchestrate_candidate_portfolio(
+    opportunities: Sequence[Mapping[str, Any]],
+    plugin_config: Mapping[str, Any],
+    *,
+    production_profile: str,
+    policy: Mapping[str, Any],
+    job_root: Path,
+    visual_opportunity_plan_digest: str | None = None,
+    task_id: str = "UNSPECIFIED",
+    request_namespace: str | None = None,
+    plugin_invocation_order: Sequence[str] | None = None,
+    plugin_collection_order: Sequence[str] | None = None,
+) -> dict:
     """Run configured Contract V1 plugins and produce canonical portfolio/1."""
     config = normalize_visual_plugin_config(plugin_config); config_sha = config_digest(config); policy_sha = generation_policy_digest(policy)
     if not opportunities: raise ValueError("at least one opportunity is required")
     plan_sha = visual_opportunity_plan_digest
     if not isinstance(plan_sha,str) or len(plan_sha)!=64 or any(char not in "0123456789abcdef" for char in plan_sha): raise ValueError("visual opportunity plan digest invalid")
+    canonical_plugins = _plugin_order(config["plugins"], None, "canonical order")
+    invocation_plugins = _plugin_order(canonical_plugins, plugin_invocation_order, "plugin_invocation_order")
+    collection_plugins = _plugin_order(canonical_plugins, plugin_collection_order, "plugin_collection_order")
     identity={"visual_opportunity_plan_digest":plan_sha,"plugin_config_digest":config_sha,"generation_policy_digest":policy_sha,"production_profile":production_profile}
     portfolio_id="CP-"+_digest(identity)[:24]; all_opportunities=[]; audit=[]
     for opportunity in opportunities:
-        suitability=[]
-        for plugin in config["plugins"]:
-            if plugin["enabled"]: suitability.append(run_visual_plugin(plugin,operation="suitability",opportunity=opportunity,job_root=job_root,plugin_config_digest=config_sha,task_id=task_id))
-            else: suitability.append({"execution":None,"raw_response":None,"request_snapshot":None,"_output_root":None})
-        actions=policy_actions(production_profile,[x["raw_response"] for x in suitability],[p["enabled"] for p in config["plugins"]],policy)
-        generations=[]
-        for plugin, suit, action in zip(config["plugins"],suitability,actions):
-            raw=suit["raw_response"]
-            if action=="REQUESTED" and raw is not None:
-                generations.append(run_visual_plugin(plugin,operation="generation",opportunity=opportunity,proposal_id=raw["proposal_id"],job_root=job_root,plugin_config_digest=config_sha,task_id=task_id))
-            else: generations.append({"execution":None,"raw_response":None,"request_snapshot":None,"_output_root":None})
+        empty={"execution":None,"raw_response":None,"request_snapshot":None,"_output_root":None}
+        suitability_by_id = _collect_plugin_runs(
+            invocation_plugins,
+            collection_plugins,
+            lambda plugin: run_visual_plugin(
+                plugin,
+                operation="suitability",
+                opportunity=opportunity,
+                job_root=job_root,
+                plugin_config_digest=config_sha,
+                task_id=task_id,
+                request_id=_stable_request_id(
+                    request_namespace,
+                    plan_digest=plan_sha,
+                    opportunity_id=str(opportunity["opportunity_id"]),
+                    plugin_id=str(plugin["plugin_id"]),
+                    operation="suitability",
+                ),
+            ),
+        )
+        suitability=[suitability_by_id.get(str(plugin["plugin_id"]),copy.deepcopy(empty)) for plugin in canonical_plugins]
+        actions=policy_actions(production_profile,[x["raw_response"] for x in suitability],[p["enabled"] for p in canonical_plugins],policy)
+        action_by_id={str(plugin["plugin_id"]):action for plugin,action in zip(canonical_plugins,actions)}
+        suitability_by_id={str(plugin["plugin_id"]):suit for plugin,suit in zip(canonical_plugins,suitability)}
+        generation_invocation=[plugin for plugin in invocation_plugins if action_by_id[str(plugin["plugin_id"])]=="REQUESTED" and suitability_by_id[str(plugin["plugin_id"])]["raw_response"] is not None]
+        generation_collection=[plugin for plugin in collection_plugins if action_by_id[str(plugin["plugin_id"])]=="REQUESTED" and suitability_by_id[str(plugin["plugin_id"])]["raw_response"] is not None]
+        generation_by_id = _collect_plugin_runs(
+            generation_invocation,
+            generation_collection,
+            lambda plugin: run_visual_plugin(
+                plugin,
+                operation="generation",
+                opportunity=opportunity,
+                proposal_id=suitability_by_id[str(plugin["plugin_id"])]["raw_response"]["proposal_id"],
+                job_root=job_root,
+                plugin_config_digest=config_sha,
+                task_id=task_id,
+                request_id=_stable_request_id(
+                    request_namespace,
+                    plan_digest=plan_sha,
+                    opportunity_id=str(opportunity["opportunity_id"]),
+                    plugin_id=str(plugin["plugin_id"]),
+                    operation="generation",
+                    proposal_id=suitability_by_id[str(plugin["plugin_id"])]["raw_response"]["proposal_id"],
+                ),
+            ),
+        )
+        generations=[generation_by_id.get(str(plugin["plugin_id"]),copy.deepcopy(empty)) for plugin in canonical_plugins]
         proposals=[]; policy_records=[]; generation_records=[]; candidates=[]
-        for plugin,suit,gen,action in zip(config["plugins"],suitability,generations,actions):
+        for plugin,suit,gen,action in zip(canonical_plugins,suitability,generations,actions):
             raw=suit["raw_response"]; proposal={"plugin_id":plugin["plugin_id"],"resolved_plugin_version":suit["execution"]["resolved_plugin_version"] if suit["execution"] else None,"suitability_execution":copy.deepcopy(suit["execution"]),"suitability_raw":copy.deepcopy(raw)}
             proposals.append(proposal); policy_record={"plugin_id":plugin["plugin_id"],"generation_call":action}
             if action=="NOT_REQUESTED": policy_record["no_call_reason"]=_no_call_reason(raw,plugin["enabled"],production_profile)

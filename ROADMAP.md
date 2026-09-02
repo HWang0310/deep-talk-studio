@@ -48,12 +48,12 @@ AIGC:
 
 ## Current Work
 
-### Visual Asset Plugin Contract V1 — accepted architecture
+### Visual Asset Plugin Contract V1 — accepted architecture; Phase 5 awaiting acceptance
 
 - Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0's strict validators, sanitized fixtures, test-only fake runner, and static configuration examples are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation.
-- Preserve the accepted multi-repo, plugin-first boundary; Phase 2's fake-only Core orchestration and `candidate-portfolio/1` are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 3A-2's one-pinned-MG synthetic integration is IMPLEMENTED_UNRELEASED / AWAITING_CHATGPT_REVIEW; production-schema adoption remains unstarted.
+- Preserve the accepted multi-repo, plugin-first boundary. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 4 Candidate Asset Pack + Multi-option Edit Map is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`.
 - Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED: runtime resolution validates configured trusted historical roots, canonical artifact-relative identity, containment, symlink rejection, file existence, byte size, and SHA-256. Historical manifests are preserved. Current Production selection is explicit via machine-local `current_production_id`; filesystem mtime is no longer semantic truth. A formal immutable current-production index remains deferred.
-- The [separate Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. MG Phase 3A-1 is ACCEPTED / PINNED / IMPLEMENTED_UNRELEASED at `7ae59f1115da8a011113c81f31d320783b0ce8a4`. Core Phase 3A-2 is IMPLEMENTED_UNRELEASED / AWAITING_CHATGPT_REVIEW after one real synthetic suitability → generation → Core acceptance proof. Phase 3B has not started.
+- Phase 5 real three-plugin synthetic integration is **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE**. It preserves MG `7ae59f1115da8a011113c81f31d320783b0ce8a4` and Illustrated `48848affe018fc2cff8ee15bad7a09bb002776e4`, and uses the accepted Hand-drawn correction `853618bdf19ae66ec393211b77d970911f53f4bc`. It proves deterministic order, failure isolation, Portfolio/Pack/map delivery, and minimum creator usability with sanitized opportunities only. Production adoption remains unstarted.
 
 ## Approved Next
 
@@ -69,7 +69,7 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 - The accepted ecosystem is multi-repo and plugin-first: independent visual families evolve behind a minimal Core contract rather than being absorbed into Core internals.
 - V2 removes `KEEP_A_ROLL` from new candidate planning but preserves V1 compatibility readers/adapters.
 - `REAL_MATERIAL` stays an independent evidence/documentary family.
-- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 2 provides the accepted sanitized fake runtime portfolio and Core QA boundary; Phase 3A-2 adds one pinned MG synthetic integration awaiting review. Candidate Pack, migration, multi-plugin integration, and production workflow have not started.
+- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. Accepted implementation now extends through Phase 4; Phase 5's real three-plugin synthetic path is implemented and awaiting Nexus acceptance. Production migration, production enablement, real-Episode validation, and Phase 6 have not started.
 
 ### MG Quality V2
 

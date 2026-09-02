@@ -29,6 +29,9 @@ def config_digest(value: Mapping[str, Any]) -> str:
     portable = normalize_visual_plugin_config(value)
     for plugin in portable["plugins"]:
         plugin["plugin_root"] = "<runtime-plugin-root>"
+    # Plugin list order is deployment scheduling, not portable configuration
+    # identity.  Canonicalise by independent plugin identity before hashing.
+    portable["plugins"].sort(key=lambda plugin: plugin["plugin_id"])
     return hashlib.sha256(json.dumps(portable, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
