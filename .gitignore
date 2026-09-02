@@ -41,3 +41,4 @@ edit_bridge_projects/**
 config/visual-asset-plugins.local.json
 config/artifact-runtime.local.json
 candidate_plugin_runs/**
+.artifacts/**
