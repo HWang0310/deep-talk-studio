@@ -1,3 +1,14 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '66061a2d-bded-45f7-b838-bf2e022e8514'
+  PropagateID: '66061a2d-bded-45f7-b838-bf2e022e8514'
+  ReservedCode1: '5d61b7e4-ecfb-4207-babc-f3e4602095fd'
+  ReservedCode2: '5d61b7e4-ecfb-4207-babc-f3e4602095fd'
+---
+
 # DeepTalk Studio
 
 **Latest Formal Release:** [`v0.6.1`](docs/releases/v0.6.1.md) (`8a0ac94`)
@@ -58,7 +69,11 @@ The repository skills and contracts guide the necessary gates. Private research,
 
 The accepted and implemented V1 path includes Content Thesis and Script V1, local `whisper.cpp` `large-v3` ASR, alignment, Semantic Timeline, V1 Visual Director, Asset Pack + Edit Map, and Finished Cut Review. This work is unreleased; no version later than v0.6.1 has been tagged or released.
 
-The next accepted product direction is **Multi-Asset Studio**: `Semantic Timeline → Visual Opportunity → non-exclusive Candidate Portfolio → Candidate Asset Pack → Multi-option Edit Map → creator selection`. Its ecosystem is multi-repo and plugin-first: families evolve independently behind a stable Core boundary. Contract V1 and Core Phases 0–2 are accepted/implemented-unreleased. The first MG runner is accepted and exact-pinned; Core Phase 3A-2 single-MG synthetic integration is implemented-unreleased and awaiting ChatGPT review. Candidate Pack, multi-plugin integration, production migration, and production default have not started.
+The accepted product direction is **Multi-Asset Studio**: `Semantic Timeline → Visual Opportunity → non-exclusive Candidate Portfolio → Candidate Asset Pack → Multi-option Edit Map → creator selection`. Its ecosystem is multi-repo and plugin-first: families evolve independently behind a stable Core boundary. Contract V1, Core Phases 0–4, and Phase 5 real three-plugin synthetic integration are all **ACCEPTED / IMPLEMENTED_UNRELEASED**. Phase 5 exact-pins MG, Illustrated Metaphor, and Hand-drawn runners. Production migration and production default have not started.
+
+**Phase 6** (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`. It is not PASS, ACCEPTED, MERGED, PRODUCTION, or RELEASED.
+
+**Product Architecture V2** is an **Owner-approved direction** (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred). The specific architecture design is **AWAITING_NEXUS_ARCH_REVIEW** — it has not yet received Nexus PASS. No runtime, schema, or code implementation has started. See [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md).
 
 MG Quality V2 is approved next but unimplemented. Hand-drawn Animation is an approved V1 experiment. Xiaohei is prototype/experimental only and is not DeepTalk-owned IP.
 

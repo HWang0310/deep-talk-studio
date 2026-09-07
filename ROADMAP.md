@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'cd82eaf5-73cd-4968-b4f2-2a00f5996950'
-  PropagateID: 'cd82eaf5-73cd-4968-b4f2-2a00f5996950'
-  ReservedCode1: '55f1f4b9-af4d-47c4-ace0-ba1c2880bd51'
-  ReservedCode2: '55f1f4b9-af4d-47c4-ace0-ba1c2880bd51'
+  ProduceID: '9041f851-2e1b-4e27-90eb-7d9d8697554d'
+  PropagateID: '9041f851-2e1b-4e27-90eb-7d9d8697554d'
+  ReservedCode1: 'e55ebfc4-6131-4cce-9e2f-d0f1f867b135'
+  ReservedCode2: 'e55ebfc4-6131-4cce-9e2f-d0f1f867b135'
 ---
 
 # DeepTalk Studio Roadmap
@@ -53,7 +53,7 @@ AIGC:
 - Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0's strict validators, sanitized fixtures, test-only fake runner, and static configuration examples are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation.
 - Preserve the accepted multi-repo, plugin-first boundary. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 4 Candidate Asset Pack + Multi-option Edit Map is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`.
 - Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED: runtime resolution validates configured trusted historical roots, canonical artifact-relative identity, containment, symlink rejection, file existence, byte size, and SHA-256. Historical manifests are preserved. Current Production selection is explicit via machine-local `current_production_id`; filesystem mtime is no longer semantic truth. A formal immutable current-production index remains deferred.
-- Phase 5 real three-plugin synthetic integration is **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE**. It preserves MG `7ae59f1115da8a011113c81f31d320783b0ce8a4` and Illustrated `48848affe018fc2cff8ee15bad7a09bb002776e4`, and uses the accepted Hand-drawn correction `853618bdf19ae66ec393211b77d970911f53f4bc`. It proves deterministic order, failure isolation, Portfolio/Pack/map delivery, and minimum creator usability with sanitized opportunities only. Production adoption remains unstarted.
+- Phase 5 real three-plugin synthetic integration is **ACCEPTED / IMPLEMENTED_UNRELEASED**. It preserves MG `7ae59f1115da8a011113c81f31d320783b0ce8a4` and Illustrated `48848affe018fc2cff8ee15bad7a09bb002776e4`, and uses the accepted Hand-drawn correction `853618bdf19ae66ec393211b77d970911f53f4bc`. It proves deterministic order, failure isolation, Portfolio/Pack/map delivery, and minimum creator usability with sanitized opportunities only. Production adoption remains unstarted.
 
 ## Approved Next
 
@@ -69,16 +69,16 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 - The accepted ecosystem is multi-repo and plugin-first: independent visual families evolve behind a minimal Core contract rather than being absorbed into Core internals.
 - V2 removes `KEEP_A_ROLL` from new candidate planning but preserves V1 compatibility readers/adapters.
 - `REAL_MATERIAL` stays an independent evidence/documentary family.
-- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. Accepted implementation now extends through Phase 4; Phase 5's real three-plugin synthetic path is implemented and awaiting Nexus acceptance. Production migration, production enablement, real-Episode validation, and Phase 6 have not started.
+- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. Accepted implementation now extends through Phase 4; Phase 5's real three-plugin synthetic path is **ACCEPTED / IMPLEMENTED_UNRELEASED**. Production migration, production enablement, and real-Episode validation have not started. Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`.
 
 ### MG Quality V2
 
 - Approved next; not implemented.
 - Improve visual quality and art direction before increasing MG output volume.
 
-## Accepted Product Architecture V2 — Design Only, Not Implemented
+## Accepted Product Architecture V2 — Owner-Approved Direction, Design Awaiting Nexus Review
 
-The Owner-approved [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md) is **ACCEPTED_DESIGN — documentation and migration analysis only**. No runtime, schema, or code implementation has started. It does not change the status of any implemented work above.
+The Owner-approved [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md) is **OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW**. The Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred). The specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased plan) has not yet received Nexus PASS. No runtime, schema, or code implementation has started. It does not change the status of any implemented work above.
 
 Key V2 directions:
 

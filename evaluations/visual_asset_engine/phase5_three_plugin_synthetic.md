@@ -1,6 +1,17 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '2deee37c-0422-4869-a013-6d91e20646e2'
+  PropagateID: '2deee37c-0422-4869-a013-6d91e20646e2'
+  ReservedCode1: '369f5418-43b6-4c82-a354-cfdf37f403a8'
+  ReservedCode2: '369f5418-43b6-4c82-a354-cfdf37f403a8'
+---
+
 # DT-CORE-5-001 Phase 5 three-plugin synthetic evidence
 
-Status: `IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE`
+Status: `ACCEPTED / IMPLEMENTED_UNRELEASED`
 
 This evidence is synthetic-only. It does not enable production plugin config,
 select a winner, edit a cut, exercise REAL retrieval, or claim Phase 6 or a

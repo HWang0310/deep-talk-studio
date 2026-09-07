@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '7cde69fa-7b5d-4583-9592-6ad98ddec7df'
-  PropagateID: '7cde69fa-7b5d-4583-9592-6ad98ddec7df'
-  ReservedCode1: '248e8706-232a-4b53-90e4-d468066b8d75'
-  ReservedCode2: '248e8706-232a-4b53-90e4-d468066b8d75'
+  ProduceID: '347e4206-096e-4bd0-af9f-c21e628eeb9f'
+  PropagateID: '347e4206-096e-4bd0-af9f-c21e628eeb9f'
+  ReservedCode1: 'bea5d600-2483-42ae-936a-a5163bf18156'
+  ReservedCode2: 'bea5d600-2483-42ae-936a-a5163bf18156'
 ---
 
 # DeepTalk Studio Documentation Index
@@ -49,7 +49,7 @@ Before acting, also inspect the current Git branch, HEAD, and working-tree statu
 - [Finished Cut Review + Production Feedback Contract (V1)](FINISHED_CUT_REVIEW_CONTRACT.md)
 - [Remotion Adapter](REMOTION_ADAPTER.md) and [HyperFrames Adapter](HYPERFRAMES_ADAPTER.md)
 - [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) — ACCEPTED_UNRELEASED architecture; not an implemented runtime contract.
-- [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) — accepted implementation sequencing. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED; Phase 4 is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`; Phase 5 real three-plugin synthetic integration is IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE and uses accepted Hand-drawn revision `853618bdf19ae66ec393211b77d970911f53f4bc`. This is not a release, production default, real Episode, or Phase 6 claim.
+- [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) — accepted implementation sequencing. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED; Phase 4 is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`; Phase 5 real three-plugin synthetic integration is **ACCEPTED / IMPLEMENTED_UNRELEASED** and uses accepted Hand-drawn revision `853618bdf19ae66ec393211b77d970911f53f4bc`. This is not a release, production default, or production enablement. Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`.
 
 Contracts describe the version named in their title. They do not by themselves establish release status or make a future plan current.
 
@@ -64,7 +64,7 @@ Do not add private episode materials, finished videos, raw research, or credenti
 
 ## Research, Proposals, and Implementation Plans
 
-- [Product Architecture V2 — Design & Migration](plans/2026-09-07-product-architecture-v2.md) — **ACCEPTED_DESIGN, not implemented.** WHERE → WHAT → WHEN separation, Visual Director decomposition, REAL_MATERIAL plugin migration, contract migration analysis, Studio Host boundary, phased plan. No runtime, schema, or code changes.
+- [Product Architecture V2 — Design & Migration](plans/2026-09-07-product-architecture-v2.md) — **OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW.** Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred). Specific architecture design awaiting Nexus PASS. No runtime, schema, or code changes.
 - [Product research and proposals](plans/)
 - [Implementation plans](superpowers/plans/)
 - [Historical design specs](superpowers/specs/)

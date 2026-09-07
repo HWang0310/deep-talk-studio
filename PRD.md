@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '15b04bba-80bd-456b-bdc7-dacf81a680a0'
-  PropagateID: '15b04bba-80bd-456b-bdc7-dacf81a680a0'
-  ReservedCode1: '76cac744-5fb0-475b-8004-452e554e1339'
-  ReservedCode2: '76cac744-5fb0-475b-8004-452e554e1339'
+  ProduceID: '99333279-4ec1-4251-9a73-36d1c5be02ba'
+  PropagateID: '99333279-4ec1-4251-9a73-36d1c5be02ba'
+  ReservedCode1: 'f4013805-fb4e-44e0-96f8-5038fe0cd524'
+  ReservedCode2: 'f4013805-fb4e-44e0-96f8-5038fe0cd524'
 ---
 
 # DeepTalk Studio Product Requirements
@@ -122,9 +122,9 @@ The evidence-derived [`Visual Asset Plugin Contract V1 design`](docs/plans/2026-
 | Xiaohei | Prototype / experimental | Upstream is static illustration/shot-list oriented, not a ready video system; preserve licence/attribution and do not claim IP ownership. |
 | Original DeepTalk visual identity | Undecided | Do not assume an original character exists. |
 
-## Part E — Product Architecture V2 — Accepted Design, Not Implemented
+## Part E — Product Architecture V2 — Owner-Approved Direction, Design Awaiting Nexus Review
 
-DeepTalk's approved product architecture redesign is documented in [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md). It is **ACCEPTED_DESIGN — documentation and migration analysis only**. No runtime, schema, or code implementation has started. This section records the accepted product direction; it does not change Parts A–D or override the implemented V1 workflow.
+DeepTalk's Owner-approved product architecture direction is documented in [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md). The Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred, creator authority). The specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased implementation plan) is **AWAITING_NEXUS_ARCH_REVIEW** — it has not yet received Nexus PASS. No runtime, schema, or code implementation has started. This section records the product direction; it does not change Parts A–D or override the implemented V1 workflow.
 
 ### WHERE → WHAT → WHEN separation
 
@@ -158,7 +158,7 @@ Presentation style (PIP, split screen, zoom, crop, overlay, transition) is expli
 
 The creator retains final video decisions: none, one, or multiple candidates per opportunity. No automatic winner selection, overlap resolution, final material choice, A-roll modification, NLE generation, or publishing.
 
-`Plan exists ≠ accepted; implemented ≠ released.`
+This is a design document only. The Owner has approved the product direction; the specific design awaits Nexus architecture review. `Plan exists ≠ accepted; implemented ≠ released.`
 
 ## Part F — Historical Milestones
 

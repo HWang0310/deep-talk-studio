@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'e06259e8-0b22-4796-9cac-5683bcb1ceff'
-  PropagateID: 'e06259e8-0b22-4796-9cac-5683bcb1ceff'
-  ReservedCode1: 'abe3116f-7044-45aa-b56a-1ef09f497724'
-  ReservedCode2: 'abe3116f-7044-45aa-b56a-1ef09f497724'
+  ProduceID: '1a8d7895-0676-44a2-acc3-eebb40a53e04'
+  PropagateID: '1a8d7895-0676-44a2-acc3-eebb40a53e04'
+  ReservedCode1: '8e6110d3-a684-4a21-b60d-05f39974740e'
+  ReservedCode2: '8e6110d3-a684-4a21-b60d-05f39974740e'
 ---
 
 # DeepTalk Studio — Canonical Project State
@@ -22,7 +22,7 @@ AIGC:
 | Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
 | Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
-| Current work | Visual Asset Plugin Contract V1 architecture and Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Core Phase 4 Candidate Asset Pack + Multi-option Edit Map is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Core Phase 5 real three-plugin synthetic integration is **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE** on its review branch. It exact-pins MG `7ae59f1115da8a011113c81f31d320783b0ce8a4`, Illustrated Metaphor `48848affe018fc2cff8ee15bad7a09bb002776e4`, and the corrected Hand-drawn runner `853618bdf19ae66ec393211b77d970911f53f4bc`; production configuration remains disabled. No V2 production migration, production default, real Episode, release, tag, or `main` change is included. |
+| Current work | Visual Asset Plugin Contract V1 architecture and Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Core Phase 4 Candidate Asset Pack + Multi-option Edit Map is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Core Phase 5 real three-plugin synthetic integration is **ACCEPTED / IMPLEMENTED_UNRELEASED**. It exact-pins MG `7ae59f1115da8a011113c81f31d320783b0ce8a4`, Illustrated Metaphor `48848affe018fc2cff8ee15bad7a09bb002776e4`, and the corrected Hand-drawn runner `853618bdf19ae66ec393211b77d970911f53f4bc`; production configuration remains disabled. Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`. No V2 production migration, production default, release, tag, or `main` change is included. |
 
 ## Current Product Positioning
 
@@ -61,13 +61,13 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 → Multi-option Edit Map → creator manual NLE selection
 ```
 
-This is an **ACCEPTED_UNRELEASED product direction** with accepted Core foundations through Phase 4 and a Phase 5 real three-plugin synthetic implementation awaiting Nexus acceptance. It is not a production schema migration or production workflow. Candidates are intentionally non-exclusive: they may overlap, have different durations, come from multiple families, and be used singly, together, or not at all.
+This is an **ACCEPTED_UNRELEASED product direction** with accepted Core foundations through Phase 4 and Phase 5 ACCEPTED / IMPLEMENTED_UNRELEASED. It is not a production schema migration or production workflow. Candidates are intentionally non-exclusive: they may overlap, have different durations, come from multiple families, and be used singly, together, or not at all.
 
 The accepted ecosystem principle is **multi-repo, plugin-first**: Core stays stable while visual capabilities are independently researched, optimized, benchmarked, QA'd, and versioned as Visual Asset Plugins. The evidence-derived [Contract V1 design](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture. It is not production implementation, runtime-schema adoption, a release, a tag, or a `main` change.
 
-### Product Architecture V2 — accepted design, not implemented
+### Product Architecture V2 — Owner-approved direction, design awaiting Nexus review
 
-**Owner-approved** product architecture redesign is documented in [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md). It is **ACCEPTED_DESIGN — documentation and migration analysis only**. No runtime, schema, or code implementation has started.
+**Owner-approved** product architecture direction is documented in [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md). The Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred, creator authority). The specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased implementation plan) is **AWAITING_NEXUS_ARCH_REVIEW** — it has not yet received Nexus PASS. No runtime, schema, or code implementation has started.
 
 Key V2 directions:
 
@@ -78,7 +78,7 @@ Key V2 directions:
 - **Studio Host boundary**: Core retains episode identity, canonical timebase, artifact IDs/lineage, plugin registration, contract validation, portfolio identity, shared safety/QA, failure isolation, and packaging. Plugins own suitability, generation, internal QA, and renderer internals.
 - **HOW deferred**: Presentation style (PIP, split screen, zoom, overlay, transition) is not in V2 Phase 1 scope.
 
-This is a plan only. `Plan exists ≠ accepted; implemented ≠ released.`
+This is a design document only. `Plan exists ≠ accepted; implemented ≠ released.` The Owner has approved the product direction; the specific design awaits Nexus architecture review.
 
 ## Hard Product Boundaries
 
@@ -129,7 +129,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 - Production migration and episode adoption of the Phase 4 Candidate Asset Pack and multi-option Edit Map semantics.
 - `REAL_MATERIAL` as an independent documentary/evidence family, distinct from generated explanation families.
 - Machine records distinguish Generation operation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) from produced Candidate asset outcomes (`READY`, `QA_REJECTED`); Core acceptance is separate and creator packs will default to raw READY plus Core ACCEPTED candidates only. Phase 2 implements this only through sanitized fake subprocess data, not production-schema migration.
-- The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are accepted. Phases 3A-2 through 4 are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 5 connects all three exact-pinned runners to the existing portfolio, Candidate Asset Pack, and `candidate-edit-map/1` synthetic path; it is IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE. No registry, production migration/default, or episode code exists.
+- The `visual-asset-plugin-contract/1` design and its two-stage suitability/generation boundary are accepted. Phases 3A-2 through 4 are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 5 connects all three exact-pinned runners to the existing portfolio, Candidate Asset Pack, and `candidate-edit-map/1` synthetic path; it is **ACCEPTED / IMPLEMENTED_UNRELEASED**. No registry, production migration/default, or production episode code exists.
 - Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED. Runtime resolution validates configured trusted historical roots, canonical artifact-relative identity, containment, symlink rejection, file existence, byte size, and SHA-256. Historical manifests are preserved without rewriting. Current Production selection is explicit via machine-local `current_production_id`; filesystem mtime is no longer semantic truth. A formal immutable current-production index/pointer schema remains deferred.
 
 ## Approved Next / Experimental
@@ -158,7 +158,11 @@ The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implemen
 
 Phase 3A-1 MG is ACCEPTED / PINNED / IMPLEMENTED_UNRELEASED at exact SHA `7ae59f1115da8a011113c81f31d320783b0ce8a4`, identity `org.deeptalk.mg`, version `1.0.0-contract-v1`, and canonical runner `node scripts/contract-runner.js`. Core Phase 3A-2 is ACCEPTED / IMPLEMENTED_UNRELEASED at accepted Core SHA `990fc03922e527bef64b819cf898e4266d5669c1` (Nexus independent exact-SHA review). Its real-plugin path verifies exact HEAD, clean checkout, reported version, result identity, Contract V1, configured argv, timeout termination evidence, and Core-owned artifacts before accepting a candidate. Artifact resolution rejects the lexical output root, ancestor, or final artifact when any is a symlink before applying containment, existence, SHA-256, and duration checks.
 
-Core Phase 3B is ACCEPTED / IMPLEMENTED_UNRELEASED at accepted implementation SHA `ec595587a378d54bd2a18270ded504707b04ddea`. Core Phase 4 Candidate Asset Pack + Multi-option Edit Map is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Phase 5 updates the independently accepted Hand-drawn revision to `853618bdf19ae66ec393211b77d970911f53f4bc` while preserving MG `7ae59f1115da8a011113c81f31d320783b0ce8a4` and Illustrated Metaphor `48848affe018fc2cff8ee15bad7a09bb002776e4`. Its real-runner synthetic evidence proves order independence, failure isolation, Portfolio/Pack/map output, and basic creator usability across the three families. Phase 5 remains **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE**. All static config entries remain `enabled: false`; no production enablement, real Episode, merge to the canonical branch, release, or Phase 6 work exists.
+Core Phase 3B is ACCEPTED / IMPLEMENTED_UNRELEASED at accepted implementation SHA `ec595587a378d54bd2a18270ded504707b04ddea`. Core Phase 4 Candidate Asset Pack + Multi-option Edit Map is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Phase 5 updates the independently accepted Hand-drawn revision to `853618bdf19ae66ec393211b77d970911f53f4bc` while preserving MG `7ae59f1115da8a011113c81f31d320783b0ce8a4` and Illustrated Metaphor `48848affe018fc2cff8ee15bad7a09bb002776e4`. Its real-runner synthetic evidence proves order independence, failure isolation, Portfolio/Pack/map output, and basic creator usability across the three families. Phase 5 is **ACCEPTED / IMPLEMENTED_UNRELEASED**. All static config entries remain `enabled: false`; no production enablement, real Episode, merge to the canonical branch, release, or tag exists.
+
+### Phase 6 — Tech Demo Completed, Hold for Owner Review
+
+Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c232d24f4b1e1ac531f6f6ef0396e001c0b`. It demonstrates a complete Owner-visible micro demo with real A-roll and Contract V1 plugin output. It is not PASS, ACCEPTED, MERGED, PRODUCTION, or RELEASED. The Phase 6 verdict must not be modified.
 
 ## Read Next
 

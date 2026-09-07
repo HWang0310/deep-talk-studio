@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '43f5f6ca-0119-494b-9f23-b62da17eb309'
-  PropagateID: '43f5f6ca-0119-494b-9f23-b62da17eb309'
-  ReservedCode1: 'b043b74d-010a-4f48-a5aa-e0682e4ca5f0'
-  ReservedCode2: 'b043b74d-010a-4f48-a5aa-e0682e4ca5f0'
+  ProduceID: '9860a193-e900-4dac-b237-3d947e789a4f'
+  PropagateID: '9860a193-e900-4dac-b237-3d947e789a4f'
+  ReservedCode1: 'a0de461b-a73c-436c-a004-9610bdbcd176'
+  ReservedCode2: 'a0de461b-a73c-436c-a004-9610bdbcd176'
 ---
 
 # DeepTalk Product Architecture V2 — Design & Migration Document
@@ -14,7 +14,7 @@ AIGC:
 > **Task ID:** DT-ARCH-V2-001
 > **Branch:** `agent/product-architecture-v2`
 > **Base SHA:** `db172cecc60ca6b0c276ec42010b113a767bc7b3` (Phase 5 accepted)
-> **Status:** ACCEPTED_DESIGN — documentation and migration analysis only. No runtime, schema, or code implementation.
+> **Status:** OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW — Owner has approved the product direction; specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased plan) has not yet received Nexus PASS. No runtime, schema, or code implementation.
 > **Date:** 2026-09-07 (`Asia/Shanghai`)
 
 ---

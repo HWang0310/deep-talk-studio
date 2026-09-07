@@ -1,9 +1,20 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '07e35e1a-6120-480b-a28f-469e69e63732'
+  PropagateID: '07e35e1a-6120-480b-a28f-469e69e63732'
+  ReservedCode1: '164ef747-2b60-49c4-b4f0-fd34720e6970'
+  ReservedCode2: '164ef747-2b60-49c4-b4f0-fd34720e6970'
+---
+
 # DT-CORE-5-001 final validation evidence
 
 - Date: 2026-09-02 (`Asia/Shanghai`)
 - Branch: `agent/multi-asset-phase5-three-plugin-synthetic`
 - Accepted Phase 4 base: `817ca8b424f18714e4280d3990c1bc4221ec8dbe`
-- Gate result: **PASS — IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE**
+- Gate result: **PASS — ACCEPTED / IMPLEMENTED_UNRELEASED**
 
 This validation is synthetic-only. It does not enable production plugin config,
 change Contract V1, modify a plugin repository, run a real Episode, select a

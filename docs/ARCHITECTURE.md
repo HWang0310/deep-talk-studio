@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '913aac98-ef5d-4887-b204-92f45b97beb1'
-  PropagateID: '913aac98-ef5d-4887-b204-92f45b97beb1'
-  ReservedCode1: '4e45781b-4427-4041-82e2-83e21fe9ea1d'
-  ReservedCode2: '4e45781b-4427-4041-82e2-83e21fe9ea1d'
+  ProduceID: '6a1d2587-b9df-461d-8bfa-631bc84fb1c5'
+  PropagateID: '6a1d2587-b9df-461d-8bfa-631bc84fb1c5'
+  ReservedCode1: '7bb9ebf4-2445-4ee5-b3fc-4d928d9d86f4'
+  ReservedCode2: '7bb9ebf4-2445-4ee5-b3fc-4d928d9d86f4'
 ---
 
 # DeepTalk Studio Architecture
@@ -116,13 +116,13 @@ Target requirements:
 - `REAL_MATERIAL` remains a distinct evidence/documentary family. Generated explanation families cannot displace factual/provenance requirements.
 - `suggested_review_order` may guide inspection but must never encode an automatic selected winner.
 - The evidence-derived [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture: two-stage `Suitability → Generation`, normal `ABSTAIN`, eligible `BORDERLINE`, role-based artifacts, independent plugin/contract versions, and opaque plugin metadata. Phase 0 implements strict Core validators and a sanitized fixture baseline only; it is not runtime implementation or production-schema adoption.
-- The [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 4 adds the accepted Candidate Asset Pack + `candidate-edit-map/1` boundary at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Phase 5 invokes exact-pinned MG, Illustrated Metaphor, and Hand-drawn runners independently, canonicalizes non-semantic scheduling/config order, isolates failures, and emits deterministic synthetic Portfolio/Pack/map evidence. Phase 5 is **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE** and pins Hand-drawn at `853618bdf19ae66ec393211b77d970911f53f4bc`.
+- The [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 4 adds the accepted Candidate Asset Pack + `candidate-edit-map/1` boundary at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Phase 5 invokes exact-pinned MG, Illustrated Metaphor, and Hand-drawn runners independently, canonicalizes non-semantic scheduling/config order, isolates failures, and emits deterministic synthetic Portfolio/Pack/map evidence. Phase 5 is **ACCEPTED / IMPLEMENTED_UNRELEASED** and pins Hand-drawn at `853618bdf19ae66ec393211b77d970911f53f4bc`.
 
 No V2 production migration, production default, or `edit-map/2` exists. The implemented Candidate Asset Pack and `candidate-edit-map/1` paths remain additive, synthetic, creator-choice artifacts; they do not select a winner or alter a cut.
 
-## Product Architecture V2 — Accepted Design, Not Implemented
+## Product Architecture V2 — Owner-Approved Direction, Design Awaiting Nexus Review
 
-The Owner-approved [Product Architecture V2](plans/2026-09-07-product-architecture-v2.md) is **ACCEPTED_DESIGN — documentation and migration analysis only**. No runtime, schema, or code implementation has started. This section records the accepted target architecture direction; it does not replace or override the implemented V1 architecture above.
+The Owner-approved [Product Architecture V2](plans/2026-09-07-product-architecture-v2.md) is **OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW**. The Owner has approved the product direction; the specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased plan) has not yet received Nexus PASS. No runtime, schema, or code implementation has started. This section records the target architecture direction; it does not replace or override the implemented V1 architecture above.
 
 ### WHERE → WHAT → WHEN separation
 

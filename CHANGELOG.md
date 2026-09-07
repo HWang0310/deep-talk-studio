@@ -3,21 +3,21 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '4c8af616-d3d8-460e-bdfe-3223f30631e0'
-  PropagateID: '4c8af616-d3d8-460e-bdfe-3223f30631e0'
-  ReservedCode1: 'f5968645-4762-4e02-9cf7-732ec3e9995e'
-  ReservedCode2: 'f5968645-4762-4e02-9cf7-732ec3e9995e'
+  ProduceID: '2967233a-71a6-4026-9693-1257295a39b8'
+  PropagateID: '2967233a-71a6-4026-9693-1257295a39b8'
+  ReservedCode1: '24477860-1bf3-4205-b42f-1fc1cde0d02a'
+  ReservedCode2: '24477860-1bf3-4205-b42f-1fc1cde0d02a'
 ---
 
 # Changelog
 
-## Unreleased — 2026-09-02 — Core Phase 5 real three-plugin synthetic integration — AWAITING NEXUS ACCEPTANCE
+## Unreleased — 2026-09-02 — Core Phase 5 real three-plugin synthetic integration — ACCEPTED / IMPLEMENTED_UNRELEASED
 
 - **DT-CORE-5-001.** Starting from accepted Phase 4 SHA `817ca8b424f18714e4280d3990c1bc4221ec8dbe`, connected the exact-pinned MG, Illustrated Metaphor, and Hand-drawn Contract V1 runners to one deterministic synthetic Candidate Portfolio → Candidate Asset Pack → `candidate-edit-map/1` path.
 - Repinned Hand-drawn only, from `67698fd8ea09109ff91c912f51e4c2d4f0b8482f` to the independently accepted correction `853618bdf19ae66ec393211b77d970911f53f4bc`. MG remains `7ae59f1115da8a011113c81f31d320783b0ce8a4`; Illustrated remains `48848affe018fc2cff8ee15bad7a09bb002776e4`. Contract V1 and all runner semantics are unchanged.
 - Added caller-bound deterministic request identities, canonical non-semantic plugin/config ordering, independent concurrent runs, mixed-outcome retention, scheduling/order regressions, and real failure-isolation evidence. No failed plugin can erase successful peers or fabricate a response.
 - Added sanitized real-runner evaluation proving three distinct creator-usable families, normal all-plugin ABSTAIN on an unsuitable numeric opportunity, Core-owned SHA/duration/provenance QA, and creator-facing none/one/multiple guidance with no automatic winner or edit.
-- Full Core, runner-host preflight, and native MG/Illustrated/Hand-drawn validations passed. Phase 5 is **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE**, not ACCEPTED or RELEASED. Static production config remains disabled; no real Episode, V2 migration, production default, plugin source change, Phase 6, merge, tag, or GitHub Release is included.
+- Full Core, runner-host preflight, and native MG/Illustrated/Hand-drawn validations passed. Phase 5 is **ACCEPTED / IMPLEMENTED_UNRELEASED**. Static production config remains disabled; no real Episode, V2 migration, production default, plugin source change, merge, tag, or GitHub Release is included. Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`.
 
 ## Unreleased — 2026-09-01 — Core Phase 3A-2 & Phase 3B acceptance record — ACCEPTED / IMPLEMENTED_UNRELEASED
 
