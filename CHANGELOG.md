@@ -11,13 +11,23 @@ AIGC:
 
 # Changelog
 
-## Unreleased — 2026-09-02 — Core Phase 5 real three-plugin synthetic integration — ACCEPTED / IMPLEMENTED_UNRELEASED
+## Unreleased — 2026-09-07 — DT-ARCH-V2-001 state reconciliation & subsequent acceptance record (docs-only)
+
+> Time-ordered addendum. Records facts that became true **after** the 2026-09-02 entry below. That entry is not rewritten; historical status is preserved as produced at its own date. Canonical current truth remains `PROJECT_STATE.md`.
+
+- **Subsequent Nexus acceptance of Phase 5.** Nexus completed independent GitHub exact-SHA review and issued PASS / ACCEPTED for Core Phase 5 real three-plugin synthetic integration at `db172cecc60ca6b0c276ec42010b113a767bc7b3`. Phase 5 is **ACCEPTED / IMPLEMENTED_UNRELEASED** as of this later acceptance. The 2026-09-02 entry below and `evaluations/visual_asset_engine/phase5_*` evidence keep their original `IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE` wording because that was the true state when produced.
+- **Phase 6 (《牛来》 Owner-visible Micro Demo).** **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c232d24f4b1e1ac531f6f6ef0396e001c0b`. Not PASS, ACCEPTED, MERGED, PRODUCTION, or RELEASED.
+- **Production state.** No V2 production migration started; no production default enabled; static plugin config entries remain `enabled: false`. Latest Formal Release remains `v0.6.1`.
+- **Product Architecture V2.** Owner-approved product direction; specific architecture design **AWAITING_NEXUS_ARCH_REVIEW**. Owner direction approval is not Nexus engineering acceptance of the design.
+- **Docs reconciliation.** Corrected stale `PRD.md` Part D Multi-Asset state, `ROADMAP.md` Phase 5 heading/body contradiction, and `docs/plans/2026-09-07-product-architecture-v2.md` §0.8. No runtime/source/plugin/Phase 6 implementation, `main`, release, or tag change.
+
+## Unreleased — 2026-09-02 — Core Phase 5 real three-plugin synthetic integration — IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE (at time of writing)
 
 - **DT-CORE-5-001.** Starting from accepted Phase 4 SHA `817ca8b424f18714e4280d3990c1bc4221ec8dbe`, connected the exact-pinned MG, Illustrated Metaphor, and Hand-drawn Contract V1 runners to one deterministic synthetic Candidate Portfolio → Candidate Asset Pack → `candidate-edit-map/1` path.
 - Repinned Hand-drawn only, from `67698fd8ea09109ff91c912f51e4c2d4f0b8482f` to the independently accepted correction `853618bdf19ae66ec393211b77d970911f53f4bc`. MG remains `7ae59f1115da8a011113c81f31d320783b0ce8a4`; Illustrated remains `48848affe018fc2cff8ee15bad7a09bb002776e4`. Contract V1 and all runner semantics are unchanged.
 - Added caller-bound deterministic request identities, canonical non-semantic plugin/config ordering, independent concurrent runs, mixed-outcome retention, scheduling/order regressions, and real failure-isolation evidence. No failed plugin can erase successful peers or fabricate a response.
 - Added sanitized real-runner evaluation proving three distinct creator-usable families, normal all-plugin ABSTAIN on an unsuitable numeric opportunity, Core-owned SHA/duration/provenance QA, and creator-facing none/one/multiple guidance with no automatic winner or edit.
-- Full Core, runner-host preflight, and native MG/Illustrated/Hand-drawn validations passed. Phase 5 is **ACCEPTED / IMPLEMENTED_UNRELEASED**. Static production config remains disabled; no real Episode, V2 migration, production default, plugin source change, merge, tag, or GitHub Release is included. Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`.
+- Full Core, runner-host preflight, and native MG/Illustrated/Hand-drawn validations passed. Phase 5 is **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE**. Static production config remains disabled; no real Episode, V2 migration, production default, plugin source change, Phase 6, merge, tag, or GitHub Release is included. Status was recorded as awaiting acceptance at the time of writing; see the 2026-09-07 entry above for the later Nexus acceptance.
 
 ## Unreleased — 2026-09-01 — Core Phase 3A-2 & Phase 3B acceptance record — ACCEPTED / IMPLEMENTED_UNRELEASED
 

@@ -57,7 +57,7 @@ Current V1 Visual Director 仍是已实现的历史/current V1 能力。V2 将�
 
 | File | Why |
 |---|---|
-| `PROJECT_STATE.md` | 新增 Product Architecture V2 accepted design 状态 |
+| `PROJECT_STATE.md` | 新增 Product Architecture V2 状态：Owner-approved product direction（WHERE→WHAT→WHEN、插件统一、REAL_MATERIAL 插件化等）+ 具体工程设计 AWAITING_NEXUS_ARCH_REVIEW（migration matrix、adapter strategy、Contract V2 proposal、Placement Planner 细节、phased plan 尚未 Nexus PASS） |
 | `PRD.md` | 新增 Part D+ 产品方向：WHERE→WHAT→WHEN、插件统一、REAL_MATERIAL 插件化 |
 | `ROADMAP.md` | 新增 V2 architecture 的 current/next/deferred 分类 |
 | `docs/ARCHITECTURE.md` | 新增 V2 target architecture 与 Visual Director decomposition |

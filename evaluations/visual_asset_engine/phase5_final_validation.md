@@ -14,7 +14,12 @@ AIGC:
 - Date: 2026-09-02 (`Asia/Shanghai`)
 - Branch: `agent/multi-asset-phase5-three-plugin-synthetic`
 - Accepted Phase 4 base: `817ca8b424f18714e4280d3990c1bc4221ec8dbe`
-- Gate result: **PASS — ACCEPTED / IMPLEMENTED_UNRELEASED**
+- Gate result: **PASS — IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE**
+
+> Historical gate result preserved as produced on 2026-09-02. This file is point-in-time
+> evidence and is not updated by later acceptance. Current accepted state is owned by
+> `PROJECT_STATE.md`, `ROADMAP.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/INDEX.md`,
+> and the Nexus independent review record.
 
 This validation is synthetic-only. It does not enable production plugin config,
 change Contract V1, modify a plugin repository, run a real Episode, select a

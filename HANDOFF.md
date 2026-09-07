@@ -13,14 +13,24 @@ AIGC:
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
-## 2026-09-02：DT-CORE-5-001 Phase 5 real three-plugin synthetic integration — ACCEPTED / IMPLEMENTED_UNRELEASED
+## 2026-09-07：DT-ARCH-V2-001 — subsequent acceptance & state reconciliation record (docs-only)
+
+> Time-ordered addendum. This entry records facts that became true **after** the entries below were written. It never rewrites those entries; historical status is preserved as produced at its own date. Canonical current truth remains [PROJECT_STATE.md](PROJECT_STATE.md).
+
+- **Subsequent Nexus acceptance of Phase 5 (later than the 2026-09-02 entry below).** Nexus completed independent GitHub exact-SHA review and issued PASS / ACCEPTED for Core Phase 5 real three-plugin synthetic integration at `db172cecc60ca6b0c276ec42010b113a767bc7b3`. Phase 5 is therefore **ACCEPTED / IMPLEMENTED_UNRELEASED** as of this later acceptance. The 2026-09-02 entry and `evaluations/visual_asset_engine/phase5_*` evidence keep their original `IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE` wording because that was the true state when they were produced.
+- **Phase 6 (《牛来》 Owner-visible Micro Demo).** **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c232d24f4b1e1ac531f6f6ef0396e001c0b`. It is not PASS, ACCEPTED, MERGED, PRODUCTION, or RELEASED; the verdict is unchanged by this task.
+- **Production state.** No V2 production migration has started; no production default is enabled; all static plugin config entries remain `enabled: false`. Latest Formal Release remains `v0.6.1`.
+- **Product Architecture V2.** The Owner has approved the product direction (DeepTalk Content Core, A-roll-first, WHERE→WHAT→WHEN, Visual Director decomposition, Asset Plugin unification, REAL_MATERIAL plugin migration, creator authority, HOW deferred). The specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased plan) remains **AWAITING_NEXUS_ARCH_REVIEW**. Owner direction approval is not Nexus engineering acceptance of the design.
+- **Docs reconciliation.** Corrected stale `PRD.md` Part D Multi-Asset state, `ROADMAP.md` Phase 5 heading/body contradiction, and `docs/plans/2026-09-07-product-architecture-v2.md` §0.8. No runtime/source/plugin/Phase 6 implementation, `main`, release, or tag change.
+
+## 2026-09-02：DT-CORE-5-001 Phase 5 real three-plugin synthetic integration — IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE (at time of writing)
 
 - Resumed the existing Phase 5 branch from accepted Phase 4 SHA `817ca8b424f18714e4280d3990c1bc4221ec8dbe`; the Phase 4 state remains **ACCEPTED / IMPLEMENTED_UNRELEASED**.
 - Updated only the Hand-drawn exact pin to the independently accepted correction `853618bdf19ae66ec393211b77d970911f53f4bc`. MG remains `7ae59f1115da8a011113c81f31d320783b0ce8a4`; Illustrated Metaphor remains `48848affe018fc2cff8ee15bad7a09bb002776e4`.
 - Real runner-host preflight and all native repository gates passed. Hand-drawn `render:primitives` and every required benchmark/common render and hard QA gate passed, so the former primitive-sheet bounds blocker is closed without weakening QA or changing Contract/runner semantics.
 - The real synthetic run proved deterministic forward/reverse scheduling, three distinct accepted families, normal ABSTAIN/no-call, injected-plugin failure isolation, Candidate Portfolio, Candidate Asset Pack, and `candidate-edit-map/1` JSON/CSV/Markdown. The creator-facing result supports none/one/multiple choices and no automatic selection/edit.
 - Minimum product review passed: all three midpoint frames were non-placeholder, understandable, uncropped, and visibly family-specific. Detailed machine evidence is in `evaluations/visual_asset_engine/phase5_*` and the external ignored run root recorded there.
-- Full Core regression passed (691 tests, six expected opt-in skips). Status is **ACCEPTED / IMPLEMENTED_UNRELEASED**. Latest Formal Release remains `v0.6.1`; Current Development remains **V1.0 Candidate — Unreleased**. No production enablement, real Episode, merge, tag, or Release was performed. Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`.
+- Full Core regression passed (691 tests, six expected opt-in skips). Status is **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE**. Latest Formal Release remains `v0.6.1`; Current Development remains **V1.0 Candidate — Unreleased**. No production enablement, real Episode, merge, tag, Release, or Phase 6 work was performed. Status was recorded as awaiting acceptance at the time of writing; see the 2026-09-07 entry above for the later Nexus acceptance.
 
 ## 2026-09-01：Core Phase 3A-2 & Phase 3B acceptance record — ACCEPTED / IMPLEMENTED_UNRELEASED
 

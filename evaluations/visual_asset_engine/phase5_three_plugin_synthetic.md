@@ -11,7 +11,12 @@ AIGC:
 
 # DT-CORE-5-001 Phase 5 three-plugin synthetic evidence
 
-Status: `ACCEPTED / IMPLEMENTED_UNRELEASED`
+Status: `IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE`
+
+> Historical status preserved as produced on 2026-09-02. This file is point-in-time
+> evidence and is not updated by later acceptance. Current accepted state is owned by
+> `PROJECT_STATE.md`, `ROADMAP.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/INDEX.md`,
+> and the Nexus independent review record.
 
 This evidence is synthetic-only. It does not enable production plugin config,
 select a winner, edit a cut, exercise REAL retrieval, or claim Phase 6 or a

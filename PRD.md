@@ -91,7 +91,7 @@ The latest formal release remains `v0.6.1`. “Implemented” never means “rel
 
 ## Part D — Accepted Next and Experiments
 
-### Multi-Asset Studio — accepted direction, implementation not started
+### Multi-Asset Studio — accepted direction; partially implemented, unreleased
 
 The accepted target abstraction is:
 
@@ -101,17 +101,30 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 → Candidate Asset Pack → Multi-option Edit Map → creator manual NLE selection
 ```
 
-Requirements for the future implementation:
+Implementation status of this direction is **partially implemented, unreleased**: Core Phases 0–3B, Core Phase 4 (Candidate Asset Pack + Multi-option Edit Map), and Core Phase 5 (real three-plugin synthetic integration) are all ACCEPTED / IMPLEMENTED_UNRELEASED. **Production migration has not started and the production default is not enabled.** This is distinct from the implementation not existing: the implementation exists on accepted branches and is deliberately not production-enabled.
+
+Requirements (govern the accepted target; production adoption remains unstarted):
 
 - DeepTalk Visual Asset Ecosystem is multi-repo and plugin-first: Core remains stable while each visual family is independently researched, optimized, benchmarked, QA'd, and versioned as a Visual Asset Plugin.
 - Candidate assets are non-exclusive. Multiple candidates can overlap fully or partly, have different durations, and come from different families.
 - `suggested_review_order` (or equivalent) may tell a creator what to inspect first; it must never mean that the machine chose a winner.
 - No Visual Opportunity means no additional asset. New candidate planning removes `KEEP_A_ROLL` as an outcome, but V1 readers/adapters and immutable historical lineage remain compatible.
 - `REAL_MATERIAL` remains an independent evidence/documentary family. Generated explanation families do not replace it.
-- Machine records must preserve Generation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) separately from produced Candidate outcomes (`READY`, `QA_REJECTED`). Creator-facing packs default to READY candidates only. Contract V1 is ACCEPTED_UNRELEASED architecture; production-schema adoption is not started.
+- Machine records must preserve Generation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) separately from produced Candidate outcomes (`READY`, `QA_REJECTED`). Creator-facing packs default to READY candidates only. Contract V1 is ACCEPTED_UNRELEASED architecture; production-schema adoption and production migration are not started.
 - The product maximises useful choice density, not file count. LEAN/STANDARD/RICH are soft profiles only; no fixed opportunity/candidate count is a schema invariant.
 
-The evidence-derived [`Visual Asset Plugin Contract V1 design`](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md) is the accepted minimum two-stage suitability/generation architecture. Its [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Core Phases 0–2 are accepted/implemented-unreleased; Phase 3A-2 connects one accepted, exact-pinned MG runner to the existing synthetic portfolio path and is implemented-unreleased awaiting ChatGPT review. Candidate delivery, multi-plugin integration, V2 production migration, and production adoption have not begun.
+The evidence-derived [`Visual Asset Plugin Contract V1 design`](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md) is the accepted minimum two-stage suitability/generation architecture. Its [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted.
+
+Implementation status on the accepted path:
+
+- Core Phases 0–2 are ACCEPTED / IMPLEMENTED_UNRELEASED.
+- Core Phase 3A-2 (one accepted, exact-pinned MG runner on the synthetic portfolio path) is **ACCEPTED / IMPLEMENTED_UNRELEASED** — its review is complete and it is no longer pending.
+- Core Phase 3B is ACCEPTED / IMPLEMENTED_UNRELEASED.
+- Core Phase 4 — Candidate Asset Pack + Multi-option Edit Map — is **ACCEPTED / IMPLEMENTED_UNRELEASED** at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Candidate delivery has therefore begun and is implemented.
+- Core Phase 5 — real three-plugin synthetic integration — is **ACCEPTED / IMPLEMENTED_UNRELEASED** at `db172cecc60ca6b0c276ec42010b113a767bc7b3`. Multi-plugin integration has therefore begun and is implemented.
+- V2 production migration and production adoption have **not** begun: no production schema adoption, no production default, no production Episode, no release, and static plugin config remains disabled.
+- Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** — the demo is complete but held; it is not PASS, ACCEPTED, MERGED, PRODUCTION, or RELEASED.
+- Product Architecture V2 is **Owner-approved product direction**; its specific architecture design is **AWAITING_NEXUS_ARCH_REVIEW** and has no runtime implementation. See Part E.
 
 ### Approved next / experimental work
 

@@ -48,7 +48,7 @@ AIGC:
 
 ## Current Work
 
-### Visual Asset Plugin Contract V1 — accepted architecture; Phase 5 awaiting acceptance
+### Visual Asset Plugin Contract V1 — accepted architecture; Phase 5 ACCEPTED / IMPLEMENTED_UNRELEASED
 
 - Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0's strict validators, sanitized fixtures, test-only fake runner, and static configuration examples are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation.
 - Preserve the accepted multi-repo, plugin-first boundary. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 4 Candidate Asset Pack + Multi-option Edit Map is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`.
@@ -76,7 +76,7 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 - Approved next; not implemented.
 - Improve visual quality and art direction before increasing MG output volume.
 
-## Accepted Product Architecture V2 — Owner-Approved Direction, Design Awaiting Nexus Review
+## Product Architecture V2 — Owner-Approved Direction, Design Awaiting Nexus Review
 
 The Owner-approved [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md) is **OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW**. The Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred). The specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased plan) has not yet received Nexus PASS. No runtime, schema, or code implementation has started. It does not change the status of any implemented work above.
 
