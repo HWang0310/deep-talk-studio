@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '718befb0-60dd-4e00-86cf-99cbcf8903b2'
-  PropagateID: '718befb0-60dd-4e00-86cf-99cbcf8903b2'
-  ReservedCode1: '9be29e35-4c6a-4d66-a672-a769f4cd1a25'
-  ReservedCode2: '9be29e35-4c6a-4d66-a672-a769f4cd1a25'
+  ProduceID: 'e06259e8-0b22-4796-9cac-5683bcb1ceff'
+  PropagateID: 'e06259e8-0b22-4796-9cac-5683bcb1ceff'
+  ReservedCode1: 'abe3116f-7044-45aa-b56a-1ef09f497724'
+  ReservedCode2: 'abe3116f-7044-45aa-b56a-1ef09f497724'
 ---
 
 # DeepTalk Studio — Canonical Project State
@@ -64,6 +64,21 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 This is an **ACCEPTED_UNRELEASED product direction** with accepted Core foundations through Phase 4 and a Phase 5 real three-plugin synthetic implementation awaiting Nexus acceptance. It is not a production schema migration or production workflow. Candidates are intentionally non-exclusive: they may overlap, have different durations, come from multiple families, and be used singly, together, or not at all.
 
 The accepted ecosystem principle is **multi-repo, plugin-first**: Core stays stable while visual capabilities are independently researched, optimized, benchmarked, QA'd, and versioned as Visual Asset Plugins. The evidence-derived [Contract V1 design](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture. It is not production implementation, runtime-schema adoption, a release, a tag, or a `main` change.
+
+### Product Architecture V2 — accepted design, not implemented
+
+**Owner-approved** product architecture redesign is documented in [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md). It is **ACCEPTED_DESIGN — documentation and migration analysis only**. No runtime, schema, or code implementation has started.
+
+Key V2 directions:
+
+- **WHERE → WHAT → WHEN separation**: Visual Opportunity Detection (WHERE) is a Studio Host capability; Asset Plugins (WHAT) are non-exclusive; Placement Planner (WHEN) is a separate Studio Host capability, distinct from both opportunity windows and plugin candidates.
+- **V1 Visual Director decomposition**: SPLIT into Visual Opportunity Detection + Asset Plugin orchestration + Candidate aggregation/QA + Placement Planning. V1 `visual-director-plan/1` preserved via compatibility reader.
+- **REAL_MATERIAL plugin migration**: MIGRATE from V1 Visual Director decision to standard Real Material Asset Provider. All provenance, rights, factual binding, and inspection evidence obligations are preserved.
+- **Contract migration analysis**: `suggested_placement` in `visual-asset-plugin-contract/1` is identified as a WHAT/WHEN coupling. A future contract version will separate `intrinsic_placement_hint` from Placement Planner-owned placement. Legacy artifacts remain immutable and readable.
+- **Studio Host boundary**: Core retains episode identity, canonical timebase, artifact IDs/lineage, plugin registration, contract validation, portfolio identity, shared safety/QA, failure isolation, and packaging. Plugins own suitability, generation, internal QA, and renderer internals.
+- **HOW deferred**: Presentation style (PIP, split screen, zoom, overlay, transition) is not in V2 Phase 1 scope.
+
+This is a plan only. `Plan exists ≠ accepted; implemented ≠ released.`
 
 ## Hard Product Boundaries
 

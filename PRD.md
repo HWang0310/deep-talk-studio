@@ -1,3 +1,14 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '15b04bba-80bd-456b-bdc7-dacf81a680a0'
+  PropagateID: '15b04bba-80bd-456b-bdc7-dacf81a680a0'
+  ReservedCode1: '76cac744-5fb0-475b-8004-452e554e1339'
+  ReservedCode2: '76cac744-5fb0-475b-8004-452e554e1339'
+---
+
 # DeepTalk Studio Product Requirements
 
 > **Canonical owner:** current accepted product requirements and hard boundaries. Read [PROJECT_STATE.md](PROJECT_STATE.md) first for release/development state, and [ROADMAP.md](ROADMAP.md) for status classification. Historical milestones appear at the end; they do not override Parts A–D.
@@ -111,7 +122,45 @@ The evidence-derived [`Visual Asset Plugin Contract V1 design`](docs/plans/2026-
 | Xiaohei | Prototype / experimental | Upstream is static illustration/shot-list oriented, not a ready video system; preserve licence/attribution and do not claim IP ownership. |
 | Original DeepTalk visual identity | Undecided | Do not assume an original character exists. |
 
-## Part E — Historical Milestones
+## Part E — Product Architecture V2 — Accepted Design, Not Implemented
+
+DeepTalk's approved product architecture redesign is documented in [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md). It is **ACCEPTED_DESIGN — documentation and migration analysis only**. No runtime, schema, or code implementation has started. This section records the accepted product direction; it does not change Parts A–D or override the implemented V1 workflow.
+
+### WHERE → WHAT → WHEN separation
+
+V2 separates visual work into three independent stages:
+
+- **WHERE** (Visual Opportunity Detection): a Studio Host capability that determines where visual assistance is worth adding and for what purpose. It does not decide which visual family to use.
+- **WHAT** (Asset Plugins): each plugin independently assesses suitability (SUITABLE / BORDERLINE / ABSTAIN) and generates candidates when requested. No plugin has Core-special status. Plugins include REAL_MATERIAL, MG, Illustrated Metaphor, Hand-drawn, and future families (Chart, Map, AI Video).
+- **WHEN** (Placement Planner): a separate Studio Host capability that produces per-candidate placement recommendations, distinct from opportunity time windows.
+
+### V1 Visual Director decomposition
+
+The V1 Visual Director (current implemented, single-decision central planner) is **decomposed, not deleted**: WHERE → Visual Opportunity Detection, WHAT → Asset Plugin orchestration, WHEN → Placement Planner, candidate aggregation/QA → Studio Host. V1 `visual-director-plan/1` artifacts are preserved through compatibility readers. The V1 Visual Director remains implemented and operational.
+
+### REAL_MATERIAL plugin migration
+
+REAL_MATERIAL migrates from a V1 Visual Director decision to a standard Real Material Asset Provider plugin. All existing obligations — source provenance, rights/reuse review, factual binding, Evidence/Context/Illustration classification, capture metadata, inspection evidence, `research_update_required`, material QA, immutable lineage — are preserved. This is a responsibility migration, not a safety subsystem rewrite.
+
+### Plugin unification
+
+MG, Illustrated Metaphor, Hand-drawn, and REAL_MATERIAL all become standard Asset Plugins under the same contract boundary. None has Core-special status. Core does not depend on plugin internals. The Candidate Portfolio, Candidate QA, Candidate Asset Pack, and Multi-option Edit Map mechanisms are retained.
+
+### Contract migration
+
+`suggested_placement` in `visual-asset-plugin-contract/1` is identified as a WHAT/WHEN coupling. A future contract version will separate `intrinsic_placement_hint` from Placement Planner-owned placement. Legacy artifacts remain immutable and readable through adapters. No existing artifact is rewritten.
+
+### HOW deferred
+
+Presentation style (PIP, split screen, zoom, crop, overlay, transition) is explicitly **not** in V2 Phase 1 scope.
+
+### Creator authority
+
+The creator retains final video decisions: none, one, or multiple candidates per opportunity. No automatic winner selection, overlap resolution, final material choice, A-roll modification, NLE generation, or publishing.
+
+`Plan exists ≠ accepted; implemented ≠ released.`
+
+## Part F — Historical Milestones
 
 These milestones preserve lineage; their earlier success criteria are not automatically current requirements.
 

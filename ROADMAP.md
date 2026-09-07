@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '8d48561d-3a57-4032-842d-0fa6ea1c8cf2'
-  PropagateID: '8d48561d-3a57-4032-842d-0fa6ea1c8cf2'
-  ReservedCode1: 'bbfd5f2a-8eec-4203-bd97-ed6941cc41c0'
-  ReservedCode2: 'bbfd5f2a-8eec-4203-bd97-ed6941cc41c0'
+  ProduceID: 'cd82eaf5-73cd-4968-b4f2-2a00f5996950'
+  PropagateID: 'cd82eaf5-73cd-4968-b4f2-2a00f5996950'
+  ReservedCode1: '55f1f4b9-af4d-47c4-ace0-ba1c2880bd51'
+  ReservedCode2: '55f1f4b9-af4d-47c4-ace0-ba1c2880bd51'
 ---
 
 # DeepTalk Studio Roadmap
@@ -75,6 +75,21 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 
 - Approved next; not implemented.
 - Improve visual quality and art direction before increasing MG output volume.
+
+## Accepted Product Architecture V2 — Design Only, Not Implemented
+
+The Owner-approved [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md) is **ACCEPTED_DESIGN — documentation and migration analysis only**. No runtime, schema, or code implementation has started. It does not change the status of any implemented work above.
+
+Key V2 directions:
+
+- **WHERE → WHAT → WHEN separation**: Visual Opportunity Detection (WHERE) is a Studio Host capability; Asset Plugins (WHAT) are non-exclusive; Placement Planner (WHEN) is a separate Studio Host capability.
+- **V1 Visual Director decomposition**: SPLIT into Visual Opportunity Detection + Asset Plugin orchestration + Candidate aggregation/QA + Placement Planning. V1 `visual-director-plan/1` preserved via compatibility reader.
+- **REAL_MATERIAL plugin migration**: MIGRATE from V1 Visual Director decision to standard Real Material Asset Provider, retaining all provenance/rights/factual/inspection obligations.
+- **Plugin unification**: MG, Illustrated, Hand-drawn, and REAL_MATERIAL all become standard Asset Plugins. No Core-special status.
+- **Contract migration**: `suggested_placement` identified as WHAT/WHEN coupling. Future contract version separates `intrinsic_placement_hint` from Placement Planner. Legacy artifacts remain immutable.
+- **HOW deferred**: Presentation style (PIP, split, zoom, overlay, transition) is not in V2 Phase 1.
+
+Implementation is phased (Phase A–F) with compatibility-first, no big-bang rewrite, and each phase independently reversible. See the [design document](docs/plans/2026-09-07-product-architecture-v2.md) §6 for the phased plan.
 
 ## Experimental / Under Product Validation
 

@@ -1,3 +1,14 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '7cde69fa-7b5d-4583-9592-6ad98ddec7df'
+  PropagateID: '7cde69fa-7b5d-4583-9592-6ad98ddec7df'
+  ReservedCode1: '248e8706-232a-4b53-90e4-d468066b8d75'
+  ReservedCode2: '248e8706-232a-4b53-90e4-d468066b8d75'
+---
+
 # DeepTalk Studio Documentation Index
 
 This index routes readers to the canonical owner of each fact. It prevents historical documents from being mistaken for current product truth.
@@ -53,6 +64,7 @@ Do not add private episode materials, finished videos, raw research, or credenti
 
 ## Research, Proposals, and Implementation Plans
 
+- [Product Architecture V2 — Design & Migration](plans/2026-09-07-product-architecture-v2.md) — **ACCEPTED_DESIGN, not implemented.** WHERE → WHAT → WHEN separation, Visual Director decomposition, REAL_MATERIAL plugin migration, contract migration analysis, Studio Host boundary, phased plan. No runtime, schema, or code changes.
 - [Product research and proposals](plans/)
 - [Implementation plans](superpowers/plans/)
 - [Historical design specs](superpowers/specs/)

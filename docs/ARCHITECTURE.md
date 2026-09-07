@@ -1,3 +1,14 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '913aac98-ef5d-4887-b204-92f45b97beb1'
+  PropagateID: '913aac98-ef5d-4887-b204-92f45b97beb1'
+  ReservedCode1: '4e45781b-4427-4041-82e2-83e21fe9ea1d'
+  ReservedCode2: '4e45781b-4427-4041-82e2-83e21fe9ea1d'
+---
+
 # DeepTalk Studio Architecture
 
 > **Canonical owner:** current technical architecture. Read [PROJECT_STATE.md](../PROJECT_STATE.md) first. The target below is partially implemented through sanitized Phase 5 evidence, but it is not production-enabled.
@@ -108,6 +119,75 @@ Target requirements:
 - The [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 4 adds the accepted Candidate Asset Pack + `candidate-edit-map/1` boundary at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Phase 5 invokes exact-pinned MG, Illustrated Metaphor, and Hand-drawn runners independently, canonicalizes non-semantic scheduling/config order, isolates failures, and emits deterministic synthetic Portfolio/Pack/map evidence. Phase 5 is **IMPLEMENTED_UNRELEASED / AWAITING NEXUS ACCEPTANCE** and pins Hand-drawn at `853618bdf19ae66ec393211b77d970911f53f4bc`.
 
 No V2 production migration, production default, or `edit-map/2` exists. The implemented Candidate Asset Pack and `candidate-edit-map/1` paths remain additive, synthetic, creator-choice artifacts; they do not select a winner or alter a cut.
+
+## Product Architecture V2 — Accepted Design, Not Implemented
+
+The Owner-approved [Product Architecture V2](plans/2026-09-07-product-architecture-v2.md) is **ACCEPTED_DESIGN — documentation and migration analysis only**. No runtime, schema, or code implementation has started. This section records the accepted target architecture direction; it does not replace or override the implemented V1 architecture above.
+
+### WHERE → WHAT → WHEN separation
+
+V2 separates the visual pipeline into three independent stages:
+
+```text
+Semantic Timeline
+  → WHERE: Visual Opportunity Detection (Studio Host)
+       → WHAT: Asset Plugin suitability + generation (Plugins)
+            → Candidate Portfolio (Studio Host)
+                 → WHEN: Placement Planner (Studio Host)
+                      → Candidate Asset Pack + Multi-option Edit Map
+                           → creator manual NLE selection
+```
+
+- **WHERE** detects where visual assistance is worth adding and for what purpose. It does not decide which visual family to use. No opportunity = no additional asset.
+- **WHAT** is answered by Asset Plugins, each independently SUITABLE / BORDERLINE / ABSTAIN. No plugin has Core-special status.
+- **WHEN** produces per-candidate placement recommendations, distinct from opportunity time windows.
+
+### Visual Director decomposition
+
+The V1 Visual Director (single-decision central planner: `KEEP_A_ROLL` / `REAL_MATERIAL` / `MG_MOTION` / `ADVANCED_MOTION`) is decomposed into:
+
+| V1 responsibility | V2 destination | Owner |
+|---|---|---|
+| Alignment validation, canonical timebase | A-roll Understanding | Studio Host |
+| Where to add visuals | Visual Opportunity Detection (WHERE) | Studio Host |
+| `KEEP_A_ROLL` → no visual | "No Visual Opportunity" | Studio Host |
+| `REAL_MATERIAL` / `MG_MOTION` / `ADVANCED_MOTION` → which visual | Asset Plugin suitability + generation (WHAT) | Plugin |
+| Placement within span | Placement Planner (WHEN) | Studio Host |
+
+V1 `visual-director-plan/1` preserved via compatibility reader. The V1 Visual Director remains implemented and operational.
+
+### Studio Host / Plugin boundary
+
+| Studio Host owns | Plugins own |
+|---|---|
+| Episode identity, canonical A-roll identity, canonical timebase, Semantic Timeline, artifact IDs/lineage, plugin registration/loading, contract validation, artifact storage, Candidate Portfolio identity, shared safety/QA, failure isolation, ABSTAIN semantics, packaging, Placement Planning | Visual content generation, suitability judgment, plugin-internal QA, scene grammar / renderer internals |
+
+### REAL_MATERIAL plugin migration
+
+REAL_MATERIAL migrates from a V1 Visual Director decision to a standard Real Material Asset Provider plugin. All existing obligations are preserved: source provenance, rights/reuse review, factual binding (Evidence/Context/Illustration), capture metadata, inspection evidence, `research_update_required`, material QA, immutable lineage.
+
+### Contract migration
+
+`suggested_placement` in `visual-asset-plugin-contract/1` is identified as a WHAT/WHEN coupling. A future `visual-asset-plugin-contract/2` will make `suggested_placement` optional (renamed `intrinsic_placement_hint`) and introduce `intrinsic_timing_hints`. A `ContractV1ToV2Adapter` will read V1 artifacts and map to V2 view. No existing artifact is rewritten. Legacy compatibility readers preserve all V1 history.
+
+### HOW deferred
+
+Presentation style (PIP, split screen, zoom, crop, overlay, transition) is explicitly not in V2 Phase 1 scope.
+
+### Phased implementation plan
+
+Implementation is phased (Phase A–F), compatibility-first, no big-bang rewrite, each phase independently reversible:
+
+- **Phase A**: Contracts, adapters, compatibility readers, tests.
+- **Phase B**: Visual Opportunity Detection (WHERE) extraction.
+- **Phase C**: Placement Planner (WHEN) boundary.
+- **Phase D**: Generated Asset Provider orchestration migration.
+- **Phase E**: REAL_MATERIAL plugin migration.
+- **Phase F**: Production adoption.
+
+See the [design document](plans/2026-09-07-product-architecture-v2.md) §6 for full details.
+
+`Plan exists ≠ accepted; implemented ≠ released.`
 
 ## Extension Rules
 
