@@ -1,13 +1,26 @@
-"""Design-only compatibility surface: Visual Asset Plugin Contract V2 result view.
+"""Design-only compatibility surface: Visual Asset Plugin Contract V2 views.
 
 This module is **not** a production protocol.  It exists so that Phase A can
 express plugin-owned timing hints (``intrinsic_placement_hint``) separately
 from Core-owned Placement Planner output (``final_placement``, Phase B+),
 without touching the frozen ``visual-asset-plugin-contract/1`` runtime path.
 
-The V2 result view keeps the V1 envelope shape and reuses the V1 identity
-model: Core owns ``opportunity_id`` / ``request_id`` / ``proposal_id``;
-plugin owns ``candidate_id``.  No new IDs are minted here.
+Identity creation authority (per accepted V2 architecture §5.3):
+  - ``opportunity_id``  — Studio/Core-created
+  - ``request_id``      — Studio/Core-created, plugin echoes
+  - ``proposal_id``     — **plugin-created** in Suitability Response
+  - ``candidate_id``    — **plugin-created** in Generation Result
+  - ``portfolio_id``    — Studio/Core-created
+
+Core validates, persists, binds lineage, and audits all IDs, but Core does
+**not** create ``proposal_id`` or ``candidate_id``.
+
+Two compatibility surfaces exist in Phase A:
+  - ``validate_v2_result_view``      — generation result envelope
+  - ``validate_v2_suitability_view`` — suitability response envelope
+
+Both accept COMPLETED and failure (FAILED / BLOCKED / UNAVAILABLE) statuses,
+preserving raw V1 evidence without loss.
 """
 from __future__ import annotations
 
@@ -17,12 +30,24 @@ CONTRACT_VERSION_V2 = "visual-asset-plugin-contract/2"
 
 CANDIDATE_STATUSES_V2 = frozenset({"READY", "QA_REJECTED"})
 ARTIFACT_ROLES_V2 = frozenset({"PRIMARY_MEDIA", "PREVIEW", "MANIFEST", "QA_REPORT"})
+SUITABILITY_STATUSES_V2 = frozenset({"SUITABLE", "BORDERLINE", "ABSTAIN"})
+FAILURE_OPERATION_STATUSES = frozenset({"FAILED", "BLOCKED", "UNAVAILABLE"})
 
 # V2 result view fields (V1 envelope, contract_version bumped to /2).
 _RESULT_FIELDS_V2 = frozenset(
     {
         "contract_version", "request_id", "opportunity_id", "proposal_id",
         "plugin_id", "plugin_version", "operation_status", "candidate",
+        "problem",
+    }
+)
+
+# V2 suitability view fields.
+_SUITABILITY_FIELDS_V2 = frozenset(
+    {
+        "contract_version", "request_id", "opportunity_id", "plugin_id",
+        "plugin_version", "operation_status", "proposal_id", "suitability",
+        "reason", "problem",
     }
 )
 
@@ -37,35 +62,94 @@ _CANDIDATE_FIELDS_V2 = frozenset(
     }
 )
 
-_RESULT_IDENTITY_FIELDS = ("request_id", "opportunity_id", "proposal_id", "plugin_id", "plugin_version")
+_RESULT_LINEAGE_FIELDS = (
+    "request_id", "opportunity_id", "proposal_id", "plugin_id", "plugin_version",
+)
+_SUITABILITY_LINEAGE_FIELDS = (
+    "request_id", "opportunity_id", "plugin_id", "plugin_version",
+)
 
 
 class VisualAssetPluginContractV2Error(ValueError):
-    """A deterministic error for malformed V2 result views."""
+    """A deterministic error for malformed V2 views."""
 
+
+# ===========================================================================
+# Generation result view
+# ===========================================================================
 
 def validate_v2_result_view(value: Any, opportunity: Mapping[str, Any]) -> None:
-    """Validate an isolated V2 result view against an opportunity.
+    """Validate an isolated V2 generation result view against an opportunity.
 
-    Phase A accepts only COMPLETED results carrying exactly one candidate.
-    Failure statuses are the adapter's concern and are rejected here.
+    Accepts COMPLETED (with candidate) and FAILED / BLOCKED / UNAVAILABLE
+    (with problem, no candidate).  All lineage IDs are required.
     """
     data = _mapping(value, "result")
     _only_fields(data, _RESULT_FIELDS_V2, "result")
-    _required_fields(data, {"contract_version", "operation_status", "candidate"}, "result")
-    if data["contract_version"] != CONTRACT_VERSION_V2:
+    if data.get("contract_version") != CONTRACT_VERSION_V2:
         raise VisualAssetPluginContractV2Error(
             f"contract_version 必须是 {CONTRACT_VERSION_V2}"
         )
-    for field in _RESULT_IDENTITY_FIELDS:
-        if field in data:
-            _identifier(data[field], field)
-    if data["operation_status"] != "COMPLETED":
-        raise VisualAssetPluginContractV2Error(
-            f"operation_status 必须是 COMPLETED；实际为 {data['operation_status']!r}"
-        )
-    _validate_candidate(data["candidate"], opportunity)
+    for field in _RESULT_LINEAGE_FIELDS:
+        _required_fields(data, {field}, "result")
+        _identifier(data[field], field)
+    status = _required_enum(
+        data, "operation_status",
+        frozenset({"COMPLETED"}) | FAILURE_OPERATION_STATUSES,
+        "operation_status",
+    )
+    if status == "COMPLETED":
+        _required_fields(data, {"candidate"}, "COMPLETED result")
+        _forbid_fields(data, {"problem"}, "COMPLETED result")
+        _validate_candidate(data["candidate"], opportunity)
+    else:
+        _required_fields(data, {"problem"}, f"{status} result")
+        _forbid_fields(data, {"candidate"}, f"{status} result")
+        _validate_problem(data["problem"])
 
+
+# ===========================================================================
+# Suitability view
+# ===========================================================================
+
+def validate_v2_suitability_view(value: Any) -> None:
+    """Validate an isolated V2 suitability response view.
+
+    Accepts COMPLETED (with proposal_id / suitability / reason) and
+    FAILED / UNAVAILABLE (with problem, no proposal/suitability fields).
+    """
+    data = _mapping(value, "suitability")
+    _only_fields(data, _SUITABILITY_FIELDS_V2, "suitability")
+    if data.get("contract_version") != CONTRACT_VERSION_V2:
+        raise VisualAssetPluginContractV2Error(
+            f"contract_version 必须是 {CONTRACT_VERSION_V2}"
+        )
+    for field in _SUITABILITY_LINEAGE_FIELDS:
+        _required_fields(data, {field}, "suitability")
+        _identifier(data[field], field)
+    status = _required_enum(
+        data, "operation_status",
+        frozenset({"COMPLETED"}) | FAILURE_OPERATION_STATUSES,
+        "operation_status",
+    )
+    if status == "COMPLETED":
+        for field in ("proposal_id", "suitability", "reason"):
+            _required_fields(data, {field}, "COMPLETED suitability")
+        _forbid_fields(data, {"problem"}, "COMPLETED suitability")
+        _identifier(data["proposal_id"], "proposal_id")
+        _enum(data["suitability"], SUITABILITY_STATUSES_V2, "suitability")
+        _text(data["reason"], "reason")
+    else:
+        _required_fields(data, {"problem"}, f"{status} suitability")
+        _forbid_fields(
+            data, {"proposal_id", "suitability", "reason"}, f"{status} suitability"
+        )
+        _validate_problem(data["problem"])
+
+
+# ===========================================================================
+# Candidate validation (shared)
+# ===========================================================================
 
 def _validate_candidate(value: Any, opportunity: Mapping[str, Any]) -> None:
     data = _mapping(value, "candidate")
@@ -136,6 +220,16 @@ def _validate_placement(value: Any, opportunity: Mapping[str, Any]) -> None:
         )
 
 
+def _validate_problem(value: Any) -> None:
+    data = _mapping(value, "problem")
+    _only_fields(data, {"code", "message", "retryability"}, "problem")
+    _required_fields(data, {"code", "message"}, "problem")
+    _text(data["code"], "problem.code")
+    _text(data["message"], "problem.message")
+    if "retryability" in data and not isinstance(data["retryability"], bool):
+        raise VisualAssetPluginContractV2Error("problem.retryability 必须是布尔值")
+
+
 def _validate_opportunity(value: Any) -> None:
     data = _mapping(value, "opportunity")
     allowed = {
@@ -173,6 +267,10 @@ def _validate_window(value: Any, field: str) -> Mapping[str, int]:
     return data
 
 
+# ===========================================================================
+# Helpers
+# ===========================================================================
+
 def _mapping(value: Any, field: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise VisualAssetPluginContractV2Error(f"{field} 必须是 JSON 对象")
@@ -185,12 +283,31 @@ def _required_fields(data: Mapping[str, Any], fields: set[str], field: str) -> N
             raise VisualAssetPluginContractV2Error(f"{field}.{name} 缺少必填字段")
 
 
+def _forbid_fields(data: Mapping[str, Any], fields: set[str], field: str) -> None:
+    present = sorted(fields.intersection(data))
+    if present:
+        raise VisualAssetPluginContractV2Error(f"{field} 不能包含字段：{', '.join(present)}")
+
+
 def _only_fields(data: Mapping[str, Any], allowed: set[str], field: str) -> None:
     unknown = sorted(set(data).difference(allowed))
     if unknown:
         raise VisualAssetPluginContractV2Error(
             f"{field} 包含未知字段：{', '.join(unknown)}"
         )
+
+
+def _required_enum(
+    data: Mapping[str, Any], key: str, allowed: frozenset[str], field: str
+) -> str:
+    if key not in data:
+        raise VisualAssetPluginContractV2Error(f"{field} 缺少必填字段")
+    value = data[key]
+    if value not in allowed:
+        raise VisualAssetPluginContractV2Error(
+            f"{field} 的值无效：{value!r}；允许值为 {', '.join(sorted(allowed))}"
+        )
+    return value
 
 
 def _identifier(value: Any, field: str) -> str:
