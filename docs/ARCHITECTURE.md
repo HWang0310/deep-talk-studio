@@ -160,7 +160,9 @@ V1 `visual-director-plan/1` preserved via compatibility reader. The V1 Visual Di
 
 | Studio Host owns | Plugins own |
 |---|---|
-| Episode identity, canonical A-roll identity, canonical timebase, Semantic Timeline, artifact IDs/lineage, plugin registration/loading, contract validation, artifact storage, Candidate Portfolio identity, shared safety/QA, failure isolation, ABSTAIN semantics, packaging, Placement Planning | Visual content generation, suitability judgment, plugin-internal QA, scene grammar / renderer internals |
+| Episode identity, canonical A-roll identity, canonical timebase, Semantic Timeline, **authoritative identity governance and lineage** (Core creates `opportunity_id` / `request_id` / `portfolio_id` / Pack–Edit-Map IDs / Core staged locators; plugins create `proposal_id` / `candidate_id` and Core validates, persists, and binds them — "Core owns lineage" ≠ "Core creates every ID"), plugin registration/loading, contract validation, artifact storage, Candidate Portfolio identity, shared safety/QA, failure isolation, ABSTAIN semantics, packaging, Placement Planning | Visual content generation, suitability judgment, plugin-internal QA, scene grammar / renderer internals, **plugin-native artifact identity** (native URI / manifest identity; Core validates and may assign its own Core locator but must not rewrite plugin manifests, provenance, or historical evidence) |
+
+See the [V2 design document](plans/2026-09-07-product-architecture-v2.md) §5.3 (Identity Authority vs Lineage Ownership) and §5.4 (plugin-native vs Core artifact identity) for the full ID-by-ID table. No ID creation semantics change: Contract V1 creators are preserved.
 
 ### REAL_MATERIAL plugin migration
 

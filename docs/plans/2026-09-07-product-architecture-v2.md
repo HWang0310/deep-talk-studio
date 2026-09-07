@@ -129,7 +129,7 @@ Current V1 Visual Director 仍是已实现的历史/current V1 能力。V2 将�
 | Responsible for | Answering "where is visual assistance worth adding?" and "what is the visual purpose?" Only detecting opportunities and their purposes. |
 | Not responsible for | Deciding which visual family/type to use. Does not decide "this must be MG." |
 | Main input | Semantic Timeline, Reviewed Script, approved Research context. |
-| Main output | Visual Opportunity artifacts with `opportunity_id`, `a_roll_window`, `spoken_semantics`, `visual_purpose`, `target_duration_ms`. |
+| Main output | Visual Opportunity artifacts with `opportunity_id` (Studio/Core-created canonical opportunity identity), `a_roll_window`, `spoken_semantics`, `visual_purpose`, `target_duration_ms`. |
 | Boundary | No opportunity = no additional asset. Opportunity time window ≠ candidate placement time window (that belongs to Placement Planner). |
 
 ### 1.7 Asset Plugins (WHAT)
@@ -139,7 +139,7 @@ Current V1 Visual Director 仍是已实现的历史/current V1 能力。V2 将�
 | Responsible for | Answering "what visual expression options exist here?" Each plugin independently assesses suitability (SUITABLE / BORDERLINE / ABSTAIN) and generates candidates when requested. |
 | Not responsible for | Deciding when a candidate enters/exits the final video. Selecting winners. Resolving overlaps. |
 | Main input | Visual Opportunity (from WHERE stage), approved factual context. |
-| Main output | Suitability proposals, generation results, candidate artifacts (media, manifest, QA, provenance). |
+| Main output | Suitability proposals (plugin creates `proposal_id`), generation results (plugin creates `candidate_id`), candidate artifacts (media, manifest, QA, provenance). See §5.3 for identity creation authority vs Core lineage ownership. |
 | Boundary | Plugins include: REAL_MATERIAL, MG, Illustrated Metaphor, Hand-drawn, Chart, Map, AI Video, future families. No plugin has Core-special status. Core does not depend on plugin internals. |
 
 ### 1.8 Candidate Portfolio
@@ -149,7 +149,7 @@ Current V1 Visual Director 仍是已实现的历史/current V1 能力。V2 将�
 | Responsible for | Aggregating all READY candidates from all plugins for all opportunities, non-exclusively. Preserving audit records for every suitability/generation call. |
 | Not responsible for | Selecting a winner. Resolving overlap. Ranking candidates. |
 | Main input | Generation results from all plugins, Core acceptance checks. |
-| Main output | `candidate-portfolio/1` artifact with audit records, candidates, immutable IDs. |
+| Main output | `candidate-portfolio/1` artifact with `portfolio_id` (Studio/Core-created), audit records, and Core-validated plugin-created `candidate_id` references. |
 | Boundary | Portfolio never chooses. Creator may use none, one, or multiple. |
 
 ### 1.9 Placement Planner (WHEN)
@@ -196,11 +196,11 @@ Current V1 Visual Director 仍是已实现的历史/current V1 能力。V2 将�
 
 | Aspect | Detail |
 |---|---|
-| Responsible for | Episode/project identity, canonical A-roll identity, canonical timebase, canonical timeline, artifact IDs/lineage, plugin registration/loading boundary, contract validation, artifact storage, Candidate Portfolio identity, shared safety/QA policy, provenance/digest/runtime safety framework, failure isolation, ABSTAIN semantics, packaging. |
-| Not responsible for | Visual content generation (that belongs to plugins). Content thesis/script (that belongs to Content Core). |
+| Responsible for | Episode/project identity, canonical A-roll identity, canonical timebase, canonical timeline, **authoritative identity governance and lineage** (validate, persist, bind, de-duplicate, audit — see §5.3), Core staged artifact locators (see §5.4), plugin registration/loading boundary, contract validation, artifact storage, Candidate Portfolio identity, shared safety/QA policy, provenance/digest/runtime safety framework, failure isolation, ABSTAIN semantics, packaging. |
+| Not responsible for | Visual content generation (that belongs to plugins). Content thesis/script (that belongs to Content Core). First-generation of plugin-owned IDs (`proposal_id`, `candidate_id`, plugin-native artifact identity) — Core validates and governs them but does not create them. |
 | Main input | Configuration, plugin registrations, all stage artifacts. |
 | Main output | Immutable artifact storage, validated lineage, safe runtime environment. |
-| Boundary | Studio Host owns the shared truth; plugins own their visual capability. See §6 for detailed boundary reasoning. |
+| Boundary | Studio Host owns the shared truth and the authoritative lineage; plugins own their visual capability and the IDs they first create. "Core owns lineage" never means "Core creates every ID." See §5.3 (identity authority) and §5.4 (artifact identity), and §6 for detailed boundary reasoning. |
 
 ---
 
@@ -250,11 +250,11 @@ This coupling exists because Contract V1 was designed before the Placement Plann
 
 ### 3.2 What continues to belong to the Asset Plugin
 
-The following candidate fields remain Asset Provider owned:
+The following candidate fields remain Asset Provider owned. "Owned" here means **created by the plugin**; Core still validates, persists, binds, and governs them as part of authoritative lineage (see §5.3):
 
 | Field | Why it stays |
 |---|---|
-| `candidate_id` | Plugin-produced identity. |
+| `candidate_id` | Plugin-**created** identity: the plugin generates it in its Generation Result. Core validates format, lineage, and in-portfolio uniqueness; persists it; decides Core acceptance; and then uses it as the authoritative candidate reference. Core does not create it. |
 | `asset_family` | Plugin-owned display/category. |
 | `candidate_status` | Plugin-produced QA result. |
 | `duration_ms` | Actual duration of produced media — a physical fact. |
@@ -294,6 +294,7 @@ Recommendation: **versioned contract + adapter**, not rewrite.
 - A future `visual-asset-plugin-contract/2` (when implemented) changes `suggested_placement` from required to optional for READY candidates, and introduces an `intrinsic_timing_hints` field for plugin-owned natural timing information.
 - Core maintains a `ContractV1ToV2Adapter` that reads V1 artifacts and maps `suggested_placement` to `intrinsic_placement_hint` for the Placement Planner.
 - No existing artifact is rewritten. The adapter is a reader, not a mutator.
+- **V2 does not migrate identity creation authority.** `proposal_id` and `candidate_id` remain plugin-created; `opportunity_id`, `request_id`, and `portfolio_id` remain Core-created. Changing any ID creation semantics would be a separate versioned contract decision requiring its own evidence, migration, and adapter — it is not decided by this document (see §5.3, §7.2).
 
 ### 3.6 Why historical artifacts should not be rewritten
 
@@ -326,7 +327,7 @@ REAL_MATERIAL and generated plugins can share these Candidate envelope fields:
 
 | Shared field | Notes |
 |---|---|
-| `candidate_id` | Same identity scheme. |
+| `candidate_id` | Same identity scheme: plugin-created, Core-validated and Core-persisted (see §5.3). |
 | `asset_family` | `"REAL_MATERIAL"` vs `"MG"` etc. |
 | `candidate_status` | Same READY / QA_REJECTED. |
 | `duration_ms` | Same physical fact. |
@@ -392,8 +393,12 @@ This is a **single-decision central planner** — it simultaneously decides WHER
 | Asset Pack and Edit Map packaging | Studio Host | Creator-facing delivery must be neutral and complete. |
 | Suitability judgment | Plugin | Only the plugin knows its own capability boundary. |
 | Generation / media production | Plugin | Only the plugin produces visual content. |
+| `proposal_id` creation | Plugin | Created in the successful Suitability Response; Core validates and binds it to opportunity / plugin / request (§5.3). |
+| `candidate_id` creation | Plugin | Created in the Generation Result; Core validates uniqueness/lineage and persists it (§5.3). |
+| Plugin-native artifact identity (native URI / manifest identity) | Plugin | Plugin produces its own artifact identity; Core validates and may add a separate Core locator but must not rewrite the plugin's original manifest or evidence (§5.4). |
 | Plugin-internal QA | Plugin | Plugin owns its mechanical/structural QA rubric. |
 | Scene grammar / renderer internals | Plugin | MG grammar, Illustrated scene model, Hand-drawn primitives — all plugin-private. |
+| Identity governance / authoritative lineage | Studio Host | Whoever creates an ID, Core owns validation, persistence, binding, de-duplication, audit, and admission into downstream Core artifacts (§5.3). |
 
 ---
 
@@ -407,8 +412,9 @@ This is a **single-decision central planner** — it simultaneously decides WHER
 | Canonical A-roll identity | All timing derives from one A-roll. Plugins cannot declare their own A-roll. |
 | Canonical timebase | All modules must reference the same monotonic time. No plugin may create its own time. |
 | Canonical timeline | `semantic-timeline/1` is shared input. Plugins consume it; they do not produce it. |
-| Artifact IDs | `opportunity_id`, `candidate_id`, `proposal_id`, `request_id` — all Core-assigned or Core-validated. Plugins echo, not create, these. |
-| Lineage | The full chain (Opportunity → Proposal → Generation → Candidate → Portfolio → Pack → Edit Map) is Core-owned lineage. Plugins contribute links; Core owns the chain. |
+| Identity governance (not universal ID creation) | Core creates `opportunity_id`, `request_id`, `portfolio_id`, Pack/Edit Map IDs, and Core staged locators. Core does **not** create `proposal_id` or `candidate_id` — those are plugin-created and Core-validated/Core-persisted. See §5.3. |
+| `request_id` echo contract | Core creates `request_id` per plugin call; the plugin response must echo it. A mismatched or missing echo is a contract violation. |
+| Lineage | The full chain (Opportunity → Proposal → Generation → Candidate → Portfolio → Pack → Edit Map) is Core-owned lineage. Plugins contribute links and create some of the IDs; Core owns validation, persistence, binding, de-duplication, and audit of the chain. "Core owns lineage" ≠ "Core creates every ID." |
 | Plugin registration / loading | Which plugins are enabled, their pins, their config — all Core owned. Plugins do not self-register. |
 | Contract validation | Core validates Contract V1 messages before and after plugin calls. Plugins cannot skip validation. |
 | Artifact storage | Immutable, digest-bound, relocation-safe storage is Core infrastructure. Plugins do not manage storage. |
@@ -426,6 +432,57 @@ This is a **single-decision central planner** — it simultaneously decides WHER
 | Plugin-internal QA rubric | MG media QA differs from Illustrated readability QA differs from Hand-drawn mechanical QA. Core must not homogenize. |
 | Scene grammar / renderer internals | MG grammar, Illustrated scene model, Hand-drawn SVG primitives — all plugin-private. Core must not import them. |
 | Factual content of generated visuals | Plugins translate semantic intent to visual content. Core validates factual binding but does not author visual content. |
+| Plugin-native artifact identity | Plugin produces its native URI / manifest identity. Core validates the actual file, SHA, containment, and provenance, and may assign its own Core locator — but must not rewrite the plugin's original manifest, provenance, or historical evidence (see §5.4). |
+
+### 5.3 Identity Authority vs Lineage Ownership
+
+Two concepts must never be conflated:
+
+- **A. Identity creation authority** — who *first generates* the ID value.
+- **B. Authoritative lineage ownership** — who validates, persists, binds, de-duplicates, audits, and decides whether that ID may enter downstream Core artifacts.
+
+**"Core owns lineage" does NOT mean "Core creates every ID."** Core owns the chain; several IDs inside that chain are first created by plugins and then validated, bound, and persisted by Core. This section is the authoritative resolution of any apparent conflict between §3.2 (plugin-owned fields) and §5.1 (Studio Host ownership).
+
+| Identity | Created by | Validated / governed by |
+|---|---|---|
+| `opportunity_id` | Studio/Core | Studio/Core — canonical Visual Opportunity identity |
+| `request_id` | Studio/Core | Studio/Core; plugin must echo it in every response |
+| `proposal_id` | Plugin (successful Suitability Response) | Studio/Core validates + binds to opportunity / plugin / request, persists lineage |
+| `candidate_id` | Plugin (Generation Result) | Studio/Core validates format, lineage, and in-portfolio uniqueness; persists; decides Core acceptance; uses it as the authoritative candidate reference |
+| `portfolio_id` | Studio/Core | Studio/Core |
+| Candidate Asset Pack / Multi-option Edit Map IDs | Studio/Core | Studio/Core |
+| Plugin-native artifact URI / manifest-native identity | Plugin | Studio/Core validates (actual file, SHA, containment, provenance) |
+| Core staged locator / Core artifact identity | Studio/Core | Studio/Core |
+
+Consequences:
+
+- Core must not be described as the creator of `proposal_id` or `candidate_id`. Core is their validator, binder, and owner of record.
+- Plugins must not be described as owners of lineage. They contribute links and create certain IDs, never authoritative cross-artifact governance.
+- A `request_id` that is missing or not echoed is a contract violation, because Core — not the plugin — creates it.
+- **No ID creation semantics change in V2.** V2 does not migrate ID creators as a side effect of the WHERE → WHAT → WHEN restructuring.
+
+### 5.4 Artifact identity — plugin-native vs Core authoritative observation
+
+"Artifact IDs/lineage" is too broad. Two distinct layers exist:
+
+| Layer | Created by | Notes |
+|---|---|---|
+| **Plugin-native artifact identity** — native artifact URI, manifest-native identity, plugin manifest/provenance records | Plugin | Immutable plugin evidence. Core must not rewrite or silently replace it. |
+| **Core authoritative artifact observation / staged locator** — validated staged path, byte size, SHA-256, containment result, relocation-safe Core identity | Studio/Core | Created **after** Core validation, as a separate Core-side observation. |
+
+Core may, for any plugin-produced artifact:
+
+- validate (existence, file type, byte size, SHA-256, duration, containment, provenance);
+- stage it into Core-managed immutable storage;
+- hash and digest it;
+- bind it into Core lineage (opportunity → proposal → request → candidate → portfolio → pack → edit map);
+- assign an independent Core locator, and use that locator as the authoritative reference downstream.
+
+Core may **not**:
+
+- rewrite the plugin's original manifest, provenance, or historical evidence;
+- silently substitute a Core-generated ID for a plugin-native identity inside plugin-owned artifacts;
+- claim that a validated plugin artifact became Core-created merely because Core staged or hashed it.
 
 ---
 
@@ -554,6 +611,8 @@ Phase A must complete first. B and C have a natural sequence but C depends on B 
 | Contract V2 may fragment the plugin ecosystem | V1 remains frozen and valid. V2 is additive. Adapter bridges V1 → V2. No plugin forced to upgrade. |
 | Visual Director decomposition may break historical episodes | Compatibility readers preserve `visual-director-plan/1`. Historical artifacts are immutable. |
 | Phase ordering may introduce gaps | Each phase is independently reversible. No phase removes V1 capability until its V2 replacement is proven. |
+| "Core owns lineage" may be misread as "Core creates every ID" | §5.3 separates identity creation authority from authoritative lineage ownership and enumerates each ID's creator and governor. §3.2, §4.3, §5.1, and §5.2 all point to §5.3. |
+| A contract change could silently move ID creation to Core and break V1 plugin runners | §3.5 and §5.3 state that V2 does not migrate ID creation authority; any such change requires a separate versioned contract decision with its own evidence, migration, and adapter (see §7.2). |
 
 ### 7.2 Open questions (deferred, not blocking this design)
 
@@ -562,11 +621,14 @@ Phase A must complete first. B and C have a natural sequence but C depends on B 
 - How REAL_MATERIAL's retrieval stage maps to the two-stage suitability/generation lifecycle (may need a three-stage: suitability → retrieval → candidate).
 - Whether `candidate-edit-map/2` is needed or `candidate-edit-map/1` can be extended.
 - How future Chart/Map/AI Video families fit the contract (each needs its own evidence first).
+- **Whether a future contract version should move ID creation authority to Core** (i.e. Core pre-generating `proposal_id` / `candidate_id`, or replacing plugin-native IDs with Core IDs). **Not decided here.** V2 keeps Contract V1 creation semantics; this would require a separate versioned contract decision with its own evidence, migration, and adapter (see §3.5, §5.3).
 
 ---
 
 ## 8. No Implementation Statement
 
 This document is design and migration analysis only. No runtime source, production code, renderer code, plugin runner, schema runtime adoption, production workflow, plugin repository, plugin pin, test for new runtime behavior, Phase 6 code/state, main, release, or tag has been modified.
+
+This document also does **not** change Contract V1 identity creation semantics. `opportunity_id`, `request_id`, and `portfolio_id` remain Core-created; `proposal_id` and `candidate_id` remain plugin-created and Core-validated; plugin-native artifact identity remains plugin-created and Core-validated. No plugin-native ID is silently replaced by a Core ID.
 
 `Plan exists ≠ accepted; implemented ≠ released.`
