@@ -130,6 +130,70 @@ class VisualDirectorPlanV1ReaderTests(unittest.TestCase):
         with self.assertRaisesRegex(LegacyArtifactReadError, "digest"):
             VisualDirectorPlanV1Reader().read(data)
 
+    # --- plan_digest mandatory (BLOCKER 1) ---
+
+    def test_missing_plan_digest_fails_closed(self):
+        data = _visual_director_plan()
+        del data["plan_digest"]
+        with self.assertRaisesRegex(LegacyArtifactReadError, "plan_digest"):
+            VisualDirectorPlanV1Reader().read(data)
+
+    # --- canonical schema validation (BLOCKER 1b) ---
+
+    def test_missing_plan_id_fails_closed(self):
+        data = _visual_director_plan()
+        del data["plan_id"]
+        with self.assertRaisesRegex(LegacyArtifactReadError, "plan_id"):
+            VisualDirectorPlanV1Reader().read(data)
+
+    def test_missing_revision_fails_closed(self):
+        data = _visual_director_plan()
+        del data["revision"]
+        with self.assertRaisesRegex(LegacyArtifactReadError, "revision"):
+            VisualDirectorPlanV1Reader().read(data)
+
+    def test_missing_previous_revision_fails_closed(self):
+        data = _visual_director_plan()
+        del data["previous_revision"]
+        with self.assertRaisesRegex(LegacyArtifactReadError, "previous_revision"):
+            VisualDirectorPlanV1Reader().read(data)
+
+    def test_missing_created_at_fails_closed(self):
+        data = _visual_director_plan()
+        del data["created_at"]
+        with self.assertRaisesRegex(LegacyArtifactReadError, "created_at"):
+            VisualDirectorPlanV1Reader().read(data)
+
+    def test_missing_alignment_digest_fails_closed(self):
+        data = _visual_director_plan()
+        del data["alignment_digest"]
+        with self.assertRaisesRegex(LegacyArtifactReadError, "alignment_digest"):
+            VisualDirectorPlanV1Reader().read(data)
+
+    def test_missing_opportunities_fails_closed(self):
+        data = _visual_director_plan()
+        del data["opportunities"]
+        with self.assertRaisesRegex(LegacyArtifactReadError, "opportunities"):
+            VisualDirectorPlanV1Reader().read(data)
+
+    def test_plan_id_not_text_fails_closed(self):
+        data = _visual_director_plan()
+        data["plan_id"] = 123
+        with self.assertRaisesRegex(LegacyArtifactReadError, "plan_id"):
+            VisualDirectorPlanV1Reader().read(data)
+
+    def test_revision_not_integer_fails_closed(self):
+        data = _visual_director_plan()
+        data["revision"] = "not-int"
+        with self.assertRaisesRegex(LegacyArtifactReadError, "revision"):
+            VisualDirectorPlanV1Reader().read(data)
+
+    def test_opportunities_not_list_fails_closed(self):
+        data = _visual_director_plan()
+        data["opportunities"] = "not-a-list"
+        with self.assertRaisesRegex(LegacyArtifactReadError, "opportunities"):
+            VisualDirectorPlanV1Reader().read(data)
+
 
 # ===========================================================================
 # LegacyEditMapV1Reader — driven by real build_edit_map()
@@ -165,6 +229,44 @@ class LegacyEditMapV1ReaderTests(unittest.TestCase):
         edit_map = _real_edit_map()
         edit_map["artifact_version"] = "edit-map/2"
         with self.assertRaisesRegex(LegacyArtifactReadError, "unsupported"):
+            LegacyEditMapV1Reader().read(edit_map)
+
+    # --- field type validation (BLOCKER: EditMap row schema) ---
+
+    def test_markdown_not_str_fails_closed(self):
+        edit_map = _real_edit_map()
+        edit_map["markdown"] = 123
+        with self.assertRaisesRegex(LegacyArtifactReadError, "markdown"):
+            LegacyEditMapV1Reader().read(edit_map)
+
+    def test_csv_text_not_str_fails_closed(self):
+        edit_map = _real_edit_map()
+        edit_map["csv_text"] = 123
+        with self.assertRaisesRegex(LegacyArtifactReadError, "csv_text"):
+            LegacyEditMapV1Reader().read(edit_map)
+
+    def test_rows_not_list_fails_closed(self):
+        edit_map = _real_edit_map()
+        edit_map["rows"] = "not-a-list"
+        with self.assertRaisesRegex(LegacyArtifactReadError, "rows"):
+            LegacyEditMapV1Reader().read(edit_map)
+
+    def test_row_not_mapping_fails_closed(self):
+        edit_map = _real_edit_map()
+        edit_map["rows"][0] = "not-a-mapping"
+        with self.assertRaisesRegex(LegacyArtifactReadError, "row"):
+            LegacyEditMapV1Reader().read(edit_map)
+
+    def test_row_missing_canonical_key_fails_closed(self):
+        edit_map = _real_edit_map()
+        del edit_map["rows"][0]["素材"]
+        with self.assertRaisesRegex(LegacyArtifactReadError, "素材"):
+            LegacyEditMapV1Reader().read(edit_map)
+
+    def test_row_value_not_str_fails_closed(self):
+        edit_map = _real_edit_map()
+        edit_map["rows"][0]["素材"] = 123
+        with self.assertRaisesRegex(LegacyArtifactReadError, "素材"):
             LegacyEditMapV1Reader().read(edit_map)
 
 

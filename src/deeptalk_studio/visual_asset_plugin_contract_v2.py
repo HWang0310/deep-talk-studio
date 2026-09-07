@@ -19,8 +19,10 @@ Two compatibility surfaces exist in Phase A:
   - ``validate_v2_result_view``      — generation result envelope
   - ``validate_v2_suitability_view`` — suitability response envelope
 
-Both accept COMPLETED and failure (FAILED / BLOCKED / UNAVAILABLE) statuses,
-preserving raw V1 evidence without loss.
+Both accept COMPLETED.  Generation results accept FAILED / BLOCKED / UNAVAILABLE
+as failure statuses; suitability responses accept FAILED / UNAVAILABLE only
+(BLOCKED is not a valid suitability status per the frozen V1 contract).
+All failure statuses preserve raw V1 evidence without loss.
 """
 from __future__ import annotations
 
@@ -31,7 +33,8 @@ CONTRACT_VERSION_V2 = "visual-asset-plugin-contract/2"
 CANDIDATE_STATUSES_V2 = frozenset({"READY", "QA_REJECTED"})
 ARTIFACT_ROLES_V2 = frozenset({"PRIMARY_MEDIA", "PREVIEW", "MANIFEST", "QA_REPORT"})
 SUITABILITY_STATUSES_V2 = frozenset({"SUITABLE", "BORDERLINE", "ABSTAIN"})
-FAILURE_OPERATION_STATUSES = frozenset({"FAILED", "BLOCKED", "UNAVAILABLE"})
+FAILURE_OPERATION_STATUSES_GENERATION = frozenset({"FAILED", "BLOCKED", "UNAVAILABLE"})
+FAILURE_OPERATION_STATUSES_SUITABILITY = frozenset({"FAILED", "UNAVAILABLE"})
 
 # V2 result view fields (V1 envelope, contract_version bumped to /2).
 _RESULT_FIELDS_V2 = frozenset(
@@ -83,6 +86,8 @@ def validate_v2_result_view(value: Any, opportunity: Mapping[str, Any]) -> None:
 
     Accepts COMPLETED (with candidate) and FAILED / BLOCKED / UNAVAILABLE
     (with problem, no candidate).  All lineage IDs are required.
+    The ``opportunity_id`` in the result must match the opportunity passed
+    in — an Opportunity A result cannot bind to Opportunity B.
     """
     data = _mapping(value, "result")
     _only_fields(data, _RESULT_FIELDS_V2, "result")
@@ -93,9 +98,13 @@ def validate_v2_result_view(value: Any, opportunity: Mapping[str, Any]) -> None:
     for field in _RESULT_LINEAGE_FIELDS:
         _required_fields(data, {field}, "result")
         _identifier(data[field], field)
+    if data["opportunity_id"] != opportunity["opportunity_id"]:
+        raise VisualAssetPluginContractV2Error(
+            "opportunity_id 不匹配：result 绑定的 opportunity 与传入的 opportunity 不一致"
+        )
     status = _required_enum(
         data, "operation_status",
-        frozenset({"COMPLETED"}) | FAILURE_OPERATION_STATUSES,
+        frozenset({"COMPLETED"}) | FAILURE_OPERATION_STATUSES_GENERATION,
         "operation_status",
     )
     if status == "COMPLETED":
@@ -117,6 +126,7 @@ def validate_v2_suitability_view(value: Any) -> None:
 
     Accepts COMPLETED (with proposal_id / suitability / reason) and
     FAILED / UNAVAILABLE (with problem, no proposal/suitability fields).
+    BLOCKED is not a valid suitability status.
     """
     data = _mapping(value, "suitability")
     _only_fields(data, _SUITABILITY_FIELDS_V2, "suitability")
@@ -129,7 +139,7 @@ def validate_v2_suitability_view(value: Any) -> None:
         _identifier(data[field], field)
     status = _required_enum(
         data, "operation_status",
-        frozenset({"COMPLETED"}) | FAILURE_OPERATION_STATUSES,
+        frozenset({"COMPLETED"}) | FAILURE_OPERATION_STATUSES_SUITABILITY,
         "operation_status",
     )
     if status == "COMPLETED":

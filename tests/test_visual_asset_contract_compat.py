@@ -135,6 +135,23 @@ class GenerationAdapterFailurePreservationTests(unittest.TestCase):
         with self.assertRaises(ContractV1ToV2AdapterError):
             convert_v1_generation_result_to_v2(result, _opportunity())
 
+    # --- opportunity_id lineage safety (BLOCKER) ---
+
+    def test_adapter_rejects_opportunity_id_mismatch(self):
+        """An Opportunity A result must not be converted to bind Opportunity B."""
+        result = _v1_gen("generation-completed-ready")
+        wrong_opportunity = _opportunity()
+        wrong_opportunity["opportunity_id"] = "opp-DIFFERENT-adapter-01"
+        with self.assertRaises(ContractV1ToV2AdapterError):
+            convert_v1_generation_result_to_v2(result, wrong_opportunity)
+
+    def test_adapter_rejects_failed_result_opportunity_id_mismatch(self):
+        result = _v1_gen("generation-failed")
+        wrong_opportunity = _opportunity()
+        wrong_opportunity["opportunity_id"] = "opp-DIFFERENT-adapter-02"
+        with self.assertRaises(ContractV1ToV2AdapterError):
+            convert_v1_generation_result_to_v2(result, wrong_opportunity)
+
 
 class GenerationAdapterIsolationTests(unittest.TestCase):
     """BLOCKER 4: deep-copy — modifying output must not mutate source."""

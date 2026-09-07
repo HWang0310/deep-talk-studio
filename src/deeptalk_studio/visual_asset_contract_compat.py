@@ -90,7 +90,10 @@ def convert_v1_generation_result_to_v2(
     else:
         view["problem"] = copy.deepcopy(result["problem"])
 
-    validate_v2_result_view(view, opportunity)
+    try:
+        validate_v2_result_view(view, opportunity)
+    except VisualAssetPluginContractV2Error as exc:
+        raise ContractV1ToV2AdapterError(f"v2_validation_failed: {exc}") from exc
     return view
 
 

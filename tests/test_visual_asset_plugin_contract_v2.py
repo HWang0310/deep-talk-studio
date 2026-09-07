@@ -8,8 +8,9 @@ Two compatibility surfaces exist in Phase A:
   - ``validate_v2_result_view``      — generation result envelope
   - ``validate_v2_suitability_view`` — suitability response envelope
 
-Both accept COMPLETED and failure (FAILED / BLOCKED / UNAVAILABLE) statuses,
-preserving raw V1 evidence without loss.
+Both accept COMPLETED.  Generation results accept FAILED / BLOCKED / UNAVAILABLE
+as failure statuses; suitability responses accept FAILED / UNAVAILABLE only
+(BLOCKED is not a valid suitability status per the frozen V1 contract).
 """
 from __future__ import annotations
 
@@ -361,6 +362,20 @@ class V2ResultViewTests(unittest.TestCase):
         with self.assertRaisesRegex(VisualAssetPluginContractV2Error, "contract_version"):
             validate_v2_result_view(result, _opportunity())
 
+    # --- opportunity_id lineage safety (BLOCKER) ---
+
+    def test_result_opportunity_id_mismatch_rejected(self):
+        result = _ready_result()
+        result["opportunity_id"] = "opp-DIFFERENT-01"
+        with self.assertRaisesRegex(VisualAssetPluginContractV2Error, "opportunity_id"):
+            validate_v2_result_view(result, _opportunity())
+
+    def test_failed_result_opportunity_id_mismatch_rejected(self):
+        result = _failed_result()
+        result["opportunity_id"] = "opp-DIFFERENT-02"
+        with self.assertRaisesRegex(VisualAssetPluginContractV2Error, "opportunity_id"):
+            validate_v2_result_view(result, _opportunity())
+
 
 # ---------------------------------------------------------------------------
 # Suitability view
@@ -388,6 +403,23 @@ class V2SuitabilityViewTests(unittest.TestCase):
 
     def test_unavailable_suitability_is_valid(self):
         validate_v2_suitability_view(_unavailable_suitability())
+
+    # --- Suitability BLOCKED must be rejected (BLOCKER 2) ---
+
+    def test_suitability_blocked_is_invalid(self):
+        view = _suitable_suitability()
+        view["operation_status"] = "BLOCKED"
+        # Remove suitability-specific fields since BLOCKED is a failure status
+        del view["proposal_id"]
+        del view["suitability"]
+        del view["reason"]
+        view["problem"] = {
+            "code": "SYNTHETIC_BLOCKED",
+            "message": "合成测试被阻断。",
+            "retryability": False,
+        }
+        with self.assertRaisesRegex(VisualAssetPluginContractV2Error, "operation_status"):
+            validate_v2_suitability_view(view)
 
     def test_failed_suitability_must_not_have_proposal_id(self):
         view = _failed_suitability()
@@ -424,6 +456,16 @@ class V2SuitabilityViewTests(unittest.TestCase):
         view["unknown_field"] = True
         with self.assertRaisesRegex(VisualAssetPluginContractV2Error, "unknown_field"):
             validate_v2_suitability_view(view)
+
+    # --- Generation BLOCKED is still valid (regression guard for BLOCKER 2) ---
+
+    def test_generation_blocked_remains_valid(self):
+        """Generation contract allows BLOCKED; suitability does not.
+
+        This test guards against accidentally removing BLOCKED from the
+        generation status set while splitting it from suitability.
+        """
+        validate_v2_result_view(_blocked_result(), _opportunity())
 
 
 if __name__ == "__main__":
