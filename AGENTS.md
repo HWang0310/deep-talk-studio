@@ -1,14 +1,3 @@
----
-AIGC:
-  ContentProducer: '001191110102MAD55U9H0F10002'
-  ContentPropagator: '001191110102MAD55U9H0F10002'
-  Label: '1'
-  ProduceID: '8abd3190-74c0-49fc-b1ea-ef238f3083cd'
-  PropagateID: '8abd3190-74c0-49fc-b1ea-ef238f3083cd'
-  ReservedCode1: 'c83ddc3a-ad5e-4d0f-91ee-2ca5de3fe0a2'
-  ReservedCode2: 'c83ddc3a-ad5e-4d0f-91ee-2ca5de3fe0a2'
----
-
 # DeepTalk Studio 工程协作规则
 
 本文件面向进入仓库的未来 Codex。用户不是工程师，不应被要求理解架构、代码或命令行。
