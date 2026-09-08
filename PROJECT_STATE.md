@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '46198ac0-3886-4af0-9668-44c5e753405e'
-  PropagateID: '46198ac0-3886-4af0-9668-44c5e753405e'
-  ReservedCode1: '71270edf-26d6-4e67-a0fe-b98b2cf5ab9b'
-  ReservedCode2: '71270edf-26d6-4e67-a0fe-b98b2cf5ab9b'
+  ProduceID: '1a8d7895-0676-44a2-acc3-eebb40a53e04'
+  PropagateID: '1a8d7895-0676-44a2-acc3-eebb40a53e04'
+  ReservedCode1: '8e6110d3-a684-4a21-b60d-05f39974740e'
+  ReservedCode2: '8e6110d3-a684-4a21-b60d-05f39974740e'
 ---
 
 # DeepTalk Studio — Canonical Project State
@@ -65,13 +65,13 @@ This is an **ACCEPTED_UNRELEASED product direction** with accepted Core foundati
 
 The accepted ecosystem principle is **multi-repo, plugin-first**: Core stays stable while visual capabilities are independently researched, optimized, benchmarked, QA'd, and versioned as Visual Asset Plugins. The evidence-derived [Contract V1 design](docs/plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture. It is not production implementation, runtime-schema adoption, a release, a tag, or a `main` change.
 
-### Product Architecture V2 — Owner-approved direction, Phase A accepted, Phase B awaiting Nexus review
+### Product Architecture V2 — PASS / ACCEPTED; Phase A integrated, Phase B awaiting Nexus review
 
-**Owner-approved** product architecture direction is documented in [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md). The Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred, creator authority).
+**Owner-approved** product architecture direction is documented in [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md). Product Architecture V2 has received **PASS / ACCEPTED**. The Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred, creator authority).
 
-**Phase A (WHERE boundary — Visual Opportunity Plan formalization)** is **ACCEPTED / IMPLEMENTED_UNRELEASED**, integrated into canonical branch `agent/multi-asset-studio` at `73f8b35b185ae725c2221acbfc526194aa5e6b9a`. It formalizes `visual-opportunity-plan/1` with deterministic plan/opportunity IDs, clock-free directives, exact a_roll_window projection from `actual_*_seconds`, and storage with O_EXCL + digest tamper detection.
+**Phase A (Contract Compatibility Foundation)** is **ACCEPTED / IMPLEMENTED_UNRELEASED**, integrated into canonical branch `agent/multi-asset-studio` at `73f8b35b185ae725c2221acbfc526194aa5e6b9a`. Phase A implements: isolated Contract V2 compatibility representation/view, read-only V1→V2 compatibility adapters, legacy visual-director-plan/1 reader, legacy edit-map/1 reader, frozen Contract V1 preserved, existing V1 visual_plugin_adapter runtime preserved.
 
-**Phase B (WHERE boundary hardening)** is **IMPLEMENTED_UNRELEASED / AWAITING_NEXUS_REVIEW** on branch `agent/v2-phase-b-visual-opportunity`. It closes two enforcement gaps: (1) orphan directives whose span_id is not in the Semantic Timeline now raise `VisualOpportunityError` instead of being silently ignored; (2) directives pointing to non-safe spans now raise `VisualOpportunityError` instead of being silently ignored. Defense-in-depth `_FORBIDDEN_KEYS` expanded to cover all V2 WHAT/WHEN field names. Full regression: 780 passed, 6 skipped, 0 failures, 0 errors.
+**Phase B (WHERE / Visual Opportunity boundary formalization + hardening)** is **IMPLEMENTED_UNRELEASED / AWAITING_NEXUS_REVIEW** on branch `agent/v2-phase-b-visual-opportunity`. It formalizes `visual-opportunity-plan/1` as the V2 WHERE boundary with deterministic plan/opportunity IDs, clock-free directives, exact a_roll_window projection from `actual_*_seconds`, and storage with O_EXCL + digest tamper detection. It closes two enforcement gaps: (1) orphan directives whose span_id is not in the Semantic Timeline now raise `VisualOpportunityError` instead of being silently ignored; (2) directives pointing to non-safe spans now raise `VisualOpportunityError` instead of being silently ignored. Defense-in-depth `_FORBIDDEN_KEYS` expanded to cover all V2 WHAT/WHEN field names.
 
 Key V2 directions:
 
@@ -82,7 +82,7 @@ Key V2 directions:
 - **Studio Host boundary**: Core retains episode identity, canonical timebase, artifact IDs/lineage, plugin registration, contract validation, portfolio identity, shared safety/QA, failure isolation, and packaging. Plugins own suitability, generation, internal QA, and renderer internals.
 - **HOW deferred**: Presentation style (PIP, split screen, zoom, overlay, transition) is not in V2 Phase 1 scope.
 
-This is a design document only. `Plan exists ≠ accepted; implemented ≠ released.` The Owner has approved the product direction; Phase A is accepted and implemented; Phase B is implemented and awaiting Nexus review.
+This is a design document only. `Plan exists ≠ accepted; implemented ≠ released.` Product Architecture V2 has PASS / ACCEPTED; Phase A is accepted and integrated; Phase B is implemented and awaiting Nexus review.
 
 ## Hard Product Boundaries
 
