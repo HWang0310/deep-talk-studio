@@ -83,10 +83,47 @@ def _valid(value: Any) -> None:
     seen: set[str] = set()
     for index, raw in enumerate(placements):
         _valid_placement(raw, window, index, seen)
+
+    # Canonical identity binding.  A legal-looking id plus a well-formed digest
+    # is NOT enough: placement_plan_id is Studio/Core-created deterministic
+    # identity derived from artifact content, so it is re-derived here and must
+    # match exactly.  Storage never re-sorts or rewrites the artifact.
+    _valid_canonical_order(placements)
+    if value["placement_plan_id"] != _expected_plan_id(value):
+        raise PlacementStorageError("placement_plan_id 与 canonical placement identity 不匹配")
+
     payload = dict(value)
     digest = payload.pop("placement_plan_digest", None)
     if not _sha256(digest) or digest != _digest(payload):
         raise PlacementStorageError("placement plan digest 无效")
+
+
+def _expected_plan_id(value: Mapping[str, Any]) -> str:
+    """Re-derive the canonical plan id with the Planner's exact recipe.
+
+    Same identity fields and same canonical JSON as
+    ``placement_planner.build_candidate_placement_plan``:
+    ``ensure_ascii=False, sort_keys=True, separators=(",", ":")``.
+    """
+    identity = {
+        "artifact_version": value["artifact_version"],
+        "opportunity_id": value["opportunity_id"],
+        "a_roll_window": value["a_roll_window"],
+        "placements": value["placements"],
+    }
+    return "CPP-" + _digest(identity)[:24]
+
+
+def _valid_canonical_order(placements: list[Any]) -> None:
+    """Placements must already be in canonical ascending candidate_id order.
+
+    This is canonical serialization / identity ordering only — never a ranking,
+    preference, winner order or ``suggested_review_order``.  A wrong order is
+    rejected; it is never silently re-sorted.
+    """
+    candidate_ids = [item["candidate_id"] for item in placements]
+    if candidate_ids != sorted(candidate_ids):
+        raise PlacementStorageError("placements 必须按 candidate_id canonical ascending order")
 
 
 def _valid_placement(raw: Any, window: Mapping[str, int], index: int, seen: set[str]) -> None:
@@ -118,6 +155,11 @@ def _valid_placement(raw: Any, window: Mapping[str, int], index: int, seen: set[
             raise PlacementStorageError(f"{label}.basis.intrinsic_hint_used 必须是布尔值")
         if basis.get("center_source") not in _CENTER_SOURCES:
             raise PlacementStorageError(f"{label}.basis.center_source 无效")
+        # Secondary tightening: basis must not contradict itself.
+        if basis["intrinsic_hint_used"] and basis["center_source"] != "intrinsic_placement_hint":
+            raise PlacementStorageError(f"{label}.basis.center_source 与 intrinsic_hint_used 矛盾")
+        if not basis["intrinsic_hint_used"] and basis["center_source"] != "opportunity_center":
+            raise PlacementStorageError(f"{label}.basis.center_source 与 intrinsic_hint_used 矛盾")
         if not isinstance(basis.get("clamped"), bool):
             raise PlacementStorageError(f"{label}.basis.clamped 必须是布尔值")
     elif status == "UNPLACEABLE":

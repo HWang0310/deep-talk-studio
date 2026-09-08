@@ -60,6 +60,35 @@ def _plan() -> dict:
     )
 
 
+def _two_placed_plan() -> dict:
+    """A plan with two PLACED candidates, so canonical ordering is observable."""
+    return build_candidate_placement_plan(
+        _opportunity(),
+        [
+            {
+                "candidate_id": "cand-a",
+                "candidate_status": "READY",
+                "duration_ms": 4000,
+                "intrinsic_placement_hint": {"start_ms": 11000, "end_ms": 15000},
+            },
+            {"candidate_id": "cand-b", "candidate_status": "READY", "duration_ms": 6000},
+        ],
+    )
+
+
+def _expected_plan_id(value: dict) -> str:
+    """Independently re-derive the canonical plan id exactly as the Planner does."""
+    identity = {
+        "artifact_version": value["artifact_version"],
+        "opportunity_id": value["opportunity_id"],
+        "a_roll_window": value["a_roll_window"],
+        "placements": value["placements"],
+    }
+    return "CPP-" + hashlib.sha256(
+        json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:24]
+
+
 def _digest(value: dict) -> str:
     payload = {key: item for key, item in value.items() if key != "placement_plan_digest"}
     return hashlib.sha256(
@@ -216,6 +245,92 @@ class PathSafetyTests(unittest.TestCase):
             path.rename(moved)
             with self.assertRaises(PlacementStorageError):
                 load_candidate_placement_plan(moved)
+
+
+class CanonicalIdentityBindingTests(unittest.TestCase):
+    """Adversarial: a well-formed id + a valid digest must not be enough.
+
+    ``placement_plan_id`` is Studio/Core-created deterministic canonical
+    identity, so storage must re-derive it from artifact content and reject
+    any artifact whose id is merely *legal-looking*.
+    """
+
+    def _save_must_fail(self, value: dict) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            with self.assertRaises(PlacementStorageError):
+                save_candidate_placement_plan(value, Path(root))
+
+    def test_legitimate_plan_id_matches_recomputed_identity(self):
+        for plan in (_plan(), _two_placed_plan()):
+            with self.subTest(plan=plan["placement_plan_id"]):
+                self.assertEqual(plan["placement_plan_id"], _expected_plan_id(plan))
+
+    def test_valid_format_but_content_mismatched_plan_id_fails(self):
+        plan = _plan()
+        forged = "CPP-" + "0" * 24
+        self.assertNotEqual(forged, _expected_plan_id(plan))
+        plan["placement_plan_id"] = forged
+        plan["placement_plan_digest"] = _digest(plan)
+        self._save_must_fail(plan)
+
+    def test_recomputed_digest_with_stale_plan_id_fails(self):
+        # Canonical identity field changed, digest recomputed, id left stale.
+        plan = _plan()
+        plan["opportunity_id"] = "VO-tampered"
+        plan["placement_plan_digest"] = _digest(plan)
+        self.assertNotEqual(plan["placement_plan_id"], _expected_plan_id(plan))
+        self._save_must_fail(plan)
+
+    def test_stale_plan_id_after_window_change_fails(self):
+        plan = _plan()
+        plan["a_roll_window"] = {"start_ms": 10000, "end_ms": 30000}
+        plan["placement_plan_digest"] = _digest(plan)
+        self._save_must_fail(plan)
+
+    def test_stale_plan_id_after_placement_change_fails(self):
+        plan = _two_placed_plan()
+        plan["placements"][0]["final_placement"] = {"start_ms": 10000, "end_ms": 14000}
+        plan["placement_plan_digest"] = _digest(plan)
+        self._save_must_fail(plan)
+
+    def test_noncanonical_placement_order_fails_even_with_recomputed_id_and_digest(self):
+        plan = _two_placed_plan()
+        ordered = [item["candidate_id"] for item in plan["placements"]]
+        self.assertEqual(ordered, sorted(ordered))
+        plan["placements"] = list(reversed(plan["placements"]))
+        # Re-forge a *format-legal* id and a *valid* digest for the bad order.
+        plan["placement_plan_id"] = _expected_plan_id(plan)
+        plan["placement_plan_digest"] = _digest(plan)
+        self.assertRegex(plan["placement_plan_id"], r"^CPP-[0-9a-f]{24}$")
+        self._save_must_fail(plan)
+
+    def test_duplicate_order_variant_is_not_a_second_canonical_artifact(self):
+        # [A, B] is canonical; [B, A] must never be storable as its own artifact.
+        plan = _two_placed_plan()
+        swapped = copy.deepcopy(plan)
+        swapped["placements"] = list(reversed(swapped["placements"]))
+        swapped["placement_plan_id"] = _expected_plan_id(swapped)
+        swapped["placement_plan_digest"] = _digest(swapped)
+        self.assertNotEqual(plan["placement_plan_id"], swapped["placement_plan_id"])
+        self._save_must_fail(swapped)
+
+    def test_contradictory_basis_fails_when_hint_used(self):
+        plan = _plan()
+        for entry in plan["placements"]:
+            if entry["status"] == "PLACED" and entry["basis"]["intrinsic_hint_used"]:
+                entry["basis"]["center_source"] = "opportunity_center"
+        plan["placement_plan_id"] = _expected_plan_id(plan)
+        plan["placement_plan_digest"] = _digest(plan)
+        self._save_must_fail(plan)
+
+    def test_contradictory_basis_fails_when_hint_unused(self):
+        plan = _two_placed_plan()
+        for entry in plan["placements"]:
+            if entry["status"] == "PLACED" and not entry["basis"]["intrinsic_hint_used"]:
+                entry["basis"]["center_source"] = "intrinsic_placement_hint"
+        plan["placement_plan_id"] = _expected_plan_id(plan)
+        plan["placement_plan_digest"] = _digest(plan)
+        self._save_must_fail(plan)
 
 
 if __name__ == "__main__":
