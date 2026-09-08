@@ -2,8 +2,9 @@
 
 This module is **not** a production protocol.  It exists so that Phase A can
 express plugin-owned timing hints (``intrinsic_placement_hint``) separately
-from Core-owned Placement Planner output (``final_placement``, Phase B+),
-without touching the frozen ``visual-asset-plugin-contract/1`` runtime path.
+from Core-owned Placement Planner output (``final_placement``, Phase C /
+Placement Planner), without touching the frozen
+``visual-asset-plugin-contract/1`` runtime path.
 
 Identity creation authority (per accepted V2 architecture §5.3):
   - ``opportunity_id``  — Studio/Core-created
@@ -55,8 +56,8 @@ _SUITABILITY_FIELDS_V2 = frozenset(
 )
 
 # Candidate fields inside the result view.  ``intrinsic_placement_hint`` is
-# plugin-owned and optional for READY; ``final_placement`` is reserved for
-# Phase B and is **not** allowed here.
+# plugin-owned and optional for READY; ``final_placement`` belongs to the
+# Core Placement Planner (Phase C) and is **not** allowed here.
 _CANDIDATE_FIELDS_V2 = frozenset(
     {
         "candidate_id", "asset_family", "candidate_status", "duration_ms",
