@@ -1,3 +1,14 @@
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '8abd3190-74c0-49fc-b1ea-ef238f3083cd'
+  PropagateID: '8abd3190-74c0-49fc-b1ea-ef238f3083cd'
+  ReservedCode1: 'c83ddc3a-ad5e-4d0f-91ee-2ca5de3fe0a2'
+  ReservedCode2: 'c83ddc3a-ad5e-4d0f-91ee-2ca5de3fe0a2'
+---
+
 # DeepTalk Studio 工程协作规则
 
 本文件面向进入仓库的未来 Codex。用户不是工程师，不应被要求理解架构、代码或命令行。
@@ -110,3 +121,22 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 7. 如果本轮形成新的正式版本号，严格执行 `RELEASE_POLICY.md`，创建并核验 GitHub Release；不要发布空软件包。
 
 不允许只在聊天中汇报而不更新 HANDOFF。
+
+## Project Engineer Roster
+
+This section is the **sole canonical roster source** for the DeepTalk project. Other documents may cross-reference this section but must not duplicate the full roster.
+
+| Project name | Global role              | Backend / resource    | State  |
+| ------------ | ------------------------ | --------------------- | ------ |
+| Nexus        | Project Manager Role     | ChatGPT               | active |
+| Atlas        | Deep Engineering Role    | Codex / GPT-5.6 Sol   | active |
+| Forge        | Primary Execution Role   | TeleAgent             | active |
+| Scribe       | Secondary Execution Role | TeleAgent             | active |
+
+Roster rules:
+
+- **Backend routing does not change engineer identity.** Switching the execution backend for a task does not create, rename, or remove an engineer.
+- **New tasks / new sessions must not rename existing engineers.** Existing engineer names are fixed project state.
+- **Roster add / replace / rename requires Owner approval.** No engineer may self-authorize a roster change.
+- **GitHub roster is the recovery source for new sessions.** New sessions recover engineer identity from this section, not from conversation memory.
+- **Rename / replacement history:** None. No engineer has been renamed or replaced since roster establishment.
