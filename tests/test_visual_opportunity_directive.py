@@ -75,6 +75,14 @@ class VisualOpportunityDirectiveTests(unittest.TestCase):
             with self.assertRaises(VisualOpportunityDirectiveStorageError):
                 load_visual_opportunity_directives(path)
 
+    def test_rejects_what_and_when_field_leakage_in_directive(self):
+        """Regression: directive schema rejects WHAT/WHEN boundary leakage."""
+        for field in ("asset_family", "proposal_id", "selected_plugin", "final_placement", "selected_placement", "intrinsic_placement_hint", "renderer"):
+            leaky = directives()
+            leaky["directives"][0][field] = "leak"
+            with self.subTest(field=field), self.assertRaises(VisualOpportunityDirectiveError):
+                normalize_visual_opportunity_directives(leaky)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import unittest
+from decimal import Decimal
 
 from deeptalk_studio.visual_opportunity import (
     VisualOpportunityError,
@@ -90,6 +91,59 @@ class VisualOpportunityTests(unittest.TestCase):
         changed = build_visual_opportunity_plan(timeline(), revised, defaults=DEFAULTS)
         self.assertNotEqual(first["plan_id"], changed["plan_id"])
         self.assertNotEqual(first["opportunities"][0]["opportunity_id"], changed["opportunities"][0]["opportunity_id"])
+
+    def test_orphan_directive_span_not_in_timeline_raises(self):
+        """Gap 1 RED: directive whose span_id is not in the Semantic Timeline must raise."""
+        orphan = directives()
+        orphan["directives"][0]["span_id"] = "ST_NONEXIST"
+        with self.assertRaisesRegex(VisualOpportunityError, r"不在"):
+            build_visual_opportunity_plan(timeline(), orphan, defaults=DEFAULTS)
+
+    def test_directive_for_non_safe_span_raises(self):
+        """Gap 2 RED: directive pointing to a non-safe span must raise."""
+        non_safe = directives()
+        non_safe["directives"][0]["span_id"] = "ST002"
+        with self.assertRaisesRegex(VisualOpportunityError, r"safe"):
+            build_visual_opportunity_plan(timeline(), non_safe, defaults=DEFAULTS)
+
+    def test_a_roll_window_exactly_projected_for_multiple_spans(self):
+        """Characterization GREEN: a_roll_window is exact ms projection of actual_*_seconds."""
+        custom = {
+            "artifact_version": "semantic-timeline/1",
+            "timeline_id": "ST-timing-01",
+            "timing_provenance": "actual_aroll_alignment",
+            "alignment_digest": "e" * 64,
+            "transcript_digest": "f" * 64,
+            "spans": [
+                {"span_id": "T01", "actual_start_seconds": "0.000", "actual_end_seconds": "2.500", "summary": "First segment.", "visual_eligibility": "safe", "reason": "safe"},
+                {"span_id": "T02", "actual_start_seconds": "2.500", "actual_end_seconds": "5.000", "summary": "Second segment.", "visual_eligibility": "safe", "reason": "safe"},
+                {"span_id": "T03", "actual_start_seconds": "5.000", "actual_end_seconds": "7.500", "summary": "Conflict segment.", "visual_eligibility": "keep_only", "reason": "FACT_CONFLICT"},
+                {"span_id": "T04", "actual_start_seconds": "7.500", "actual_end_seconds": "10.000", "summary": "Fourth segment.", "visual_eligibility": "safe", "reason": "safe"},
+            ],
+        }
+        custom["timeline_digest"] = hashlib.sha256(json.dumps(custom, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+        custom_directives = {
+            "artifact_version": "visual-opportunity-directives/1",
+            "directives_id": "VOD-timing-01",
+            "revision": 1,
+            "semantic_timeline_digest": custom["timeline_digest"],
+            "reviewed_script_digest": "a" * 64,
+            "directives": [
+                {"directive_id": "d01", "span_id": "T01", "visual_purpose": "Show first.", "why_opportunity": "Important.", "semantic_context_selector": {"include_neighboring_spans": 0}, "factual_context_refs": []},
+                {"directive_id": "d02", "span_id": "T02", "visual_purpose": "Show second.", "why_opportunity": "Important.", "semantic_context_selector": {"include_neighboring_spans": 0}, "factual_context_refs": []},
+                {"directive_id": "d04", "span_id": "T04", "visual_purpose": "Show fourth.", "why_opportunity": "Important.", "semantic_context_selector": {"include_neighboring_spans": 0}, "factual_context_refs": []},
+            ],
+        }
+        plan = build_visual_opportunity_plan(custom, custom_directives, defaults=DEFAULTS)
+        self.assertEqual(len(plan["opportunities"]), 3)
+        expected_windows = [
+            {"start_ms": 0, "end_ms": 2500},
+            {"start_ms": 2500, "end_ms": 5000},
+            {"start_ms": 7500, "end_ms": 10000},
+        ]
+        for i, expected in enumerate(expected_windows):
+            self.assertEqual(plan["opportunities"][i]["a_roll_window"], expected, f"opportunity {i}")
+        self.assertEqual(plan["span_audit"][2], {"span_id": "T03", "status": "NO_OPPORTUNITY", "reason": "fact_conflict"})
 
 
 if __name__ == "__main__":

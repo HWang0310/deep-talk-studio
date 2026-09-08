@@ -20,8 +20,9 @@ _DIRECTIVE_FIELDS = frozenset({
 })
 _FORBIDDEN_KEYS = frozenset({
     "start_ms", "end_ms", "start_seconds", "end_seconds", "duration_ms", "duration_seconds",
-    "a_roll_window", "suggested_placement", "decision", "visual_kind", "asset_class",
-    "candidate", "candidate_id", "plugin_id", "plugin_context", "generation_policy",
+    "a_roll_window", "suggested_placement", "decision", "visual_kind", "asset_class", "asset_family",
+    "candidate", "candidate_id", "proposal_id", "plugin_id", "plugin_context", "generation_policy",
+    "selected_plugin", "final_placement", "selected_placement", "intrinsic_placement_hint", "renderer",
 })
 _FORBIDDEN_VALUES = frozenset({"KEEP_A_ROLL", "REAL_MATERIAL", "MG_MOTION", "ADVANCED_MOTION"})
 _IDENTIFIER = re.compile(r"[A-Za-z0-9._-]+")

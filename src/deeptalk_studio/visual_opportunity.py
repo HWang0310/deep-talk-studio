@@ -44,6 +44,14 @@ def build_visual_opportunity_plan(
         raise VisualOpportunityError("semantic_timeline_digest 与 Semantic Timeline 不匹配")
     core_defaults = _validate_defaults(defaults)
     directives_by_span = {item["span_id"]: item for item in directive_artifact["directives"]}
+    timeline_span_ids = {span["span_id"] for span in timeline["spans"]}
+    safe_span_ids = {span["span_id"] for span in timeline["spans"] if span["visual_eligibility"] == "safe"}
+    for directive in directive_artifact["directives"]:
+        d_span_id = directive["span_id"]
+        if d_span_id not in timeline_span_ids:
+            raise VisualOpportunityError(f"directive span_id {d_span_id} 不在 Semantic Timeline 中")
+        if d_span_id not in safe_span_ids:
+            raise VisualOpportunityError(f"directive span_id {d_span_id} 对应非 safe span")
     input_identity = {
         "semantic_timeline_digest": timeline["timeline_digest"],
         "alignment_digest": timeline["alignment_digest"],
