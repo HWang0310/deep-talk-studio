@@ -121,6 +121,7 @@ This section is the **sole canonical roster source** for the DeepTalk project. O
 | Atlas        | Deep Engineering Role    | Codex / GPT-5.6 Sol   | active |
 | Forge        | Primary Execution Role   | TeleAgent             | active |
 | Scribe       | Secondary Execution Role | TeleAgent             | active |
+| Orion        | Primary Execution Role   | WorkBuddy HY4         | active |
 
 Roster rules:
 
@@ -129,3 +130,7 @@ Roster rules:
 - **Roster add / replace / rename requires Owner approval.** No engineer may self-authorize a roster change.
 - **GitHub roster is the recovery source for new sessions.** New sessions recover engineer identity from this section, not from conversation memory.
 - **Rename / replacement history:** None. No engineer has been renamed or replaced since roster establishment.
+- **Roster addition history:**
+  - Orion was added by explicit Owner approval recorded in [Issue #6 comment 5566089657](https://github.com/HWang0310/deep-talk-studio/issues/6#issuecomment-5566089657).
+  - This was a roster addition, not a rename or replacement.
+  - Atlas remains an existing active project engineer identity.
