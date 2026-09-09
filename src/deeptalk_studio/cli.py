@@ -250,6 +250,24 @@ def build_parser() -> argparse.ArgumentParser:
     revise_bridge = subparsers.add_parser("revise-edit-bridge", help="用自然语言调整粗剪画面")
     revise_bridge.add_argument("feedback")
     revise_bridge.add_argument("--session", type=Path, required=True)
+
+    visual_assist = subparsers.add_parser(
+        "visual-assist",
+        help="显式指定一种视觉素材类型并生成候选（mg / xiaohei / handdrawn）",
+    )
+    visual_assist.add_argument(
+        "family",
+        choices=("mg", "xiaohei", "handdrawn"),
+        help="视觉素材类型：mg / xiaohei（小黑漫画）/ handdrawn（手绘动画）",
+    )
+    visual_assist.add_argument("--opportunity", type=Path, required=True, help="Visual Opportunity JSON 文件路径")
+    visual_assist.add_argument("--config", type=Path, required=True, help="Visual Asset Plugin 配置 JSON 文件路径")
+    visual_assist.add_argument("--profile", choices=("LEAN", "STANDARD", "RICH"), default="RICH", help="候选生成策略（默认 RICH）")
+    visual_assist.add_argument("--policy", type=Path, default=REPO_ROOT / "config" / "candidate-generation-profile.json")
+    visual_assist.add_argument("--plan-digest", required=True, help="Visual Opportunity Plan SHA-256 digest")
+    visual_assist.add_argument("--output", type=Path, default=REPO_ROOT / "visual_assist_runs")
+    visual_assist.add_argument("--task-id", default="DT-V1-AUX-001")
+
     return parser
 
 
@@ -291,6 +309,37 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             previous=load_real_edit_bridge_session_result(args.session)
             result=revise_real_edit_bridge_session(previous,args.feedback,clock=lambda:datetime.now().astimezone().isoformat(timespec="seconds"))
             print(f"新的粗剪已经生成：{result.preview_path}")
+            return 0
+        if args.command == "visual-assist":
+            from .explicit_visual_assist import ExplicitVisualAssistError, run_explicit_visual_assist
+            from .visual_generation_policy import load_candidate_generation_policy
+            opportunity = json.loads(args.opportunity.read_text(encoding="utf-8"))
+            plugin_config = json.loads(args.config.read_text(encoding="utf-8"))
+            policy = load_candidate_generation_policy(args.policy)
+            args.output.mkdir(parents=True, exist_ok=True)
+            result = run_explicit_visual_assist(
+                opportunity=opportunity,
+                plugin_config=plugin_config,
+                alias=args.family,
+                production_profile=args.profile,
+                policy=policy,
+                job_root=args.output,
+                visual_opportunity_plan_digest=args.plan_digest,
+                task_id=args.task_id,
+            )
+            summary = result["summary"]
+            if summary["status"] == "READY":
+                print(
+                    f"视觉素材已生成：{args.family} → {result['plugin_id']}\n"
+                    f"可用候选数量：{len(summary['candidates'])}\n"
+                    f"状态：READY"
+                )
+            else:
+                print(
+                    f"视觉素材结果：{args.family} → {result['plugin_id']}\n"
+                    f"状态：{summary['status']}\n"
+                    f"原因：{summary['reason']}"
+                )
             return 0
         if args.command == "validate":
             _load_report(args.input)
