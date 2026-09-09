@@ -22,7 +22,7 @@ CORE_SHA = subprocess.run(
     ["git", "rev-parse", "HEAD"], cwd=CORE_ROOT, check=True, text=True, capture_output=True
 ).stdout.strip()
 ILLUSTRATED_SHA = "48848affe018fc2cff8ee15bad7a09bb002776e4"
-HANDDRAWN_SHA = "853618bdf19ae66ec393211b77d970911f53f4bc"
+HANDDRAWN_SHA = "624526f4dce0ba9794c1a717fa397eb3c7a1baad"
 
 
 def readiness_config() -> dict:
