@@ -40,8 +40,8 @@ export const TimelineMotion: React.FC<{scene: Scene; still: boolean}> = ({scene,
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const events = scene.scene_payload.timeline_events;
-  const x1 = 180;
-  const x2 = 1740;
+  const x1 = 300;
+  const x2 = 1620;
   return <AbsoluteFill>
     <Heading scene={scene}/>
     <svg width="1920" height="1080" role="img" aria-label="timeline">
@@ -55,7 +55,7 @@ export const TimelineMotion: React.FC<{scene: Scene; still: boolean}> = ({scene,
         return <g key={event.order} data-motion-element="timeline-marker" opacity={progress}>
           <circle cx={x} cy="540" r={10 + 16 * progress} fill={tokens.colors.accent}/>
           <text x={x} y="470" textAnchor="middle" fill={tokens.colors.accent} fontFamily={tokens.typography.data} fontSize="28">{event.date.text}</text>
-          <foreignObject x={x - 180} y="595" width="360" height="170">
+          <foreignObject x={x - 240} y="595" width="480" height="170">
             <div style={{fontFamily: tokens.typography.body, fontSize: 30, lineHeight: 1.35, textAlign: "center", color: tokens.colors.foreground}}>{event.label.text}</div>
           </foreignObject>
         </g>;
@@ -91,13 +91,16 @@ export const BarMotion: React.FC<{scene: Scene; still: boolean}> = ({scene, stil
 export const ComparisonMotion: React.FC<{scene: Scene; still: boolean}> = ({scene, still}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  return <AbsoluteFill><Heading scene={scene}/><div style={{position: "absolute", left: 120, right: 120, top: 210, bottom: 110, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 34}}>
-    {scene.scene_payload.comparison_items.map((item, index) => {
+  const items = scene.scene_payload.comparison_items;
+  const columns = Math.min(3, items.length);
+  return <AbsoluteFill><Heading scene={scene}/><div style={{position: "absolute", left: 100, right: 100, top: 220, bottom: 120, display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gridAutoRows: "minmax(0, 1fr)", gap: 28}}>
+    {items.map((item, index) => {
       const start = (0.25 + index * 0.2) * fps;
       const progress = still ? 1 : interpolate(frame, [start, start + 0.5 * fps], [0, 1], {...clamp, easing: Easing.out(Easing.cubic)});
-      return <div key={item.order} data-motion-element="comparison-item" style={{gridColumn: "1 / span 2", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 34, opacity: progress, translate: `${(1 - progress) * 44}px 0`}}>
-        <div style={{padding: 28, background: tokens.colors.surface, borderLeft: `8px solid ${tokens.colors.accent}`, fontSize: 31}}><strong>{item.label.text}</strong><br/>{item.left_text.text}</div>
-        <div style={{padding: 28, background: tokens.colors.surface, borderLeft: `8px solid ${tokens.colors.muted}`, fontSize: 31}}><strong>{item.label.text}</strong><br/>{item.right_text.text}</div>
+      return <div key={item.order} data-motion-element="comparison-card" style={{display: "flex", flexDirection: "column", minWidth: 0, padding: 28, background: tokens.colors.surface, borderTop: `8px solid ${tokens.colors.accent}`, borderRadius: 18, opacity: progress, translate: `${(1 - progress) * 44}px 0`, overflow: "hidden"}}>
+        <div style={{fontFamily: tokens.typography.display, fontSize: 34, fontWeight: 900, marginBottom: 24, overflowWrap: "anywhere"}}>{item.label.text}</div>
+        <div data-motion-element="comparison-fact" style={{flex: 1, padding: "20px 18px", borderLeft: `6px solid ${tokens.colors.accent}`, background: tokens.colors.background, fontSize: 27, lineHeight: 1.45, overflow: "hidden", overflowWrap: "anywhere"}}>{item.left_text.text}</div>
+        <div data-motion-element="comparison-fact" style={{flex: 1, marginTop: 18, padding: "20px 18px", borderLeft: `6px solid ${tokens.colors.muted}`, background: tokens.colors.background, fontSize: 27, lineHeight: 1.45, overflow: "hidden", overflowWrap: "anywhere"}}>{item.right_text.text}</div>
       </div>;
     })}
   </div></AbsoluteFill>;
@@ -107,24 +110,38 @@ export const DiagramMotion: React.FC<{scene: Scene; still: boolean}> = ({scene, 
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const nodes = scene.scene_payload.diagram_nodes;
-  const positions = Object.fromEntries(nodes.map((node, index) => [node.node_id, {x: 330 + index * (1260 / Math.max(1, nodes.length - 1)), y: 550 + (index % 2 ? 120 : -120)}]));
+  const columns = nodes.length <= 4 ? nodes.length : 3;
+  const positions = Object.fromEntries(nodes.map((node, index) => {
+    const row = Math.floor(index / columns);
+    const column = index % columns;
+    const x = columns === 1 ? 960 : 300 + column * (1320 / (columns - 1));
+    const y = nodes.length <= 4 ? 430 + (index % 2) * 240 : 390 + row * 330;
+    return [node.node_id, {x, y}];
+  }));
   return <AbsoluteFill><Heading scene={scene}/><svg width="1920" height="1080" role="img" aria-label="diagram">
     {scene.scene_payload.diagram_edges.map((edge) => {
       const from = positions[edge.from_node]; const to = positions[edge.to_node];
       const endpointOrder = Math.max(nodes.find((n) => n.node_id === edge.from_node)?.order ?? 1, nodes.find((n) => n.node_id === edge.to_node)?.order ?? 1);
       const start = (0.4 + endpointOrder * 0.26 + edge.order * 0.18) * fps;
       const progress = still ? 1 : interpolate(frame, [start, start + 0.45 * fps], [0, 1], {...clamp, easing: Easing.inOut(Easing.cubic)});
+      const labelX = (from.x + to.x) / 2;
+      const labelY = Math.min(from.y, to.y) - 130;
       return <g key={edge.order} data-motion-element="diagram-edge" opacity={progress}>
         <line x1={from.x} y1={from.y} x2={from.x + (to.x - from.x) * progress} y2={from.y + (to.y - from.y) * progress} stroke={tokens.colors.muted} strokeWidth="6"/>
-        <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 20} textAnchor="middle" fill={tokens.colors.foreground} fontSize="26">{edge.label.text}</text>
+        <rect data-motion-element="diagram-edge-label-plate" x={labelX - 160} y={labelY - 38} width="320" height="76" rx="16" fill={tokens.colors.background} stroke={tokens.colors.muted} strokeWidth="2"/>
+        <foreignObject x={labelX - 150} y={labelY - 31} width="300" height="62">
+          <div style={{height: "62px", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", color: tokens.colors.foreground, fontFamily: tokens.typography.body, fontSize: 23, lineHeight: 1.25, overflow: "hidden", overflowWrap: "anywhere"}}>{edge.label.text}</div>
+        </foreignObject>
       </g>;
     })}
     {nodes.map((node, index) => {
       const position = positions[node.node_id]; const start = (0.25 + index * 0.26) * fps;
       const progress = still ? 1 : interpolate(frame, [start, start + 0.4 * fps], [0, 1], {...clamp, easing: Easing.out(Easing.cubic)});
       return <g key={node.node_id} data-motion-element="diagram-node" opacity={progress}>
-        <rect x={position.x - 150} y={position.y - 65} width="300" height="130" rx="18" fill={tokens.colors.surface} stroke={tokens.colors.accent} strokeWidth="5"/>
-        <text x={position.x} y={position.y + 10} textAnchor="middle" fill={tokens.colors.foreground} fontSize="29">{node.label.text}</text>
+        <rect x={position.x - 180} y={position.y - 85} width="360" height="170" rx="18" fill={tokens.colors.surface} stroke={tokens.colors.accent} strokeWidth="5"/>
+        <foreignObject data-motion-element="diagram-node-label" x={position.x - 158} y={position.y - 63} width="316" height="126">
+          <div style={{height: "126px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", textAlign: "center", color: tokens.colors.foreground, fontFamily: tokens.typography.body, fontSize: 28, lineHeight: 1.3, overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word"}}>{node.label.text}</div>
+        </foreignObject>
       </g>;
     })}
   </svg></AbsoluteFill>;

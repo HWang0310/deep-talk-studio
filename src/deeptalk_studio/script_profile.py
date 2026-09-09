@@ -20,7 +20,7 @@ def load_script_profile(path: Optional[Path] = None) -> Dict[str, object]:
         profile = json.loads(profile_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ScriptValidationError(f"无法读取 Script Profile：{profile_path}") from exc
-    required = {
+    base_required = {
         "profile_version",
         "platform",
         "format",
@@ -33,10 +33,14 @@ def load_script_profile(path: Optional[Path] = None) -> Dict[str, object]:
         "required_elements",
         "originality_boundaries",
     }
-    if not isinstance(profile, dict) or set(profile) != required:
+    if not isinstance(profile, dict) or not base_required.issubset(profile):
         raise ScriptValidationError("Script Profile 字段不完整或包含未知字段")
-    if profile["profile_version"] != "0.4":
-        raise ScriptValidationError("V0.4 必须使用 Script Profile 0.4")
+    version = profile["profile_version"]
+    expected = base_required | ({"duration_range_minutes", "quality_gate_checks"} if version == "1" else set())
+    if set(profile) != expected:
+        raise ScriptValidationError("Script Profile 字段不完整或包含未知字段")
+    if version not in {"0.4", "1"}:
+        raise ScriptValidationError("只支持 Script Profile 0.4 或 1")
     if not 3 <= profile["default_duration_minutes"] <= 30:
         raise ScriptValidationError("默认口播时长必须在 3 到 30 分钟之间")
     if not isinstance(profile["chars_per_minute"], int) or profile["chars_per_minute"] <= 0:
@@ -48,13 +52,23 @@ def load_script_profile(path: Optional[Path] = None) -> Dict[str, object]:
             isinstance(item, str) and item.strip() for item in profile[field]
         ):
             raise ScriptValidationError(f"Script Profile.{field} 必须是非空文本列表")
+    if version == "1":
+        duration_range = profile["duration_range_minutes"]
+        if duration_range != [5, 6]:
+            raise ScriptValidationError("Script Profile 1 的正式时长范围必须为 5 到 6 分钟")
+        checks = profile["quality_gate_checks"]
+        if not isinstance(checks, list) or len(checks) != 17 or len(set(checks)) != 17:
+            raise ScriptValidationError("Script Profile 1 必须声明 17 项 Script Quality Gate")
     return profile
 
 
 def parse_target_duration(value: str, default: float = 12) -> float:
     clean = (value or "").strip()
+    range_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|到|至)\s*(\d+(?:\.\d+)?)\s*分钟", clean)
     match = re.search(r"(\d+(?:\.\d+)?)\s*分钟", clean)
-    if match:
+    if range_match:
+        duration = (float(range_match.group(1)) + float(range_match.group(2))) / 2
+    elif match:
         duration = float(match.group(1))
     elif "长一点" in clean or "做长" in clean:
         duration = 15.0

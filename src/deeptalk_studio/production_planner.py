@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import unicodedata
 from copy import deepcopy
 from typing import Any, Dict, Mapping
 
@@ -23,6 +24,13 @@ MATERIAL_SCENE_TYPES = {
     "document_screenshot": "screenshot_pan", "webpage_screenshot": "screenshot_pan",
     "product_ui": "screenshot_pan", "photo": "image_pan_zoom",
     "archive": "image_pan_zoom",
+}
+
+DISPLAY_CAPACITY_UNITS = {
+    "comparison label": 32,
+    "comparison fact": 72,
+    "Diagram node": 52,
+    "Diagram edge": 40,
 }
 
 
@@ -62,11 +70,25 @@ def _empty_payload(payload_type: str) -> dict:
     }
 
 
+def _display_units(text: str) -> int:
+    return sum(
+        2 if unicodedata.east_asian_width(character) in {"W", "F"} else 1
+        for character in str(text)
+    )
+
+
+def _require_display_capacity(text: str, field: str) -> None:
+    if _display_units(text) > DISPLAY_CAPACITY_UNITS[field]:
+        raise ProductionValidationError(
+            f"{field} 文字超过确定性安全布局容量，不能进入 Renderer"
+        )
+
+
 def _visual_payload(visual: Mapping[str, Any], report: ResearchReport) -> tuple:
     visual_type = visual["visual_type"]
     headings = {
         "timeline": "关键时间点", "bar": "数据对比",
-        "comparison": "两个解释", "diagram": "关系说明",
+        "comparison": "要点对照", "diagram": "关系说明",
     }
     payload = _empty_payload(visual_type)
     if visual_type == "timeline":
@@ -107,7 +129,12 @@ def _visual_payload(visual: Mapping[str, Any], report: ResearchReport) -> tuple:
     elif visual_type == "comparison":
         if len(visual["comparison_items"]) < 2:
             raise ProductionValidationError("Comparison Motion 至少需要 2 个已绑定条目")
+        if len(visual["comparison_items"]) > 6:
+            raise ProductionValidationError("Comparison Motion 最多支持 6 个安全可读卡片")
         for index, item in enumerate(visual["comparison_items"], 1):
+            _require_display_capacity(item["label"], "comparison label")
+            _require_display_capacity(item["left_text"], "comparison fact")
+            _require_display_capacity(item["right_text"], "comparison fact")
             fields = {
                 key: _factual(item[key], item["claim_ids"], item["evidence_link_ids"])
                 for key in ("label", "left_text", "right_text")
@@ -116,11 +143,14 @@ def _visual_payload(visual: Mapping[str, Any], report: ResearchReport) -> tuple:
                 validate_display_text(entry, report)
             payload["comparison_items"].append({"order": index, **fields})
     elif visual_type == "diagram":
+        if len(visual["nodes"]) > 6:
+            raise ProductionValidationError("Diagram Motion 最多支持 6 个安全可读节点")
         evidence_by_claim = {}
         for link in report.evidence_links:
             evidence_by_claim.setdefault(link["claim_id"], []).append(link["id"])
         nodes_by_id = {node["node_id"]: node for node in visual["nodes"]}
         for index, node in enumerate(visual["nodes"], 1):
+            _require_display_capacity(node["label"], "Diagram node")
             evidence = []
             for claim_id in node["claim_ids"]:
                 evidence.extend(evidence_by_claim.get(claim_id, []))
@@ -130,6 +160,7 @@ def _visual_payload(visual: Mapping[str, Any], report: ResearchReport) -> tuple:
                 "order": index, "node_id": node["node_id"], "label": label,
             })
         for index, edge in enumerate(visual["edges"], 1):
+            _require_display_capacity(edge["label"], "Diagram edge")
             endpoint_claims = list(dict.fromkeys(
                 nodes_by_id[edge["from_node"]]["claim_ids"]
                 + nodes_by_id[edge["to_node"]]["claim_ids"]
@@ -173,6 +204,9 @@ def prepare_production_plan(
     created_at: str,
     production_id: str,
     renderer_mode: str = "auto",
+    episode_visual_preference: Mapping[str, Any] = None,
+    post_alignment_visual_plan: Mapping[str, Any] = None,
+    artifact_resolver=None,
 ) -> Dict[str, Any]:
     if package.status not in {"reviewed", "reviewed_with_warnings"}:
         raise ProductionValidationError("Production Plan 只接受正式 reviewed Material Package")
@@ -206,7 +240,10 @@ def prepare_production_plan(
         selected_visual = visual_candidates[0] if visual_candidates else None
         selected_material = None
         if selected_visual is not None:
-            validate_render_asset(selected_visual, material_asset_root, generated_visual=True)
+            validate_render_asset(
+                selected_visual, material_asset_root, generated_visual=True,
+                artifact_resolver=artifact_resolver, package_id=package.package_id,
+            )
             selected_visuals.append(selected_visual)
             scene_type = VISUAL_SCENE_TYPES[selected_visual["visual_type"]]
             source_visual_ids = [selected_visual["visual_id"]]
@@ -235,7 +272,10 @@ def prepare_production_plan(
                         "在 V0.5 Material Workflow 登记带页码和区域信息的 PNG/JPEG/WebP 截图。",
                     )
                     continue
-                validate_render_asset(item, material_asset_root)
+                validate_render_asset(
+                    item, material_asset_root, artifact_resolver=artifact_resolver,
+                    package_id=package.package_id,
+                )
                 if item["asset_type"] in MATERIAL_SCENE_TYPES:
                     selected_material = item
                     break
@@ -323,6 +363,17 @@ def prepare_production_plan(
         "motion_assets": expected_assets, "production_gaps": gaps,
         "warnings": list(package.warnings), "qa_state": {"state": "not_run"},
     }
+    if (episode_visual_preference is None) != (post_alignment_visual_plan is None):
+        raise ProductionValidationError("Episode Visual Preference 与 Post-Alignment Visual Plan 必须成对绑定")
+    if episode_visual_preference is not None:
+        preference_digest = str(episode_visual_preference.get("preference_digest", ""))
+        visual_plan_digest = str(post_alignment_visual_plan.get("plan_digest", ""))
+        if len(preference_digest) != 64 or len(visual_plan_digest) != 64:
+            raise ProductionValidationError("Visual Context digest 无效")
+        data.update(
+            episode_visual_preference_digest=preference_digest,
+            post_alignment_visual_plan_digest=visual_plan_digest,
+        )
     data["plan_digest"] = production_plan_digest(data)
     validate_production_plan(data, package, script, profile, report=report_obj)
     return data
@@ -331,6 +382,8 @@ def prepare_production_plan(
 def validate_production_plan(
     plan: Mapping[str, Any], package: MaterialPackage, script: Any,
     profile: Mapping[str, Any], *, report: Any = None,
+    episode_visual_preference: Mapping[str, Any] = None,
+    post_alignment_visual_plan: Mapping[str, Any] = None,
 ) -> None:
     try:
         validate_json_schema(dict(plan), PRODUCTION_PLAN_SCHEMA, "production_plan")
@@ -338,6 +391,15 @@ def validate_production_plan(
         raise ProductionValidationError(str(exc)) from None
     if plan["plan_digest"] != production_plan_digest(plan):
         raise ProductionValidationError("Production Plan digest 无效")
+    has_preference = "episode_visual_preference_digest" in plan
+    has_visual_plan = "post_alignment_visual_plan_digest" in plan
+    if has_preference != has_visual_plan:
+        raise ProductionValidationError("Production Plan Visual Context binding 不完整")
+    if (episode_visual_preference is None) != (post_alignment_visual_plan is None):
+        raise ProductionValidationError("Visual Context validator 输入不完整")
+    if episode_visual_preference is not None:
+        if not has_preference or plan["episode_visual_preference_digest"] != episode_visual_preference.get("preference_digest") or plan["post_alignment_visual_plan_digest"] != post_alignment_visual_plan.get("plan_digest"):
+            raise ProductionValidationError("Production Plan Visual Context binding 无效")
     expected_binding = (
         script.script_id, script.revision, script_content_digest(script.data),
         package.package_id, package.revision, package.package_digest,

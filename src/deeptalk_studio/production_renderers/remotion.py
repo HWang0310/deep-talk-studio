@@ -44,13 +44,14 @@ class RemotionRenderer:
 
     def prepare_project(
         self, plan: Mapping[str, Any], package: Any, profile: Mapping[str, Any],
-        material_root: Path, projects_root: Path,
+        material_root: Path, projects_root: Path, *, artifact_resolver=None,
     ) -> PreparedProject:
         project = prepare_project_directory(
             self.template_root, projects_root, str(plan["production_id"]), self.name
         )
         staged, asset_map = stage_plan_assets(
-            plan, package, material_root, project / "public" / "assets", prefix="assets"
+            plan, package, material_root, project / "public" / "assets",
+            prefix="assets", artifact_resolver=artifact_resolver,
         )
         plan_path = project / "src" / "production-plan.json"
         write_json(plan_path, plan)

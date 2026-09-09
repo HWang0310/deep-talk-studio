@@ -1,0 +1,27 @@
+{
+  "profile_version": "1",
+  "platform": "bilibili",
+  "language": "zh-CN",
+  "required_audience_dimensions": [
+    "emotion",
+    "resonance",
+    "approval",
+    "comment_tension",
+    "spokesperson_value",
+    "value_identity"
+  ],
+  "thesis_gate_checks": [
+    "core_question",
+    "own_judgment",
+    "counterintuitive_value",
+    "fact_support",
+    "counter_evidence",
+    "emotion",
+    "resonance",
+    "comment_tension",
+    "spokesperson_value",
+    "value_identity",
+    "competitive_differentiation"
+  ],
+  "originality_boundary": "竞争样本只能提供高层观点、结构和传播机制启发；不得复制任何作者的标志性表达、口头禅、标题公式或论证顺序。"
+}

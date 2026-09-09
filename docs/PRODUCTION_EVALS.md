@@ -16,7 +16,11 @@ timeline 只接受与 approved Research Timeline 的 date/event/Claim/Evidence �
 
 ## D. Comparison
 
-至少 2 个 comparison item 分别保存 label/left/right/binding。两个 renderer 都生成独立左右区域和条目动画，不使用整图 reveal。
+至少 2 个 comparison item 分别保存 label/left/right/binding。每个 item 渲染为独立 mechanism card，label 只显示一次，两个 grounded facts 位于同一卡片；2–6 项使用最多三列的确定性 grid，不把 left/right 误当成匿名阵营。中性 heading 为版本化 `machine_editorial` “要点对照”，其他任意事实文字仍不能冒充机器标题。
+
+## H. Real E2E Preview Hardening
+
+真实中文 4-node / 3-edge diagram 使用 node 内安全换行与独立 edge label plate；超过固定容量在项目生成前失败。真实三项 comparison 保留 SAFE、SB-53、NASA 各自两条 grounded facts，mechanism label 各出现一次。新 Remotion Trial 产出 8 clips、rough preview 与 hero still，10 个工件全部 ready，Production QA pass；旧 Production 保持不可覆盖。
 
 ## E. PDF / Capture
 
@@ -43,7 +47,7 @@ Release assets 包含两份 MP4、三帧 contact sheet 和 `evidence-summary.jso
 
 ## Tests
 
-- 常规 unittest：267 total，266 executed pass，1 skipped real-render test；V0.6.0 的 255 项基线全部保留。
+- 当前常规 unittest：272 total，271 executed pass，1 skipped real-render test；V0.6.1 的 267 项基线全部保留。
 - 显式真实渲染：cross-renderer integration 1 passed；synthetic 3-bar evidence 双引擎完整命令链通过。
 - Remotion：npm ci、eslint、tsc、compositions、Studio preview、render/still、ffprobe。
 - HyperFrames：npm ci、doctor、lint、validate、inspect、preview/status/stop、render、ffprobe。

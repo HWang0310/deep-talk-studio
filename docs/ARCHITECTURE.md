@@ -1,191 +1,204 @@
-# DeepTalk Studio 架构
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '6a1d2587-b9df-461d-8bfa-631bc84fb1c5'
+  PropagateID: '6a1d2587-b9df-461d-8bfa-631bc84fb1c5'
+  ReservedCode1: '7bb9ebf4-2445-4ee5-b3fc-4d928d9d86f4'
+  ReservedCode2: '7bb9ebf4-2445-4ee5-b3fc-4d928d9d86f4'
+---
 
-## 设计目标
+# DeepTalk Studio Architecture
 
-系统把需要判断力的 AI 工作与必须稳定的工程契约分开。Agent 负责搜索、比较和分析；Python 核心负责校验、保存和为下游提供一致工件。这样未来更换模型、搜索工具或视频工具时，不需要重写整个项目。
+> **Canonical owner:** current technical architecture. Read [PROJECT_STATE.md](../PROJECT_STATE.md) first. The target below is partially implemented through sanitized Phase 5 evidence, but it is not production-enabled.
 
-## V0.5 数据流
+## Architectural Principles
 
-```mermaid
-flowchart LR
-    U["用户直接输入主题"] --> R["Research Pass"]
-    B["用户：今天讲什么？"] --> TD["Topic Discovery + 轻量 Preflight"]
-    TD --> TC["Topic Candidate Set 0.3"]
-    TC --> C["用户只回复编号"]
-    C --> RH["Research Handoff Brief 0.3"]
-    RH --> R
-    R --> W1["首次公开来源检索"]
-    W1 --> D1["Research Draft 0.2 / r1"]
-    D1 --> F["Independent Fact Check"]
-    F --> W2["新的检索与反证检查"]
-    W2 --> A["FactCheck Artifact 0.2"]
-    A --> D2["Reviewed Report / r2"]
-    D2 --> Q["透明 Quality Gate"]
-    Q -->|失败| X["draft：禁止进入写稿"]
-    Q -->|通过| P["reviewed：等待用户确认"]
-    P --> AR["Approval Revision：ready_for_script"]
-    AR --> SW["Original Script Writer"]
-    SW --> SD1["Script Draft 0.4 / r1"]
-    SD1 --> SR["Independent Script Review"]
-    SR -->|有阻断问题| SDF["Script r2：draft"]
-    SR -->|通过且 check/issue 一致| SD2["Script r2：reviewed + Review linkage"]
-    SD2 --> E["Editor Markdown"]
-    SD2 --> T["Teleprompter Markdown"]
-    SD2 --> MG["Material input Gate：复验 Review + exact Research"]
-    MG --> MS["Material Search + actual page inspection"]
-    MS --> PA["Input + Inspection + Rights provenance artifacts"]
-    PA --> MP1["Material Package 0.5.1 / r1"]
-    MP1 --> VG["Research-grounded Visual Spec + SVG"]
-    VG --> MR["Independent Material Review"]
-    MR -->|危险项可隔离| MPW["r2 reviewed_with_warnings"]
-    MR -->|安全通过| MP2["r2 reviewed"]
-    MP1 -.重建并复验.-> MP2
-    MR -->|包级问题/无安全方案| MPB["r2 blocked"]
-    MS -->|发现冲突或更新| RU["research_update_required：返回 Research"]
+- Versioned JSON artifacts connect stages; human-readable Markdown is not the machine contract.
+- Fact, source, rights, timing, digest, QA, and status decisions are program-owned and revalidated on read.
+- Final Clean A-roll supplies production time. Script timing, fixtures, and inferred timestamps cannot become production truth.
+- Private episode materials, media, assets, and finished cuts remain local/gitignored. Git preserves code, contracts, tests, and de-contented product evidence.
+- The creator owns the final edit. Architecture may prepare assets and maps but cannot select an edit winner or alter A-roll.
+
+## Current Implemented Architecture — V1 Candidate
+
+```text
+Topic / Topic Discovery
+  → Research Report → independent Fact Check → approved Research revision
+  → Content Thesis Card → Thesis Review → human confirmation
+  → Reviewed Script
+  → Final Clean A-roll
+  → Local ASR (`whisper.cpp` large-v3) → Timed Transcript
+  → Global monotonic Alignment → Semantic Timeline
+  → V1 Visual Director plan
+  → material / generated asset preparation → individual asset QA
+  → visual-asset manifest + Asset Pack + edit-map/1
+  → creator manual NLE assembly
+  → finished-cut-review/1 + production-feedback/1 (read-only)
 ```
 
-## 模块职责
+### Research and script system
 
-| 模块 | 只负责什么 | 不负责什么 |
+Research preserves source provenance, claims, evidence, uncertainty, and Fact Check. Content Director consumes approved research, creates a Content Thesis Card, requires Thesis Review and human confirmation, then sends its bound inputs to Script V1. Script review independently checks factual safety and quality. Revisions are immutable and linked by IDs/digests.
+
+Relevant contracts: [TOPIC_DISCOVERY_CONTRACT.md](TOPIC_DISCOVERY_CONTRACT.md), [SCRIPT_CONTRACT.md](SCRIPT_CONTRACT.md).
+
+### A-roll timing and alignment
+
+`clean_aroll_gate`, local transcription, transcript/chunk metadata, global monotonic alignment, canonical time, and semantic timeline modules establish real timing from the final clean A-roll. The production provider uses `whisper.cpp` v1.9.2 multilingual `large-v3` with `--dtw large.v3`; it retains runtime/model provenance and fails closed if token offsets are missing, invalid, or overlap. OpenAI transcription remains an optional future provider, not a silent fallback.
+
+The Alignment/Timeline path is the bridge between reviewed semantic content and real spoken time. `FACT_CONFLICT` and missing/unsafe timing cannot become a false display placement.
+
+Relevant contracts: [EDIT_BRIDGE_CONTRACT.md](EDIT_BRIDGE_CONTRACT.md), [ASSET_PACK_EDIT_MAP_CONTRACT.md](ASSET_PACK_EDIT_MAP_CONTRACT.md).
+
+### V1 visual/material system
+
+The implemented V1 Visual Director makes one decision for each real semantic span:
+
+| Decision | Meaning |
+|---|---|
+| `KEEP_A_ROLL` | Keep the creator's A-roll without extra material. |
+| `REAL_MATERIAL` | Documentary/evidence material subject to existing provenance and rights rules. |
+| `MG_MOTION` | Generated explanatory motion graphic. |
+| `ADVANCED_MOTION` | A separately reviewed advanced motion route. |
+
+Material and production components retain factual grounding, rights/capture provenance, staging checks, renderer checks, actual-file metadata, binding QA, and immutable storage. Remotion and HyperFrames are rendering adapters over a shared semantic payload; normal production selects one renderer. Existing full-video/Aligned Preview infrastructure is compatibility/QA/optional preview, not the primary creator output.
+
+Relevant contracts: [MATERIAL_CONTRACT.md](MATERIAL_CONTRACT.md), [VISUAL_SPEC.md](VISUAL_SPEC.md), [PRODUCTION_CONTRACT.md](PRODUCTION_CONTRACT.md).
+
+### Asset Pack, Edit Map, and review loop
+
+`asset_pack_workflow`, `visual_asset_pack`, and `edit_map` publish only ready V1 assets in an Asset Pack. `edit-map/1` carries real A-roll time, semantic explanation, selected V1 decision, asset information, placement guidance, provenance, QA, and fallback. The creator manually selects and assembles material in an NLE.
+
+`finished_cut_review` records bound observations of planned versus actual use. It cannot change the finished media, output a replacement, generate an NLE project, assign aesthetic quality, or convert one episode into a global policy.
+
+Relevant contract: [FINISHED_CUT_REVIEW_CONTRACT.md](FINISHED_CUT_REVIEW_CONTRACT.md).
+
+## Current Storage and Safety Boundaries
+
+- Repository code owns schemas, validation, stable examples, tests, and de-contented evaluations.
+- Versioned production/review artifacts are immutable. Readers validate linkage, digests, and input identities rather than trusting a handwritten status.
+- Digest-covered absolute paths remain immutable historical evidence after a workspace move. Core may map only a lineage-derived relative identity from an explicitly trusted historical repository root into the configured canonical repository root; this produces a separate runtime observation and never rewrites the artifact.
+- Runtime resolution rejects unknown roots, traversal, identity mismatch, symlink components, root escape, missing/non-file targets, byte-size mismatch, and SHA-256 mismatch. The ignored machine-local runtime config may also identify the exact current Production; compatibility fallback uses artifact-owned time/revision/identity fields and never filesystem mtime.
+- `reports/`, `script_drafts/`, `material_packages/`, `material_assets/`, `production_packages/`, `production_assets/`, `production_projects/`, A-roll media, and finished-cut media are local/gitignored.
+- Renderer command success is insufficient: assets must pass typed checks, `ffprobe`, dimensions/fps/duration/size/SHA checks, and binding QA.
+- Generated imagery cannot masquerade as evidence; raw PDFs and unsafe/unreviewed materials cannot enter renderers.
+
+## Accepted Target Architecture — Partially Implemented, Unreleased
+
+```text
+Reviewed Script + approved Research ── factual/source binding ──┐
+Final Clean A-roll → ASR → Alignment → Semantic Timeline        │
+                                 ↓                               │
+                        Visual Opportunity                       │
+                                 ↓                               │
+                    non-exclusive Candidate Portfolio            │
+       ┌───────────┬──────────────┬───────────────┬─────────────┘
+       MG       Illustrated / Character      Hand-drawn       REAL_MATERIAL
+                Metaphor (future family)      (experiment)    (evidence)
+       └──────────────── Candidate QA ───────────────────────────┐
+                         ↓                                        │
+      Candidate Asset Pack + multi-option Edit Map               │
+                         ↓                                        │
+               creator manual NLE selection                       │
+                         ↓                                        │
+      portfolio-aware, read-only Finished Cut Review              │
+```
+
+Target requirements:
+
+- DeepTalk Visual Asset Ecosystem is multi-repo and plugin-first. Core owns the stable opportunity/portfolio boundary; each visual family independently owns research, optimization, benchmarking, QA, versioning, and native rendering internals.
+- `Visual Opportunity` replaces V1's forced single-decision planning model; an absence of opportunity produces no additional material.
+- `Candidate Portfolio` holds non-exclusive alternatives. Candidate overlap, duration differences, and use of none/one/multiple options are valid outcomes, not planner conflicts.
+- Candidate QA is per candidate. Machine records separate Generation operation outcomes (`COMPLETED`, `FAILED`, `BLOCKED`, `UNAVAILABLE`) from produced Candidate outcomes (`READY`, `QA_REJECTED`); creator-facing packs default to READY items.
+- New V2 writer contracts must preserve V1 readers/adapters, V1 `KEEP_A_ROLL` lineage, old `edit-map/1`, old manifests, and Finished Cut Review history.
+- `REAL_MATERIAL` remains a distinct evidence/documentary family. Generated explanation families cannot displace factual/provenance requirements.
+- `suggested_review_order` may guide inspection but must never encode an automatic selected winner.
+- The evidence-derived [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture: two-stage `Suitability → Generation`, normal `ABSTAIN`, eligible `BORDERLINE`, role-based artifacts, independent plugin/contract versions, and opaque plugin metadata. Phase 0 implements strict Core validators and a sanitized fixture baseline only; it is not runtime implementation or production-schema adoption.
+- The [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 4 adds the accepted Candidate Asset Pack + `candidate-edit-map/1` boundary at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Phase 5 invokes exact-pinned MG, Illustrated Metaphor, and Hand-drawn runners independently, canonicalizes non-semantic scheduling/config order, isolates failures, and emits deterministic synthetic Portfolio/Pack/map evidence. Phase 5 is **ACCEPTED / IMPLEMENTED_UNRELEASED** and pins Hand-drawn at `624526f4dce0ba9794c1a717fa397eb3c7a1baad`.
+
+No V2 production migration, production default, or `edit-map/2` exists. The implemented Candidate Asset Pack and `candidate-edit-map/1` paths remain additive, synthetic, creator-choice artifacts; they do not select a winner or alter a cut.
+
+## Product Architecture V2 — Owner-Approved Direction, Design Awaiting Nexus Review
+
+The Owner-approved [Product Architecture V2](plans/2026-09-07-product-architecture-v2.md) is **OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW**. The Owner has approved the product direction; the specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased plan) has not yet received Nexus PASS. No runtime, schema, or code implementation has started. This section records the target architecture direction; it does not replace or override the implemented V1 architecture above.
+
+### WHERE → WHAT → WHEN separation
+
+V2 separates the visual pipeline into three independent stages:
+
+```text
+Semantic Timeline
+  → WHERE: Visual Opportunity Detection (Studio Host)
+       → WHAT: Asset Plugin suitability + generation (Plugins)
+            → Candidate Portfolio (Studio Host)
+                 → WHEN: Placement Planner (Studio Host)
+                      → Candidate Asset Pack + Multi-option Edit Map
+                           → creator manual NLE selection
+```
+
+- **WHERE** detects where visual assistance is worth adding and for what purpose. It does not decide which visual family to use. No opportunity = no additional asset.
+- **WHAT** is answered by Asset Plugins, each independently SUITABLE / BORDERLINE / ABSTAIN. No plugin has Core-special status.
+- **WHEN** produces per-candidate placement recommendations, distinct from opportunity time windows.
+
+### Visual Director decomposition
+
+The V1 Visual Director (single-decision central planner: `KEEP_A_ROLL` / `REAL_MATERIAL` / `MG_MOTION` / `ADVANCED_MOTION`) is decomposed into:
+
+| V1 responsibility | V2 destination | Owner |
 |---|---|---|
-| `.agents/skills/discover-topics` | 近期候选、Source Seed 预检、自然语言筛选和编号选择 | 最终事实裁决、口播稿、模仿创作者 |
-| `.agents/skills/research-topic` | 搜索策略、来源判断、观点比较和报告组装 | 成品口播稿、发布 |
-| `models.py` | 接收和复制版本化 Research / Candidate 对象 | 判断事实真假 |
-| `schema.py` | 正式工件契约和 API/Codex 内容草稿契约 | 业务校验和渲染 |
-| `discovery_derivation.py` | 纯确定性 Seed provenance、Preflight、评分、排序、首选、统计推导 | 打开网页或确认事实 |
-| `discovery.py` | 组装 Candidate Set、Channel Profile、Research Handoff | 完整 Fact Check 或热度造假 |
-| `discovery_validation.py` | Candidate Set / Handoff 契约、时间、Seed URL 与所有机器字段的重新推导校验 | 从网页推断事实 |
-| `discovery_renderer.py` | 最多五张普通人可读选题卡 | 解析 Markdown 作为机器接口 |
-| `discovery_storage.py` | 不可覆盖的选题历史和 latest 指针 | 云端选题库 |
-| `validation.py` | 完整 Schema、ID、URL、分类、指标和交叉引用完整性 | 自动证明现实世界事实 |
-| `renderer.py` | 把通过校验的报告转成中文 Markdown | 修改研究结论 |
-| `storage.py` | 不可覆盖的修订路径、Markdown/JSON 和 FactCheck 保存 | 云端存储 |
-| `sources.py` | URL 规范化、重复、同发布者与疑似转载的确定性分组 | 把未知来源猜成独立来源 |
-| `provenance.py` | 提取 API 搜索调用、完整来源和 URL citation 并匹配报告来源 | 信任模型自报 URL |
-| `fact_check.py` | 高风险队列、新旧来源统一归组、独立 Artifact 校验和核查结果应用 | 在原 Research Pass 内自我确认 |
-| `quality.py` | 从证据账本计算透明指标和 Gate | 用神秘总分代替底层指标 |
-| `revisions.py` | 新修订、更正、Approval Revision 和审批状态重置 | 静默覆盖旧报告 |
-| `.agents/skills/write-script` | 用户确认、原创写稿、独立审稿、自然语言修改与比较 | 自行联网研究、素材、发布 |
-| `script_profile.py` | 加载口播风格、时长和原创性约束 | 生成稿件内容 |
-| `script_validation.py` | Approval Gate、Grounding、Fact / Attribution / Analysis、Review linkage、Beat identity 和机器字段校验 | 判断现实事实或润色稿件 |
-| `script_review.py` | 规范化独立审稿问题、15 项必检、check/issue 一致性和阻断 Gate | 扮演 Writer 或自动发布 |
-| `script_renderer.py` | 派生 Editor / Teleprompter Markdown | 修改 Script Artifact |
-| `script_storage.py` | 不可覆盖稿件、Review Artifact 和 latest 指针 | 云端内容库 |
-| `script_revisions.py` | 新稿件 revision 与版本比较 | 偷换 Research revision |
-| `script_workflow.py` | 串联 approved report → Writer → Reviewer → outputs | Web Search 或 Fact Check |
-| `.agents/skills/prepare-materials` | 自然语言素材搜索、实际打开、权利依据、原创 Visual 和独立 Review | 完整视频、剪辑或发布 |
-| `material_schema.py` | Material Content / Package / Visual / Review 完整 JSON 契约 | 打开网页或判断现实版权 |
-| `material_profile.py` | B 站 1920×1080、视觉边界、MIME 和大小限制 | 生成候选内容 |
-| `material_validation.py` | 输入 Gate、Cue、Claim/Evidence、actual-open rights、ranking、nested Visual grounding、r1 provenance 重建 | 搜索或下载 |
-| `material_acquisition.py` | 公开 URL、安全静态下载、capture 登记、size/SHA-256 | 绕过限制或下载未知权利素材 |
-| `visual_renderer.py` | timeline/bar/comparison/diagram 的确定性 1920×1080 SVG | 完整动画视频 |
-| `material_review.py` | 10 项独立复核、typed issues、item isolation、package Gate | 扩大 Research |
-| `material_renderer.py` | 普通用户简明素材准备单 | 机器状态解析 |
-| `material_storage.py` | 不可覆盖 Package / Review / provenance artifacts，并在加载 r2 时 canonical revalidation | 云端资产库 |
-| `material_workflow.py` | 串联 Search → provenance → SVG → Review → revisions | 剪辑、字幕或发布 |
-| `migration.py` | 确定性迁移 0.1，并保持未核查状态 | 伪造旧报告已完成 Fact Check |
-| `providers/openai.py` | 两次 Responses API 调用、结构化输出与 tool provenance | 绑定其他模块到 OpenAI SDK |
-| `workflow.py` | 串联 draft → independent review → quality gate → revisions | 搜索细节 |
-| `cli.py` | 给自动化和调试提供稳定入口 | 图形界面 |
+| Alignment validation, canonical timebase | A-roll Understanding | Studio Host |
+| Where to add visuals | Visual Opportunity Detection (WHERE) | Studio Host |
+| `KEEP_A_ROLL` → no visual | "No Visual Opportunity" | Studio Host |
+| `REAL_MATERIAL` / `MG_MOTION` / `ADVANCED_MOTION` → which visual | Asset Plugin suitability + generation (WHAT) | Plugin |
+| Placement within span | Placement Planner (WHEN) | Studio Host |
 
-## 稳定工件
+V1 `visual-director-plan/1` preserved via compatibility reader. The V1 Visual Director remains implemented and operational.
 
-Research Report JSON 和 FactCheck Artifact JSON 是 V0.2 的正式接口。Markdown 是给人阅读的派生物，不应被未来 Agent 反向解析。两类工件都带版本；破坏兼容性的修改必须提升版本并提供迁移策略。
+### Studio Host / Plugin boundary
 
-Research Report 0.2 由四个核心账本组成：
+| Studio Host owns | Plugins own |
+|---|---|
+| Episode identity, canonical A-roll identity, canonical timebase, Semantic Timeline, **authoritative identity governance and lineage** (Core creates `opportunity_id` / `request_id` / `portfolio_id` / Pack–Edit-Map IDs / Core staged locators; plugins create `proposal_id` / `candidate_id` and Core validates, persists, and binds them — "Core owns lineage" ≠ "Core creates every ID"), plugin registration/loading, contract validation, artifact storage, Candidate Portfolio identity, shared safety/QA, failure isolation, ABSTAIN semantics, packaging, Placement Planning | Visual content generation, suitability judgment, plugin-internal QA, scene grammar / renderer internals, **plugin-native artifact identity** (native URI / manifest identity; Core validates and may assign its own Core locator but must not rewrite plugin manifests, provenance, or historical evidence) |
 
-- `sources`：来源身份、URL、检查方式、provenance 与独立性分组；
-- `claims`：分类、置信度、重要性、风险和核查状态；
-- `evidence_links`：来源对主张的支持、反驳、归属或背景关系；
-- `quality_summary`：由前三者和 Fact Check 状态自底向上计算的指标。
+See the [V2 design document](plans/2026-09-07-product-architecture-v2.md) §5.3 (Identity Authority vs Lineage Ownership) and §5.4 (plugin-native vs Core artifact identity) for the full ID-by-ID table. No ID creation semantics change: Contract V1 creators are preserved.
 
-V0.2.1 新增两个内部边界，但不改变正式工件版本：
+### REAL_MATERIAL plugin migration
 
-- `API_RESEARCH_DRAFT_JSON_SCHEMA` 只接收模型的研究判断，不接收身份、revision、时间、状态、provenance、质量或审批字段；
-- Fact Check 新来源先与 r1 来源合并执行确定性分组，再保存 Artifact 和生成 r2。
+REAL_MATERIAL migrates from a V1 Visual Director decision to a standard Real Material Asset Provider plugin. All existing obligations are preserved: source provenance, rights/reuse review, factual binding (Evidence/Context/Illustration), capture metadata, inspection evidence, `research_update_required`, material QA, immutable lineage.
 
-`confirmed_fact` 的独立确认必须同时满足 `supports`、provenance 已匹配、来源明确为 `independent`、且 group 不同。group ID 不同本身不是独立性证明。
+### Contract migration
 
-V0.3 新增上游 `Topic Candidate Set 0.3`，不改变 Research Report 0.2：
+`suggested_placement` in `visual-asset-plugin-contract/1` is identified as a WHAT/WHEN coupling. A future `visual-asset-plugin-contract/2` will make `suggested_placement` optional (renamed `intrinsic_placement_hint`) and introduce `intrinsic_timing_hints`. A `ContractV1ToV2Adapter` will read V1 artifacts and map to V2 view. No existing artifact is rewritten. Legacy compatibility readers preserve all V1 history.
 
-- Channel Profile 是版本化的编辑定位，当前为 `config/channel-profile.json`；
-- Candidate Set 记录候选、why now、核心张力、研究问题、风险、时效、Source Seeds、五项评分理由和代码计算的总分；
-- Source Seed 只是后续检索入口，不能当作已确认事实或 Evidence Link；
-- Codex 检查页面的真实 URL 由后台 inspection manifest 单独记录；Raw Candidate 不能声称 `manual_open`，未记录的 Seed 为 `unmatched`；
-- Preflight 只将已匹配的合格来源类型计作研究方向，并在 URL、publisher、host 层面保守去重；
-- Candidate Set 读取时从内容、provenance、时间与固定规则重新推导所有资格、评分、展示、首选和统计机器字段；
-- Preflight 先排除匿名传言、无公开资料、纯情绪、模仿型题材、高风险弱证据、时间倒置/明显未来时间和不足 7 项 Raw 池；`watch` 不进入 Top 5；
-- 展示先保证类别多样性，再以排序补足空位；相同事件仍永不重复；
-- `display_candidate_ids` 是唯一给用户展示和按编号选择的机器接口；Markdown 仅供阅读；
-- Research Handoff Brief 从 Candidate JSON 生成，模式 B 在这里汇入原有 Research Workflow，模式 A 不经过 Discovery。
+### HOW deferred
 
-V0.4 新增下游 `Script Draft Artifact 0.4` 与 `Script Review Artifact 0.4`，不改变 Research Report 0.2：
+Presentation style (PIP, split screen, zoom, crop, overlay, transition) is explicitly not in V2 Phase 1 scope.
 
-- Approval 不覆盖 reviewed report，而是创建新 revision，精确保存用户原始确认；任何新研究内容修订都会重置 Approval；
-- Script Draft 精确绑定 `report_id + report_revision + script_profile_version`；Writer 只能生成内容字段，身份、状态、revision、Beat ID、字数、时长和 must-keep coverage 均由代码拥有；
-- 每个 Beat 通过 `content_kind`、`claim_ids`、`evidence_link_ids` 和 `analysis_basis_claim_ids` 保留事实、归因与分析边界；
-- Script Review 与 Writer 分离，要求 15 个唯一必检项；issue severity、blocking count 和 gate status 从 issue type 确定性推导；
-- V0.4.1 将每个 failed check 映射到允许的 issue type；八项事实安全 check 必须拥有匹配的 blocking issue，其他失败也不得没有 issue。无效输出直接拒绝，`not_applicable` 不能跳过事实安全 check；
-- Review 通过或失败都会创建新的 Script revision：通过为 `reviewed`，失败仍为 `draft`；通过版保存 review ID、来源 revision、passing Gate 与内容 SHA-256，并在读取时复验对应 Artifact；
-- Beat identity 由代码维护：保留段落维持 ID，新增段落取得单调递增 ID，删除 ID 进入退休集合且不复用；比较据此报告真实变化；
-- Editor Markdown 包含机器回链和风险提示，Teleprompter Markdown 只含朗读正文；Markdown 都是 JSON 的派生物；
-- Writer 和 Reviewer 都不能启用 Web Search；API 返回任何搜索 provenance 都会失败关闭。
+### Phased implementation plan
 
-V0.5.1 的 `Material Package Artifact` 与 `Material Review Artifact` 不改变 Research 或 Script Artifact：
+Implementation is phased (Phase A–F), compatibility-first, no big-bang rewrite, each phase independently reversible:
 
-- Material input Gate 重新验证 reviewed Script 的 V0.4.1 Review linkage、内容 digest 和 exact Research revision；
-- Cue anchor 是 Beat 中的短原句，不使用伪音频 timecode；
-- API Search provenance 只能把 URL 标为 `discovered`，actual-open inspection manifest 才能标为 `inspected`；
-- Rights manifest 与 inspection 分离；safe reuse 必须有素材页和 rights evidence 页的 actual-open record，最终 eligibility 由 code-owned Gate 失败关闭；
-- 新事实触发 `research_update_required`，不进入现有 Script 或 Visual；
-- Visual Spec 的顶层和每个子项都只引用 approved timeline/Claim/Evidence，并生成真实静态 SVG；
-- r1 保存 input/inspection/rights provenance artifacts；r2 只能由精确 r1 + Independent Review 重新导出。独立 Review 可隔离危险 item；包级伪造、无安全替代或 Research update 会失败关闭；
-- Remotion / HyperFrames 仅使用 deterministic dimensions/duration/target hints 作为未来接口，不是 V0.5 runtime。
+- **Phase A**: Contracts, adapters, compatibility readers, tests.
+- **Phase B**: Visual Opportunity Detection (WHERE) extraction.
+- **Phase C**: Placement Planner (WHEN) boundary.
+- **Phase D**: Generated Asset Provider orchestration migration.
+- **Phase E**: REAL_MATERIAL plugin migration.
+- **Phase F**: Production adoption.
 
-V0.6.1 收口为 `Production Plan 0.6.1 scene_payload → Renderer Adapter → Motion Asset Manifest → typed checks → Production QA`：
+See the [design document](plans/2026-09-07-product-architecture-v2.md) §6 for full details.
 
-- Production input 先调用 V0.5.1 canonical loader，不直接信任 reviewed 字段。
-- Production Plan 是两个 renderer 之上的唯一语义接口；Python Core 拥有元素数据、顺序、显示文字和 binding，Remotion/HyperFrames 只按同一 `scene_payload` 动画。
-- `renderer_mode=auto` 根据已审 Visual hint 和 Profile 确定选择；普通流程只实例化 `selected_renderer`。
-- Adapter stage asset 时重新检查 root/path/MIME/size/SHA/eligibility，只复制已在 Scene 中合法引用的本地图片；raw PDF 和四类 V0.5 SVG 不进入 motion renderer。
-- Remotion 使用 frame-driven React Composition；HyperFrames 使用 DESIGN-first HTML 与 paused GSAP timeline。两者都产生 clips、rough preview 和 hero still。
-- Manifest 只接收真实存在且经 ffprobe 和 SHA 复核的文件。所有 renderer 命令成为 typed check，Core 执行 check→issue→gate，失败检查无法与 pass Gate 共存。
+`Plan exists ≠ accepted; implemented ≠ released.`
 
-未来模块的建议输入输出：
+## Extension Rules
 
-| 模块 | 输入 | 输出 |
-|---|---|---|
-| Topic Discovery | 频道策略、时间窗口、公开页面 | Topic Candidate Set 0.3 |
-| Research | Topic Candidate 或用户主题 | Research Report JSON |
-| Fact Check | Research Draft | FactCheck Artifact + 新修订 Research Report |
-| Perspective Analysis | Research Report | Perspective Map JSON |
-| Script Writing | 已批准的 `ready_for_script` Research Revision | Script Draft 0.4 + Script Review 0.4 + Editor / Teleprompter |
-| Material Search | reviewed Script + exact Research + Review Artifact | Material Package 0.5.1 |
-| Visual Generation | grounded Visual Spec | SVG Assets + hash + target hints |
-| Motion Production | reviewed Material Package + Script + Research | Production Plan 0.6.1 + MP4/PNG + Manifest + typed QA |
-| Editing Plan | Script + Motion Asset Manifest | Final Timeline / Shot Plan JSON |
-| Publishing | 审批后的成品和元数据 | Platform Publish Record |
+- Add a versioned contract and explicit compatibility reader before changing a primary artifact meaning.
+- Preserve real A-roll timing, source/provenance binding, immutable history, and QA; no new visual family may bypass them.
+- Validate MG Quality V2 before increasing MG volume. Hand-drawn and Xiaohei-related work remain experiments. Xiaohei is not DeepTalk IP.
+- Candidate density is a product-research variable, not a fixed schema quota.
+- A product or architecture change must update its canonical owner: [PROJECT_STATE.md](../PROJECT_STATE.md), [PRD.md](../PRD.md), [ROADMAP.md](../ROADMAP.md), and this document as applicable.
 
-## 安全边界
+## Historical Notes
 
-- 真实报告默认不进入 Git，避免把未经审查的指控或个人信息意外公开。
-- 网络内容始终是不可信输入；报告只能存文本与 URL，不执行网页代码。
-- API 密钥只从环境变量读取，HTTP payload、异常和报告都不包含密钥。
-- API 模式保留 `web_search_call.action.sources` 和 URL citation；无法匹配真实工具结果的来源会被降级。
-- API Structured Output 只生成 research content；任何模型自报的质量或审批字段都会在草稿契约处被拒绝。
-- Discovery API 只生成 Raw Candidate 内容；Candidate ID、总分、资格、推荐、首选、时间与 provenance 由代码拥有。Seed 无法匹配 API Web Search 结果时不能装作已打开。
-- Creator metadata 只可作为可选 attention signal，绝不是事实证据；不绕过登录或限制，也不保存创作者脚本、字幕或独特表达。
-- Codex 模式记录 `codex_tool_result` 与实际打开 URL，不能把搜索摘要假装成已检查正文。
-- 每个修订路径包含 `report_id` 和 `rNNNN`，已存在文件拒绝覆盖。
-- Script 路径同时包含 `report_id`、`script_id` 和 `rNNNN`，并拒绝覆盖；Review Artifact 单独保存。
-- Script Writer / Reviewer 不具备搜索工具；它们不能把外部知识或研究空白悄悄写进稿件。
-- `avoid_claims` 的直接匹配由程序硬阻止；语义近似、长引用和原创表达风险由独立 Reviewer 检查。
-- Material 搜索摘要不能冒充 actual page inspection；Rights 不能从来源名称推断。
-- 未知版权新闻/视频/creator 内容不自动下载；所有本地 asset 记录大小和 SHA-256，并拒绝覆盖。
-- 生成画面不能冒充新闻、文件、UI、真人或真实事件现场，也不能使用 Research 外数据。
-- Production 每次 stage 前重新检查素材路径边界、MIME、size、SHA 和 eligibility；任何 non-ready 素材不得进入 Composition。
-- 发布前必须有人类编辑 Review；工程校验不等于新闻事实认证。
-
-## 扩展原则
-
-新增 Agent 时先定义工件和验收，再实现最小工作流。只有确有多个调用方时才抽象共享框架。不要为了“多 Agent”外观把一个清晰步骤拆成无意义的多个 Prompt。
+Prior architecture documents, release notes, and plans may describe rough/full preview as central because that was true at the time. Preserve those records for debugging and lineage; they do not override the current primary Asset Pack + Edit Map architecture.

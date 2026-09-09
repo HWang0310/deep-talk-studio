@@ -69,7 +69,7 @@ Rights manifest 必须保存素材 URL、`rights_evidence_url`、依据、许可
 
 视频默认只记录页面、发布者、标题、建议起止秒和使用理由。没有明确复用权利时不自动下载；不绕过登录、付费墙、DRM、反爬或平台限制。
 
-每个本地文件记录绝对路径、类型、字节数和 SHA-256；路径越界和覆盖均失败关闭。
+每个本地文件记录绝对路径、类型、字节数和 SHA-256；路径越界和覆盖均失败关闭。工作区迁移不改写 reviewed Material Package 或 Material Capture Manifest 中的绝对路径和 digest。运行时只可依据 Package/Material/Visual 身份推导 `material_assets/<package_id>/...` 相对路径，从显式可信历史仓库根映射到 machine-local canonical root，并重新验证 symlink/containment、存在性、类型、byte size 与 SHA-256；映射后的路径仅存在于临时 Material Production View，且与原 `recorded_local_path` 分开。
 
 ## 7. 透明排序
 

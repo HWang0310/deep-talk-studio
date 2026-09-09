@@ -1,0 +1,7 @@
+{
+  "artifact_version": "rough-cut-duration-profile/1",
+  "still_exposure_seconds": 7,
+  "source_profile_version": "0.5",
+  "source_profile_digest": "derived-at-load",
+  "profile_digest": "derived-at-load"
+}

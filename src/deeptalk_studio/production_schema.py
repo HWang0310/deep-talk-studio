@@ -88,6 +88,7 @@ PRODUCTION_PLAN_SCHEMA = _object({
     "script_content_digest": _string(), "material_package_id": _string(),
     "material_package_revision": _integer(1), "material_package_digest": _string(),
     "material_review_id": _string(), "production_profile_version": _enum(["0.6.1"]),
+    "episode_visual_preference_digest": _string(), "post_alignment_visual_plan_digest": _string(),
     "renderer_mode": _enum(["auto", "remotion", "hyperframes"]),
     "selected_renderer": _enum(RENDERERS), "canvas": CANVAS_SCHEMA,
     "scenes": _array(PRODUCTION_SCENE_SCHEMA),
@@ -95,7 +96,7 @@ PRODUCTION_PLAN_SCHEMA = _object({
     "production_gaps": _array(PRODUCTION_GAP_SCHEMA), "warnings": _string_array(),
     "qa_state": _object({"state": _enum(["not_run", "completed"])}),
     "plan_digest": _string(),
-})
+}, optional=("episode_visual_preference_digest", "post_alignment_visual_plan_digest"))
 
 MOTION_ASSET_SCHEMA = _object({
     "motion_asset_id": _string(), "scene_id": _string(),

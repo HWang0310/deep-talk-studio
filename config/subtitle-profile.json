@@ -1,0 +1,21 @@
+{
+  "artifact_version": "subtitle-profile/1",
+  "canvas_width": 1920,
+  "canvas_height": 1080,
+  "subtitle_region_top_px": 820,
+  "subtitle_region_bottom_px": 1010,
+  "content_safe_bottom_px": 780,
+  "max_lines": 2,
+  "max_chars_per_line": 18,
+  "max_cue_duration_seconds": "4.5",
+  "max_join_gap_seconds": "0.65",
+  "font_size_px": 56,
+  "line_height_ratio": "1.25",
+  "plate_opacity": "0.72",
+  "horizontal_padding_px": 42,
+  "vertical_padding_px": 22,
+  "text_color": "#FFFFFF",
+  "plate_color": "#111111",
+  "render_mode": "burned_in_static_phrase",
+  "profile_digest": "6cef79c81bc1885d34f527c71c12cf713db62b3a29c73c3a903ea600d232cb25"
+}

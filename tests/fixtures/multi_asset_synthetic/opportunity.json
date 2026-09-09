@@ -1,0 +1,11 @@
+{
+  "opportunity_id": "opp-synthetic-market-shift-01",
+  "spoken_semantics": "一个虚构市场指标从稳定转向收缩，解释变化的因果链。",
+  "visual_purpose": "用短结构动画帮助观众看清变化顺序。",
+  "a_roll_window": {"start_ms": 12000, "end_ms": 19000},
+  "target_duration_ms": 6000,
+  "language": "zh-CN",
+  "canvas": {"width": 1920, "height": 1080},
+  "semantic_context": "前一段说明指标稳定，后一段解释收缩后果。",
+  "factual_context": [{"claim_id": "claim-synthetic-01", "evidence_id": "evidence-synthetic-01"}]
+}

@@ -54,6 +54,8 @@ Research Handoff 的 `must_keep_claim_ids` 由程序计算覆盖；遗漏必须�
 
 ## 5. 独立 Script Review Artifact 0.4
 
+Hook-aware 结构复用现有 `audience_promise`、有序 Beats 和 `closing`，不新增重复 Schema。Writer 必须在 Research 约束内完成 opening hook、value promise、长稿必要的 re-hook / information turn 和 conclusion payoff；不得依靠夸张或捏造事实。新 Review 的 `narrative_structure` 会把缺失项记录为 blocking `hook_structure`。旧 `0.4.1` Review linkage 继续兼容读取，新 Review consistency mapping 为 `0.4.2`。
+
 Reviewer 读取同一 Research revision 和 Writer 的 Script Draft，但不继承 Writer 的角色，也不联网。它必须完整检查 15 项：
 
 1. factual grounding

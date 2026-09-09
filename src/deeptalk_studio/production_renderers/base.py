@@ -153,7 +153,7 @@ def prepare_project_directory(
 
 def stage_plan_assets(
     plan: Mapping[str, Any], package: Any, material_root: Path,
-    destination: Path, *, prefix: str,
+    destination: Path, *, prefix: str, artifact_resolver=None,
 ) -> Tuple[Tuple[Path, ...], Mapping[str, str]]:
     materials = {item["material_id"]: item for item in package.materials}
     visuals = {item["visual_id"]: item for item in package.generated_visuals}
@@ -171,7 +171,10 @@ def stage_plan_assets(
     for item_id, item, generated in selected:
         if item_id in asset_map:
             continue
-        source = validate_render_asset(item, material_root, generated_visual=generated)
+        source = validate_render_asset(
+            item, material_root, generated_visual=generated,
+            artifact_resolver=artifact_resolver, package_id=package.package_id,
+        )
         target = destination / f"{item_id}{source.suffix.casefold()}"
         if target.exists():
             raise RendererError("Renderer asset 已存在，拒绝覆盖")

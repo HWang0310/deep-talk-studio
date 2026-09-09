@@ -2,7 +2,7 @@
 
 ## 范围
 
-V0.6 将已审查 Material Package 转换为辅助动画、粗剪视觉预览和定帧图。它不生成假主播、TTS、最终口播剪辑、字幕、BGM、标题封面或发布任务。
+正式 V0.6.1 将已审查 Material Package 转换为辅助动画、粗剪视觉预览和定帧图，不生成字幕。当前 Unreleased Edit Bridge 层在其后消费 QA-ready Motion，并从 Timed Transcript 生成 Basic Subtitle V1；这不修改 V0.6.1 Production Plan 或 Release。
 
 ## Canonical Input Gate
 
@@ -13,6 +13,8 @@ V0.6 将已审查 Material Package 转换为辅助动画、粗剪视觉预览和
 ## Asset Gate
 
 每次制作都重新检查 allowed root、路径越界、文件存在、真实扩展/MIME、byte size、SHA-256、generated render status 和 eligibility。只有 `ready_to_use` 可 stage。reference-only、permission-required、rejected、missing 或 tampered asset 必须使用原创 Visual、A-roll placeholder 或 Production gap。
+
+工作区迁移后，Motion Manifest 与 Material Package 内 digest-covered 绝对路径仍是不可变历史证据。Core 只允许把位于显式可信历史仓库根、且与 Production/Asset/format 推导出的相对身份完全一致的记录映射到 machine-local 配置的 canonical repository root；映射结果是运行时 observation，不进入原 Manifest、Plan、Package 或 QA digest。任意未知根、路径穿越、身份错配、symlink、越界、缺失、size/SHA 不符或 Manifest 篡改均失败关闭。配置文件 `config/artifact-runtime.local.json` 必须 gitignored，不属于 Production Artifact。
 
 ## Display Text Gate
 
@@ -31,7 +33,7 @@ Plan 由程序生成 `production_id`、Scene ID、Motion Asset ID、frame durati
 
 Plan 同时记录 source IDs、屏幕文字 grounding、layout/motion/transition intent、预期 clips、rough preview、hero still 和明确 gaps。当前时长来自 Material 建议值，没有真实语音时码时必须保留 gap。
 
-每个 Scene 还包含唯一 `scene_payload`。Python Core 拥有数据、顺序、文字和 binding；Remotion/HyperFrames 只按 payload 动画。timeline 是 baseline → ordered marker → date/event，bar 从共同 baseline 逐根增长，comparison 按左右与条目建立，diagram 先 node 后 endpoint 已存在的 edge/label。V0.5 SVG 只可作为静态 fallback/debug。
+每个 Scene 还包含唯一 `scene_payload`。Python Core 拥有数据、顺序、文字和 binding；Remotion/HyperFrames 只按 payload 动画。timeline 是 baseline → ordered marker → date/event，bar 从共同 baseline 逐根增长。comparison 的每个 item 是独立机制 card，label 只显示一次，left/right 作为同一卡片的两条 grounded fact；不再推断匿名左右阵营。diagram 先 node 后 endpoint 已存在的 edge/label，node 文字安全换行，edge label 使用与线分离的背景 plate。Core 对超过固定布局容量的文字 fail closed，不允许 renderer 截断、缩写或改写。V0.5 SVG 只可作为静态 fallback/debug。
 
 ## PDF / Capture Boundary
 

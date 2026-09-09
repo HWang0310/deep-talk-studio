@@ -1,0 +1,6 @@
+{
+  "artifact_version": "alignment-calibration-cases/1",
+  "required_cases": ["A", "B", "C", "D", "E", "F", "S", "T", "U", "AH", "CR1", "CR2", "CR3"],
+  "false_ready_forbidden": ["D", "E", "F", "S", "T", "AH", "CR2"],
+  "later_recovery_required": ["C", "CR3"]
+}

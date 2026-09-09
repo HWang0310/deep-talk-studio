@@ -1,0 +1,10 @@
+{
+  "artifact_version": "episode-visual-default/1",
+  "preferences": {
+    "overall_visual_density": "balanced",
+    "real_material_preference": "balanced",
+    "motion_preference": "balanced",
+    "a_roll_preference": "balanced"
+  },
+  "profile_digest": "21d972ce932ea79464103bdd1f04deb123b0d43493da491662abeda66a20dd80"
+}

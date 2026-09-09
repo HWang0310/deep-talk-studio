@@ -1,111 +1,113 @@
-# DeepTalk Studio 路线图
+---
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '9041f851-2e1b-4e27-90eb-7d9d8697554d'
+  PropagateID: '9041f851-2e1b-4e27-90eb-7d9d8697554d'
+  ReservedCode1: 'e55ebfc4-6131-4cce-9e2f-d0f1f867b135'
+  ReservedCode2: 'e55ebfc4-6131-4cce-9e2f-d0f1f867b135'
+---
 
-路线图描述方向，不代表所有功能必须一次完成。每一阶段都应先用真实内容验证价值，再扩展自动化。
+# DeepTalk Studio Roadmap
 
-## V0.1：项目基础与 Research Workflow（已完成）
+> **Canonical owner:** delivery-state classification. Read [PROJECT_STATE.md](PROJECT_STATE.md) first. A plan or a branch is not a release; an implementation is not a release.
 
-- 正式仓库、长期协作文档和版本记录；
-- 仓库级 `research-topic` Skill；
-- 来源、主张、观点、冲突、角度和 Script Agent 交接契约；
-- Markdown/JSON 双格式报告；
-- 校验器、命令行、离线示例和自动测试；
-- 可替换的 OpenAI 联网研究提供器。
+## Released
 
-## V0.2：研究质量与事实核查（已完成）
+### v0.6.1 — Formal Release
 
-- Research Report 0.2、Evidence Ledger 和完整 Schema 校验；
-- 独立 FactCheck Artifact、第二次搜索和反证记录；
-- 来源 provenance、去重、转载识别和独立性分组；
-- 高风险主张队列和透明质量 Gate；
-- 不可覆盖的报告修订、补充来源和更正历史；
-- 三类真实题材评测和人工 Review 表。
+- Released at `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`.
+- Includes the Motion Production Layer: reviewed-material safety, renderer adapters, actual MP4 QA, and release evidence.
+- Earlier releases (`v0.1.0` through `v0.6.0`) remain documented in [docs/releases](docs/releases/) and [CHANGELOG.md](CHANGELOG.md).
 
-### V0.2.1：Quality Gate Hardening（已完成）
+## Accepted / Implemented / Unreleased
 
-- 修正 unknown / related / duplicate / syndicated 来源的独立确认计数；
-- API Research 改为只接收研究内容，机器字段由程序确定；
-- Fact Check 新来源与原来源统一规范化和独立性归组；
-- 收紧 context-only、未匹配 attribution、重复转载对质量指标的影响；
-- 保持 Research Report 0.2 契约和原质量阈值不变。
+### V1.0 Candidate
 
-## V0.3：Topic Discovery（已完成）
+- Topic discovery, Research, independent Fact Check, and approval lineage.
+- Content Director + Script Agent V1, including Content Thesis, human confirmation, and reviewed-script quality gates.
+- Final Clean A-roll, local `whisper.cpp` `large-v3` ASR, global monotonic alignment, Semantic Timeline, and timing safeguards.
+- V1 Visual Director, asset generation/QA, Asset Pack + Edit Map, manual creator NLE assembly, and read-only Finished Cut Review / Production Feedback.
+- No later tag or GitHub Release exists: this remains **V1.0 Candidate — Unreleased**.
 
-- 支持“我不知道今天讲什么”的入口；
-- 聚合近期社会、商业、科技、网络和公共事件；
-- 结合新鲜度、讨论度、观点冲突、可核查性和频道匹配度评分；
-- 输出候选选题卡，由用户简单确认后进入 Research Workflow；
-- 参考创作者关注方向，但不抓取或模仿其稿件。
-- 保持人工选题确认，确认后才进入 V0.2 Research Workflow。
-- 新增 Channel Profile、Topic Candidate Set 0.3、Source Seed Preflight、透明五维评分、资格 Gate、事件去重、类别多样性和不可覆盖的 discovery 历史；
-- 新增 `discover-topics` Skill，支持用户回复编号后直接交给 `research-topic`，不重复要求标题；
-- 三类真实 Discovery 评测和去内容化汇总。
+## Current Validation
 
-### V0.3.1：Discovery Gate Hardening（已完成并验收）
+### 《牛来》 — first complete real production loop
 
-- 新增 Codex 实际打开页面的后台 inspection manifest，未在其中的 Seed 必须保持 `unmatched`；
-- Candidate Artifact 全部关键机器字段改为确定性重新推导和 fail-closed 校验；
-- 收紧不同研究方向、时间一致性和 Raw Candidate 最小池规则；
-- 类别多样性升级为先多样、再补位的软约束，并移除无效的 `--count` 参数；
-- 重新执行三类真实 Discovery 评测，明确记录 `pass` / `fail` / `not_applicable`。
+- Completed local A-roll through Finished Cut Review / Production Feedback.
+- 25 spans: 22 `KEEP_A_ROLL`, 3 MG; all three MG assets were used but shortened.
+- Validates real A-roll timing, Edit Map usefulness, and creator-owned final editing.
+- Reveals insufficient MG quantity/quality and plan-versus-actual window differences.
+- Findings are episode evidence, not self-executing global policy.
 
-## V0.4：原创 Script Agent（已完成）
+### 《恒大》 — ready for recording
 
-- 只读取完成 Fact Check、通过 Quality Gate、并有用户确认的新 Research Revision；
-- 新增 Script Profile 0.4、Script Draft Artifact 0.4 和独立 Script Review Artifact 0.4；
-- 生成原创分析框架、故事线、Editor Markdown 与纯口播 Teleprompter Markdown；
-- 每个 Beat 明确区分事实、归因、分析、转场和问题，并保留 Claim / Evidence 回链；
-- 硬阻止未批准 Research、直接使用禁讲结论、伪造机器字段和未核查高风险事实；
-- 计算 must-keep coverage、口播字数与时长，支持自然语言调整时长和结构；
-- Writer 与 Reviewer 分离，Reviewer 必须完成 15 个检查维度，阻断问题不能进入 `reviewed`；
-- 稿件修订不可覆盖，并支持比较两个 revision；
-- 完成稳定商业、争议公共议题和未批准输入三类真实评测。
+- Competitive Research, Fact Check, Content Thesis, human confirmation, and Final Reviewed Script are complete.
+- Status is **READY_FOR_RECORDING**. A-roll, assets, and editing have not started.
 
-## V0.4.1：Script Gate Hardening（已完成并验收）
+## Current Work
 
-- 将 15 项 Script Review checks 与受控 issue mapping 绑定；任一失败检查必须有对应 issue，八项事实安全检查必须对应 blocking issue；
-- 仅 `counterargument_fairness` 可使用 `not_applicable`，事实安全检查不能借此绕过；
-- `reviewed` Script 绑定可复验的 Review Artifact、来源 revision 与内容指纹；旧 Review 不随内容修订继承；
-- Beat ID 采用稳定、递增、不可复用策略，版本比较能区分插入、删除、移动与实际修改；
-- 完成 V0.4.1 受控 A/B/C 评测和 synthetic fail-closed 场景。
+### Visual Asset Plugin Contract V1 — accepted architecture; Phase 5 ACCEPTED / IMPLEMENTED_UNRELEASED
 
-## V0.5：素材与视觉辅助（V0.5.1 已完成并验收）
+- Contract V1 is ACCEPTED_UNRELEASED architecture. Phase 0's strict validators, sanitized fixtures, test-only fake runner, and static configuration examples are ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation.
+- Preserve the accepted multi-repo, plugin-first boundary. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 4 Candidate Asset Pack + Multi-option Edit Map is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`.
+- Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED: runtime resolution validates configured trusted historical roots, canonical artifact-relative identity, containment, symlink rejection, file existence, byte size, and SHA-256. Historical manifests are preserved. Current Production selection is explicit via machine-local `current_production_id`; filesystem mtime is no longer semantic truth. A formal immutable current-production index remains deferred.
+- Phase 5 real three-plugin synthetic integration is **ACCEPTED / IMPLEMENTED_UNRELEASED**. It preserves MG `7ae59f1115da8a011113c81f31d320783b0ce8a4` and Illustrated `48848affe018fc2cff8ee15bad7a09bb002776e4`, and uses the accepted Hand-drawn correction `624526f4dce0ba9794c1a717fa397eb3c7a1baad`. It proves deterministic order, failure isolation, Portfolio/Pack/map delivery, and minimum creator usability with sanitized opportunities only. Production adoption remains unstarted.
 
-- reviewed Script + exact Research + V0.4.1 Review linkage 输入 Gate；
-- Material Package 0.5、Cue Sheet、真实 inspection、Rights/Reuse Gate、Claim/Evidence binding；
-- 安全静态文件获取、网页/PDF capture 登记、视频 reference-only 边界；
-- Research update escalation，不用素材搜索静默改稿或制图；
-- 原创 timeline/bar/comparison/diagram Visual Spec 和 1920×1080 SVG；
-- 独立 Material Review、item 隔离、package Gate 和不可覆盖存储；
-- `prepare-materials` Skill、API Provider、CLI 和三类真实评测；
-- Remotion / HyperFrames 只保留 render target hints，未创建完整视频工程。
+## Approved Next
 
-### V0.5.1：Material Gate Hardening（已完成并验收）
+### Multi-Asset Candidate Architecture — accepted direction; partially implemented, unreleased
 
-- Rights actual-open provenance、rights evidence page 和工具引用一一绑定；
-- Visual Spec 内部 timeline/bar/comparison/diagram grounding 全部 fail-closed；
-- reviewed Material Package 通过 r1 provenance → Review → r2 的确定性重新证明；
-- SVG sanitizer 与 PDF/截图校验加固；
-- 仍未开始 Remotion / HyperFrames 制作层。
+```text
+Semantic Timeline → Visual Opportunity → Candidate Portfolio
+→ Candidate QA → Candidate Asset Pack → Multi-option Edit Map
+→ creator manual NLE selection
+```
 
-## V0.6：Motion Production Layer（V0.6.1 已完成，等待正式验收）
+- Candidates are non-exclusive and may overlap.
+- The accepted ecosystem is multi-repo and plugin-first: independent visual families evolve behind a minimal Core contract rather than being absorbed into Core internals.
+- V2 removes `KEEP_A_ROLL` from new candidate planning but preserves V1 compatibility readers/adapters.
+- `REAL_MATERIAL` stays an independent evidence/documentary family.
+- Visual Asset Plugin Contract V1 is ACCEPTED_UNRELEASED architecture. Accepted implementation now extends through Phase 4; Phase 5's real three-plugin synthetic path is **ACCEPTED / IMPLEMENTED_UNRELEASED**. Production migration, production enablement, and real-Episode validation have not started. Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`.
 
-- V0.5.1 canonical input Gate、Production Plan 0.6.1、结构化 scene payload 与统一 Production Profile；
-- Remotion / HyperFrames 两个适配器共用同一计划和 QA，普通流程只选一个引擎；
-- 真实 motion clips、rough visual preview、hero still、Motion Asset Manifest 与 Production QA；
-- timeline、bar、comparison、diagram、document/screenshot、static image 与 A-roll placeholder 映射；
-- timeline、bar、comparison、diagram 按内部元素真正运动，两套 renderer 消费同一 payload；
-- render-time SHA/path/MIME/eligibility、非数字 Display Text grounding、raw PDF/capture boundary 与 check→issue→gate fail-closed；
-- 字幕、BGM、标题、封面和发布仍保留到后续。
+### MG Quality V2
 
-## V0.7：第一轮真实用户端到端试用（待产品决定）
+- Approved next; not implemented.
+- Improve visual quality and art direction before increasing MG output volume.
 
-- 用一期真实内容从选题跑到可导入剪辑软件的素材包；
-- 收集普通用户的阻塞点，再决定是优先做音频对齐、字幕还是发布辅助；
-- 不默认自动发布。
+## Product Architecture V2 — Owner-Approved Direction, Design Awaiting Nexus Review
 
-## 暂不承诺
+The Owner-approved [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md) is **OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW**. The Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred). The specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased plan) has not yet received Nexus PASS. No runtime, schema, or code implementation has started. It does not change the status of any implemented work above.
 
-- 全自动无人审查发布；
-- 自动采信网络传言；
-- 大规模下载或保存受版权保护素材；
-- 为追求“像某位创作者”而建立模仿模型。
+Key V2 directions:
+
+- **WHERE → WHAT → WHEN separation**: Visual Opportunity Detection (WHERE) is a Studio Host capability; Asset Plugins (WHAT) are non-exclusive; Placement Planner (WHEN) is a separate Studio Host capability.
+- **V1 Visual Director decomposition**: SPLIT into Visual Opportunity Detection + Asset Plugin orchestration + Candidate aggregation/QA + Placement Planning. V1 `visual-director-plan/1` preserved via compatibility reader.
+- **REAL_MATERIAL plugin migration**: MIGRATE from V1 Visual Director decision to standard Real Material Asset Provider, retaining all provenance/rights/factual/inspection obligations.
+- **Plugin unification**: MG, Illustrated, Hand-drawn, and REAL_MATERIAL all become standard Asset Plugins. No Core-special status.
+- **Contract migration**: `suggested_placement` identified as WHAT/WHEN coupling. Future contract version separates `intrinsic_placement_hint` from Placement Planner. Legacy artifacts remain immutable.
+- **HOW deferred**: Presentation style (PIP, split, zoom, overlay, transition) is not in V2 Phase 1.
+
+Implementation is phased (Phase A–F) with compatibility-first, no big-bang rewrite, and each phase independently reversible. See the [design document](docs/plans/2026-09-07-product-architecture-v2.md) §6 for the phased plan.
+
+## Experimental / Under Product Validation
+
+- **Hand-drawn Animation V1:** approved experiment, not a renderer.
+- **Xiaohei:** third-party prototype/experimental reference; no claim of DeepTalk IP and no long-term identity commitment.
+- **Candidate density:** soft LEAN/STANDARD/RICH profiles; current creator prefers RICH, but no fixed counts or hard schema rules.
+- **Original DeepTalk character / visual identity:** undecided.
+
+## Deferred / Not Planned
+
+- Automatic final editing, automatic candidate choice, or visual-overlap resolution.
+- Take choice, A-roll deletion/cleanup, pause/re-record removal, retiming, or human-speech splicing.
+- 剪映/NLE project generation, final-cut output, automatic publishing, TTS/fake presenter, BGM/SFX, cover/title automation, or engagement prediction.
+- Treating a single episode as sufficient evidence to rewrite global aesthetic policy.
+
+## Historical Milestones
+
+- v0.1–v0.4.1: research, fact check, topic discovery, script workflow, and gate hardening.
+- v0.5–v0.5.1: material provenance, rights, and review gates.
+- v0.6–v0.6.1: Motion Production Layer and formal release.
+- Historical rough/full preview paths: preserved for compatibility and QA, not the current primary UX.

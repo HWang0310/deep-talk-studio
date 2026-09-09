@@ -1,0 +1,1 @@
+{"contract_version":"visual-asset-plugin-contract/1","request_id":"suit-req-synthetic-05","opportunity_id":"opp-synthetic-market-shift-01","plugin_id":"org.example.synthetic-motion","plugin_version":"0.0.0-test","operation_status":"UNAVAILABLE","problem":{"code":"SYNTHETIC_DEPENDENCY_MISSING","message":"合成测试中的插件依赖不可用。","retryability":false}}

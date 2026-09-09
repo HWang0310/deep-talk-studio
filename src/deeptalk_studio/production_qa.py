@@ -150,7 +150,9 @@ def build_motion_asset_manifest(
     return ManifestResult(manifest, tuple(failures))
 
 
-def validate_motion_manifest(manifest: Mapping[str, Any], plan: Mapping[str, Any]) -> None:
+def validate_motion_manifest(
+    manifest: Mapping[str, Any], plan: Mapping[str, Any], *, artifact_resolver=None
+) -> Mapping[str, Any]:
     try:
         validate_json_schema(dict(manifest), MOTION_ASSET_MANIFEST_SCHEMA, "motion_asset_manifest")
     except ReportValidationError as exc:
@@ -160,17 +162,29 @@ def validate_motion_manifest(manifest: Mapping[str, Any], plan: Mapping[str, Any
     if manifest["manifest_digest"] != _digest(manifest, "manifest_digest"):
         raise ProductionValidationError("Motion Asset Manifest digest 无效")
     expected = {item["motion_asset_id"]: item for item in plan["motion_assets"]}
+    observations = {}
     for asset in manifest["assets"]:
         spec = expected.get(asset["motion_asset_id"])
         if spec is None or spec["scene_id"] != asset["scene_id"] or spec["asset_kind"] != asset["asset_kind"]:
             raise ProductionValidationError("Motion Asset 与 Production Plan expected output 不一致")
-        path = Path(asset["output_path"])
-        if not path.is_file() or path.stat().st_size != asset["byte_size"]:
-            raise ProductionValidationError("Motion Asset 文件不存在或大小被修改")
-        if hashlib.sha256(path.read_bytes()).hexdigest() != asset["sha256"]:
-            raise ProductionValidationError("Motion Asset SHA-256 被修改")
+        if artifact_resolver is not None:
+            try:
+                observation = artifact_resolver.resolve_motion_asset(plan, asset)
+            except ValueError as exc:
+                raise ProductionValidationError(
+                    f"Motion Asset runtime resolution 失败：{exc}"
+                ) from None
+            path = observation.resolved_path
+            observations[asset["motion_asset_id"]] = observation
+        else:
+            path = Path(asset["output_path"])
+            if not path.is_file() or path.stat().st_size != asset["byte_size"]:
+                raise ProductionValidationError("Motion Asset 文件不存在或大小被修改")
+            if hashlib.sha256(path.read_bytes()).hexdigest() != asset["sha256"]:
+                raise ProductionValidationError("Motion Asset SHA-256 被修改")
         if (asset["width"], asset["height"]) != (plan["canvas"]["width"], plan["canvas"]["height"]):
             raise ProductionValidationError("Motion Asset 尺寸无效")
+    return observations
 
 
 def prepare_production_qa(

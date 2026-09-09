@@ -245,6 +245,29 @@ def build_parser() -> argparse.ArgumentParser:
 
     sample = subparsers.add_parser("sample", help="生成一份离线示例报告")
     sample.add_argument("--output", type=Path, default=DEFAULT_REPORTS)
+    align_video = subparsers.add_parser("align-video", help="从剪好的真人口播生成可视粗剪")
+    align_video.add_argument("--session", type=Path, required=True)
+    revise_bridge = subparsers.add_parser("revise-edit-bridge", help="用自然语言调整粗剪画面")
+    revise_bridge.add_argument("feedback")
+    revise_bridge.add_argument("--session", type=Path, required=True)
+
+    visual_assist = subparsers.add_parser(
+        "visual-assist",
+        help="显式指定一种视觉素材类型并生成候选（mg / xiaohei / handdrawn）",
+    )
+    visual_assist.add_argument(
+        "family",
+        choices=("mg", "xiaohei", "handdrawn"),
+        help="视觉素材类型：mg / xiaohei（小黑漫画）/ handdrawn（手绘动画）",
+    )
+    visual_assist.add_argument("--opportunity", type=Path, default=None, help="Visual Opportunity JSON 文件路径（省略则自动从最新 Visual Opportunity Plan 解析）")
+    visual_assist.add_argument("--config", type=Path, default=None, help="Visual Asset Plugin 配置 JSON 文件路径（省略则使用 config/visual-asset-plugins.local.json）")
+    visual_assist.add_argument("--profile", choices=("LEAN", "STANDARD", "RICH"), default="RICH", help="候选生成策略（默认 RICH）")
+    visual_assist.add_argument("--policy", type=Path, default=REPO_ROOT / "config" / "candidate-generation-profile.json")
+    visual_assist.add_argument("--plan-digest", default=None, help="Visual Opportunity Plan SHA-256 digest（省略则自动解析）")
+    visual_assist.add_argument("--output", type=Path, default=REPO_ROOT / "visual_assist_runs")
+    visual_assist.add_argument("--task-id", default="DT-V1-AUX-001")
+
     return parser
 
 
@@ -252,6 +275,101 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "align-video":
+            session = Path(args.session)
+            candidates = [] if not session.exists() else [
+                path for path in session.iterdir()
+                if path.is_file() and not path.is_symlink() and path.suffix.casefold() in {".mp4", ".mov"}
+            ]
+            if not candidates:
+                print("把已经剪好口气的正式真人口播视频拖进来。\nmp4 / mov 都可以。\n不需要另外录音。\n不需要自己提取音轨。\n不需要标记时间点。")
+                return 0
+            from .edit_bridge_session import resolve_real_edit_bridge_session, run_real_edit_bridge_session
+            from .transcription.local_whisper_cpp import (
+                WhisperCppBootstrapError,
+                resolve_default_transcription_provider,
+            )
+            import uuid
+            resolved = resolve_real_edit_bridge_session(session)
+            provider = resolve_default_transcription_provider()
+            print("正在准备本地语音识别模型；首次使用需要下载一次。")
+            try:
+                result = run_real_edit_bridge_session(
+                    resolved, provider,
+                    clock=lambda: datetime.now().astimezone().isoformat(timespec="seconds"),
+                    id_factory=lambda kind: f"{kind}-{uuid.uuid4().hex}",
+                )
+            except WhisperCppBootstrapError as exc:
+                print(f"本地语音识别准备失败：{exc}", file=sys.stderr)
+                return 2
+            print(f"对齐粗剪已经生成：{result.preview_path}")
+            return 0
+        if args.command == "revise-edit-bridge":
+            from .edit_bridge_session import load_real_edit_bridge_session_result,revise_real_edit_bridge_session
+            previous=load_real_edit_bridge_session_result(args.session)
+            result=revise_real_edit_bridge_session(previous,args.feedback,clock=lambda:datetime.now().astimezone().isoformat(timespec="seconds"))
+            print(f"新的粗剪已经生成：{result.preview_path}")
+            return 0
+        if args.command == "visual-assist":
+            from .explicit_visual_assist import (
+                ExplicitVisualAssistError,
+                _resolve_latest_visual_opportunity_plan,
+                _resolve_default_plugin_config,
+                run_explicit_visual_assist,
+            )
+            from .visual_generation_policy import load_candidate_generation_policy
+
+            if args.opportunity is not None and args.config is not None and args.plan_digest is not None:
+                # Low-level: all internal params provided explicitly
+                opportunity = json.loads(args.opportunity.read_text(encoding="utf-8"))
+                plugin_config = json.loads(args.config.read_text(encoding="utf-8"))
+                plan_digest = args.plan_digest
+            else:
+                # High-level: auto-resolve from standard project paths
+                vop_root = REPO_ROOT / ".artifacts" / "visual-opportunity"
+                plan, plan_digest = _resolve_latest_visual_opportunity_plan(vop_root)
+                opportunities = plan.get("opportunities", [])
+                if not opportunities:
+                    print("Visual Opportunity Plan 中没有 opportunity", file=sys.stderr)
+                    return 2
+                opportunity = opportunities[0]
+                plugin_config = _resolve_default_plugin_config(REPO_ROOT)
+
+            policy = load_candidate_generation_policy(args.policy)
+            args.output.mkdir(parents=True, exist_ok=True)
+            result = run_explicit_visual_assist(
+                opportunity=opportunity,
+                plugin_config=plugin_config,
+                alias=args.family,
+                production_profile=args.profile,
+                policy=policy,
+                job_root=args.output,
+                visual_opportunity_plan_digest=plan_digest,
+                task_id=args.task_id,
+            )
+            summary = result["summary"]
+            if summary["status"] == "READY":
+                lines = [
+                    f"视觉素材已生成：{args.family} → {result['plugin_id']}",
+                    f"可用候选数量：{len(summary['candidates'])}",
+                    f"状态：READY",
+                ]
+                for cand in summary["candidates"]:
+                    lines.append(f"  - candidate_id: {cand['candidate_id']}")
+                    if cand.get("media_locator"):
+                        lines.append(f"    media_locator: {cand['media_locator']}")
+                    if cand.get("media_uri"):
+                        lines.append(f"    media_uri: {cand['media_uri']}")
+                    if cand.get("media_sha256"):
+                        lines.append(f"    media_sha256: {cand['media_sha256']}")
+                print("\n".join(lines))
+            else:
+                print(
+                    f"视觉素材结果：{args.family} → {result['plugin_id']}\n"
+                    f"状态：{summary['status']}\n"
+                    f"原因：{summary['reason']}"
+                )
+            return 0
         if args.command == "validate":
             _load_report(args.input)
             print(f"报告校验通过：{args.input}")

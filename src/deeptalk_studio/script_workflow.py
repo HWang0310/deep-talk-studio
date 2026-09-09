@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Mapping, Optional
 
-from .models import ResearchReport, ScriptDraft
+from .models import ContentThesisCard, ResearchReport, ScriptDraft
 from .providers.base import ScriptProvider
 from .schema import SCRIPT_DRAFT_CONTENT_JSON_SCHEMA, SCRIPT_REVIEW_CONTENT_JSON_SCHEMA
 from .script_profile import load_script_profile
@@ -78,6 +78,7 @@ def prepare_codex_script(
     target_duration_minutes: float = 12,
     created_at: str = "",
     script_id: str = "",
+    content_thesis_card: Optional[ContentThesisCard] = None,
 ) -> PreparedScriptResult:
     selected_profile = dict(profile or load_script_profile())
     timestamp = created_at or _iso(_default_clock())
@@ -89,6 +90,7 @@ def prepare_codex_script(
         script_id=script_id or _default_id_factory("SCR"),
         target_duration_minutes=target_duration_minutes,
         script_mode="codex_skill",
+        content_thesis_card=content_thesis_card,
     )
     return PreparedScriptResult(
         script=script,
@@ -140,11 +142,20 @@ def run_script_workflow(
     target_duration_minutes: float = 12,
     clock: Callable[[], datetime] = _default_clock,
     id_factory: Callable[[str], str] = _default_id_factory,
+    content_thesis_card: Optional[ContentThesisCard] = None,
 ) -> ScriptWorkflowResult:
     assert_report_ready_for_script(report)
     selected_profile = dict(profile or load_script_profile())
+    if selected_profile["profile_version"] == "1" and content_thesis_card is None:
+        raise ScriptValidationError("Script Agent V1 必须先通过 Content Thesis Human Review")
+    writer_input = report.to_dict()
+    if content_thesis_card is not None:
+        writer_input = {
+            "approved_research": report.to_dict(),
+            "approved_content_thesis_card": content_thesis_card.to_dict(),
+        }
     writer_result = provider.write_script(
-        report.to_dict(),
+        writer_input,
         selected_profile,
         target_duration_minutes,
         SCRIPT_DRAFT_CONTENT_JSON_SCHEMA,
@@ -158,11 +169,11 @@ def run_script_workflow(
         script_id=id_factory("SCR"),
         target_duration_minutes=target_duration_minutes,
         script_mode="openai_api",
+        content_thesis_card=content_thesis_card,
     )
     draft_paths = save_script(draft, report, selected_profile, output_root)
-    reviewer_result = provider.review_script(
-        report.to_dict(), draft.to_dict(), SCRIPT_REVIEW_CONTENT_JSON_SCHEMA
-    )
+    reviewer_input = writer_input
+    reviewer_result = provider.review_script(reviewer_input, draft.to_dict(), SCRIPT_REVIEW_CONTENT_JSON_SCHEMA)
     _require_no_search_provenance(reviewer_result, "Script Reviewer")
     review = prepare_script_review(
         reviewer_result.data,

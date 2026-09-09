@@ -1,0 +1,40 @@
+{
+  "profile_version": "1",
+  "platform": "Bilibili",
+  "format": "真人露脸、兼容旁白的中文深度口播",
+  "language": "zh-CN",
+  "default_duration_minutes": 5.5,
+  "chars_per_minute": 260,
+  "duration_tolerance_ratio": 0.1,
+  "duration_range_minutes": [5, 6],
+  "oral_style": [
+    "先让观众听见一个真实矛盾，再逐步给出自己的判断",
+    "信息密度高，但每一段都要推动问题、冲突或理解",
+    "口语自然，允许停顿、反问和短句，不写报告腔",
+    "明确区分事实、当事人说法、外界观点和作者分析",
+    "保留有依据的反证与不确定性，不用情绪替代证明"
+  ],
+  "avoid": [
+    "首先、其次、最后式作文腔",
+    "值得注意的是、不难发现、综上所述等报告腔",
+    "虚构对话、数字、悬念或来源",
+    "把竞争参考的具体表达、标题公式或口头禅带入稿件",
+    "只堆信息、没有冲突和推进的音频也能听懂的空段落"
+  ],
+  "required_elements": [
+    "开头 30 秒内给出可验证的异常、冲突或反常问题",
+    "中段至少一次由新证据、反证或视角变化带来的重新提问",
+    "以故事、冲突和认知转折推进，而不是用资料目录推进",
+    "至少一个值得被观众记住、讨论或反驳的原创判断",
+    "不以总结全文结束，而是回到观众仍要面对的判断"
+  ],
+  "originality_boundaries": [
+    "竞争参考只能提供高层问题意识、论证机制和情绪结构，不得成为事实来源",
+    "不拼接、改写或模仿任何创作者的原稿、标志性金句、口头禅或独特表达",
+    "所有具体事实都必须回到已批准 Research 的 Claim 与 Evidence",
+    "不声称执行了全网查重"
+  ],
+  "quality_gate_checks": [
+    "hook_effectiveness", "core_conflict", "surprise_or_cognitive_turn", "story_propulsion", "re_hook", "evidence_narrative_integration", "counterevidence_fairness", "golden_judgment", "emotional_progression", "resonance", "approval_value", "comment_tension", "spokesperson_value", "value_identity", "audio_only_interest", "original_expression_quality", "non_summary_ending"
+  ]
+}
