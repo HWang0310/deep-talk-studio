@@ -20,10 +20,14 @@ from pathlib import Path
 
 from deeptalk_studio.explicit_visual_assist import (
     ExplicitVisualAssistError,
+    _resolve_latest_visual_opportunity_plan,
+    _resolve_default_plugin_config,
     resolve_visual_family,
     run_explicit_visual_assist,
+    run_explicit_visual_assist_auto,
 )
 from deeptalk_studio.visual_generation_policy import load_candidate_generation_policy
+from deeptalk_studio.visual_opportunity_storage import save_visual_opportunity_plan
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -267,6 +271,47 @@ class ReadyAcceptedTests(unittest.TestCase):
         self.assertIn("plugin_id", candidate)
         self.assertEqual(candidate["plugin_id"], MG_ID)
 
+    def test_ready_accepted_candidate_includes_media_locator(self):
+        """Regression: READY + ACCEPTED candidate must include a usable media locator."""
+        config = _three_plugin_config(mg_scenario="suitable")
+        with tempfile.TemporaryDirectory() as root:
+            result = run_explicit_visual_assist(
+                opportunity=OPPORTUNITY,
+                plugin_config=config,
+                alias="mg",
+                production_profile="RICH",
+                policy=POLICY,
+                job_root=Path(root),
+                visual_opportunity_plan_digest=PLAN_DIGEST,
+                task_id="DT-V1-AUX-001",
+            )
+        self.assertEqual(result["summary"]["status"], "READY")
+        candidate = result["summary"]["candidates"][0]
+        self.assertIn("media_locator", candidate)
+        self.assertTrue(candidate["media_locator"].startswith("local-plugin-artifact://"))
+        self.assertIn("media_uri", candidate)
+        self.assertTrue(candidate["media_uri"].startswith("local-runner://"))
+
+    def test_ready_accepted_candidate_includes_media_sha256(self):
+        """Regression: READY + ACCEPTED candidate must include verified sha256."""
+        config = _three_plugin_config(mg_scenario="suitable")
+        with tempfile.TemporaryDirectory() as root:
+            result = run_explicit_visual_assist(
+                opportunity=OPPORTUNITY,
+                plugin_config=config,
+                alias="mg",
+                production_profile="RICH",
+                policy=POLICY,
+                job_root=Path(root),
+                visual_opportunity_plan_digest=PLAN_DIGEST,
+                task_id="DT-V1-AUX-001",
+            )
+        candidate = result["summary"]["candidates"][0]
+        self.assertIn("media_sha256", candidate)
+        self.assertEqual(len(candidate["media_sha256"]), 64)
+        self.assertIn("observed_sha256", candidate)
+        self.assertEqual(candidate["media_sha256"], candidate["observed_sha256"])
+
 
 # ---------------------------------------------------------------------------
 # 9. Disabled plugin -> clear failure
@@ -402,6 +447,200 @@ class InvalidPlanDigestTests(unittest.TestCase):
                     visual_opportunity_plan_digest="",
                     task_id="DT-V1-AUX-001",
                 )
+
+
+# ---------------------------------------------------------------------------
+# 14. Auto-resolution: resolve latest Visual Opportunity Plan from disk
+# ---------------------------------------------------------------------------
+class AutoResolutionPlanTests(unittest.TestCase):
+    def _make_valid_plan(self, opportunities: list[dict] | None = None) -> dict:
+        """Build a minimal valid visual-opportunity-plan/1 artifact."""
+        import hashlib
+        import json as _json
+        opps = opportunities or [OPPORTUNITY]
+        plan = {
+            "artifact_version": "visual-opportunity-plan/1",
+            "plan_id": "VOP-" + hashlib.sha256(b"test-plan").hexdigest()[:24],
+            "semantic_timeline_digest": "a" * 64,
+            "alignment_digest": "b" * 64,
+            "transcript_digest": "c" * 64,
+            "directives_digest": "d" * 64,
+            "reviewed_script_digest": "e" * 64,
+            "defaults_digest": "f" * 64,
+            "span_audit": [
+                {"span_id": "span-1", "status": "OPPORTUNITY_CREATED"},
+            ],
+            "opportunities": opps,
+        }
+        payload = dict(plan)
+        digest = hashlib.sha256(
+            _json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        plan["plan_digest"] = digest
+        return plan
+
+    def test_resolve_latest_plan_finds_existing_plan(self):
+        plan = self._make_valid_plan()
+        with tempfile.TemporaryDirectory() as root:
+            save_visual_opportunity_plan(plan, Path(root))
+            loaded, digest = _resolve_latest_visual_opportunity_plan(Path(root))
+        self.assertEqual(loaded["plan_id"], plan["plan_id"])
+        self.assertEqual(digest, plan["plan_digest"])
+
+    def test_resolve_latest_plan_no_plans_fails_closed(self):
+        with tempfile.TemporaryDirectory() as root:
+            with self.assertRaises(ExplicitVisualAssistError) as ctx:
+                _resolve_latest_visual_opportunity_plan(Path(root))
+        self.assertIn("未找到", str(ctx.exception))
+
+    def test_resolve_latest_plan_picks_most_recent(self):
+        import time
+        import hashlib
+        import json as _json
+        plan_old = self._make_valid_plan()
+        time.sleep(0.05)
+        # Build a second plan with a different plan_id from scratch
+        plan_new = {
+            "artifact_version": "visual-opportunity-plan/1",
+            "plan_id": "VOP-" + hashlib.sha256(b"second-plan").hexdigest()[:24],
+            "semantic_timeline_digest": "a" * 64,
+            "alignment_digest": "b" * 64,
+            "transcript_digest": "c" * 64,
+            "directives_digest": "d" * 64,
+            "reviewed_script_digest": "e" * 64,
+            "defaults_digest": "f" * 64,
+            "span_audit": [
+                {"span_id": "span-1", "status": "OPPORTUNITY_CREATED"},
+            ],
+            "opportunities": [OPPORTUNITY],
+        }
+        payload = dict(plan_new)
+        plan_new["plan_digest"] = hashlib.sha256(
+            _json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
+        with tempfile.TemporaryDirectory() as root:
+            save_visual_opportunity_plan(plan_old, Path(root))
+            save_visual_opportunity_plan(plan_new, Path(root))
+            loaded, _ = _resolve_latest_visual_opportunity_plan(Path(root))
+        self.assertEqual(loaded["plan_id"], plan_new["plan_id"])
+
+    def test_resolve_default_plugin_config_missing_fails_closed(self):
+        with tempfile.TemporaryDirectory() as root:
+            with self.assertRaises(ExplicitVisualAssistError) as ctx:
+                _resolve_default_plugin_config(Path(root))
+        self.assertIn("不存在", str(ctx.exception))
+
+
+# ---------------------------------------------------------------------------
+# 15. Auto-resolution: run_explicit_visual_assist_auto end-to-end
+# ---------------------------------------------------------------------------
+class AutoResolutionIntegrationTests(unittest.TestCase):
+    def _make_valid_plan(self, opportunities: list[dict] | None = None) -> dict:
+        import hashlib
+        import json as _json
+        opps = opportunities or [OPPORTUNITY]
+        plan = {
+            "artifact_version": "visual-opportunity-plan/1",
+            "plan_id": "VOP-" + hashlib.sha256(b"test-auto-plan").hexdigest()[:24],
+            "semantic_timeline_digest": "a" * 64,
+            "alignment_digest": "b" * 64,
+            "transcript_digest": "c" * 64,
+            "directives_digest": "d" * 64,
+            "reviewed_script_digest": "e" * 64,
+            "defaults_digest": "f" * 64,
+            "span_audit": [
+                {"span_id": "span-1", "status": "OPPORTUNITY_CREATED"},
+            ],
+            "opportunities": opps,
+        }
+        payload = dict(plan)
+        digest = hashlib.sha256(
+            _json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        plan["plan_digest"] = digest
+        return plan
+
+    def _make_project_tree(self, tmpdir: str, config: dict, plan: dict) -> Path:
+        """Create a minimal project tree with config + VOP artifact."""
+        root = Path(tmpdir)
+        # Plugin config
+        config_dir = root / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "visual-asset-plugins.local.json").write_text(
+            json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        # Policy
+        policy_src = ROOT / "config" / "candidate-generation-profile.json"
+        (config_dir / "candidate-generation-profile.json").write_text(
+            policy_src.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        # VOP artifact
+        vop_root = root / ".artifacts" / "visual-opportunity"
+        save_visual_opportunity_plan(plan, vop_root)
+        return root
+
+    def test_auto_resolution_runs_plugin_and_returns_media(self):
+        config = _three_plugin_config(mg_scenario="suitable")
+        plan = self._make_valid_plan()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = self._make_project_tree(tmpdir, config, plan)
+            with tempfile.TemporaryDirectory() as job_root:
+                result = run_explicit_visual_assist_auto(
+                    "mg",
+                    project_root=project_root,
+                    job_root=Path(job_root),
+                )
+        self.assertEqual(result["summary"]["status"], "READY")
+        candidate = result["summary"]["candidates"][0]
+        self.assertIn("media_locator", candidate)
+        self.assertTrue(candidate["media_locator"].startswith("local-plugin-artifact://"))
+        self.assertIn("media_uri", candidate)
+
+    def test_auto_resolution_no_plan_fails_closed(self):
+        config = _three_plugin_config()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            config_dir = project_root / "config"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "visual-asset-plugins.local.json").write_text(
+                json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            (config_dir / "candidate-generation-profile.json").write_text(
+                (ROOT / "config" / "candidate-generation-profile.json").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            with tempfile.TemporaryDirectory() as job_root:
+                with self.assertRaises(ExplicitVisualAssistError) as ctx:
+                    run_explicit_visual_assist_auto(
+                        "mg",
+                        project_root=project_root,
+                        job_root=Path(job_root),
+                    )
+        # Directory doesn't exist → clear error about missing VOP
+        msg = str(ctx.exception)
+        self.assertTrue("不存在" in msg or "未找到" in msg, f"Expected error about missing plan, got: {msg}")
+
+    def test_auto_resolution_no_config_fails_closed(self):
+        plan = self._make_valid_plan()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            vop_root = project_root / ".artifacts" / "visual-opportunity"
+            save_visual_opportunity_plan(plan, vop_root)
+            # Don't create config/visual-asset-plugins.local.json
+            (project_root / "config").mkdir(parents=True, exist_ok=True)
+            (project_root / "config" / "candidate-generation-profile.json").write_text(
+                (ROOT / "config" / "candidate-generation-profile.json").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            with tempfile.TemporaryDirectory() as job_root:
+                with self.assertRaises(ExplicitVisualAssistError) as ctx:
+                    run_explicit_visual_assist_auto(
+                        "mg",
+                        project_root=project_root,
+                        job_root=Path(job_root),
+                    )
+        self.assertIn("不存在", str(ctx.exception))
 
 
 if __name__ == "__main__":

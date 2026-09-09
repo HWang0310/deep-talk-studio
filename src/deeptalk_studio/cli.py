@@ -260,11 +260,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("mg", "xiaohei", "handdrawn"),
         help="视觉素材类型：mg / xiaohei（小黑漫画）/ handdrawn（手绘动画）",
     )
-    visual_assist.add_argument("--opportunity", type=Path, required=True, help="Visual Opportunity JSON 文件路径")
-    visual_assist.add_argument("--config", type=Path, required=True, help="Visual Asset Plugin 配置 JSON 文件路径")
+    visual_assist.add_argument("--opportunity", type=Path, default=None, help="Visual Opportunity JSON 文件路径（省略则自动从最新 Visual Opportunity Plan 解析）")
+    visual_assist.add_argument("--config", type=Path, default=None, help="Visual Asset Plugin 配置 JSON 文件路径（省略则使用 config/visual-asset-plugins.local.json）")
     visual_assist.add_argument("--profile", choices=("LEAN", "STANDARD", "RICH"), default="RICH", help="候选生成策略（默认 RICH）")
     visual_assist.add_argument("--policy", type=Path, default=REPO_ROOT / "config" / "candidate-generation-profile.json")
-    visual_assist.add_argument("--plan-digest", required=True, help="Visual Opportunity Plan SHA-256 digest")
+    visual_assist.add_argument("--plan-digest", default=None, help="Visual Opportunity Plan SHA-256 digest（省略则自动解析）")
     visual_assist.add_argument("--output", type=Path, default=REPO_ROOT / "visual_assist_runs")
     visual_assist.add_argument("--task-id", default="DT-V1-AUX-001")
 
@@ -311,10 +311,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"新的粗剪已经生成：{result.preview_path}")
             return 0
         if args.command == "visual-assist":
-            from .explicit_visual_assist import ExplicitVisualAssistError, run_explicit_visual_assist
+            from .explicit_visual_assist import (
+                ExplicitVisualAssistError,
+                _resolve_latest_visual_opportunity_plan,
+                _resolve_default_plugin_config,
+                run_explicit_visual_assist,
+            )
             from .visual_generation_policy import load_candidate_generation_policy
-            opportunity = json.loads(args.opportunity.read_text(encoding="utf-8"))
-            plugin_config = json.loads(args.config.read_text(encoding="utf-8"))
+
+            if args.opportunity is not None and args.config is not None and args.plan_digest is not None:
+                # Low-level: all internal params provided explicitly
+                opportunity = json.loads(args.opportunity.read_text(encoding="utf-8"))
+                plugin_config = json.loads(args.config.read_text(encoding="utf-8"))
+                plan_digest = args.plan_digest
+            else:
+                # High-level: auto-resolve from standard project paths
+                vop_root = REPO_ROOT / ".artifacts" / "visual-opportunity"
+                plan, plan_digest = _resolve_latest_visual_opportunity_plan(vop_root)
+                opportunities = plan.get("opportunities", [])
+                if not opportunities:
+                    print("Visual Opportunity Plan 中没有 opportunity", file=sys.stderr)
+                    return 2
+                opportunity = opportunities[0]
+                plugin_config = _resolve_default_plugin_config(REPO_ROOT)
+
             policy = load_candidate_generation_policy(args.policy)
             args.output.mkdir(parents=True, exist_ok=True)
             result = run_explicit_visual_assist(
@@ -324,16 +344,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 production_profile=args.profile,
                 policy=policy,
                 job_root=args.output,
-                visual_opportunity_plan_digest=args.plan_digest,
+                visual_opportunity_plan_digest=plan_digest,
                 task_id=args.task_id,
             )
             summary = result["summary"]
             if summary["status"] == "READY":
-                print(
-                    f"视觉素材已生成：{args.family} → {result['plugin_id']}\n"
-                    f"可用候选数量：{len(summary['candidates'])}\n"
-                    f"状态：READY"
-                )
+                lines = [
+                    f"视觉素材已生成：{args.family} → {result['plugin_id']}",
+                    f"可用候选数量：{len(summary['candidates'])}",
+                    f"状态：READY",
+                ]
+                for cand in summary["candidates"]:
+                    lines.append(f"  - candidate_id: {cand['candidate_id']}")
+                    if cand.get("media_locator"):
+                        lines.append(f"    media_locator: {cand['media_locator']}")
+                    if cand.get("media_uri"):
+                        lines.append(f"    media_uri: {cand['media_uri']}")
+                    if cand.get("media_sha256"):
+                        lines.append(f"    media_sha256: {cand['media_sha256']}")
+                print("\n".join(lines))
             else:
                 print(
                     f"视觉素材结果：{args.family} → {result['plugin_id']}\n"
