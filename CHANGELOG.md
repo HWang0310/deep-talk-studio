@@ -11,7 +11,17 @@ AIGC:
 
 # Changelog
 
-## v1.0.0 release candidate — 2026-09-10 — DT-V1-RC-001 — PENDING NEXUS RELEASE APPROVAL
+## v1.0.0 — 2026-09-10 — DT-V1-REL-001 — FORMAL RELEASE
+
+> Published as tag `v1.0.0`; GitHub Release: <https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0>. The release candidate entry below records its preparation and remains historical.
+
+- **Integration:** `main` fast-forwarded from `65566f348e7f21f5fec32f5f23652973c5229211` to the Nexus-approved release candidate `c7ff6972d0813d8d3a332ad1de1d1a6b35939240` (PR #17, MERGED). No squash, no rebase, no force push; the reviewed lineage is preserved.
+- **Release-state reconciliation (docs-only):** `PROJECT_STATE.md`, `README.md`, `AGENTS.md`, `ROADMAP.md`, `PRD.md`, `docs/INDEX.md`, `docs/releases/v1.0.0.md`, this changelog, and `HANDOFF.md` updated from "RC pending / unreleased" to the formal `v1.0.0` release state. No runtime, product behavior, plugin pin, plugin runner/timeout, default-enabled setting, roster, or dependency change.
+- **Released product definition:** one main + four auxiliaries — writing / Reviewed Script; source-backed insert materials; explicit MG; explicit Illustrated Metaphor / 小黑漫画; explicit Hand-drawn Animation.
+- **Unchanged release invariants:** plugin pins MG `7ae59f1115da8a011113c81f31d320783b0ce8a4`, Illustrated Metaphor `48848affe018fc2cff8ee15bad7a09bb002776e4`, Hand-drawn `624526f4dce0ba9794c1a717fa397eb3c7a1baad`; committed plugin configuration remains disabled by default; creator authority and all fail-closed boundaries preserved.
+- **Verification carried forward:** Issue #15 five-capability smoke PASS, Issue #16 RC gate PASS, and the RC full Core regression (879 tests, six expected opt-in skips) remain valid because the only post-RC change is proven docs/release-state only.
+
+## v1.0.0 release candidate — 2026-09-10 — DT-V1-RC-001 — prepared, then approved and released
 
 - Prepared `v1.0.0` from remote `main` `65566f348e7f21f5fec32f5f23652973c5229211` by a normal merge of canonical development `788ed3806c145189a51427f71a65013c050c5f48` on `release/v1.0.0-rc`. The sole content conflict was `AGENTS.md`; it was resolved deliberately to preserve main's canonical Nexus / Atlas / Forge / Scribe / Orion roster and development's current operating rules.
 - Defines v1.0 as **one main + four auxiliaries**: researched/fact-checked/thesis-approved/reviewed writing; source-backed insert materials; explicit MG; explicit Illustrated Metaphor / 小黑漫画; and explicit Hand-drawn Animation.

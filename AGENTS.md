@@ -18,7 +18,7 @@
 
 ## Current Product Safety Context
 
-`v1.0.0` release candidate 已准备、仍为 Unreleased，等待 Nexus exact-SHA / PR Review；正式 Release 仍是 `v0.6.1`，不得据此自行 tag、发布或 merge PR。当前主路径是 Final Clean A-roll → ASR → Alignment → Semantic Timeline → V1 Visual Director → asset QA → Asset Pack + Edit Map → 用户手工 NLE → read-only Finished Cut Review。全片 Preview 只保留 compatibility/QA。绝不自动选择 take、删除/重录/拼接 A-roll、替用户选择最终素材、生成 NLE 工程、输出最终成片或发布。
+`v1.0.0` 已正式发布（tag `v1.0.0`，GitHub Release <https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0>）；当前 Latest Formal Release 是 `v1.0.0`，`v0.6.1` 为历史版本。发布后的 v1.0 产品定义为「一主四辅」：写稿 / Reviewed Script 为主，穿插素材、MG、小黑漫画 / Illustrated Metaphor、手绘动画为辅；不得自行移动 tag、改写历史或新增功能。当前主路径是 Final Clean A-roll → ASR → Alignment → Semantic Timeline → V1 Visual Director → asset QA → Asset Pack + Edit Map → 用户手工 NLE → read-only Finished Cut Review。全片 Preview 只保留 compatibility/QA。绝不自动选择 take、删除/重录/拼接 A-roll、替用户选择最终素材、生成 NLE 工程、输出最终成片或发布。
 
 Multi-Asset Studio 的 Visual Opportunity → non-exclusive Candidate Portfolio 方向已获得 Product Review 接受。Product Architecture V2 已 PASS / ACCEPTED。Phase A（Contract Compatibility Foundation）已 ACCEPTED / IMPLEMENTED_UNRELEASED，已集成 canonical `73f8b35b`；Phase B（WHERE / Visual Opportunity boundary formalization + hardening）已 PASS / ACCEPTED / IMPLEMENTED_UNRELEASED，已集成 `51e8706d`；Phase C（WHEN / Placement Planner）已 ACCEPTED / INTEGRATED / IMPLEMENTED_UNRELEASED，已集成 `9362d2a5`。Phase A–C 不得写成 production-enabled；Phase D/E/F 尚未开始，也不属于 v1.0 已实现能力，除非有新的明确授权不得实施。
 

@@ -36,7 +36,7 @@ Before acting, also inspect the current Git branch, HEAD, and working-tree statu
 | Accepted product requirements and hard boundaries | [PRD.md](../PRD.md) |
 | Released versus accepted, current, next, experimental, and deferred work | [ROADMAP.md](../ROADMAP.md) |
 | Current technical architecture and accepted target architecture | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Eventual `v1.0.0` GitHub Release body source | [v1.0.0 release notes](releases/v1.0.0.md) |
+| Current formal release `v1.0.0` notes and GitHub Release body source | [v1.0.0 release notes](releases/v1.0.0.md) |
 
 ## Current Contracts
 
@@ -76,7 +76,7 @@ These preserve decision context. Their status must be read through PROJECT_STATE
 
 - [HANDOFF.md](../HANDOFF.md) — chronological engineering and product handoff log; use for decision lineage, episode evidence, bug origin, and architecture evolution.
 - [CHANGELOG.md](../CHANGELOG.md) — formal release entries and chronological unreleased development history.
-- [Release notes](releases/) — released version records plus the prepared, unpublished [v1.0.0 release-note source](releases/v1.0.0.md).
+- [Release notes](releases/) — released version records; the current formal release is [v1.0.0](releases/v1.0.0.md) (<https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0>).
 - [RELEASE_POLICY.md](../RELEASE_POLICY.md) — rules for making a future formal release.
 
 ## Reconciliation Record

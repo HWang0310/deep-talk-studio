@@ -11,9 +11,9 @@ AIGC:
 
 # DeepTalk Studio
 
-**Latest Formal Release:** [`v0.6.1`](docs/releases/v0.6.1.md) (`8a0ac94`)
+**Latest Formal Release:** [`v1.0.0`](docs/releases/v1.0.0.md) — GitHub Release [v1.0.0](https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0)
 
-**Development:** **v1.0.0 release candidate prepared — pending Nexus exact-SHA / PR approval.** No `v1.0.0` tag or GitHub Release exists.
+**Development:** **`v1.0.0` is formally released.** Post-v1.0 Product Architecture V2 work (Phase D/E/F, MG Quality V2) remains unreleased and not started.
 
 **Canonical Current State:** [PROJECT_STATE.md](PROJECT_STATE.md)
 
@@ -77,7 +77,7 @@ The repository skills and contracts guide the necessary gates. Private research,
 
 ## Current Development State
 
-The accepted and implemented V1 path includes Content Thesis and Script V1, local `whisper.cpp` `large-v3` ASR, alignment, Semantic Timeline, V1 Visual Director, Asset Pack + Edit Map, Finished Cut Review, and explicit access to the three generated visual plugins. A `v1.0.0` release candidate has been prepared for Nexus review; no version later than v0.6.1 has been tagged or released.
+`v1.0.0` is the formal release: **one main + four auxiliaries** — writing / Reviewed Script (main), plus source-backed insert materials, explicit MG, explicit Illustrated Metaphor / 小黑漫画, and explicit Hand-drawn Animation. The released V1 path includes Content Thesis and Script V1, local `whisper.cpp` `large-v3` ASR, alignment, Semantic Timeline, V1 Visual Director, Asset Pack + Edit Map, Finished Cut Review, and explicit access to the three generated visual plugins.
 
 The accepted product direction is **Multi-Asset Studio**: `Semantic Timeline → Visual Opportunity → non-exclusive Candidate Portfolio → Candidate Asset Pack → Multi-option Edit Map → creator selection`. Its ecosystem is multi-repo and plugin-first: families evolve independently behind a stable Core boundary. Contract V1, Core Phases 0–4, and Phase 5 real three-plugin synthetic integration are all **ACCEPTED / IMPLEMENTED_UNRELEASED**. Phase 5 exact-pins MG, Illustrated Metaphor, and Hand-drawn runners. Production migration and production default have not started.
 

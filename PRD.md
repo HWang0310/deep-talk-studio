@@ -78,9 +78,9 @@ DeepTalk must not:
 
 A-roll is the creator's base layer. DeepTalk contributes optional material and placement guidance, not an autonomous edit.
 
-## Part C — v1.0.0 Release Candidate / Pending Approval
+## Part C — v1.0.0 Formal Release
 
-DeepTalk v1.0 is deliberately **one main + four auxiliaries**. The following are implemented in the release candidate, but are **not a formal release** until Nexus approves the exact SHA and the separate tag/Release gate is authorized:
+DeepTalk v1.0 is deliberately **one main + four auxiliaries**. The following shipped in the formal release `v1.0.0` (GitHub Release <https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0>):
 
 - **Main — writing:** Topic Discovery, Research, independent Fact Check, Content Thesis, human confirmation, reviewed script, and quality checks.
 - **Aux 1 — insert materials:** source-backed material preparation with provenance, rights, factual binding, capture, and QA.
@@ -90,7 +90,7 @@ DeepTalk v1.0 is deliberately **one main + four auxiliaries**. The following are
 - Final Clean A-roll gate, local `whisper.cpp` `large-v3` ASR, global monotonic alignment, and Semantic Timeline.
 - V1 Visual Director, material/asset QA, Asset Pack + Edit Map, and Finished Cut Review + Production Feedback.
 
-The three generated visual auxiliaries are invocation-scoped: the creator names one family and only that plugin runs. They do not provide automatic family selection, winner ranking, overlap resolution, NLE generation, final editing, or publishing. The latest formal release remains `v0.6.1`. “RC prepared” never means “released.”
+The three generated visual auxiliaries are invocation-scoped: the creator names one family and only that plugin runs. They do not provide automatic family selection, winner ranking, overlap resolution, NLE generation, final editing, or publishing. `v1.0.0` is the latest formal release; `v0.6.1` is a historical release. “Implemented” never means “beyond v1.0 scope”: the V2 multi-asset path remains unreleased and not production-enabled.
 
 ## Part D — Accepted Next and Experiments
 

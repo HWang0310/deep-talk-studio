@@ -15,6 +15,13 @@ AIGC:
 
 ## Released
 
+### v1.0.0 — Formal Release
+
+- Tagged `v1.0.0` on `main`; GitHub Release: <https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0>. Release candidate `c7ff6972d0813d8d3a332ad1de1d1a6b35939240` (PR #17) passed Nexus exact-SHA / PR review.
+- **One main + four auxiliaries:** writing / Reviewed Script; source-backed insert materials; explicit MG; explicit Illustrated Metaphor / 小黑漫画; explicit Hand-drawn Animation.
+- Accepted plugin pins unchanged and still disabled by default: MG `7ae59f1115da8a011113c81f31d320783b0ce8a4`, Illustrated Metaphor `48848affe018fc2cff8ee15bad7a09bb002776e4`, Hand-drawn `624526f4dce0ba9794c1a717fa397eb3c7a1baad`.
+- Creator authority and fail-closed source, rights, factual, timing, lineage, artifact, and QA boundaries are unchanged. No automatic family selection, winner ranking, overlap resolution, NLE generation, final editing, or publishing.
+
 ### v0.6.1 — Formal Release
 
 - Released at `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`.
@@ -23,13 +30,13 @@ AIGC:
 
 ## Accepted / Implemented / Unreleased
 
-### v1.0.0 Release Candidate — Pending Nexus Approval
+### v1.0.0 — Released Scope
 
 - **One main — writing:** Topic discovery, Research, independent Fact Check, Content Thesis, human confirmation, and reviewed-script quality gates.
 - **Four auxiliaries:** source-backed insert materials plus explicit MG, Illustrated Metaphor / 小黑漫画, and Hand-drawn Animation plugin invocation.
 - Final Clean A-roll, local `whisper.cpp` `large-v3` ASR, global monotonic alignment, Semantic Timeline, and timing safeguards.
 - V1 Visual Director, asset generation/QA, Asset Pack + Edit Map, manual creator NLE assembly, and read-only Finished Cut Review / Production Feedback.
-- The release candidate is prepared on `release/v1.0.0-rc` for exact-SHA / PR review. No `v1.0.0` tag, GitHub Release, package publication, production-default change, or PR merge is part of preparation.
+- These capabilities shipped in `v1.0.0`; this section now documents released scope rather than pending work. Remaining Product Architecture V2 work (Phase D generated-provider migration, Phase E REAL_MATERIAL migration, Phase F production adoption) has not started and is not part of v1.0.
 
 ## Current Validation
 

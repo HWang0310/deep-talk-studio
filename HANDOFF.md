@@ -13,6 +13,18 @@ AIGC:
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-09-10：DT-V1-REL-001 — v1.0.0 formal release
+
+> Time-ordered addendum. The RC preparation entry below is preserved as produced at its own time; this entry records the subsequent release execution. Canonical current truth remains [PROJECT_STATE.md](PROJECT_STATE.md).
+
+- **Executor routing:** Owner approved moving `DT-V1-REL-001` execution from Atlas to **Orion / WorkBuddy HY4** ([Issue #18 comment 5611823295](https://github.com/HWang0310/deep-talk-studio/issues/18#issuecomment-5611823295)). Task routing only — the canonical roster (Nexus / Atlas / Forge / Scribe / Orion) and final reviewer (Nexus) are unchanged.
+- **Preconditions re-verified:** `main` `65566f348e7f21f5fec32f5f23652973c5229211`; release PR #17 `release/v1.0.0-rc` @ `c7ff6972d0813d8d3a332ad1de1d1a6b35939240`, MERGEABLE/CLEAN; no pre-existing `v1.0.0` tag or GitHub Release; latest formal release `v0.6.1`; engineering-journal `4f4a2f8e75e6e92486af0ebc6d692951db4655bf`.
+- **Integration:** normal **fast-forward** of `main` to the approved RC SHA (`main` was the merge-base of the RC). No squash, no merge-commit manufacture, no rebase, no force push. PR #17 closed as MERGED with merge commit `c7ff697…`.
+- **Release-state commit:** docs-only reconciliation of PROJECT_STATE / README / AGENTS / ROADMAP / PRD / docs-INDEX / docs/releases/v1.0.0 / CHANGELOG / HANDOFF from "RC pending" to the formal `v1.0.0` state. No runtime, product behavior, plugin pin, runner/timeout, default-enabled, roster, or dependency change.
+- **Release identity:** tag `v1.0.0` created on the final verified `main` release SHA; GitHub Release `DeepTalk Studio v1.0.0` published (not draft, not prerelease) with `docs/releases/v1.0.0.md` as the body: <https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0>.
+- **Carry-forward rationale:** the only post-RC change is proven docs/release-state only, so Issue #15 five-capability smoke, Issue #16 RC gate, and the RC full Core regression (879 tests, six expected opt-in skips) are carried forward; targeted version, roster, plugin-pin/config, and source-of-truth checks were re-run on the exact tagged SHA.
+- **Not claimed:** no self-acceptance. Final remote verification is performed by Nexus.
+
 ## 2026-09-10：DT-V1-RC-001 — v1.0.0 release candidate preparation
 
 - **Branch lineage:** started from remote `main` `65566f348e7f21f5fec32f5f23652973c5229211`, then normally merged canonical development `788ed3806c145189a51427f71a65013c050c5f48` on `release/v1.0.0-rc`. Merge commit: `de5e59ff83678ee9fd2cb3b1a040fc5bab0719c2`.
