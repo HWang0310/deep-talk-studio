@@ -36,6 +36,7 @@ Before acting, also inspect the current Git branch, HEAD, and working-tree statu
 | Accepted product requirements and hard boundaries | [PRD.md](../PRD.md) |
 | Released versus accepted, current, next, experimental, and deferred work | [ROADMAP.md](../ROADMAP.md) |
 | Current technical architecture and accepted target architecture | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| Eventual `v1.0.0` GitHub Release body source | [v1.0.0 release notes](releases/v1.0.0.md) |
 
 ## Current Contracts
 
@@ -64,7 +65,7 @@ Do not add private episode materials, finished videos, raw research, or credenti
 
 ## Research, Proposals, and Implementation Plans
 
-- [Product Architecture V2 — Design & Migration](plans/2026-09-07-product-architecture-v2.md) — **OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW.** Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred). Specific architecture design awaiting Nexus PASS. No runtime, schema, or code changes.
+- [Product Architecture V2 — Design & Migration](plans/2026-09-07-product-architecture-v2.md) — **PASS / ACCEPTED.** Phase A compatibility foundations, Phase B WHERE boundary, and Phase C WHEN Placement Planner are accepted and integrated. Phase D/E/F orchestration migration, REAL_MATERIAL migration, and production adoption have not started.
 - [Product research and proposals](plans/)
 - [Implementation plans](superpowers/plans/)
 - [Historical design specs](superpowers/specs/)
@@ -75,7 +76,7 @@ These preserve decision context. Their status must be read through PROJECT_STATE
 
 - [HANDOFF.md](../HANDOFF.md) — chronological engineering and product handoff log; use for decision lineage, episode evidence, bug origin, and architecture evolution.
 - [CHANGELOG.md](../CHANGELOG.md) — formal release entries and chronological unreleased development history.
-- [Release notes](releases/) — released version records.
+- [Release notes](releases/) — released version records plus the prepared, unpublished [v1.0.0 release-note source](releases/v1.0.0.md).
 - [RELEASE_POLICY.md](../RELEASE_POLICY.md) — rules for making a future formal release.
 
 ## Reconciliation Record

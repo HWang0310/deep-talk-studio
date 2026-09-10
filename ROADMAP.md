@@ -23,13 +23,13 @@ AIGC:
 
 ## Accepted / Implemented / Unreleased
 
-### V1.0 Candidate
+### v1.0.0 Release Candidate — Pending Nexus Approval
 
-- Topic discovery, Research, independent Fact Check, and approval lineage.
-- Content Director + Script Agent V1, including Content Thesis, human confirmation, and reviewed-script quality gates.
+- **One main — writing:** Topic discovery, Research, independent Fact Check, Content Thesis, human confirmation, and reviewed-script quality gates.
+- **Four auxiliaries:** source-backed insert materials plus explicit MG, Illustrated Metaphor / 小黑漫画, and Hand-drawn Animation plugin invocation.
 - Final Clean A-roll, local `whisper.cpp` `large-v3` ASR, global monotonic alignment, Semantic Timeline, and timing safeguards.
 - V1 Visual Director, asset generation/QA, Asset Pack + Edit Map, manual creator NLE assembly, and read-only Finished Cut Review / Production Feedback.
-- No later tag or GitHub Release exists: this remains **V1.0 Candidate — Unreleased**.
+- The release candidate is prepared on `release/v1.0.0-rc` for exact-SHA / PR review. No `v1.0.0` tag, GitHub Release, package publication, production-default change, or PR merge is part of preparation.
 
 ## Current Validation
 
@@ -76,9 +76,9 @@ Semantic Timeline → Visual Opportunity → Candidate Portfolio
 - Approved next; not implemented.
 - Improve visual quality and art direction before increasing MG output volume.
 
-## Product Architecture V2 — Owner-Approved Direction, Design Awaiting Nexus Review
+## Product Architecture V2 — PASS / ACCEPTED; Phase A–C Integrated
 
-The Owner-approved [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md) is **OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW**. The Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred). The specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased plan) has not yet received Nexus PASS. No runtime, schema, or code implementation has started. It does not change the status of any implemented work above.
+The [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md) is **PASS / ACCEPTED**. Phase A compatibility foundations, Phase B Visual Opportunity Detection (WHERE), and Phase C Placement Planner (WHEN) are accepted, integrated, and unreleased. They do not replace the v1.0 explicit single-plugin path or change production defaults.
 
 Key V2 directions:
 
@@ -89,12 +89,12 @@ Key V2 directions:
 - **Contract migration**: `suggested_placement` identified as WHAT/WHEN coupling. Future contract version separates `intrinsic_placement_hint` from Placement Planner. Legacy artifacts remain immutable.
 - **HOW deferred**: Presentation style (PIP, split, zoom, overlay, transition) is not in V2 Phase 1.
 
-Implementation is phased (Phase A–F) with compatibility-first, no big-bang rewrite, and each phase independently reversible. See the [design document](docs/plans/2026-09-07-product-architecture-v2.md) §6 for the phased plan.
+Implementation is phased (Phase A–F) with compatibility-first, no big-bang rewrite, and each phase independently reversible. Phase D generated-provider orchestration migration, Phase E REAL_MATERIAL migration, and Phase F production adoption have not started and are not v1.0 capabilities. See the [design document](docs/plans/2026-09-07-product-architecture-v2.md) §6 for the phased plan.
 
 ## Experimental / Under Product Validation
 
-- **Hand-drawn Animation V1:** approved experiment, not a renderer.
-- **Xiaohei:** third-party prototype/experimental reference; no claim of DeepTalk IP and no long-term identity commitment.
+- **Hand-drawn Animation quality:** the explicit v1.0 plugin path is accepted; broader style/quality evolution remains product validation.
+- **Illustrated Metaphor / 小黑漫画 quality:** the explicit v1.0 plugin path is accepted; preserve licence/attribution and do not claim third-party character IP.
 - **Candidate density:** soft LEAN/STANDARD/RICH profiles; current creator prefers RICH, but no fixed counts or hard schema rules.
 - **Original DeepTalk character / visual identity:** undecided.
 

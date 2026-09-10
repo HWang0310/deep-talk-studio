@@ -14,7 +14,7 @@ AIGC:
 > **Task ID:** DT-ARCH-V2-001
 > **Branch:** `agent/product-architecture-v2`
 > **Base SHA:** `db172cecc60ca6b0c276ec42010b113a767bc7b3` (Phase 5 accepted)
-> **Status:** OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW — Owner has approved the product direction; specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased plan) has not yet received Nexus PASS. No runtime, schema, or code implementation.
+> **Current status:** PASS / ACCEPTED. Phase A, Phase B, and Phase C were subsequently accepted and integrated; Phase D, Phase E, and Phase F have not started. This document's original planning-scope statements below remain historical records of DT-ARCH-V2-001 and do not describe later implementation status.
 > **Date:** 2026-09-07 (`Asia/Shanghai`)
 
 ---

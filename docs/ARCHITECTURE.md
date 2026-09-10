@@ -95,8 +95,8 @@ Final Clean A-roll → ASR → Alignment → Semantic Timeline        │
                                  ↓                               │
                     non-exclusive Candidate Portfolio            │
        ┌───────────┬──────────────┬───────────────┬─────────────┘
-       MG       Illustrated / Character      Hand-drawn       REAL_MATERIAL
-                Metaphor (future family)      (experiment)    (evidence)
+       MG       Illustrated Metaphor          Hand-drawn       REAL_MATERIAL
+                (explicit v1 auxiliary)       (explicit v1)   (evidence)
        └──────────────── Candidate QA ───────────────────────────┐
                          ↓                                        │
       Candidate Asset Pack + multi-option Edit Map               │
@@ -115,14 +115,14 @@ Target requirements:
 - New V2 writer contracts must preserve V1 readers/adapters, V1 `KEEP_A_ROLL` lineage, old `edit-map/1`, old manifests, and Finished Cut Review history.
 - `REAL_MATERIAL` remains a distinct evidence/documentary family. Generated explanation families cannot displace factual/provenance requirements.
 - `suggested_review_order` may guide inspection but must never encode an automatic selected winner.
-- The evidence-derived [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture: two-stage `Suitability → Generation`, normal `ABSTAIN`, eligible `BORDERLINE`, role-based artifacts, independent plugin/contract versions, and opaque plugin metadata. Phase 0 implements strict Core validators and a sanitized fixture baseline only; it is not runtime implementation or production-schema adoption.
+- The evidence-derived [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) is **ACCEPTED_UNRELEASED** architecture: two-stage `Suitability → Generation`, normal `ABSTAIN`, eligible `BORDERLINE`, role-based artifacts, independent plugin/contract versions, and opaque plugin metadata. Accepted additive Core implementation extends through Phase 5; production-schema adoption remains disabled.
 - The [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Phase 4 adds the accepted Candidate Asset Pack + `candidate-edit-map/1` boundary at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Phase 5 invokes exact-pinned MG, Illustrated Metaphor, and Hand-drawn runners independently, canonicalizes non-semantic scheduling/config order, isolates failures, and emits deterministic synthetic Portfolio/Pack/map evidence. Phase 5 is **ACCEPTED / IMPLEMENTED_UNRELEASED** and pins Hand-drawn at `624526f4dce0ba9794c1a717fa397eb3c7a1baad`.
 
 No V2 production migration, production default, or `edit-map/2` exists. The implemented Candidate Asset Pack and `candidate-edit-map/1` paths remain additive, synthetic, creator-choice artifacts; they do not select a winner or alter a cut.
 
-## Product Architecture V2 — Owner-Approved Direction, Design Awaiting Nexus Review
+## Product Architecture V2 — PASS / ACCEPTED; Phase A–C Integrated
 
-The Owner-approved [Product Architecture V2](plans/2026-09-07-product-architecture-v2.md) is **OWNER_APPROVED_DIRECTION / AWAITING_NEXUS_ARCH_REVIEW**. The Owner has approved the product direction; the specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased plan) has not yet received Nexus PASS. No runtime, schema, or code implementation has started. This section records the target architecture direction; it does not replace or override the implemented V1 architecture above.
+The [Product Architecture V2](plans/2026-09-07-product-architecture-v2.md) is **PASS / ACCEPTED**. Phase A's compatibility representation/readers, Phase B's Visual Opportunity Detection boundary, and Phase C's independent Placement Planner are accepted, integrated, and unreleased. They remain additive and do not replace or override the implemented v1.0 path above.
 
 ### WHERE → WHAT → WHEN separation
 
@@ -178,24 +178,24 @@ Presentation style (PIP, split screen, zoom, crop, overlay, transition) is expli
 
 ### Phased implementation plan
 
-Implementation is phased (Phase A–F), compatibility-first, no big-bang rewrite, each phase independently reversible:
+Implementation is phased (Phase A–F), compatibility-first, no big-bang rewrite, each phase independently reversible. Phase A–C are implemented and accepted; Phase D–F have not started:
 
-- **Phase A**: Contracts, adapters, compatibility readers, tests.
-- **Phase B**: Visual Opportunity Detection (WHERE) extraction.
-- **Phase C**: Placement Planner (WHEN) boundary.
-- **Phase D**: Generated Asset Provider orchestration migration.
-- **Phase E**: REAL_MATERIAL plugin migration.
-- **Phase F**: Production adoption.
+- **Phase A — accepted / integrated:** Contracts, adapters, compatibility readers, tests.
+- **Phase B — accepted / integrated:** Visual Opportunity Detection (WHERE) extraction.
+- **Phase C — accepted / integrated:** Placement Planner (WHEN) boundary.
+- **Phase D — not started:** Generated Asset Provider orchestration migration.
+- **Phase E — not started:** REAL_MATERIAL plugin migration.
+- **Phase F — not started:** Production adoption.
 
 See the [design document](plans/2026-09-07-product-architecture-v2.md) §6 for full details.
 
-`Plan exists ≠ accepted; implemented ≠ released.`
+`Accepted ≠ production-enabled; implemented ≠ released.`
 
 ## Extension Rules
 
 - Add a versioned contract and explicit compatibility reader before changing a primary artifact meaning.
 - Preserve real A-roll timing, source/provenance binding, immutable history, and QA; no new visual family may bypass them.
-- Validate MG Quality V2 before increasing MG volume. Hand-drawn and Xiaohei-related work remain experiments. Xiaohei is not DeepTalk IP.
+- Validate MG Quality V2 before increasing MG volume. Hand-drawn and Illustrated Metaphor are explicit v1.0 plugin capabilities; future quality expansion remains product validation. DeepTalk does not claim third-party character IP.
 - Candidate density is a product-research variable, not a fixed schema quota.
 - A product or architecture change must update its canonical owner: [PROJECT_STATE.md](../PROJECT_STATE.md), [PRD.md](../PRD.md), [ROADMAP.md](../ROADMAP.md), and this document as applicable.
 

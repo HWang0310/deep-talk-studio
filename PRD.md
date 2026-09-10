@@ -78,16 +78,19 @@ DeepTalk must not:
 
 A-roll is the creator's base layer. DeepTalk contributes optional material and placement guidance, not an autonomous edit.
 
-## Part C — Current V1 Candidate / Accepted Unreleased
+## Part C — v1.0.0 Release Candidate / Pending Approval
 
-The following are implemented in the repository and accepted on the V1 Candidate path, but are **not a formal release**:
+DeepTalk v1.0 is deliberately **one main + four auxiliaries**. The following are implemented in the release candidate, but are **not a formal release** until Nexus approves the exact SHA and the separate tag/Release gate is authorized:
 
-- Topic Discovery, Research, independent Fact Check, and approval gates.
-- Content Director + Script Agent V1, including Content Thesis, human confirmation, reviewed script, and quality checks.
+- **Main — writing:** Topic Discovery, Research, independent Fact Check, Content Thesis, human confirmation, reviewed script, and quality checks.
+- **Aux 1 — insert materials:** source-backed material preparation with provenance, rights, factual binding, capture, and QA.
+- **Aux 2 — MG:** explicit invocation of the exact-pinned MG plugin.
+- **Aux 3 — Illustrated Metaphor / 小黑漫画:** explicit invocation of the exact-pinned Illustrated plugin.
+- **Aux 4 — Hand-drawn Animation:** explicit invocation of the exact-pinned Hand-drawn plugin.
 - Final Clean A-roll gate, local `whisper.cpp` `large-v3` ASR, global monotonic alignment, and Semantic Timeline.
 - V1 Visual Director, material/asset QA, Asset Pack + Edit Map, and Finished Cut Review + Production Feedback.
 
-The latest formal release remains `v0.6.1`. “Implemented” never means “released.”
+The three generated visual auxiliaries are invocation-scoped: the creator names one family and only that plugin runs. They do not provide automatic family selection, winner ranking, overlap resolution, NLE generation, final editing, or publishing. The latest formal release remains `v0.6.1`. “RC prepared” never means “released.”
 
 ## Part D — Accepted Next and Experiments
 
@@ -124,20 +127,20 @@ Implementation status on the accepted path:
 - Core Phase 5 — real three-plugin synthetic integration — is **ACCEPTED / IMPLEMENTED_UNRELEASED** at `db172cecc60ca6b0c276ec42010b113a767bc7b3`. Multi-plugin integration has therefore begun and is implemented.
 - V2 production migration and production adoption have **not** begun: no production schema adoption, no production default, no production Episode, no release, and static plugin config remains disabled.
 - Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** — the demo is complete but held; it is not PASS, ACCEPTED, MERGED, PRODUCTION, or RELEASED.
-- Product Architecture V2 is **Owner-approved product direction**; its specific architecture design is **AWAITING_NEXUS_ARCH_REVIEW** and has no runtime implementation. See Part E.
+- Product Architecture V2 is **PASS / ACCEPTED**. Phase A, Phase B, and Phase C are accepted and integrated; Phase D, Phase E, and Phase F have not started. See Part E.
 
 ### Approved next / experimental work
 
 | Direction | Status | Requirement boundary |
 |---|---|---|
 | MG Quality V2 | Approved next; not implemented | Improve art direction, composition, typography, hierarchy, motion grammar, easing, transitions, primitives, and density before increasing volume. |
-| Hand-drawn Animation | Approved V1 experiment | Not an implemented production renderer. |
-| Xiaohei | Prototype / experimental | Upstream is static illustration/shot-list oriented, not a ready video system; preserve licence/attribution and do not claim IP ownership. |
+| Hand-drawn Animation | v1.0 explicit auxiliary; accepted plugin integration | Disabled by default; invoked only by explicit creator request. |
+| Illustrated Metaphor / 小黑漫画 | v1.0 explicit auxiliary; accepted plugin integration | Disabled by default; preserve licence/attribution and do not claim third-party character IP ownership. |
 | Original DeepTalk visual identity | Undecided | Do not assume an original character exists. |
 
-## Part E — Product Architecture V2 — Owner-Approved Direction, Design Awaiting Nexus Review
+## Part E — Product Architecture V2 — PASS / ACCEPTED; Phase A–C Integrated
 
-DeepTalk's Owner-approved product architecture direction is documented in [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md). The Owner has approved the product direction (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred, creator authority). The specific architecture design (migration matrix, adapter strategy, Contract V2 proposal, Placement Planner details, phased implementation plan) is **AWAITING_NEXUS_ARCH_REVIEW** — it has not yet received Nexus PASS. No runtime, schema, or code implementation has started. This section records the product direction; it does not change Parts A–D or override the implemented V1 workflow.
+DeepTalk's Product Architecture V2 is documented in [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md) and is **PASS / ACCEPTED**. Phase A's compatibility foundation, Phase B's WHERE boundary, and Phase C's WHEN Placement Planner are accepted, integrated, and unreleased. They preserve the current V1 workflow and are not v1.0 release prerequisites. Phase D generated-provider orchestration migration, Phase E REAL_MATERIAL migration, and Phase F production adoption have not started.
 
 ### WHERE → WHAT → WHEN separation
 
@@ -171,7 +174,7 @@ Presentation style (PIP, split screen, zoom, crop, overlay, transition) is expli
 
 The creator retains final video decisions: none, one, or multiple candidates per opportunity. No automatic winner selection, overlap resolution, final material choice, A-roll modification, NLE generation, or publishing.
 
-This is a design document only. The Owner has approved the product direction; the specific design awaits Nexus architecture review. `Plan exists ≠ accepted; implemented ≠ released.`
+The design is accepted and Phase A–C are implemented, but Phase D–F remain deferred. `Accepted ≠ production-enabled; implemented ≠ released.`
 
 ## Part F — Historical Milestones
 

@@ -11,7 +11,7 @@ AIGC:
 
 # DeepTalk Studio — Canonical Project State
 
-> **Read this first for current truth.** This file is the concise, canonical state of the product as of 2026-09-09. Historical evidence remains in [HANDOFF.md](HANDOFF.md), release notes, plans, and specs; those sources do not override this file.
+> **Read this first for current truth.** This file is the concise, canonical state of the product as of 2026-09-10. Historical evidence remains in [HANDOFF.md](HANDOFF.md), release notes, plans, and specs; those sources do not override this file.
 
 ## Identity
 
@@ -19,8 +19,8 @@ AIGC:
 |---|---|
 | Product | A content and visual-asset system for creators making human-led, deep spoken videos. |
 | Latest Formal Release | [`v0.6.1`](docs/releases/v0.6.1.md), commit `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`. |
-| Current Development Status | **V1.0 Candidate — Unreleased.** No later tag or GitHub Release exists. |
-| Product Code Baseline | `agent/audio-alignment-edit-bridge` at accepted HEAD `4713505`. |
+| Current Development Status | **v1.0.0 release candidate prepared — pending Nexus exact-SHA / PR approval.** No `v1.0.0` tag or GitHub Release exists. |
+| Product Code Baseline | Canonical development `agent/multi-asset-studio` at `788ed3806c145189a51427f71a65013c050c5f48`, merged into the v1.0.0 RC. |
 | Canonical Development Branch | `agent/multi-asset-studio`. The temporary `docs/project-memory-consolidation` branch remains preserved for now. |
 | Current work | Visual Asset Plugin Contract V1 architecture and Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED. Core Phase 4 Candidate Asset Pack + Multi-option Edit Map is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`. Core Phase 5 real three-plugin synthetic integration is **ACCEPTED / IMPLEMENTED_UNRELEASED**. It exact-pins MG `7ae59f1115da8a011113c81f31d320783b0ce8a4`, Illustrated Metaphor `48848affe018fc2cff8ee15bad7a09bb002776e4`, and the corrected Hand-drawn runner `624526f4dce0ba9794c1a717fa397eb3c7a1baad`; production configuration remains disabled. Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`. No V2 production migration, production default, release, tag, or `main` change is included. |
 
@@ -89,6 +89,8 @@ The V2 WHERE→WHAT→WHEN separation is **retained as future enhancement** and 
 
 **Phase C (WHEN / Placement Planner)** is **ACCEPTED / INTEGRATED / IMPLEMENTED_UNRELEASED**, integrated into canonical branch `agent/multi-asset-studio` at `9362d2a59d4b33e1ac76edfba4e2c39364d3c3e3`. It adds the independent Studio/Core Placement Planner (`src/deeptalk_studio/placement_planner.py`) and immutable storage for the new Core artifact `candidate-placement-plan/1` (`src/deeptalk_studio/placement_storage.py`). It formally separates three kinds of time: `a_roll_window` (WHERE / Visual Opportunity semantic window), `intrinsic_placement_hint` (WHAT / plugin-owned timing hint, read-only V1 `suggested_placement` mapping), and `final_placement` (WHEN / Core Placement Planner recommendation for one concrete Candidate). `final_placement` is a machine-readable recommendation only — never the creator's final edit. The planner is deterministic (no LLM, no clock, no randomness): `placement_plan_id` is Studio/Core-created and derived from opportunity + candidate timing inputs; placements are emitted in canonical `candidate_id` order so list order never changes the plan. It never trims, retimes, stretches, ranks, resolves overlap, selects a winner, generates an NLE project, or auto-edits: a Candidate's `duration_ms` is always preserved exactly, a Candidate longer than the opportunity window is reported `UNPLACEABLE / CANDIDATE_LONGER_THAN_OPPORTUNITY` with no fabricated placement, and non-READY Candidates fail closed. Overlapping candidate recommendations remain allowed. Candidate Portfolio, Edit Map, plugin runners/pins, Contract V1 runtime, and production default are unchanged.
 
+**Phase D (generated-provider orchestration migration), Phase E (REAL_MATERIAL plugin migration), and Phase F (production adoption) have not started and are not v1.0 capabilities.**
+
 Key V2 directions:
 
 - **WHERE → WHAT → WHEN separation**: Visual Opportunity Detection (WHERE) is a Studio Host capability; Asset Plugins (WHAT) are non-exclusive; Placement Planner (WHEN) is a separate Studio Host capability, distinct from both opportunity windows and plugin candidates.
@@ -155,8 +157,8 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 ## Approved Next / Experimental
 
 - **MG Quality V2 — Approved Next, not implemented:** improve composition, typography, hierarchy, motion grammar, easing, transitions, primitive combinations, information density, template feeling, and art direction before increasing output volume.
-- **Hand-drawn Animation — Approved V1 experiment:** its Contract V1 runner is exact-pinned and ACCEPTED as a disabled readiness record, but it is not a released or production-enabled renderer.
-- **Xiaohei — Prototype / experimental only:** upstream is primarily a static 16:9 illustration / shot-list skill, not a ready video system. It is not DeepTalk IP. Long-term product vocabulary must remain independent, such as Illustrated Metaphor or Character Metaphor Motion.
+- **Hand-drawn Animation quality — ongoing validation:** its accepted Contract V1 runner is an explicit v1.0 auxiliary and remains disabled by default; broader style/quality expansion is not production enablement.
+- **Illustrated Metaphor / 小黑漫画 quality — ongoing validation:** its accepted Contract V1 runner is an explicit v1.0 auxiliary and remains disabled by default. DeepTalk does not claim third-party character IP; long-term product vocabulary remains Illustrated Metaphor / Character Metaphor Motion.
 - **Candidate density:** maximise useful choice density, not asset count. LEAN/STANDARD/RICH may remain soft creator profiles; `RICH` is a current creator preference, not a schema invariant or fixed quota.
 
 ## Known Limitations
@@ -174,7 +176,7 @@ Episode research, scripts, A-roll, assets, finished cuts, and private media stay
 
 ## Current Next Step
 
-The current next step is **v1.0 release closure**. The explicit visual assist entry point (`explicit_visual_assist.py` + CLI `visual-assist`) is implemented on branch `agent/v1-explicit-visual-assist` and awaiting Nexus review. It provides the creator-facing path for the three generated visual plugins (MG, Illustrated Metaphor, Hand-drawn Animation) without automatic orchestration.
+The current next step is **Nexus exact-SHA and PR review of `release/v1.0.0-rc`**. The explicit visual assist entry point (`explicit_visual_assist.py` + CLI `visual-assist`) is integrated into the release candidate and provides the creator-facing path for the three generated visual plugins (MG, Illustrated Metaphor, Hand-drawn Animation) without automatic orchestration. Release preparation does not authorize a tag, GitHub Release, package publication, or PR merge.
 
 The [Multi-Asset Implementation Plan](docs/plans/2026-08-28-multi-asset-implementation-plan.md) is accepted. Phase 2 is ACCEPTED / IMPLEMENTED_UNRELEASED canonical implementation: fake-only portfolio breadth, deterministic policy, Core QA, hardened immutable storage, and production directive authoring. Core relocation-safe artifact resolution is ACCEPTED / IMPLEMENTED_UNRELEASED: runtime resolution validates configured trusted historical roots, canonical artifact-relative identity, containment, symlink rejection, file existence, byte size, and SHA-256. Historical Production/Material/Capture manifests are not rewritten. Current Production may be explicitly selected by machine-local `current_production_id`; filesystem mtime is no longer semantic current-production truth. A formal immutable current-production index/pointer schema remains deferred. Machine-specific canonical repository root belongs to gitignored local config, not product invariants.
 

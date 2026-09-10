@@ -11,6 +11,18 @@ AIGC:
 
 # Changelog
 
+## v1.0.0 release candidate — 2026-09-10 — DT-V1-RC-001 — PENDING NEXUS RELEASE APPROVAL
+
+- Prepared `v1.0.0` from remote `main` `65566f348e7f21f5fec32f5f23652973c5229211` by a normal merge of canonical development `788ed3806c145189a51427f71a65013c050c5f48` on `release/v1.0.0-rc`. The sole content conflict was `AGENTS.md`; it was resolved deliberately to preserve main's canonical Nexus / Atlas / Forge / Scribe / Orion roster and development's current operating rules.
+- Defines v1.0 as **one main + four auxiliaries**: researched/fact-checked/thesis-approved/reviewed writing; source-backed insert materials; explicit MG; explicit Illustrated Metaphor / 小黑漫画; and explicit Hand-drawn Animation.
+- Keeps creator authority and all fail-closed source, rights, factual, timing, lineage, artifact, and QA boundaries. The three generated families remain invocation-scoped and disabled by default; there is no automatic family choice, winner ranking, overlap resolution, NLE generation, final editing, or publishing.
+- Preserves the accepted plugin pins without changing identity, version, runner, timeout, or default-enabled semantics: MG `7ae59f1115da8a011113c81f31d320783b0ce8a4`; Illustrated Metaphor `48848affe018fc2cff8ee15bad7a09bb002776e4`; Hand-drawn `624526f4dce0ba9794c1a717fa397eb3c7a1baad`.
+- Reconciles current documentation with accepted Product Architecture V2 Phase A/B/C integration while keeping Phase D generated-provider migration, Phase E REAL_MATERIAL migration, and Phase F production adoption outside v1.0 and not started.
+- Reuses Issue #15's Nexus-PASS five-capability smoke at development SHA `788ed3806c145189a51427f71a65013c050c5f48` only if final diff/tree proof confirms no capability runtime, Skill, or plugin configuration change beyond package version metadata and release/governance documentation.
+- Adds ordinary-user-facing [v1.0.0 release-note source](docs/releases/v1.0.0.md) and changes the existing Python distribution/public module and private renderer-template package metadata from `0.6.1` to `1.0.0`. This preparation creates no tag, GitHub Release, published package, production-default change, or merged PR.
+- Release-grade validation passed before commit: 879 Core tests with six expected opt-in skips, the complete audio-alignment repeat eval, CLI sample/validate/prepare-draft checks, six Skill validations, exact plugin config assertions, five-role roster verification, runtime/source tree proof for smoke reuse, and whitespace/secret/private-artifact/restricted-content gates.
+- Known limitations remain: no automatic selection/edit/publish path; MG Quality V2 remains future work; Phase 6 remains held for Owner review. Current locked local renderer toolchains report npm advisories (no critical findings); affected URL/config/archive/HEIF paths are outside the repository-controlled fixed-input v1.0 flow, HEIF is not an allowed material type, and no dependency drift is introduced in this release-preparation task. Nexus must independently review the final exact SHA and PR before any release action.
+
 ## Unreleased — 2026-09-07 — DT-ARCH-V2-001 state reconciliation & subsequent acceptance record (docs-only)
 
 > Time-ordered addendum. Records facts that became true **after** the 2026-09-02 entry below. That entry is not rewritten; historical status is preserved as produced at its own date. Canonical current truth remains `PROJECT_STATE.md`.

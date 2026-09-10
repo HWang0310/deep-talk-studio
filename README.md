@@ -13,7 +13,7 @@ AIGC:
 
 **Latest Formal Release:** [`v0.6.1`](docs/releases/v0.6.1.md) (`8a0ac94`)
 
-**Development:** **V1.0 Candidate — Unreleased**
+**Development:** **v1.0.0 release candidate prepared — pending Nexus exact-SHA / PR approval.** No `v1.0.0` tag or GitHub Release exists.
 
 **Canonical Current State:** [PROJECT_STATE.md](PROJECT_STATE.md)
 
@@ -42,6 +42,16 @@ Asset Pack plus a creator-facing Markdown Edit Map is the normal delivery. CSV s
 - runs asset QA, creates an Asset Pack, and tells the creator where material may fit;
 - optionally reviews a creator's finished cut read-only to compare plan and actual use.
 
+## v1.0 Product: One Main, Four Auxiliaries
+
+- **Main — writing:** researched, fact-checked, thesis-approved, independently reviewed scripts ready for a creator to record.
+- **Aux 1 — insert materials:** source-backed material preparation with provenance, rights, and factual binding.
+- **Aux 2 — MG:** explicit, user-requested motion-graphic generation.
+- **Aux 3 — Illustrated Metaphor / 小黑漫画:** explicit, user-requested illustrated explanation.
+- **Aux 4 — Hand-drawn Animation:** explicit, user-requested hand-drawn explanation.
+
+The generated visual auxiliaries run only when the creator explicitly names one family. DeepTalk does not automatically choose a family, rank a winner, resolve overlaps, edit an NLE project, or publish a finished video.
+
 ## What It Does Not Do
 
 - choose takes, delete pauses/re-records, alter A-roll, or synthesize a talking edit;
@@ -67,15 +77,15 @@ The repository skills and contracts guide the necessary gates. Private research,
 
 ## Current Development State
 
-The accepted and implemented V1 path includes Content Thesis and Script V1, local `whisper.cpp` `large-v3` ASR, alignment, Semantic Timeline, V1 Visual Director, Asset Pack + Edit Map, and Finished Cut Review. This work is unreleased; no version later than v0.6.1 has been tagged or released.
+The accepted and implemented V1 path includes Content Thesis and Script V1, local `whisper.cpp` `large-v3` ASR, alignment, Semantic Timeline, V1 Visual Director, Asset Pack + Edit Map, Finished Cut Review, and explicit access to the three generated visual plugins. A `v1.0.0` release candidate has been prepared for Nexus review; no version later than v0.6.1 has been tagged or released.
 
 The accepted product direction is **Multi-Asset Studio**: `Semantic Timeline → Visual Opportunity → non-exclusive Candidate Portfolio → Candidate Asset Pack → Multi-option Edit Map → creator selection`. Its ecosystem is multi-repo and plugin-first: families evolve independently behind a stable Core boundary. Contract V1, Core Phases 0–4, and Phase 5 real three-plugin synthetic integration are all **ACCEPTED / IMPLEMENTED_UNRELEASED**. Phase 5 exact-pins MG, Illustrated Metaphor, and Hand-drawn runners. Production migration and production default have not started.
 
 **Phase 6** (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`. It is not PASS, ACCEPTED, MERGED, PRODUCTION, or RELEASED.
 
-**Product Architecture V2** is an **Owner-approved direction** (WHERE→WHAT→WHEN, Visual Director decomposition, REAL_MATERIAL plugin migration, plugin unification, HOW deferred). The specific architecture design is **AWAITING_NEXUS_ARCH_REVIEW** — it has not yet received Nexus PASS. No runtime, schema, or code implementation has started. See [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md).
+**Product Architecture V2** is **PASS / ACCEPTED**. Compatibility foundations (Phase A), the WHERE boundary (Phase B), and the WHEN Placement Planner (Phase C) are accepted and integrated, but remain unreleased and are not v1.0 production prerequisites. Phase D/E/F orchestration migration, REAL_MATERIAL migration, and production adoption have not started. See [Product Architecture V2](docs/plans/2026-09-07-product-architecture-v2.md).
 
-MG Quality V2 is approved next but unimplemented. Hand-drawn Animation is an approved V1 experiment. Xiaohei is prototype/experimental only and is not DeepTalk-owned IP.
+MG Quality V2 is approved next but unimplemented. The v1.0 Hand-drawn and Illustrated Metaphor capabilities are explicit, disabled-by-default plugin paths; this does not claim ownership of third-party character IP.
 
 ## Documentation
 
