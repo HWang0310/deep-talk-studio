@@ -19,11 +19,12 @@ For a new Codex session:
 
 1. [AGENTS.md](../AGENTS.md) — repository operating rules and bootstrap protocol.
 2. [PROJECT_STATE.md](../PROJECT_STATE.md) — concise canonical current truth.
-3. This index — document ownership and task routing.
-4. [README.md](../README.md), [PRD.md](../PRD.md), and [ROADMAP.md](../ROADMAP.md) — product orientation and status.
-5. [ARCHITECTURE.md](ARCHITECTURE.md) — implemented and accepted-target architecture.
-6. Only the contracts relevant to the task.
-7. Only when history is needed: [HANDOFF.md](../HANDOFF.md), plans, specs, release notes, and old evaluations.
+3. [CURRENT_CONTROL_PLANE.md](../CURRENT_CONTROL_PLANE.md) — compact recovery index for the live project stage, active thread, unresolved items, and immediate next action; remote GitHub facts override it.
+4. This index — document ownership and task routing.
+5. [README.md](../README.md), [PRD.md](../PRD.md), and [ROADMAP.md](../ROADMAP.md) — product orientation and status.
+6. [ARCHITECTURE.md](ARCHITECTURE.md) — implemented and accepted-target architecture.
+7. Only the contracts relevant to the task.
+8. Only when history is needed: [HANDOFF.md](../HANDOFF.md), plans, specs, release notes, and old evaluations.
 
 Before acting, also inspect the current Git branch, HEAD, and working-tree status.
 
@@ -32,6 +33,7 @@ Before acting, also inspect the current Git branch, HEAD, and working-tree statu
 | Need | Canonical owner |
 |---|---|
 | Current truth, formal release, accepted/unreleased/experimental state | [PROJECT_STATE.md](../PROJECT_STATE.md) |
+| Compact current recovery / active control-plane state | [CURRENT_CONTROL_PLANE.md](../CURRENT_CONTROL_PLANE.md) |
 | Fast introduction for a new contributor or creator | [README.md](../README.md) |
 | Accepted product requirements and hard boundaries | [PRD.md](../PRD.md) |
 | Released versus accepted, current, next, experimental, and deferred work | [ROADMAP.md](../ROADMAP.md) |
@@ -74,7 +76,7 @@ These preserve decision context. Their status must be read through PROJECT_STATE
 
 ## Historical Engineering Log and Versions
 
-- [HANDOFF.md](../HANDOFF.md) — chronological engineering and product handoff log; use for decision lineage, episode evidence, bug origin, and architecture evolution.
+- [HANDOFF.md](../HANDOFF.md) — chronological engineering and product handoff log; use for decision lineage, episode evidence, bug origin, and architecture evolution. It is durable history, not the default current-state recovery surface.
 - [CHANGELOG.md](../CHANGELOG.md) — formal release entries and chronological unreleased development history.
 - [Release notes](releases/) — released version records; the current formal release is [v1.0.0](releases/v1.0.0.md) (<https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0>).
 - [RELEASE_POLICY.md](../RELEASE_POLICY.md) — rules for making a future formal release.
