@@ -51,7 +51,7 @@ Before acting, also inspect the current Git branch, HEAD, and working-tree statu
 - [Audio Alignment + Visual Edit Bridge Contract](EDIT_BRIDGE_CONTRACT.md)
 - [Asset Pack + Edit Map Contract (V1)](ASSET_PACK_EDIT_MAP_CONTRACT.md)
 - [Finished Cut Review + Production Feedback Contract (V1)](FINISHED_CUT_REVIEW_CONTRACT.md)
-- [Reference Discovery Contract（B 站参考视频发现）v1](REFERENCE_DISCOVERY_CONTRACT.md) — Creater Workbench Phase 1， IMPLEMENTED_UNRELEASED，待 Issue #24 Nexus 审核；非 v1.0.0 能力。
+- [Reference Discovery Contract（B 站参考视频发现）v1](REFERENCE_DISCOVERY_CONTRACT.md) — Creator Workbench Phase 1，**Nexus PASS / ACCEPTED / IMPLEMENTED_UNRELEASED**，已通过 PR #25 集成 `main`；非 v1.0.0 能力，尚无 Web UI。
 - [Remotion Adapter](REMOTION_ADAPTER.md) and [HyperFrames Adapter](HYPERFRAMES_ADAPTER.md)
 - [Visual Asset Plugin Contract V1 design](plans/2026-08-28-visual-asset-plugin-contract-v1.md) — ACCEPTED_UNRELEASED architecture; not an implemented runtime contract.
 - [Multi-Asset Implementation Plan](plans/2026-08-28-multi-asset-implementation-plan.md) — accepted implementation sequencing. Phases 0–3B are ACCEPTED / IMPLEMENTED_UNRELEASED; Phase 4 is ACCEPTED / IMPLEMENTED_UNRELEASED at `817ca8b424f18714e4280d3990c1bc4221ec8dbe`; Phase 5 real three-plugin synthetic integration is **ACCEPTED / IMPLEMENTED_UNRELEASED** and uses accepted Hand-drawn revision `624526f4dce0ba9794c1a717fa397eb3c7a1baad`. This is not a release, production default, or production enablement. Phase 6 (《牛来》 Owner-visible Micro Demo) is **TECHNICAL_DEMO_COMPLETED / HOLD_FOR_OWNER_REVIEW** on branch `agent/phase6-niulai-owner-demo` at `b72b7c2`.
