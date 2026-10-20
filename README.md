@@ -11,6 +11,8 @@ AIGC:
 
 # DeepTalk Studio
 
+> **刚回来，不知道怎么使用？先读 [《从这里开始：创作者使用 + PM 项目管理》](START_HERE.md)。** 先选择“我要创作视频”还是“我要管理项目”，无需重放旧对话。
+
 **Latest Formal Release:** [`v1.0.0`](docs/releases/v1.0.0.md) — GitHub Release [v1.0.0](https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0)
 
 **Development:** **`v1.0.0` is formally released.** Post-v1.0 Product Architecture V2 work (Phase D/E/F, MG Quality V2) remains unreleased and not started.
