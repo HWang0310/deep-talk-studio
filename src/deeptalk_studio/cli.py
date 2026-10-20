@@ -326,11 +326,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 json.dumps(artifact, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
+            # --print-json keeps stdout machine-parseable: the only thing on
+            # stdout is the JSON artifact; the human summary goes to stderr
+            # (or stdout when the flag is absent).
+            human_stream = sys.stderr if args.print_json else sys.stdout
             user_count = sum(1 for c in artifact["candidates"] if c["user_supplied"])
-            print(f"状态：{artifact['status']}")
+            print(f"状态：{artifact['status']}", file=human_stream)
             print(
                 f"候选 {len(artifact['candidates'])} 条"
-                f"（用户链接保留 {user_count} 条）"
+                f"（用户链接保留 {user_count} 条）",
+                file=human_stream,
             )
             for candidate in artifact["candidates"]:
                 views = (
@@ -342,12 +347,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 title = candidate["title"] or "（元数据不可用）"
                 print(
                     f"- [{mark}] {candidate['bvid']} | {title[:36]}"
-                    f" | 播放 {views}（{candidate['view_count_status']}）"
+                    f" | 播放 {views}（{candidate['view_count_status']}）",
+                    file=human_stream,
                 )
             for rejection in artifact["rejected_user_urls"]:
-                print(f"- 已拒绝：{rejection['input']}（{rejection['reason']}）")
-            print(f"说明：{artifact['action_note']}")
-            print(f"工件已写入：{artifact_path}")
+                print(
+                    f"- 已拒绝：{rejection['input']}（{rejection['reason']}）",
+                    file=human_stream,
+                )
+            print(f"说明：{artifact['action_note']}", file=human_stream)
+            print(f"工件已写入：{artifact_path}", file=human_stream)
             if args.print_json:
                 print(json.dumps(artifact, ensure_ascii=False, indent=2))
             return 0 if artifact["candidates"] else 2

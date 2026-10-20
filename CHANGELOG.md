@@ -11,6 +11,14 @@ AIGC:
 
 # Changelog
 
+## Unreleased — 2026-10-20 — Issue #24 — Nexus CHANGES_REQUIRED fixes (PR #25 round 2)
+
+- **Blocking A:** a user-supplied BVID rejected for invalid/unavailable/restricted metadata and re-appearing in search results no longer crashes with `StopIteration`; it is now deterministically excluded (`excluded_preview` reason `invalid/unavailable/restricted_video`) without a second metadata fetch or re-entering the auto path. Merge logic operates only on actually-retained user candidates.
+- **Blocking B:** with `--print-json`, stdout now contains exactly one machine-parseable JSON artifact; the human summary moved to stderr (stdout summary unchanged without the flag). CLI tests now `json.loads` the captured stdout.
+- **Blocking C:** the known Bilibili API-level risk-control code (`-412`, returned with HTTP 200) is classified as `blocked` (also for per-video metadata); unknown non-zero API codes stay `failed` — no guessed classification, no bypass.
+- **Contract/privacy:** candidate ceiling aligned to #24 (user 0–5, total ≤5; `--max-candidates>5` fails closed); artifact `user_supplied_urls` persists only parameter-free canonical URLs and `rejected_user_urls[].input` only sanitized echoes (URL → host+path, capped; truncation for free text) — tracking tokens (`spm_id_from`, `vd_source`, …) never persisted or echoed; validator rejects non-canonical stored URLs.
+- Offline suite grew to 56 tests (new: rejected-user-BVID-in-search regression ×2, API risk-code mapping ×3, `--print-json` purity ×2 + no-flag human-summary behavior, max-candidates cap at service+CLI, artifact privacy/no-tracking-token, sanitization rules, non-canonical URL validation). Visitor bootstrap default (anonymous, opt-out) confirmed by Nexus review.
+
 ## Unreleased — 2026-10-20 — Issue #24 — Bilibili reference discovery provider (Creater Workbench Phase 1)
 
 - Implemented the smallest UI-ready B站 reference-video discovery capability: topic + 0–5 user URLs → URL canonicalization/metadata validation (user references kept first, typed rejection reasons) → bounded anonymous multi-query search → deterministic anchor/trigram relevance filtering → BVID dedup → bounded per-video view-count verification → up to 5 machine-readable candidates in a fail-closed validated `reference-candidate-set/1` artifact written to gitignored `discoveries/`.

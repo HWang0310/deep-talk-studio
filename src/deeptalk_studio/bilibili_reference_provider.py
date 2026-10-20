@@ -42,6 +42,12 @@ VIDEO_REFERER = "https://www.bilibili.com/"
 
 BLOCKING_HTTP_STATUSES = frozenset({403, 412, 429})
 
+# Known Bilibili API-level risk-control codes (returned with HTTP 200) that
+# are treated as platform blocks, not transient failures. Deliberately
+# narrow: unknown non-zero codes stay ``failed`` and are never guessed into
+# ``blocked``. No bypass is attempted either way.
+API_RISK_CONTROL_CODES = frozenset({-412})
+
 _TAG_RE = re.compile(r"<[^>]+>")
 
 
@@ -183,11 +189,13 @@ class BilibiliReferenceProvider:
         payload = self._request_json(url, SEARCH_REFERER)
         if payload["status"] == "ok":
             body = payload["body"]
-            if body.get("code") != 0:
+            code = body.get("code")
+            if code != 0:
+                status = "blocked" if code in API_RISK_CONTROL_CODES else "failed"
                 return SearchOutcome(
-                    status="failed",
+                    status=status,
                     http_status=payload["http_status"],
-                    api_code=body.get("code"),
+                    api_code=code,
                     message=str(body.get("message", "接口返回异常")),
                 )
             items = self._parse_search_items(body)
@@ -250,6 +258,8 @@ class BilibiliReferenceProvider:
             return "unavailable", message
         if code == -403:
             return "restricted", message
+        if code in API_RISK_CONTROL_CODES:
+            return "blocked", message
         return "failed", message
 
     @staticmethod

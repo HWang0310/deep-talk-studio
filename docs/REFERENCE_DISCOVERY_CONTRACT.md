@@ -21,6 +21,8 @@ AIGC:
 
 不做的事：不下载视频/音频/字幕，不读取浏览器 Cookie 或登录凭据，不绕过平台风控，不把参考视频当作 Research 事实来源，不宣称站内整体排名。
 
+上限：用户最多 5 条、总候选最多 5 条（`max_candidates` 仅允许 1–5）。
+
 ## 调用方式
 
 ```bash
@@ -30,13 +32,13 @@ AIGC:
   --max-candidates 5 --output discoveries --print-json
 ```
 
-退出码：`0` = 已产出候选；`2` = 无候选或参数非法。
+退出码：`0` = 已产出候选；`2` = 无候选或参数非法。带 `--print-json` 时 **stdout 只输出唯一完整 JSON 工件**（人类摘要全部转到 stderr，可直接 `json.loads`），无参数时人类摘要在 stdout。
 
 Python 侧可注入 transport（离线确定性测试）与自定义 provider。
 
 ## 选择流水线（确定性）
 
-1. **用户链接优先**：URL → BVID 规范化；格式错误、重复、超过上限、视频无效/失效/受限均以类型化 reason 记录在 `rejected_user_urls`，绝不静默丢弃；元数据获取被平台阻断的用户链接保留为 `unverified`/`metadata_fetch_blocked` 候选。用户候选永远排在自动候选之前；同一 BVID 在搜索中再次出现会合并 query 溯源。
+1. **用户链接优先**：URL → BVID 规范化；格式错误、重复、超过上限（>5）、视频无效/失效/受限均以类型化 reason 记录在 `rejected_user_urls`，绝不静默丢弃；元数据获取被平台阻断的用户链接保留为 `unverified`/`metadata_fetch_blocked` 候选。用户候选永远排在自动候选之前；同一 BVID 在搜索中再次出现会合并 query 溯源；**已被元数据拒绝的用户 BVID 再次出现在搜索中时被确定性排除（不重新请求、不进入自动候选、不崩溃）**。隐私：工件 `user_supplied_urls` 只存无参数 canonical URL；`rejected_user_urls[].input` 只存脱敏摘录（URL 去参去尾斜杠截断，非 URL 截断），原始输入绝不回显。
 2. **有界搜索**：查询计划 = `[主题, 主题去通用后缀变体（事件/视频/完整版/最新…）, *aliases]`，去重后上限 4 条，每条仅第 1 页。
 3. **相关性判定（无发明语义）**：`excluded_terms`/`required_terms` 先行；命中主题锚点（去通用后缀的完整主题串）或 ≥2 个主题 3-gram 判为相关；判定、理由、命中词逐候选记录。变体措辞（如字面被平台改写）可通过 3-gram 命中保留；泛科普内容（仅命中单个词）被排除并写入 `excluded_preview`。
 4. **播放量核验（有界）**：相关自动候选按搜索片段播放量预排序后，最多核验 15 条 per-video 元数据；搜索片段数字永不作为已核验播放量呈现。`verified` 必须来自 per-video API；核验被阻断的候选标 `unverified` 且 `view_count` 为 null，排序置于已核验之后。
@@ -52,8 +54,8 @@ Python 侧可注入 transport（离线确定性测试）与自定义 provider。
 
 ## 访问方式与合规边界
 
-- 仅匿名访问浏览器首访即用的公开端点（搜索 + 单视频元数据）；可通过 B 站自身公开的访客初始化端点获得随机、与账号无关的访客标识（`--no-visitor-identity` 关闭）。标识仅存于内存，不写日志、不写工件。
-- HTTP 412/403/429、验证码、登录墙、反爬拦截一律标 `blocked`/`degraded` 并降级为用户提供链接的离线补齐；永不重试绕过、伪造签名或解验证码。瞬时故障（网络、5xx）最多重试 2 次并退避。
+- 仅匿名访问浏览器首访即用的公开端点（搜索 + 单视频元数据）；可通过 B 站自身公开的访客初始化端点获得随机、与账号无关的访客标识（`--no-visitor-identity` 关闭，Nexus 已确认此产品选择）。标识仅存于内存，不写日志、不写工件。
+- HTTP 412/403/429、拦截页、以及 API 层已知风控码（如 `code=-412`）一律标 `blocked`/`degraded` 并降级为用户提供链接的离线补齐；未知非零 API 码保持 `failed`，不猜测归类；永不重试绕过、伪造签名或解验证码。瞬时故障（网络、5xx）最多重试 2 次并退避。
 - 内建限速：请求间隔默认 1 秒、超时 15 秒、查询 ≤4 条 ×1 页、单视频核验 ≤15 次。
 
 ## 已知限制
@@ -64,5 +66,5 @@ Python 侧可注入 transport（离线确定性测试）与自定义 provider。
 
 ## 测试
 
-- 离线确定性单测：`tests/test_reference_discovery.py`（注入 fake transport/provider；覆盖 URL 规范化、去重、排序、缺失/冲突播放量、低相关排除、不足结果、412 降级、工件校验、CLI 装配）。
+- 离线确定性单测：`tests/test_reference_discovery.py`（注入 fake transport/provider；覆盖 URL 规范化、去重、排序、缺失/冲突播放量、低相关排除、不足结果、412/API-412 降级、元数据失效用户 BVID 与搜索重叠的确定性排除、候选上限 5、输入脱敏与工件隐私、`--print-json` 纯 JSON stdout、工件校验、CLI 装配）。
 - 真实网络冒烟：`tests/test_reference_discovery_live.py`，仅 `DEEPTALK_LIVE_BILI_SMOKE=1` 显式开启，一次运行、默认限速，CI 不依赖 B 站。

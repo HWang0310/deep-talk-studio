@@ -7,6 +7,8 @@ smoke test lives in tests/test_reference_discovery_live.py and never runs in CI.
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
 from unittest import mock
 
@@ -23,7 +25,9 @@ from deeptalk_studio.reference_discovery import (
     assess_relevance,
     build_query_plan,
     build_reference_candidate_set,
+    canonical_video_url,
     canonicalize_bilibili_reference,
+    sanitize_reference_echo,
     topic_anchor,
     validate_reference_candidate_set,
 )
@@ -288,10 +292,24 @@ class BilibiliProviderTests(unittest.TestCase):
         outcome = provider.search_videos("查询词")
         self.assertEqual(outcome.status, "blocked")
 
-    def test_api_error_code_is_failed(self):
+    def test_api_risk_control_code_is_blocked(self):
         provider = self._provider(lambda url: (200, json.dumps({"code": -412, "message": "请求被拦截"})))
         outcome = provider.search_videos("查询词")
+        self.assertEqual(outcome.status, "blocked")
+        self.assertEqual(outcome.api_code, -412)
+        # no retry is attempted on a risk-control block
+        self.assertEqual(len(self.transport_calls), 1)
+
+    def test_api_other_error_code_is_failed(self):
+        provider = self._provider(lambda url: (200, json.dumps({"code": -400, "message": "请求错误"})))
+        outcome = provider.search_videos("查询词")
         self.assertEqual(outcome.status, "failed")
+        self.assertEqual(outcome.api_code, -400)
+
+    def test_view_api_risk_control_code_is_blocked(self):
+        provider = self._provider(lambda url: (200, json.dumps({"code": -412, "message": "请求被拦截"})))
+        outcome = provider.fetch_video_metadata("BV1aaaaaaaaa")
+        self.assertEqual(outcome.status, "blocked")
         self.assertEqual(outcome.api_code, -412)
 
     def test_server_error_is_retried_with_backoff_then_recovers(self):
@@ -420,6 +438,11 @@ class ReferenceCandidateSetTests(unittest.TestCase):
         self.assertEqual(first["found_via_queries"][0], "user_supplied")
         autos = artifact["candidates"][1:]
         self.assertTrue(all(not c["user_supplied"] for c in autos))
+        # tracking parameters are stripped from the persisted form
+        self.assertEqual(
+            artifact["user_supplied_urls"],
+            [canonical_video_url("BV1SvJd6sEEZ")],
+        )
 
     def test_user_url_duplicated_in_search_is_merged(self):
         provider = FakeProvider(
@@ -456,8 +479,9 @@ class ReferenceCandidateSetTests(unittest.TestCase):
             provider=provider,
         )
         reasons = {r["input"]: r["reason"] for r in artifact["rejected_user_urls"]}
-        self.assertEqual(reasons["https://b23.tv/xyz"], "short_link_unsupported")
-        self.assertEqual(reasons["https://youtube.com/x"], "not_bilibili_url")
+        # rejected inputs are echoed sanitized (URL reduced to host+path)
+        self.assertEqual(reasons["b23.tv/xyz"], "short_link_unsupported")
+        self.assertEqual(reasons["youtube.com/x"], "not_bilibili_url")
         self.assertEqual(reasons["BV1aaaaaaaaa"], "video_unavailable")
         self.assertEqual(reasons["BV2aaaaaaaaa"], "video_invalid")
         self.assertEqual(reasons["BV3aaaaaaaaa"], "video_restricted")
@@ -465,6 +489,40 @@ class ReferenceCandidateSetTests(unittest.TestCase):
             [c["bvid"] for c in artifact["candidates"]],
             ["BV1xxxxxxxxx", "BV1SvJd6sEEZ"],
         )
+
+    def test_rejected_user_bv_returned_by_search_does_not_crash(self):
+        """Blocking-A regression: a user BV rejected for metadata reasons and
+        re-appearing in search results must be excluded deterministically,
+        never StopIteration-crash, re-fetch or re-enter the auto path."""
+        provider = FakeProvider(
+            default_search=ok_search(
+                search_item("BV1aaaaaaaaa", "莫斯科大学留学生旭日旗事件现场", views=999999),
+                search_item("BV1ok0000000", "莫斯科大学留学生旭日旗事件进展", views=10),
+            ),
+            metadata_by_bvid={"BV1aaaaaaaaa": metadata_outcome("unavailable")},
+        )
+        artifact = self._build(user_urls=["BV1aaaaaaaaa"], provider=provider)
+        bvids = [c["bvid"] for c in artifact["candidates"]]
+        self.assertNotIn("BV1aaaaaaaaa", bvids)
+        self.assertEqual(bvids, ["BV1ok0000000"])
+        excluded = {e["bvid"]: e["reason"] for e in artifact["search"]["excluded_preview"]}
+        self.assertEqual(excluded.get("BV1aaaaaaaaa"), "unavailable_video")
+        reasons = {r["input"]: r["reason"] for r in artifact["rejected_user_urls"]}
+        self.assertEqual(reasons["BV1aaaaaaaaa"], "video_unavailable")
+        # the rejected user BV must not be metadata-fetched a second time
+        self.assertEqual(provider.metadata_calls.count("BV1aaaaaaaaa"), 1)
+
+    def test_rejected_user_bv_invalid_returned_by_search_is_excluded(self):
+        provider = FakeProvider(
+            default_search=ok_search(
+                search_item("BV2aaaaaaaaa", "莫斯科大学留学生旭日旗事件现场")
+            ),
+            metadata_by_bvid={"BV2aaaaaaaaa": metadata_outcome("invalid", api_code=-400)},
+        )
+        artifact = self._build(user_urls=["BV2aaaaaaaaa"], provider=provider)
+        self.assertEqual(artifact["candidates"], [])
+        excluded = {e["bvid"]: e["reason"] for e in artifact["search"]["excluded_preview"]}
+        self.assertEqual(excluded.get("BV2aaaaaaaaa"), "invalid_video")
 
     def test_blocked_metadata_fetch_keeps_user_candidate_unverified(self):
         provider = FakeProvider(default_metadata=metadata_outcome("blocked", api_code=412))
@@ -668,39 +726,71 @@ class ReferenceCandidateSetTests(unittest.TestCase):
 
 
 class ReferenceCliTests(unittest.TestCase):
-    def _run_with_artifact(self, artifact, *extra):
-        with mock.patch(
-            "deeptalk_studio.bilibili_reference_provider.BilibiliReferenceProvider"
-        ), mock.patch(
-            "deeptalk_studio.reference_discovery.build_reference_candidate_set",
-            return_value=artifact,
-        ) as build:
+    def _run_cli(self, argv):
+        with redirect_stdout(StringIO()) as out, redirect_stderr(StringIO()) as err:
             from deeptalk_studio.cli import main
-            with tempfile.TemporaryDirectory() as tmp:
-                code = main([
-                    "discover-references", MOSCOW_TOPIC,
-                    "--url", "BV1SvJd6sEEZ",
-                    "--output", tmp,
-                    *extra,
-                ])
-                self.assertEqual(
-                    build.call_args.args, (MOSCOW_TOPIC, ["BV1SvJd6sEEZ"])
-                )
-                written = sorted(Path(tmp).glob("reference-candidate-set-*.json"))
-                self.assertEqual(len(written), 1)
-                payload = json.loads(written[0].read_text(encoding="utf-8"))
-                self.assertEqual(payload, artifact)
-                return code
+            code = main(argv)
+        return code, out.getvalue(), err.getvalue()
 
-    def test_cli_writes_artifact_and_prints_json(self):
+    def test_print_json_stdout_is_pure_json_with_summary_on_stderr(self):
         provider = FakeProvider(
-            default_search=ok_search(search_item("BV1hi000000A", "莫斯科大学留学生旭日旗事件进展")),
+            default_search=ok_search(
+                search_item("BV1hi000000A", "莫斯科大学留学生旭日旗事件进展")
+            ),
         )
         artifact = build_reference_candidate_set(
             MOSCOW_TOPIC, ("BV1SvJd6sEEZ",), provider=provider,
             now="2026-10-20T12:00:00+00:00",
         )
-        self.assertEqual(self._run_with_artifact(artifact, "--print-json"), 0)
+        with mock.patch(
+            "deeptalk_studio.bilibili_reference_provider.BilibiliReferenceProvider"
+        ), mock.patch(
+            "deeptalk_studio.reference_discovery.build_reference_candidate_set",
+            return_value=artifact,
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                code, out, err = self._run_cli([
+                    "discover-references", MOSCOW_TOPIC,
+                    "--url", "BV1SvJd6sEEZ",
+                    "--output", tmp,
+                    "--print-json",
+                ])
+        self.assertEqual(code, 0)
+        # stdout is exactly one machine-parseable JSON object
+        payload = json.loads(out)
+        self.assertEqual(payload, artifact)
+        # human summary is on stderr, not stdout (use markers unique to the
+        # human summary; the artifact text itself may contain other Chinese)
+        self.assertNotIn("状态：", out)
+        self.assertNotIn("工件已写入", out)
+        self.assertIn("状态：", err)
+        self.assertIn("工件已写入", err)
+
+    def test_no_print_json_keeps_human_summary_on_stdout(self):
+        provider = FakeProvider(
+            default_search=ok_search(
+                search_item("BV1hi000000A", "莫斯科大学留学生旭日旗事件进展")
+            ),
+        )
+        artifact = build_reference_candidate_set(
+            MOSCOW_TOPIC, (), provider=provider,
+            now="2026-10-20T12:00:00+00:00",
+        )
+        with mock.patch(
+            "deeptalk_studio.bilibili_reference_provider.BilibiliReferenceProvider"
+        ), mock.patch(
+            "deeptalk_studio.reference_discovery.build_reference_candidate_set",
+            return_value=artifact,
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                code, out, err = self._run_cli([
+                    "discover-references", MOSCOW_TOPIC, "--output", tmp,
+                ])
+        self.assertEqual(code, 0)
+        self.assertIn("状态：", out)
+        self.assertIn("工件已写入", out)
+        with self.assertRaises(json.JSONDecodeError):
+            json.loads(out)
 
     def test_cli_exit_code_two_when_no_candidates(self):
         provider = FakeProvider(
@@ -717,10 +807,94 @@ class ReferenceCliTests(unittest.TestCase):
             "deeptalk_studio.reference_discovery.build_reference_candidate_set",
             return_value=artifact,
         ):
-            from deeptalk_studio.cli import main
             with tempfile.TemporaryDirectory() as tmp:
-                code = main(["discover-references", "主题", "--output", tmp])
+                code, out, err = self._run_cli(["discover-references", "主题", "--output", tmp])
+                # no --print-json: human summary stays on stdout
+                self.assertIn("状态：blocked", out)
+                self.assertIn("工件已写入", out)
         self.assertEqual(code, 2)
+
+    def test_cli_rejects_max_candidates_above_five(self):
+        # no mock: the argument check must fail before any network access;
+        # constructing the provider itself does not touch the network
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self._run_cli([
+                "discover-references", "主题",
+                "--max-candidates", "6",
+                "--output", tmp,
+                "--print-json",
+            ])
+        self.assertEqual(code, 2)
+        self.assertIn("max_candidates", err)
+        self.assertEqual(out, "")
+
+
+class PrivacyAndLimitsTests(unittest.TestCase):
+    def test_max_candidates_is_capped_at_five(self):
+        with self.assertRaisesRegex(ReferenceDiscoveryError, "max_candidates"):
+            build_reference_candidate_set(
+                MOSCOW_TOPIC, (), provider=FakeProvider(), max_candidates=6
+            )
+
+    def test_artifact_never_persists_raw_url_parameters(self):
+        tracked = (
+            "https://www.bilibili.com/video/BV1SvJd6sEEZ/"
+            "?spm_id_from=333.788&vd_source=SECRET_TOKEN"
+        )
+        tracked_reject = (
+            "https://b23.tv/AbCdEf?bbid=ANOTHER_SECRET&dyn_id=xyz"
+        )
+        provider = FakeProvider()
+        artifact = build_reference_candidate_set(
+            MOSCOW_TOPIC, (tracked, tracked_reject), provider=provider,
+            now="2026-10-20T12:00:00+00:00",
+        )
+        self.assertEqual(
+            artifact["user_supplied_urls"],
+            ["https://www.bilibili.com/video/BV1SvJd6sEEZ"],
+        )
+        serialized = json.dumps(artifact, ensure_ascii=False)
+        self.assertNotIn("spm_id_from", serialized)
+        self.assertNotIn("vd_source", serialized)
+        self.assertNotIn("SECRET_TOKEN", serialized)
+        self.assertNotIn("bbid", serialized)
+        self.assertNotIn("ANOTHER_SECRET", serialized)
+        # the rejected short-link echo keeps host+path only
+        rejected = [r for r in artifact["rejected_user_urls"]
+                    if r["reason"] == "short_link_unsupported"]
+        self.assertEqual(rejected[0]["input"], "b23.tv/AbCdEf")
+
+    def test_validate_rejects_non_canonical_user_urls(self):
+        provider = FakeProvider(
+            default_search=ok_search(
+                search_item("BV1hi000000A", "莫斯科大学留学生旭日旗事件进展")
+            )
+        )
+        artifact = build_reference_candidate_set(
+            MOSCOW_TOPIC, ("BV1SvJd6sEEZ",), provider=provider,
+            now="2026-10-20T12:00:00+00:00",
+        )
+        bad = json.loads(json.dumps(artifact))
+        bad["user_supplied_urls"] = [
+            "https://www.bilibili.com/video/BV1SvJd6sEEZ/?spm_id_from=track"
+        ]
+        with self.assertRaisesRegex(ReferenceDiscoveryError, "规范"):
+            validate_reference_candidate_set(bad)
+
+    def test_sanitize_reference_echo_rules(self):
+        self.assertEqual(
+            sanitize_reference_echo(
+                "https://www.bilibili.com/video/BV1SvJd6sEEZ/?spm_id_from=x&b=1"
+            ),
+            "www.bilibili.com/video/BV1SvJd6sEEZ",
+        )
+        self.assertEqual(sanitize_reference_echo("BV1SvJd6sEEZ"), "BV1SvJd6sEEZ")
+        self.assertEqual(sanitize_reference_echo(""), "(empty)")
+        self.assertEqual(
+            sanitize_reference_echo("非常" * 30),
+            ("非常" * 20),
+        )
+        self.assertEqual(sanitize_reference_echo(None), "(empty)")
 
 
 if __name__ == "__main__":

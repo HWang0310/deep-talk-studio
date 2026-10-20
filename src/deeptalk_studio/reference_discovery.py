@@ -26,10 +26,12 @@ VIDEO_PATH_RE = re.compile(r"/video/(BV[0-9A-Za-z]{10})")
 
 REFERENCE_CANDIDATE_SET_VERSION = "1"
 DEFAULT_MAX_CANDIDATES = 5
-MAX_CANDIDATES_LIMIT = 20
+MAX_CANDIDATES_LIMIT = 5  # #24 contract: 0-5 user references, at most 5 total candidates
 MAX_QUERIES = 4
 VERIFICATION_BUDGET = 15
 EXCLUDED_PREVIEW_LIMIT = 8
+ECHO_TRUNCATION_URL = 80
+ECHO_TRUNCATION_TEXT = 40
 
 GENERIC_SUFFIXES = ("事件", "视频", "完整版", "最新", "怎么回事", "盘点", "回顾", "解读")
 
@@ -135,6 +137,32 @@ def canonicalize_bilibili_reference(raw: str) -> Tuple[Optional[str], Optional[s
 
 def canonical_video_url(bvid: str) -> str:
     return f"https://www.bilibili.com/video/{bvid}"
+
+
+def sanitize_reference_echo(raw: str) -> str:
+    """Privacy-safe echo of a user reference input.
+
+    URL-like inputs are reduced to ``host + path`` (query strings and
+    fragments, which often carry tracking tokens, are dropped) and capped;
+    free text is capped. The original raw string is never echoed back,
+    logged, or persisted.
+    """
+
+    text = (raw or "").strip()
+    if not text:
+        return "(empty)"
+    lowered = text.lower()
+    if lowered.startswith(("http://", "https://")) or "bilibili.com" in lowered \
+            or "b23.tv" in lowered:
+        candidate = text if "://" in text else f"https://{text}"
+        try:
+            parsed = urllib.parse.urlparse(candidate)
+            safe = f"{parsed.netloc}{parsed.path}".strip()
+        except ValueError:
+            safe = ""
+        if safe:
+            return safe[:ECHO_TRUNCATION_URL].rstrip("/")
+    return text[:ECHO_TRUNCATION_TEXT]
 
 
 # ---------------------------------------------------------------------------
@@ -271,18 +299,18 @@ def build_reference_candidate_set(
     for raw in user_urls:
         bvid, reason = canonicalize_bilibili_reference(raw)
         if bvid is None:
-            rejected.append({"input": raw, "reason": reason})
+            rejected.append({"input": sanitize_reference_echo(raw), "reason": reason})
             continue
         if bvid in user_bvids:
-            rejected.append({"input": raw, "reason": "duplicate_bvid"})
+            rejected.append({"input": sanitize_reference_echo(raw), "reason": "duplicate_bvid"})
             continue
         user_bvids.append(bvid)
     for bvid in user_bvids[max_candidates:]:
         rejected.append({"input": bvid, "reason": "exceeds_max_candidates"})
     user_bvids = user_bvids[:max_candidates]
-    user_bvid_set = set(user_bvids)
 
     user_candidates: List[Dict[str, object]] = []
+    rejected_meta_bvids: Dict[str, str] = {}
     metadata_non_ok = False
     verification_performed = 0
 
@@ -321,6 +349,11 @@ def build_reference_candidate_set(
             })
             user_candidates.append(candidate)
         elif outcome.status in ("invalid", "unavailable", "restricted"):
+            # Blocking-A guard: remember BVIDs the user supplied but whose
+            # metadata proved invalid/unavailable/restricted, so a later
+            # search hit on the same BVID is excluded deterministically
+            # instead of crashing or re-entering the auto path.
+            rejected_meta_bvids[bvid] = f"{outcome.status}_video"
             rejected.append({"input": bvid, "reason": f"video_{outcome.status}"})
         else:  # blocked | failed — keep the reference honestly unverified
             metadata_non_ok = True
@@ -330,6 +363,10 @@ def build_reference_candidate_set(
                 "retrieval_note": "metadata_fetch_blocked",
             })
             user_candidates.append(candidate)
+
+    # only user candidates that were actually retained participate in
+    # search-result merging (never rejected ones)
+    retained_user_bvids = {c["bvid"] for c in user_candidates}
 
     # ---- 2. bounded search ----
     queries = build_query_plan(topic_norm, aliases)
@@ -358,10 +395,19 @@ def build_reference_candidate_set(
     auto_relevant: List[Dict[str, object]] = []
     for bvid, entry in raw_items.items():
         item = entry["item"]
+        if bvid in rejected_meta_bvids:
+            # user-supplied BVID whose metadata already proved
+            # invalid/unavailable/restricted: never re-fetch or re-enter the
+            # auto path; record deterministic exclusion instead
+            excluded_preview.append({
+                "bvid": bvid, "title": (item.title or "")[:60],
+                "reason": rejected_meta_bvids[bvid], "matched_terms": [],
+            })
+            continue
         relevance = assess_relevance(
             item.title, item.description, topic_norm, required_terms, excluded_terms
         )
-        if bvid in user_bvid_set:
+        if bvid in retained_user_bvids:
             target = next(c for c in user_candidates if c["bvid"] == bvid)
             target["found_via_queries"].extend(entry["queries"])
             if relevance["decision"] != "relevant":
@@ -504,7 +550,10 @@ def build_reference_candidate_set(
             "timeout_seconds": getattr(provider, "timeout_seconds", None),
         },
         "query_plan": queries,
-        "user_supplied_urls": list(user_urls),
+        # privacy: only canonical, parameter-free URLs are persisted — raw
+        # inputs (with possible tracking tokens) are never echoed into the
+        # artifact
+        "user_supplied_urls": [canonical_video_url(b) for b in user_bvids],
         "candidates": selected,
         "rejected_user_urls": rejected,
         "search": {
@@ -564,6 +613,12 @@ def validate_reference_candidate_set(artifact: Dict[str, object]) -> None:
         _fail("query_plan 无效")
     if not isinstance(artifact["user_supplied_urls"], list):
         _fail("user_supplied_urls 无效")
+    for entry in artifact["user_supplied_urls"]:
+        if not isinstance(entry, str):
+            _fail("user_supplied_urls 项必须是字符串")
+        match = VIDEO_PATH_RE.search(entry)
+        if not match or entry != canonical_video_url(match.group(1)):
+            _fail("user_supplied_urls 只允许无参数的规范 B 站 URL")
 
     provider_block = artifact["provider"]
     _check_keys(provider_block, PROVIDER_BLOCK_KEYS, "provider")
@@ -574,7 +629,7 @@ def validate_reference_candidate_set(artifact: Dict[str, object]) -> None:
     if not isinstance(provider_block["endpoints"], dict):
         _fail("provider.endpoints 无效")
 
-    if not isinstance(artifact["candidates"], list) or len(artifact["candidates"]) > MAX_CANDIDATES_LIMIT * 4:
+    if not isinstance(artifact["candidates"], list) or len(artifact["candidates"]) > MAX_CANDIDATES_LIMIT:
         _fail("candidates 无效")
     seen_auto = False
     query_plan = list(artifact["query_plan"])
