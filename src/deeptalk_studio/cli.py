@@ -245,6 +245,26 @@ def build_parser() -> argparse.ArgumentParser:
 
     sample = subparsers.add_parser("sample", help="生成一份离线示例报告")
     sample.add_argument("--output", type=Path, default=DEFAULT_REPORTS)
+    discover_refs = subparsers.add_parser(
+        "discover-references",
+        help="按主题搜索 B 站高播放参考视频，用户链接优先，最多自动补齐到 5 条",
+    )
+    discover_refs.add_argument("topic", help="视频主题")
+    discover_refs.add_argument("--url", action="append", default=[],
+                               help="用户提供的 B 站链接或 BV 号，可多次传入")
+    discover_refs.add_argument("--alias", action="append", default=[],
+                               help="附加搜索查询词，可多次传入")
+    discover_refs.add_argument("--require-term", action="append", default=[],
+                               help="候选必须命中的词，可多次传入")
+    discover_refs.add_argument("--exclude-term", action="append", default=[],
+                               help="候选不得包含的词，可多次传入")
+    discover_refs.add_argument("--max-candidates", type=int, default=5,
+                               help="最大候选数量（默认 5）")
+    discover_refs.add_argument("--output", type=Path, default=REPO_ROOT / "discoveries")
+    discover_refs.add_argument("--no-visitor-identity", action="store_true",
+                               help="禁用匿名访客标识初始化（搜索可能被平台拦截）")
+    discover_refs.add_argument("--print-json", action="store_true",
+                               help="把完整 JSON 工件输出到 stdout")
     align_video = subparsers.add_parser("align-video", help="从剪好的真人口播生成可视粗剪")
     align_video.add_argument("--session", type=Path, required=True)
     revise_bridge = subparsers.add_parser("revise-edit-bridge", help="用自然语言调整粗剪画面")
@@ -275,6 +295,71 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "discover-references":
+            from .bilibili_reference_provider import BilibiliReferenceProvider
+            from .reference_discovery import (
+                ReferenceDiscoveryError,
+                build_reference_candidate_set,
+            )
+            provider = BilibiliReferenceProvider(
+                use_visitor_identity=not args.no_visitor_identity
+            )
+            try:
+                artifact = build_reference_candidate_set(
+                    args.topic,
+                    list(args.url),
+                    provider=provider,
+                    aliases=tuple(args.alias),
+                    required_terms=tuple(args.require_term),
+                    excluded_terms=tuple(args.exclude_term),
+                    max_candidates=args.max_candidates,
+                )
+            except ReferenceDiscoveryError as exc:
+                print(f"参考视频发现失败：{exc}", file=sys.stderr)
+                return 2
+            output_dir = args.output
+            output_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path = output_dir / (
+                f"reference-candidate-set-{artifact['candidate_set_id']}.json"
+            )
+            artifact_path.write_text(
+                json.dumps(artifact, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            # --print-json keeps stdout machine-parseable: the only thing on
+            # stdout is the JSON artifact; the human summary goes to stderr
+            # (or stdout when the flag is absent).
+            human_stream = sys.stderr if args.print_json else sys.stdout
+            user_count = sum(1 for c in artifact["candidates"] if c["user_supplied"])
+            print(f"状态：{artifact['status']}", file=human_stream)
+            print(
+                f"候选 {len(artifact['candidates'])} 条"
+                f"（用户链接保留 {user_count} 条）",
+                file=human_stream,
+            )
+            for candidate in artifact["candidates"]:
+                views = (
+                    f"{candidate['view_count']:,}"
+                    if isinstance(candidate["view_count"], int)
+                    else "未知"
+                )
+                mark = "用户" if candidate["user_supplied"] else "搜索"
+                title = candidate["title"] or "（元数据不可用）"
+                print(
+                    f"- [{mark}] {candidate['bvid']} | {title[:36]}"
+                    f" | 播放 {views}（{candidate['view_count_status']}）",
+                    file=human_stream,
+                )
+            for rejection in artifact["rejected_user_urls"]:
+                print(
+                    f"- 已拒绝：{rejection['input']}（{rejection['reason']}）",
+                    file=human_stream,
+                )
+            print(f"说明：{artifact['action_note']}", file=human_stream)
+            print(f"工件已写入：{artifact_path}", file=human_stream)
+            if args.print_json:
+                print(json.dumps(artifact, ensure_ascii=False, indent=2))
+            return 0 if artifact["candidates"] else 2
         if args.command == "align-video":
             session = Path(args.session)
             candidates = [] if not session.exists() else [
