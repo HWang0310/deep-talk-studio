@@ -11,6 +11,13 @@ AIGC:
 
 # Changelog
 
+## Unreleased — 2026-10-20 — Issue #26 — Nexus CHANGES_REQUIRED fixes for PR #27 (loopback HTTP hardening)
+
+- **Blocking 1 (CSRF / DNS-rebinding):** all requests now pass loopback boundary checks before any body read or discovery invocation — a narrow `Host` allowlist matching the actually listened port (`127.0.0.1:<port>` / `localhost:<port>`; anything else 403), same-origin `Origin` when present (cross-site and `null` origins 403), and JSON-only `Content-Type: application/json` for the API (415). `OPTIONS` is not implemented, so cross-origin browser JSON posts fail before delivery. Rejection errors never echo request headers or URLs. The existing same-origin frontend fetch keeps working (re-verified in a real browser).
+- **Blocking 2 (unbounded read via negative Content-Length):** framing headers are validated before reading — unsupported `Transfer-Encoding` → 411 + close, missing/duplicate/non-numeric `Content-Length` → 411 + close, negative → 400 + close, over-cap → 413 + close; the handler enforces a socket timeout, so no request can block a thread waiting for EOF. Raw-socket regressions cover each case with hard deadlines proving no hang.
+- **Blocking 3 (artifact overwrite):** artifacts are persisted with exclusive-create (`open('x'`) — a conflicting `candidate_set_id` raises `ArtifactWriteConflict`, the existing file is never overwritten, and the caller receives a safe 500 error. Deterministic regression forces the same id across two runs; helper-level test asserts a pre-existing file stays byte-identical.
+- Offline suite grew to 44 tests (18 new across `HttpBoundaryTests`, `ContentLengthHardeningTests`, `ArtifactExclusivityTests`, all on an ephemeral loopback server with injected FakeProvider and raw-socket helpers). Process-level verification on a live 8321 server: same-origin browser search OK (5 candidates, verified live views), `data:`-origin attack blocked with zero new artifacts, curl/json (no Origin) OK 200, `Origin: null` 403, evil Host 403, negative/missing/oversized Content-Length 400/411/413. Scope unchanged: no modifications to the accepted #24 discovery service, visitor/risk-control logic, downloads, or model settings.
+
 ## Unreleased — 2026-10-20 — Issue #26 — Mac-local Web UI for reference discovery (Creater Workbench Phase 1B)
 
 - Delivered the first working Mac-local Web UI: `./scripts/deeptalk ui` starts a dependency-free, loopback-only (127.0.0.1) server (`src/deeptalk_studio/webui.py`, Python stdlib `ThreadingHTTPServer`) serving the Chinese creator page (`webui_static/index.html`, native DOM via `textContent`, no `innerHTML`, no CDN/framework/build). Provider mode: anonymous visitor default with `--no-visitor-identity` opt-out.

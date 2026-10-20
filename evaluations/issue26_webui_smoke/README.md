@@ -20,6 +20,8 @@ AIGC:
 | `03-empty-topic-validation.png` | 空主题校验 | 类型化中文错误“请先输入视频主题。”，不发请求 |
 | `04-second-topic-with-rejection.png` | 换主题重跑 + b23.tv 短链 | 主题“俄罗斯乌克兰伊尔76运输机坠毁”发起新有界 run（20 条结果/12 次核验/新时间戳）；短链被拒并给出中文指引“暂不支持 b23.tv 短链，请粘贴完整链接”（脱敏 echo，无 token）；用户链接 BV1waJi6dEXe 仍置顶保留 |
 | `05-narrow-screen-390px.png` | 390px 窄屏 | 响应式布局正常（iPhone 宽度） |
+| `06-same-origin-fetch-still-works.png` | 安全边界修复后的正常路径复验（PR #27 修复轮） | 浏览器同源 `fetch`（自动携带 `Origin: http://127.0.0.1:8321`）在新 Host/Origin/Content-Type 边界下继续正常：真实检索 5 候选、播放量实时核验（478,954） |
+| `07-cross-origin-attack-blocked.png` | 跨源攻击拒绝（data: 页面 / null origin） | 恶意页面以 `text/plain` 向本机 API 注入检索：浏览器侧 `ATK-BLOCKED-TypeError`；服务端工件计数不变（攻击前后均为 1），无新检索发生；单元测试断言该路径为 403 + 零 discovery 调用 |
 
 复现命令（Owner 验收用）：
 

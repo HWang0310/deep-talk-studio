@@ -42,7 +42,9 @@ Python 侧可注入 transport（离线确定性测试）与自定义 provider。
 ./scripts/deeptalk ui          # http://127.0.0.1:8321/，仅绑定本机回环
 ```
 
-零新依赖（Python 标准库 HTTP 服务）+ 原生中文创建者页面，直接调用本合同的服务与 Provider：每次点击"搜索"都是一个新的有界 run，完整保留 run 级风控熔断。端点仅三个：`GET /`（页面）、`GET /healthz`、`POST /api/discover`（唯一业务端点；请求体 `{topic, urls?}`，响应即本合同工件 JSON，`blocked/degraded` 同样返回 200 + 诚实 status 由 UI 呈现降级指引）。输入限制：请求体 ≤8KB（413）、主题 1–200 字、链接 0–5 条 × ≤300 字（400 + 类型化中文错误）；检索以锁串行化（一次一个有界 run，重复点击排队为新 run 而非绕过）；工件落盘同上述唯一 `REF-*` 规则。
+零新依赖（Python 标准库 HTTP 服务）+ 原生中文创建者页面，直接调用本合同的服务与 Provider：每次点击"搜索"都是一个新的有界 run，完整保留 run 级风控熔断。端点仅三个：`GET /`（页面）、`GET /healthz`、`POST /api/discover`（唯一业务端点；请求体 `{topic, urls?}`，响应即本合同工件 JSON，`blocked/degraded` 同样返回 200 + 诚实 status 由 UI 呈现降级指引）。输入限制：请求体 ≤8KB（413）、主题 1–200 字、链接 0–5 条 × ≤300 字（400 + 类型化中文错误）；检索以锁串行化（一次一个有界 run，重复点击排队为新 run 而非绕过）。
+
+**本机 HTTP 边界（Nexus 审核修复轮新增）**：除 127.0.0.1 绑定外，所有请求须通过回环边界检查——窄 `Host` 白名单（仅 `127.0.0.1:<监听端口>` / `localhost:<监听端口>`，防 DNS rebinding）、`Origin` 存在时必须同源（跨站与 `null` 来源 403，防 CSRF）；JSON API 强制 `Content-Type: application/json`（415），且不支持 `OPTIONS` 预检（跨源浏览器 JSON 请求无法送达）。任何 body 读取前先验证 `Content-Length`（单一、非负、≤上限：缺失/重复/非数字 411、负数 400、超限 413；不支持 `Transfer-Encoding`），处理线程带 socket 超时，杜绝无限 read。工件以排他创建（`O_EXCL`）落盘到固定目录，重名冲突不覆盖、返回安全错误。
 
 ## 选择流水线（确定性）
 

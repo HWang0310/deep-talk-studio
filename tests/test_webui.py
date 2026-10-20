@@ -6,15 +6,19 @@ port exactly like production (127.0.0.1 only).
 """
 
 import json
+import socket
 import threading
 import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 from deeptalk_studio.webui import (
     DEFAULT_HOST,
+    ArtifactWriteConflict,
     WebUIRequestError,
+    _persist_artifact,
     make_server,
     validate_discover_payload,
 )
@@ -40,6 +44,7 @@ class LocalWebUITestCase(unittest.TestCase):
         import tempfile
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
+        self.provider = provider
         server = make_server(
             0,
             output_dir=Path(tmp.name),
@@ -75,6 +80,41 @@ class LocalWebUITestCase(unittest.TestCase):
         except urllib.error.HTTPError as exc:
             text = exc.read().decode("utf-8")
             return exc.code, dict(exc.headers), text
+
+    def raw(self, payload: bytes, *, timeout: float = 6.0) -> bytes:
+        """Send a raw HTTP request over a fresh socket with a hard deadline.
+
+        A hung server (the bug these tests guard against) fails the test
+        either by socket timeout (empty response) or by never reaching EOF.
+        """
+
+        port = self.server.server_address[1]
+        with socket.create_connection((DEFAULT_HOST, port), timeout=timeout) as sock:
+            sock.settimeout(timeout)
+            sock.sendall(payload)
+            chunks = []
+            try:
+                while True:
+                    part = sock.recv(65536)
+                    if not part:
+                        break
+                    chunks.append(part)
+            except socket.timeout:
+                pass
+            except ConnectionResetError:
+                # server rejected the request and closed with unread data in
+                # flight — exactly the intended fail-closed behavior
+                pass
+            return b"".join(chunks)
+
+    @staticmethod
+    def status_of(response: bytes) -> int:
+        first = response.split(b"\r\n", 1)[0]
+        return int(first.split(b" ")[1])
+
+    def no_discovery_ran(self):
+        self.assertEqual(self.provider.search_calls, [])
+        self.assertEqual(list(self.output_dir.glob("reference-candidate-set-*.json")), [])
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +341,199 @@ class DiscoverValidationOverHttpTests(LocalWebUITestCase):
 
     def test_unknown_field(self):
         self._expect_400({"topic": "x", "urls": [], "evil": 1}, "topic 与 urls")
+
+
+# ---------------------------------------------------------------------------
+# Blocking 1 — loopback Host / Origin / Content-Type boundaries (raw sockets)
+# ---------------------------------------------------------------------------
+
+
+class HttpBoundaryTests(LocalWebUITestCase):
+    """The JSON API must be unreachable from cross-site browser contexts:
+    narrow Host allowlist, same-origin Origin (incl. ``null``), JSON-only
+    Content-Type. Rejections happen before body read and before the
+    discovery service is touched."""
+
+    def setUp(self):
+        self.start_server()
+
+    def _request(
+        self, *, method=b"POST", path=b"/api/discover", host=None, origin=None,
+        content_type=b"application/json", body=b"{}",
+    ):
+        port = self.server.server_address[1]
+        host = host if host is not None else f"127.0.0.1:{port}".encode()
+        lines = [f"{method.decode()} {path.decode()} HTTP/1.1", f"Host: {host.decode()}"]
+        if origin is not None:
+            lines.append(f"Origin: {origin}")
+        if content_type is not None:
+            lines.append(f"Content-Type: {content_type.decode()}")
+        if body is not None:
+            lines.append(f"Content-Length: {len(body)}")
+        lines.append("Connection: close")
+        head = ("\r\n".join(lines) + "\r\n\r\n").encode()
+        return self.raw(head + body)
+
+    def test_same_origin_post_succeeds(self):
+        port = self.server.server_address[1]
+        body = json.dumps({"topic": MOSCOW_TOPIC, "urls": []}).encode()
+        response = self._request(origin=f"http://127.0.0.1:{port}", body=body)
+        self.assertEqual(self.status_of(response), 200)
+        self.assertTrue(self.provider.search_calls)
+
+    def test_localhost_host_and_origin_succeed(self):
+        port = self.server.server_address[1]
+        body = json.dumps({"topic": MOSCOW_TOPIC, "urls": []}).encode()
+        response = self._request(
+            host=f"localhost:{port}".encode(),
+            origin=f"http://localhost:{port}",
+            body=body,
+        )
+        self.assertEqual(self.status_of(response), 200)
+
+    def test_cross_site_origin_rejected(self):
+        body = json.dumps({"topic": MOSCOW_TOPIC, "urls": []}).encode()
+        response = self._request(origin="https://evil.example", body=body)
+        self.assertEqual(self.status_of(response), 403)
+        self.assertIn("error", json.loads(response.split(b"\r\n\r\n", 1)[1]))
+        self.no_discovery_ran()
+
+    def test_null_origin_rejected(self):
+        body = json.dumps({"topic": MOSCOW_TOPIC, "urls": []}).encode()
+        response = self._request(origin="null", body=body)
+        self.assertEqual(self.status_of(response), 403)
+        self.no_discovery_ran()
+
+    def test_malicious_host_rejected_on_post(self):
+        body = json.dumps({"topic": MOSCOW_TOPIC, "urls": []}).encode()
+        response = self._request(host=b"evil.example:8321", origin=None, body=body)
+        self.assertEqual(self.status_of(response), 403)
+        self.no_discovery_ran()
+
+    def test_malicious_host_rejected_on_get(self):
+        response = self._request(
+            method=b"GET", path=b"/", host=b"rebound.example", content_type=None, body=b"",
+        )
+        self.assertEqual(self.status_of(response), 403)
+        # the page body itself must not be served to a rebound host
+        self.assertNotIn(b"<html", response)
+        self.assertNotIn(b"text/html", response)
+
+    def test_text_plain_json_body_rejected(self):
+        body = json.dumps({"topic": MOSCOW_TOPIC, "urls": []}).encode()
+        response = self._request(content_type=b"text/plain", body=body)
+        self.assertEqual(self.status_of(response), 415)
+        self.no_discovery_ran()
+
+    def test_rejection_never_echoes_headers(self):
+        body = json.dumps({"topic": MOSCOW_TOPIC, "urls": []}).encode()
+        response = self._request(
+            host=b"evil.example", origin="https://evil.example", body=body
+        )
+        self.assertNotIn(b"evil.example", response)
+
+
+# ---------------------------------------------------------------------------
+# Blocking 2 — Content-Length framing hardening (raw sockets, no hangs)
+# ---------------------------------------------------------------------------
+
+
+class ContentLengthHardeningTests(LocalWebUITestCase):
+    def setUp(self):
+        self.start_server()
+
+    def _post_with_headers(self, extra_headers: str, body: bytes = b"") -> bytes:
+        port = self.server.server_address[1]
+        head = (
+            "POST /api/discover HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{port}\r\n"
+            f"Content-Type: application/json\r\n"
+            f"{extra_headers}"
+            "Connection: close\r\n\r\n"
+        ).encode()
+        return self.raw(head + body)
+
+    def test_missing_content_length_rejected_without_hang(self):
+        response = self._post_with_headers("")
+        self.assertEqual(self.status_of(response), 411)
+
+    def test_non_numeric_content_length_rejected(self):
+        response = self._post_with_headers("Content-Length: abc\r\n", b"{}")
+        self.assertEqual(self.status_of(response), 411)
+
+    def test_negative_content_length_rejected_without_blocking_read(self):
+        # previously read(-1) would block waiting for EOF on keep-alive
+        response = self._post_with_headers("Content-Length: -1\r\n", b"{}")
+        self.assertEqual(self.status_of(response), 400)
+        self.no_discovery_ran()
+
+    def test_duplicate_conflicting_content_length_rejected(self):
+        response = self._post_with_headers(
+            "Content-Length: 2\r\nContent-Length: 9000\r\n", b"{}"
+        )
+        self.assertEqual(self.status_of(response), 411)
+
+    def test_transfer_encoding_chunked_rejected_and_closed(self):
+        response = self._post_with_headers("Transfer-Encoding: chunked\r\n", b"0\r\n\r\n")
+        self.assertEqual(self.status_of(response), 411)
+        self.no_discovery_ran()
+
+    def test_oversized_content_length_rejected_fast(self):
+        response = self._post_with_headers(
+            f"Content-Length: {8192 + 1}\r\n", b"x" * (8192 + 1)
+        )
+        self.assertEqual(self.status_of(response), 413)
+        self.no_discovery_ran()
+
+    def test_normal_content_length_still_works(self):
+        body = json.dumps({"topic": MOSCOW_TOPIC, "urls": []}).encode()
+        response = self._post_with_headers(f"Content-Length: {len(body)}\r\n", body)
+        self.assertEqual(self.status_of(response), 200)
+        self.assertTrue(self.provider.search_calls)
+
+
+# ---------------------------------------------------------------------------
+# Blocking 3 — artifact exclusivity (never overwrite)
+# ---------------------------------------------------------------------------
+
+
+class ArtifactExclusivityTests(LocalWebUITestCase):
+    def setUp(self):
+        self.start_server()
+
+    def test_persist_helper_refuses_to_overwrite(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "reference-candidate-set-REF-conflict00.json"
+            target.write_bytes(b"SENTINEL")
+            with self.assertRaises(ArtifactWriteConflict):
+                _persist_artifact(Path(tmp), {"candidate_set_id": "REF-conflict00"})
+            self.assertEqual(target.read_bytes(), b"SENTINEL")
+
+    def test_same_candidate_id_never_overwrites_on_server(self):
+        """Two runs forced to produce the same candidate_set_id: the second
+        persistence must fail loudly without touching the first artifact."""
+
+        fake_uuid = mock.Mock()
+        fake_uuid.hex = "deadbeefcafe"
+        with mock.patch(
+            "deeptalk_studio.reference_discovery.uuid.uuid4", return_value=fake_uuid
+        ):
+            status1, _, body1 = self.post("/api/discover", {"topic": MOSCOW_TOPIC})
+            status2, _, body2 = self.post("/api/discover", {"topic": MOSCOW_TOPIC})
+        self.assertEqual(status1, 200)
+        self.assertEqual(status2, 500)
+        self.assertIn("未覆盖", json.loads(body2)["error"])
+        written = list(self.output_dir.glob("reference-candidate-set-*.json"))
+        self.assertEqual(len(written), 1)
+        persisted = json.loads(written[0].read_text(encoding="utf-8"))
+        self.assertEqual(persisted, json.loads(body1))
+
+    def test_unique_runs_keep_persisting_normally(self):
+        status1, _, _ = self.post("/api/discover", {"topic": MOSCOW_TOPIC})
+        status2, _, _ = self.post("/api/discover", {"topic": MOSCOW_TOPIC})
+        self.assertEqual((status1, status2), (200, 200))
+        self.assertEqual(len(list(self.output_dir.glob("reference-candidate-set-*.json"))), 2)
 
 
 if __name__ == "__main__":

@@ -9,16 +9,30 @@ a new bounded run with the run-level risk-control latch semantics preserved.
 No filtering, ordering or validation is duplicated in JavaScript and no CLI
 output is ever parsed.
 
-Security posture (matches Issue #26 hard boundaries):
+Security posture (matches Issue #26 hard boundaries and the Nexus review):
 
-- Binds ``127.0.0.1`` only; no external exposure.
-- Request bodies are capped; inputs validated with fixed limits.
+- Binds ``127.0.0.1`` only; no external exposure. Beyond the bind address,
+  every request must pass loopback request-boundary checks: a narrow
+  ``Host`` allowlist matching the actually listened port (``127.0.0.1`` /
+  ``localhost``), same-origin ``Origin`` when present (cross-site / ``null``
+  browser origins are rejected — CORS failure alone would not stop the
+  request from reaching the server), and — for the JSON API — an explicit
+  ``Content-Type: application/json``. No preflight (``OPTIONS``) support:
+  cross-origin browser JSON posts fail before delivery.
+- Request bodies are read only after ``Content-Length`` is validated to be a
+  single well-formed non-negative integer within the size cap
+  (missing/duplicate/non-numeric → 411, negative → 400, too large → 413,
+  unsupported ``Transfer-Encoding`` → 411 + close). No unbounded reads; the
+  handler also enforces a socket timeout.
 - Responses are JSON with ``X-Content-Type-Options: nosniff``; the static
   page never reflects request data and the client renders everything through
-  ``textContent`` (no ``innerHTML``).
+  ``textContent`` (no ``innerHTML``). Rejection errors never echo request
+  headers or raw URLs.
 - No arbitrary fetch/proxy endpoint, no command execution, no user-supplied
   output paths. Artifacts persist to a fixed local directory using their
-  unique ``REF-`` ids (never overwritten).
+  unique ``REF-`` ids with exclusive-create (``O_EXCL``) semantics: an
+  existing artifact is never overwritten; a conflicting id surfaces a safe
+  error to the caller.
 - Access logs record method/path/status/size only — request bodies (which may
   contain user URLs with tracking parameters) are never logged.
 - Discovery runs are serialized with a lock so at most one bounded network
@@ -44,6 +58,7 @@ MAX_REQUEST_BYTES = 8192
 MAX_TOPIC_CHARS = 200
 MAX_URL_COUNT = 5
 MAX_URL_CHARS = 300
+SOCKET_TIMEOUT_SECONDS = 10
 
 _STATIC_DIR = Path(__file__).resolve().parent / "webui_static"
 INDEX_HTML_PATH = _STATIC_DIR / "index.html"
@@ -53,6 +68,10 @@ SERVICE_NAME = "deeptalk-webui"
 
 class WebUIRequestError(ValueError):
     """Invalid client input; the server maps this to HTTP 400."""
+
+
+class ArtifactWriteConflict(Exception):
+    """An artifact with the same id already exists; nothing was overwritten."""
 
 
 def validate_discover_payload(payload: object) -> Dict[str, object]:
@@ -88,6 +107,19 @@ def validate_discover_payload(payload: object) -> Dict[str, object]:
     return {"topic": topic, "urls": urls}
 
 
+def _persist_artifact(output_dir: Path, artifact: Dict[str, object]) -> Path:
+    """Write the run artifact with exclusive-create (never overwrite)."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / f"reference-candidate-set-{artifact['candidate_set_id']}.json"
+    try:
+        with open(path, "x", encoding="utf-8") as handle:
+            handle.write(json.dumps(artifact, ensure_ascii=False, indent=2) + "\n")
+    except FileExistsError:
+        raise ArtifactWriteConflict(str(path)) from None
+    return path
+
+
 def _send_json(handler: BaseHTTPRequestHandler, status: int, payload: object) -> None:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     handler.send_response(status)
@@ -112,21 +144,90 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
 
     server_version = "DeepTalkWebUI/1"
     protocol_version = "HTTP/1.1"
+    timeout = SOCKET_TIMEOUT_SECONDS
 
-    # -- helpers -------------------------------------------------------
+    # -- request boundary guards --------------------------------------
 
-    @property
-    def _body_limit_exceeded(self) -> bool:
-        length_header = self.headers.get("Content-Length")
+    def _allowed_hosts(self) -> tuple:
+        port = self.server.server_address[1]
+        return (f"127.0.0.1:{port}", f"localhost:{port}")
+
+    def _same_origin_values(self) -> tuple:
+        port = self.server.server_address[1]
+        return (f"http://127.0.0.1:{port}", f"http://localhost:{port}")
+
+    def _boundary_rejection(self) -> Optional[str]:
+        """Narrow-host + same-origin guard; None means the request may proceed.
+
+        The check happens before any body is read and before the discovery
+        service is touched. Rejection messages never echo the offending
+        header value.
+        """
+
+        host = (self.headers.get("Host") or "").strip()
+        if host not in self._allowed_hosts():
+            return "本服务仅允许本机回环地址访问"
+        origin = (self.headers.get("Origin") or "").strip()
+        if origin and origin not in self._same_origin_values():
+            return "本服务仅允许同源请求"
+        return None
+
+    def _content_type_rejection(self) -> Optional[str]:
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            return "Content-Type 必须是 application/json"
+        return None
+
+    def _content_length_state(self) -> str:
+        """Validate framing headers before any body read. Returns a state."""
+
+        te_values = [value.strip().lower()
+                     for value in (self.headers.get_all("Transfer-Encoding") or [])]
+        if any(value and value != "identity" for value in te_values):
+            return "transfer_encoding"
+        length_values = self.headers.get_all("Content-Length") or []
+        if len(length_values) != 1:
+            return "length_invalid"
         try:
-            length = int(length_header) if length_header else 0
+            length = int(length_values[0].strip())
         except ValueError:
-            return True
-        return length > MAX_REQUEST_BYTES
+            return "length_invalid"
+        if length < 0:
+            return "length_negative"
+        if length > MAX_REQUEST_BYTES:
+            return "length_too_large"
+        return "ok"
 
-    # -- HTTP methods --------------------------------------------------
+    def _read_body(self) -> Optional[bytes]:
+        """Read exactly Content-Length bytes; None means the request was rejected."""
+
+        state = self._content_length_state()
+        if state == "transfer_encoding":
+            self.close_connection = True
+            _send_json(self, 411, {"error": "不支持 Transfer-Encoding 请求"})
+            return None
+        if state == "length_invalid":
+            self.close_connection = True
+            _send_json(self, 411, {"error": "Content-Length 缺失或无效"})
+            return None
+        if state == "length_negative":
+            self.close_connection = True
+            _send_json(self, 400, {"error": "Content-Length 不能为负数"})
+            return None
+        if state == "length_too_large":
+            self.close_connection = True
+            _send_json(self, 413, {"error": f"请求体超过 {MAX_REQUEST_BYTES} 字节上限"})
+            return None
+        length = int((self.headers.get_all("Content-Length") or ["0"])[0].strip())
+        return self.rfile.read(length) if length else b""
+
+    # -- HTTP methods ---------------------------------------------------
 
     def do_GET(self) -> None:
+        rejection = self._boundary_rejection()
+        if rejection:
+            _send_json(self, 403, {"error": rejection})
+            return
         path = urllib.parse.urlparse(self.path).path
         if path == "/":
             try:
@@ -142,17 +243,24 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         _send_json(self, 404, {"error": "路径不存在"})
 
     def do_POST(self) -> None:
+        rejection = self._boundary_rejection()
+        if rejection:
+            self.close_connection = True
+            _send_json(self, 403, {"error": rejection})
+            return
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path != "/api/discover":
             _send_json(self, 404, {"error": "路径不存在"})
             return
-        if self._body_limit_exceeded:
+        rejection = self._content_type_rejection()
+        if rejection:
             self.close_connection = True
-            _send_json(self, 413, {"error": f"请求体超过 {MAX_REQUEST_BYTES} 字节上限"})
+            _send_json(self, 415, {"error": rejection})
+            return
+        raw = self._read_body()
+        if raw is None:
             return
         try:
-            length = int(self.headers.get("Content-Length") or 0)
-            raw = self.rfile.read(length) if length else b""
             payload = json.loads(raw.decode("utf-8")) if raw else {}
         except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
             _send_json(self, 400, {"error": "请求体不是合法 JSON"})
@@ -171,14 +279,11 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                 artifact = build_reference_candidate_set(
                     request["topic"], request["urls"], provider=provider
                 )
-                server.output_dir.mkdir(parents=True, exist_ok=True)
-                artifact_path = server.output_dir / (
-                    f"reference-candidate-set-{artifact['candidate_set_id']}.json"
-                )
-                artifact_path.write_text(
-                    json.dumps(artifact, ensure_ascii=False, indent=2) + "\n",
-                    encoding="utf-8",
-                )
+                _persist_artifact(server.output_dir, artifact)
+        except ArtifactWriteConflict:
+            self.log_error("artifact write conflict for a run")
+            _send_json(self, 500, {"error": "结果工件写入冲突，未覆盖已有文件，请重试检索"})
+            return
         except ReferenceDiscoveryError as exc:
             _send_json(self, 400, {"error": f"参考视频发现失败：{exc}"})
             return
@@ -188,7 +293,7 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return
         _send_json(self, 200, artifact)
 
-    # -- logging (redacted) --------------------------------------------
+    # -- logging (redacted) ---------------------------------------------
 
     def log_message(self, fmt: str, *args) -> None:
         # default format already excludes bodies; additionally strip any
