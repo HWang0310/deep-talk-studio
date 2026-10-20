@@ -1,9 +1,10 @@
 """Versioned Script Profile and conservative duration parsing."""
 
 import json
+import math
 import re
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Mapping, Optional
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -12,6 +13,25 @@ DEFAULT_SCRIPT_PROFILE = REPO_ROOT / "config" / "script-profile.json"
 
 class ScriptValidationError(ValueError):
     """A user-readable Script contract or grounding error."""
+
+
+def content_driven_profile(profile: Mapping) -> bool:
+    return profile.get('profile_version') == '1' and profile.get('duration_policy') == 'content_driven'
+
+
+def validate_duration_preference(value: Optional[float]) -> None:
+    # No editorial minute envelope; the actual text has a processing budget.
+    if value is None:
+        return
+    try:
+        valid = (
+            not isinstance(value, bool) and isinstance(value, (int, float))
+            and math.isfinite(value) and value > 0
+        )
+    except OverflowError:
+        valid = False
+    if not valid:
+        raise ScriptValidationError('时长偏好必须是有限正数')
 
 
 def load_script_profile(path: Optional[Path] = None) -> Dict[str, object]:
@@ -36,12 +56,18 @@ def load_script_profile(path: Optional[Path] = None) -> Dict[str, object]:
     if not isinstance(profile, dict) or not base_required.issubset(profile):
         raise ScriptValidationError("Script Profile 字段不完整或包含未知字段")
     version = profile["profile_version"]
-    expected = base_required | ({"duration_range_minutes", "quality_gate_checks"} if version == "1" else set())
+    policy = content_driven_profile(profile)
+    expected = base_required | (
+        {"duration_policy" if policy else "duration_range_minutes", "quality_gate_checks"}
+        if version == "1" else set()
+    )
     if set(profile) != expected:
         raise ScriptValidationError("Script Profile 字段不完整或包含未知字段")
     if version not in {"0.4", "1"}:
         raise ScriptValidationError("只支持 Script Profile 0.4 或 1")
-    if not 3 <= profile["default_duration_minutes"] <= 30:
+    if policy and profile['default_duration_minutes'] is not None:
+        raise ScriptValidationError('内容驱动 Profile 不得设置默认分钟目标')
+    if not policy and not 3 <= profile["default_duration_minutes"] <= 30:
         raise ScriptValidationError("默认口播时长必须在 3 到 30 分钟之间")
     if not isinstance(profile["chars_per_minute"], int) or profile["chars_per_minute"] <= 0:
         raise ScriptValidationError("chars_per_minute 必须是正整数")
@@ -53,8 +79,7 @@ def load_script_profile(path: Optional[Path] = None) -> Dict[str, object]:
         ):
             raise ScriptValidationError(f"Script Profile.{field} 必须是非空文本列表")
     if version == "1":
-        duration_range = profile["duration_range_minutes"]
-        if duration_range != [5, 6]:
+        if not policy and profile["duration_range_minutes"] != [5, 6]:
             raise ScriptValidationError("Script Profile 1 的正式时长范围必须为 5 到 6 分钟")
         checks = profile["quality_gate_checks"]
         if not isinstance(checks, list) or len(checks) != 17 or len(set(checks)) != 17:
@@ -62,20 +87,30 @@ def load_script_profile(path: Optional[Path] = None) -> Dict[str, object]:
     return profile
 
 
-def parse_target_duration(value: str, default: float = 12) -> float:
+def parse_target_duration(value: str, default: Optional[float] = 12) -> Optional[float]:
     clean = (value or "").strip()
-    range_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:-|到|至)\s*(\d+(?:\.\d+)?)\s*分钟", clean)
-    match = re.search(r"(\d+(?:\.\d+)?)\s*分钟", clean)
+    number = r"(-?\d+(?:\.\d+)?)" if default is None else r"(\d+(?:\.\d+)?)"
+    range_match = re.search(number + r"\s*(?:-|到|至)\s*" + number + r"\s*分钟", clean)
+    match = re.search(number + r"\s*分钟", clean)
     if range_match:
+        if default is None:
+            for endpoint in range_match.groups():
+                validate_duration_preference(float(endpoint))
         duration = (float(range_match.group(1)) + float(range_match.group(2))) / 2
     elif match:
         duration = float(match.group(1))
+    elif default is None:
+        return None
     elif "长一点" in clean or "做长" in clean:
         duration = 15.0
     elif any(token in clean for token in ("紧凑", "短一点", "压缩")):
         duration = 10.0
     else:
+        if default is None:
+            return None
         duration = float(default)
-    if not 3 <= duration <= 30:
+    if default is None:
+        validate_duration_preference(duration)
+    elif not 3 <= duration <= 30:
         raise ScriptValidationError("目标口播时长必须在 3 到 30 分钟之间")
     return int(duration) if duration.is_integer() else duration

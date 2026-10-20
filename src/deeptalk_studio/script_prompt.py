@@ -1,7 +1,7 @@
 """No-search Writer and Reviewer prompts for Original Script Agent 0.4."""
 
 import json
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional
 
 
 SCRIPT_WRITER_SYSTEM_PROMPT = """你是 DeepTalk Studio 的 Original Script Writer。你只能使用输入中已经批准的 Research Report 和已人工确认的 Content Thesis Card，不得访问网络、补充外部事实或改写其他创作者稿件。
@@ -10,7 +10,7 @@ SCRIPT_WRITER_SYSTEM_PROMPT = """你是 DeepTalk Studio 的 Original Script Writ
 
 fact 只能保守复述 verified confirmed_fact。media_report、party_statement、commentary 和 unverified 必须放在 attribution 中自然说明是谁说的及证据边界。analysis 必须保留 analysis_basis_claim_ids，不能伪装成事实。不得念出 C1、E2 等机器编号。必须执行 must_keep_claim_ids、avoid_claims 和 follow_up_research；缺口写入 research_gaps，不得猜测。争议话题要公平呈现有证据基础的反方或替代解释。
 
-如果输入包含 Content Thesis Card：它决定本期的核心问题、判断、情绪、讨论张力和结尾方向；竞争参考只允许以其中已被抽象出的高层问题意识和机制影响结构，绝不能成为事实来源。必须写出 5 到 6 分钟、纯听也有冲突、转折、新问题和推进力的原创口播。不得模仿具体创作者的句式、口头禅或独特表达，不得长篇复制来源文字。只输出给定内容 Schema，不能输出身份、修订、状态、字数、时长或 Gate。"""
+如果输入包含 Content Thesis Card：它决定本期的核心问题、判断、情绪、讨论张力和结尾方向；竞争参考只允许以其中已被抽象出的高层问题意识和机制影响结构，绝不能成为事实来源。内容决定时长：按证据、论证完整性和叙事推进确定篇幅，纯听也有冲突、转折、新问题和推进力。用户指定分钟数只是软偏好，不得凑时长填充，也不得为压缩而删掉重要论证；无偏好时不设分钟目标。不得模仿具体创作者的句式、口头禅或独特表达，不得长篇复制来源文字。只输出给定内容 Schema，不能输出身份、修订、状态、字数、时长或 Gate。"""
 
 
 SCRIPT_REVIEWER_SYSTEM_PROMPT = """你是 DeepTalk Studio 的独立 Script Reviewer。只比较已批准 Research Report、已确认的 Content Thesis Card 与 Script Draft，不得访问网络，也不能替 Writer 辩护。
@@ -25,9 +25,14 @@ SCRIPT_REVIEWER_SYSTEM_PROMPT = """你是 DeepTalk Studio 的独立 Script Revie
 
 
 def build_script_writer_prompt(
-    report: Dict[str, Any], profile: Mapping[str, object], target_duration_minutes: float
+    report: Dict[str, Any], profile: Mapping[str, object], target_duration_minutes: Optional[float]
 ) -> str:
-    return """目标口播时长：约 {duration:g} 分钟（估算目标，不得牺牲事实完整性）。
+    duration_intent = (
+        '内容决定时长：用户未指定分钟数，请按研究与叙事需要写清楚，不设默认分钟目标。'
+        if target_duration_minutes is None else
+        f'用户时长软偏好：约 {target_duration_minutes:g} 分钟；不得填充或牺牲重要论证，实际估算允许偏离。'
+    )
+    return """{duration_intent}
 
 Script Profile：
 {profile}
@@ -35,7 +40,7 @@ Script Profile：
 已批准 Research Report：
 {report}
 """.format(
-        duration=target_duration_minutes,
+        duration_intent=duration_intent,
         profile=json.dumps(profile, ensure_ascii=False, separators=(",", ":")),
         report=json.dumps(report, ensure_ascii=False, separators=(",", ":")),
     )

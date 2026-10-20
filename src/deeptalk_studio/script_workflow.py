@@ -9,7 +9,7 @@ from typing import Callable, Mapping, Optional
 from .models import ContentThesisCard, ResearchReport, ScriptDraft
 from .providers.base import ScriptProvider
 from .schema import SCRIPT_DRAFT_CONTENT_JSON_SCHEMA, SCRIPT_REVIEW_CONTENT_JSON_SCHEMA
-from .script_profile import load_script_profile
+from .script_profile import load_script_profile, content_driven_profile, validate_duration_preference
 from .script_review import ScriptReviewResult, prepare_script_review
 from .script_storage import (
     ScriptPaths,
@@ -75,7 +75,7 @@ def prepare_codex_script(
     output_root: Path = DEFAULT_SCRIPT_OUTPUT,
     profile: Optional[Mapping[str, object]] = None,
     *,
-    target_duration_minutes: float = 12,
+    target_duration_minutes: Optional[float] = None,
     created_at: str = "",
     script_id: str = "",
     content_thesis_card: Optional[ContentThesisCard] = None,
@@ -139,7 +139,7 @@ def run_script_workflow(
     output_root: Path = DEFAULT_SCRIPT_OUTPUT,
     profile: Optional[Mapping[str, object]] = None,
     *,
-    target_duration_minutes: float = 12,
+    target_duration_minutes: Optional[float] = None,
     clock: Callable[[], datetime] = _default_clock,
     id_factory: Callable[[str], str] = _default_id_factory,
     content_thesis_card: Optional[ContentThesisCard] = None,
@@ -148,6 +148,20 @@ def run_script_workflow(
     selected_profile = dict(profile or load_script_profile())
     if selected_profile["profile_version"] == "1" and content_thesis_card is None:
         raise ScriptValidationError("Script Agent V1 必须先通过 Content Thesis Human Review")
+    if selected_profile["profile_version"] == "1":
+        from .content_director import ContentDirectorValidationError, validate_content_thesis_card
+        from .content_director_profile import load_content_director_profile
+        try:
+            validate_content_thesis_card(content_thesis_card, report,
+                load_content_director_profile(), content_thesis_card.review_artifact)
+        except ContentDirectorValidationError as exc:
+            raise ScriptValidationError("Content Thesis Card 验证失败，不能调用 Writer") from exc
+        if content_thesis_card.status != "approved_for_script":
+            raise ScriptValidationError("Content Thesis Card 尚未人工确认，不能调用 Writer")
+    if content_driven_profile(selected_profile):
+        validate_duration_preference(target_duration_minutes)
+    elif target_duration_minutes is None:
+        target_duration_minutes = 12
     writer_input = report.to_dict()
     if content_thesis_card is not None:
         writer_input = {

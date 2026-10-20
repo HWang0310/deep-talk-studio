@@ -26,6 +26,8 @@ AIGC:
 
 ## Current Product Positioning
 
+Issue #21 implements the Owner-approved content-driven Script V1 duration policy as an **unreleased implementation candidate, awaiting Nexus review**. New V1 scripts have no fixed editorial minute range; a creator's duration is a soft preference. The precise compatibility, technical text budget and unchanged approval/review boundaries are owned by [Script Contract](docs/SCRIPT_CONTRACT.md). No creator episode has been resumed by this maintenance task.
+
 DeepTalk Studio helps a creator turn a defensible topic into a reviewed spoken script, then prepare evidence-bound visual assets and precise placement suggestions against the creator's final clean A-roll.
 
 ### v1.0 Product Direction — One Main, Four Auxiliary

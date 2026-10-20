@@ -100,7 +100,7 @@ def save_script(
 
 
 def load_script(
-    path: Path, report: ResearchReport, profile: Mapping[str, object]
+    path: Path, report: ResearchReport, profile: Mapping[str, object], *, content_thesis_card=None
 ) -> ScriptDraft:
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -111,7 +111,7 @@ def load_script(
         state = data.get("review_state")
         if not isinstance(state, dict) or not state.get("review_id"):
             # Let the formal validator give the deterministic legacy guidance.
-            return ScriptDraft.from_dict(data, report, dict(profile))
+            return ScriptDraft.from_dict(data, report, dict(profile), content_thesis_card=content_thesis_card)
         review_path = Path(path).parent / (
             f"script-review-for-r{state.get('reviewed_from_revision', 0):04d}-"
             f"{_safe_identifier(str(state['review_id']))}.json"
@@ -122,7 +122,7 @@ def load_script(
             raise ScriptStorageError(
                 f"reviewed Script 缺少可验证的 Review Artifact：{review_path}"
             ) from exc
-    return ScriptDraft.from_dict(data, report, dict(profile), review_artifact)
+    return ScriptDraft.from_dict(data, report, dict(profile), review_artifact, content_thesis_card)
 
 
 def save_script_review_artifact(

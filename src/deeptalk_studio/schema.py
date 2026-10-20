@@ -711,7 +711,8 @@ SCRIPT_DRAFT_JSON_SCHEMA = _object(
         "content_thesis_card_id": _string(),
         "content_thesis_card_revision": _integer(1),
         "content_thesis_content_digest": _string(),
-        "target_duration_minutes": _number(3, 30),
+        "target_duration_minutes": _number(0),
+        "duration_mode": _enum(["content_driven", "preference"]),
         "character_count": _integer(),
         "estimated_duration_minutes": _number(),
         "working_title": _string(),
@@ -730,7 +731,7 @@ SCRIPT_DRAFT_JSON_SCHEMA = _object(
         "beat_identity": SCRIPT_BEAT_IDENTITY_SCHEMA,
     },
     optional=(
-        "review_state", "beat_identity", "content_thesis_card_id",
+        "review_state", "beat_identity", "duration_mode", "content_thesis_card_id",
         "content_thesis_card_revision", "content_thesis_content_digest",
     ),
 )

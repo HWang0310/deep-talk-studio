@@ -10,7 +10,7 @@ from typing import Any, Dict, Iterable, Mapping, Optional
 
 from .models import ContentThesisCard, ResearchReport, ScriptDraft
 from .schema import SCRIPT_DRAFT_CONTENT_JSON_SCHEMA, SCRIPT_DRAFT_JSON_SCHEMA
-from .script_profile import ScriptValidationError
+from .script_profile import ScriptValidationError, content_driven_profile, validate_duration_preference
 from .validation import ReportValidationError, validate_json_schema, validate_report
 
 
@@ -24,6 +24,31 @@ EMPTY_REVIEW_STATE = {
     "review_gate_status": "not_run",
     "reviewed_content_digest": "",
 }
+
+# Resource budget for processing spoken text, not an editorial minute range.
+MAX_V1_SPOKEN_TEXT_CHARACTERS = 100_000
+
+
+def _validate_duration(data: Mapping[str, Any]) -> None:
+    mode = data.get('duration_mode')
+    target = data['target_duration_minutes']
+    if mode is None:
+        if not 3 <= target <= 30:
+            raise ScriptValidationError('legacy 目标口播时长必须在 3 到 30 分钟之间')
+        if data['script_profile_version'] == '1' and (
+            not 5 <= target <= 6 or not 5 <= data['estimated_duration_minutes'] <= 6
+        ):
+            raise ScriptValidationError('legacy Script V1 时长必须在 5 到 6 分钟')
+        return
+    if data['script_profile_version'] != '1':
+        raise ScriptValidationError('时长模式仅用于 Script V1')
+    text_size = sum(len(b['narration']) for b in data['beats']) + len(data['closing'])
+    if text_size > MAX_V1_SPOKEN_TEXT_CHARACTERS or data['character_count'] == 0:
+        raise ScriptValidationError('Script V1 口播字符处理预算超限或正文为空')
+    if mode == 'preference':
+        validate_duration_preference(target)
+    elif target != data['estimated_duration_minutes']:
+        raise ScriptValidationError('内容驱动时长必须由实际正文推算，不得伪造目标')
 
 
 def _schema(value: Any, schema: Dict[str, Any], path: str) -> None:
@@ -214,6 +239,10 @@ def script_content_digest(data: Mapping[str, Any]) -> str:
             "must_keep_omission_reasons",
         )
     }
+    # Historical digests remain byte-compatible. New policy/intent is reviewed.
+    if 'duration_mode' in data:
+        content['duration_mode'] = data['duration_mode']
+        content['target_duration_minutes'] = data['target_duration_minutes']
     canonical = json.dumps(
         content, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     )
@@ -311,7 +340,7 @@ def prepare_script_draft(
     *,
     created_at: str,
     script_id: str,
-    target_duration_minutes: float = 12,
+    target_duration_minutes: Optional[float] = None,
     script_mode: str = "codex_skill",
     revision: int = 1,
     previous_revision: int = 0,
@@ -325,9 +354,15 @@ def prepare_script_draft(
     _schema(content, SCRIPT_DRAFT_CONTENT_JSON_SCHEMA, "script_content")
     if script_mode not in {"codex_skill", "openai_api", "fixture"}:
         raise ScriptValidationError("script_mode 无效")
-    if not isinstance(target_duration_minutes, (int, float)) or isinstance(
+    policy = content_driven_profile(profile)
+    duration_mode = 'content_driven' if target_duration_minutes is None else 'preference'
+    if policy:
+        validate_duration_preference(target_duration_minutes)
+    elif target_duration_minutes is None:
+        target_duration_minutes = 12
+    if not policy and (not isinstance(target_duration_minutes, (int, float)) or isinstance(
         target_duration_minutes, bool
-    ) or not 3 <= target_duration_minutes <= 30:
+    ) or not 3 <= target_duration_minutes <= 30):
         raise ScriptValidationError("目标口播时长必须在 3 到 30 分钟之间")
     if profile["profile_version"] == "1":
         from .content_director import ContentDirectorValidationError, validate_content_thesis_card
@@ -346,7 +381,7 @@ def prepare_script_draft(
             raise ScriptValidationError("Content Thesis Card 无法证明已通过人工确认") from exc
         if content_thesis_card.status != "approved_for_script":
             raise ScriptValidationError("Content Thesis Card 尚未人工确认，不能开始写稿")
-        if not 5 <= target_duration_minutes <= 6:
+        if not policy and not 5 <= target_duration_minutes <= 6:
             raise ScriptValidationError("Script Agent V1 的目标口播时长必须在 5 到 6 分钟")
     timestamp = generated_at or created_at
     assigned_ids = list(beat_ids or ())
@@ -385,6 +420,7 @@ def prepare_script_draft(
             if content_thesis_card is not None else {}
         ),
         "target_duration_minutes": target_duration_minutes,
+        **({'duration_mode': duration_mode} if policy else {}),
         "working_title": content["working_title"],
         "thesis": content["thesis"],
         "audience_promise": content["audience_promise"],
@@ -398,6 +434,8 @@ def prepare_script_draft(
         "beat_identity": identity,
     }
     artifact.update(_derived_fields(artifact, report, profile))
+    if policy and duration_mode == 'content_driven':
+        artifact['target_duration_minutes'] = artifact['estimated_duration_minutes']
     return ScriptDraft.from_dict(
         artifact, report, dict(profile), content_thesis_card=content_thesis_card
     )
@@ -446,8 +484,6 @@ def validate_script_draft(
             or data.get("content_thesis_content_digest") != content_thesis_card.content_digest
         ):
             raise ScriptValidationError("Script 与 Content Thesis Card 的 binding 不一致")
-        if not 5 <= data["target_duration_minutes"] <= 6:
-            raise ScriptValidationError("Script Agent V1 的目标口播时长必须在 5 到 6 分钟")
     elif any(data.get(field) for field in ("content_thesis_card_id", "content_thesis_card_revision", "content_thesis_content_digest")):
         raise ScriptValidationError("Script 0.4 不能伪装绑定 Content Thesis Card")
     if (data["revision"] == 1 and data["previous_revision"] != 0) or (
@@ -464,8 +500,7 @@ def validate_script_draft(
     for field, value in expected.items():
         if data[field] != value:
             raise ScriptValidationError(f"Script 机器字段不一致：{field}")
-    if data["script_profile_version"] == "1" and not 5 <= data["estimated_duration_minutes"] <= 6:
-        raise ScriptValidationError("Script Agent V1 的实际预计口播时长必须在 5 到 6 分钟")
+    _validate_duration(data)
     omission_ids = [item["claim_id"] for item in data["must_keep_omission_reasons"]]
     if len(omission_ids) != len(set(omission_ids)):
         raise ScriptValidationError("must_keep_omission_reasons 不能重复 Claim")
