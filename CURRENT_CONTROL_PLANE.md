@@ -15,7 +15,7 @@
 ## Current control-plane state
 
 - `v1.0.0` is formally released.
-- **Active task: [Issue #21](https://github.com/HWang0310/deep-talk-studio/issues/21)** (Script V1 content-driven length policy; Owner direction confirmed 2026-10-20). Implementation branch: `agent/issue21-content-driven-duration`, based on live main `fbf559700e46a5bc8dddbcad871b3cd58742b8f4`. The linked implementation PR is the sole execution/review/correction thread once opened; Nexus decides acceptance. No other development lane or creator-episode writing is authorized by this engineering task.
+- **No active implementation Issue, PR or engineering execution lane.** Issue #21 (content-driven Script V1 duration) was accepted by Nexus at exact PR head `5812473ca6784c84ee767304304b91e5872ca106`, merged via [PR #22](https://github.com/HWang0310/deep-talk-studio/pull/22) into main at `9ac3ff47df927fc843adff9b7eda79004c91c34c`, and closed completed. This is a post-v1.0 `main` improvement, not a new formal release. Creator-local Research and Content Thesis were not modified.
 - Issue #19 was created during the engineering-governance refresh by mistake; the Owner had requested standards adoption / control-plane compaction only, not activation of Product Architecture V2 Phase D. Issue #19 is closed `not_planned` and is historical context only.
 - Product Architecture V2 Phase D/E/F remain future work. Phase D is a documented candidate, **not** the current product priority and **not started**.
 - The old Nexus session-transfer Issue #3 is closed and superseded by the released project state and this compact recovery index. It remains durable history and must not be used as current task state.
@@ -24,7 +24,7 @@
 
 ## Immediate next action
 
-1. Carry out only Issue #21 under the Owner's confirmed content-driven script-length decision; do not infer unrelated implementation tasks from roadmap ordering. Keep creator-local approved Research and Thesis artifacts untouched.
+1. For the current creator episode, safely sync the accepted `main` change into the existing local workspace without overwriting dirty/unpushed work, then reuse approved local Research r10 and the approved Content Thesis for normal V1 Script generation and independent review. No new Research, approval or product development is implied. Further engineering work requires a new Owner product goal.
 2. Before any future dispatch, fetch live `engineering-journal` and read the current `AGENT-OPERATING-MODEL.md` plus `BACKEND-CAPABILITY-CERTIFICATION.md`.
 3. Recover DeepTalk engineer identities only from the current DeepTalk `AGENTS.md` roster.
 4. When a real implementation task is selected, maintain one active execution/review thread; once a PR exists, that PR is the default active thread.
