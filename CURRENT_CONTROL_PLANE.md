@@ -15,7 +15,7 @@
 ## Current control-plane state
 
 - `v1.0.0` is formally released.
-- There is currently **no active implementation task, PR, execution lane, or correction thread**.
+- **Active execution thread: [Issue #21](https://github.com/HWang0310/deep-talk-studio/issues/21)** (Script V1 content-driven length policy; Owner direction confirmed 2026-10-20). No implementation PR yet. When the PR exists, PR becomes the active review/correction thread. No other development lane authorized.
 - Issue #19 was created during the engineering-governance refresh by mistake; the Owner had requested standards adoption / control-plane compaction only, not activation of Product Architecture V2 Phase D. Issue #19 is closed `not_planned` and is historical context only.
 - Product Architecture V2 Phase D/E/F remain future work. Phase D is a documented candidate, **not** the current product priority and **not started**.
 - The old Nexus session-transfer Issue #3 is closed and superseded by the released project state and this compact recovery index. It remains durable history and must not be used as current task state.
@@ -24,7 +24,7 @@
 
 ## Immediate next action
 
-1. Wait for the Owner's next product goal / priority; do not infer a new implementation task from roadmap ordering alone.
+1. Carry out only Issue #21 under the Owner's confirmed content-driven script-length decision; do not infer unrelated implementation tasks from roadmap ordering. Keep creator-local approved Research and Thesis artifacts untouched.
 2. Before any future dispatch, fetch live `engineering-journal` and read the current `AGENT-OPERATING-MODEL.md` plus `BACKEND-CAPABILITY-CERTIFICATION.md`.
 3. Recover DeepTalk engineer identities only from the current DeepTalk `AGENTS.md` roster.
 4. When a real implementation task is selected, maintain one active execution/review thread; once a PR exists, that PR is the default active thread.
