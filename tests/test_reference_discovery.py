@@ -401,6 +401,59 @@ class BilibiliProviderTests(unittest.TestCase):
         provider.search_videos("二")
         self.assertEqual(self.sleeps, [1.5])  # not before the first call
 
+    def test_risk_control_latch_stops_all_subsequent_requests(self):
+        """After one genuine platform block the provider makes no further
+        network calls for its lifetime; every later call reports blocked."""
+
+        provider = self._provider(lambda url: (412, "Blocked"))
+        first = provider.search_videos("一")
+        self.assertEqual(first.status, "blocked")
+        self.assertTrue(provider.risk_control_latched)
+        second = provider.search_videos("二")
+        third = provider.fetch_video_metadata("BV1aaaaaaaaa")
+        self.assertEqual(second.status, "blocked")
+        self.assertEqual(third.status, "blocked")
+        # only the single blocked request ever reached the transport
+        self.assertEqual(len(self.transport_calls), 1)
+
+    def test_api_risk_code_latches_too(self):
+        provider = self._provider(
+            lambda url: (200, json.dumps({"code": -412, "message": "请求被拦截"}))
+        )
+        outcome = provider.search_videos("一")
+        self.assertEqual(outcome.status, "blocked")
+        self.assertTrue(provider.risk_control_latched)
+        again = provider.fetch_video_metadata("BV1aaaaaaaaa")
+        self.assertEqual(again.status, "blocked")
+        self.assertEqual(len(self.transport_calls), 1)
+
+    def test_html_interception_page_latches(self):
+        provider = self._provider(lambda url: (200, "<!DOCTYPE html><html>出错啦</html>"))
+        outcome = provider.search_videos("一")
+        self.assertEqual(outcome.status, "blocked")
+        self.assertTrue(provider.risk_control_latched)
+        next_outcome = provider.search_videos("二")
+        self.assertEqual(next_outcome.status, "blocked")
+        self.assertEqual(len(self.transport_calls), 1)
+
+    def test_transient_failures_do_not_latch(self):
+        calls = {"n": 0}
+
+        def responder(url):
+            calls["n"] += 1
+            if "search/type" in url:
+                return 503, "service unavailable"  # transient 5xx
+            return 200, bili_view_body()
+
+        provider = self._provider(responder, max_retries=1, request_interval=0.0)
+        outcome = provider.search_videos("一")
+        self.assertEqual(outcome.status, "failed")
+        self.assertFalse(provider.risk_control_latched)
+        # network access continues after ordinary failures
+        meta = provider.fetch_video_metadata("BV1aaaaaaaaa")
+        self.assertEqual(meta.status, "ok")
+        self.assertGreater(calls["n"], 2)
+
 
 # ---------------------------------------------------------------------------
 # service (fake provider)
@@ -723,6 +776,131 @@ class ReferenceCandidateSetTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # CLI wiring
 # ---------------------------------------------------------------------------
+
+
+class ServiceRiskControlLatchTests(unittest.TestCase):
+    """Nexus Round 2 blocker: once a real platform block occurs mid-run, the
+    rest of the same discovery run must not issue any further network
+    requests, and the artifact must degrade honestly instead of crashing."""
+
+    def setUp(self):
+        self.urls = []
+
+    def _provider(self, responder):
+        def transport(url, headers, timeout):
+            self.urls.append(url)
+            status, body = responder(url)
+            return TransportResponse(status, body)
+
+        return BilibiliReferenceProvider(
+            transport=transport, use_visitor_identity=False,
+            request_interval=0.0, sleep=lambda seconds: None,
+        )
+
+    def test_first_blocked_query_stops_remaining_queries(self):
+        """① the query plan for the Moscow topic yields 2 queries; when the
+        first search is blocked (HTTP 412), the second query must not reach
+        the network and both query records must report blocked."""
+
+        provider = self._provider(lambda url: (412, "Blocked"))
+        artifact = build_reference_candidate_set(
+            MOSCOW_TOPIC, (), provider=provider,
+            now="2026-10-20T12:00:00+00:00",
+        )
+        search_hits = [u for u in self.urls if "search/type" in u]
+        self.assertEqual(len(search_hits), 1)
+        self.assertEqual(
+            [q["status"] for q in artifact["search"]["queries"]],
+            ["blocked", "blocked"],
+        )
+        self.assertEqual(artifact["status"], "blocked")
+        self.assertEqual(artifact["candidates"], [])
+
+    def test_blocked_metadata_stops_remaining_verifications(self):
+        """② search succeeds with several relevant candidates; the first
+        per-video verification is blocked; no further view requests may be
+        issued and every remaining candidate stays honestly unverified."""
+
+        def responder(url):
+            if "search/type" in url:
+                return 200, bili_search_body(
+                    {"bvid": "BV1v0000000A", "title": "莫斯科大学留学生旭日旗事件进展A"},
+                    {"bvid": "BV1v0000000B", "title": "莫斯科大学留学生旭日旗事件进展B"},
+                    {"bvid": "BV1v0000000C", "title": "莫斯科大学留学生旭日旗事件进展C"},
+                )
+            return 412, "Blocked"  # every per-video verification is blocked
+
+        provider = self._provider(responder)
+        artifact = build_reference_candidate_set(
+            MOSCOW_TOPIC, (), provider=provider,
+            now="2026-10-20T12:00:00+00:00",
+        )
+        view_hits = [u for u in self.urls if "web-interface/view" in u]
+        self.assertEqual(len(view_hits), 1)
+        self.assertEqual(artifact["status"], "degraded")
+        self.assertEqual(len(artifact["candidates"]), 3)
+        for candidate in artifact["candidates"]:
+            self.assertEqual(candidate["view_count_status"], "unverified")
+            self.assertIsNone(candidate["view_count"])
+            self.assertIsNone(candidate["retrieval_note"] or None)
+
+    def test_partial_candidates_survive_latch_with_degraded_status(self):
+        """③ some candidates were verified before the block; the artifact
+        keeps them, degrades honestly, and returns locally without raising."""
+
+        def responder(url):
+            if "search/type" in url:
+                return 200, bili_search_body(
+                    {"bvid": "BV1v0000000A", "title": "莫斯科大学留学生旭日旗事件进展A"},
+                    {"bvid": "BV1v0000000B", "title": "莫斯科大学留学生旭日旗事件进展B"},
+                )
+            if "BV1v0000000A" in url:
+                return 200, bili_view_body("BV1v0000000A", view=500)
+            return 412, "Blocked"
+
+        provider = self._provider(responder)
+        artifact = build_reference_candidate_set(
+            MOSCOW_TOPIC, (), provider=provider,
+            now="2026-10-20T12:00:00+00:00",
+        )
+        self.assertEqual(artifact["status"], "degraded")
+        by_bvid = {c["bvid"]: c for c in artifact["candidates"]}
+        self.assertEqual(by_bvid["BV1v0000000A"]["view_count_status"], "verified")
+        self.assertEqual(by_bvid["BV1v0000000A"]["view_count"], 500)
+        self.assertEqual(by_bvid["BV1v0000000B"]["view_count_status"], "unverified")
+        self.assertEqual(artifact["candidates"][0]["bvid"], "BV1v0000000A")
+        # exactly one verification attempt reached the network after the
+        # first one was blocked: A verified + B blocked = 2 view calls,
+        # and nothing more
+        view_hits = [u for u in self.urls if "web-interface/view" in u]
+        self.assertEqual(len(view_hits), 2)
+
+    def test_blocked_user_bv_stops_remaining_user_verifications(self):
+        """Multiple user-supplied BVIDs: when the first metadata check is
+        blocked, later user BVIDs must not be requested and are kept as
+        honestly unverified references (search is latched off as well)."""
+
+        def responder(url):
+            if "web-interface/view" in url:
+                return 412, "Blocked"
+            return 200, "unexpected call"
+
+        provider = self._provider(responder)
+        artifact = build_reference_candidate_set(
+            MOSCOW_TOPIC, ("BV1aaaaaaaaa", "BV2aaaaaaaaa"), provider=provider,
+            now="2026-10-20T12:00:00+00:00",
+        )
+        view_hits = [u for u in self.urls if "web-interface/view" in u]
+        self.assertEqual(len(view_hits), 1)
+        search_hits = [u for u in self.urls if "search/type" in u]
+        self.assertEqual(len(search_hits), 0)
+        self.assertEqual(artifact["status"], "degraded")
+        self.assertEqual(len(artifact["candidates"]), 2)
+        for candidate in artifact["candidates"]:
+            self.assertTrue(candidate["user_supplied"])
+            self.assertEqual(candidate["view_count_status"], "unavailable")
+            self.assertEqual(candidate["retrieval_note"], "metadata_fetch_blocked")
+            self.assertIsNone(candidate["view_count"])
 
 
 class ReferenceCliTests(unittest.TestCase):

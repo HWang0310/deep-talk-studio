@@ -128,7 +128,17 @@ def _iso_from_unix(seconds) -> str:
 
 
 class BilibiliReferenceProvider:
-    """Anonymous search + per-video metadata access with bounded, fail-closed behavior."""
+    """Anonymous search + per-video metadata access with bounded, fail-closed behavior.
+
+    Risk-control circuit latch: the first time a genuine platform block is
+    observed during this provider's lifetime (HTTP 403/412/429, an HTML
+    interception page, or API-level risk-control code ``-412``), the
+    provider latches ``blocked`` state and performs **no further network
+    requests**; every subsequent ``search_videos`` / ``fetch_video_metadata``
+    call returns ``blocked`` without touching the network. Ordinary
+    timeouts and 5xx failures do not latch (they remain retryable failures).
+    No bypass mechanism exists or may be added.
+    """
 
     def __init__(
         self,
@@ -149,6 +159,7 @@ class BilibiliReferenceProvider:
         self._retry_backoff = max(0.0, float(retry_backoff))
         self._sleep = sleep if sleep is not None else time.sleep
         self._last_request_made = False
+        self._blocked_latch = False
         self._visitor = _VisitorIdentity()
         if visitor_identity is not None:
             self._visitor.value = visitor_identity
@@ -178,6 +189,11 @@ class BilibiliReferenceProvider:
     @property
     def timeout_seconds(self) -> float:
         return self._timeout
+
+    @property
+    def risk_control_latched(self) -> bool:
+        """True once a genuine platform block stopped all further requests."""
+        return self._blocked_latch
 
     def search_videos(self, query: str, *, page: int = 1) -> SearchOutcome:
         params = urllib.parse.urlencode({
@@ -216,7 +232,8 @@ class BilibiliReferenceProvider:
         status = payload["status"]
         if status == "blocked":
             return VideoMetadataOutcome(
-                status="blocked", http_status=payload["http_status"], message=payload["message"]
+                status="blocked", http_status=payload["http_status"],
+                api_code=payload["api_code"], message=payload["message"],
             )
         if status == "failed":
             return VideoMetadataOutcome(
@@ -294,9 +311,15 @@ class BilibiliReferenceProvider:
 
         The envelope only reports transport/authentication state; the caller
         interprets API-level ``code`` values because they mean different
-        things for search vs per-video metadata.
+        things for search vs per-video metadata — except the uniform
+        risk-control codes, which latch here. When the risk-control latch is
+        set, no network request is issued at all.
         """
 
+        if self._blocked_latch:
+            return {"status": "blocked", "http_status": None, "api_code": None,
+                    "message": "平台风控阻断已触发，本次运行不再发起后续请求",
+                    "body": None}
         attempts = self._max_retries + 1
         last_error: Dict[str, object] = {"status": "failed", "http_status": None,
                                          "api_code": None, "message": ""}
@@ -313,6 +336,7 @@ class BilibiliReferenceProvider:
                               "api_code": None, "message": str(exc)}
             else:
                 if response.status_code in BLOCKING_HTTP_STATUSES:
+                    self._blocked_latch = True
                     return {"status": "blocked", "http_status": response.status_code,
                             "api_code": None, "message": "平台访问受限", "body": None}
                 if 500 <= response.status_code < 600:
@@ -323,8 +347,15 @@ class BilibiliReferenceProvider:
                     try:
                         body = json.loads(response.body)
                     except (json.JSONDecodeError, TypeError):
+                        self._blocked_latch = True
                         return {"status": "blocked", "http_status": response.status_code,
                                 "api_code": None, "message": "非 JSON 响应（疑似拦截页）",
+                                "body": None}
+                    if body.get("code") in API_RISK_CONTROL_CODES:
+                        self._blocked_latch = True
+                        return {"status": "blocked", "http_status": response.status_code,
+                                "api_code": body.get("code"),
+                                "message": str(body.get("message", "接口风控拦截")),
                                 "body": None}
                     return {"status": "ok", "http_status": response.status_code,
                             "api_code": None, "message": "", "body": body}

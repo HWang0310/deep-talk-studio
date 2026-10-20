@@ -11,6 +11,12 @@ AIGC:
 
 # Changelog
 
+## Unreleased — 2026-10-20 — Issue #24 — Nexus Round 2 fix: risk-control circuit latch (PR #25 round 3)
+
+- Implemented the run-level risk-control latch required by the Round 2 review: the first genuine platform block observed in a discovery run (HTTP 403/412/429, HTML interception page, or API-level risk code `-412`) sets a provider-level latch; every subsequent `search_videos` / `fetch_video_metadata` call in the same run returns `blocked` **without issuing any further network request** — no next query, no remaining per-video verifications, no remaining user-BV checks. Artifact status degrades honestly (`degraded`/`blocked`, never `ok`).
+- Ordinary transient failures (timeouts, 5xx) do not latch and remain retryable `failed`; no bypass mechanism added. API `-412` now latches uniformly inside `_request_json`; `fetch_video_metadata` blocked outcomes carry `api_code`.
+- New regressions (8): provider-level latch (412 latch, API-412 latch, HTML interception latch, transient-failure non-latch) plus service-level end-to-end latch tests (① first blocked query stops the remaining query plan; ② blocked per-video verification stops all remaining verifications; ③ partially verified candidates survive with honest `degraded` status; ④ multiple user BVIDs: first blocked check stops later user-BV requests and search, references kept honestly unverified). Contract updated with the run-level latch semantics.
+
 ## Unreleased — 2026-10-20 — Issue #24 — Nexus CHANGES_REQUIRED fixes (PR #25 round 2)
 
 - **Blocking A:** a user-supplied BVID rejected for invalid/unavailable/restricted metadata and re-appearing in search results no longer crashes with `StopIteration`; it is now deterministically excluded (`excluded_preview` reason `invalid/unavailable/restricted_video`) without a second metadata fetch or re-entering the auto path. Merge logic operates only on actually-retained user candidates.
