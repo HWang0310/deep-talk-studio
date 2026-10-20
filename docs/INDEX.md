@@ -34,6 +34,7 @@ Before acting, also inspect the current Git branch, HEAD, and working-tree statu
 |---|---|
 | Current truth, formal release, accepted/unreleased/experimental state | [PROJECT_STATE.md](../PROJECT_STATE.md) |
 | Compact current recovery / active control-plane state | [CURRENT_CONTROL_PLANE.md](../CURRENT_CONTROL_PLANE.md) |
+| Owner / creator quick start — how to use the released product vs manage the project | [START_HERE.md](../START_HERE.md) |
 | Fast introduction for a new contributor or creator | [README.md](../README.md) |
 | Accepted product requirements and hard boundaries | [PRD.md](../PRD.md) |
 | Released versus accepted, current, next, experimental, and deferred work | [ROADMAP.md](../ROADMAP.md) |

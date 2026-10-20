@@ -11,6 +11,12 @@ AIGC:
 
 # Changelog
 
+## Unreleased — 2026-10-20 — Owner quick-start documentation (docs-only)
+
+- Added [START_HERE.md](START_HERE.md) as the single Chinese entry for creator use versus Nexus PM project maintenance, including ordinary-language prompts, actual v1.0 prerequisite gates, animation-plugin local setup caveats, and troubleshooting.
+- Linked the entry from `README.md` and `docs/INDEX.md`. No runtime, skill, plugin, architecture, release/tag, roster, `PROJECT_STATE.md`, or current control-plane behavior changed; no new development was authorized.
+
+
 ## v1.0.0 — 2026-09-10 — DT-V1-REL-001 — FORMAL RELEASE
 
 > Published as tag `v1.0.0`; GitHub Release: <https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0>. The release candidate entry below records its preparation and remains historical.
