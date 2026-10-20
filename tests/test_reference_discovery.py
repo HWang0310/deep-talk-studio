@@ -16,6 +16,7 @@ from deeptalk_studio.bilibili_reference_provider import (
     BilibiliReferenceProvider,
     SearchItem,
     SearchOutcome,
+    TransportError,
     TransportResponse,
     VideoMetadataOutcome,
 )
@@ -377,22 +378,73 @@ class BilibiliProviderTests(unittest.TestCase):
     def test_spi_failure_degrades_silently(self):
         def responder(url):
             if "finger/spi" in url:
-                return 200, "not json"
+                return 503, "service unavailable"  # benign transient failure
             if "search/type" in url:
                 return 200, bili_search_body({"bvid": "BV1aaaaaaaaa"})
             return 200, bili_view_body()
 
-        def transport(url, headers, timeout):
-            self.transport_calls.append({"url": url, "headers": dict(headers)})
-            status, body = responder(url)
-            return TransportResponse(status, body)
-
-        provider = BilibiliReferenceProvider(
-            transport=transport, use_visitor_identity=True,
-            request_interval=0.0, sleep=self._track_sleep,
-        )
+        provider = self._provider(responder, use_visitor_identity=True)
         outcome = provider.search_videos("查询词")
         self.assertEqual(outcome.status, "ok")
+        self.assertFalse(provider.risk_control_latched)
+
+    def test_spi_transport_error_degrades_silently(self):
+        def responder(url):
+            if "finger/spi" in url:
+                raise TransportError("connection reset")
+            if "search/type" in url:
+                return 200, bili_search_body({"bvid": "BV1aaaaaaaaa"})
+            return 200, bili_view_body()
+
+        provider = self._provider(responder, use_visitor_identity=True)
+        outcome = provider.search_videos("查询词")
+        self.assertEqual(outcome.status, "ok")
+        self.assertFalse(provider.risk_control_latched)
+
+    def test_spi_http_412_latches_entire_run(self):
+        """Nexus Round 3 / Owner directive: a risk-controlled visitor
+        bootstrap stops the run — exactly one network call in total (the
+        blocked SPI request); no search or view request is ever issued."""
+
+        def responder(url):
+            if "finger/spi" in url:
+                return 412, "Blocked"
+            return 200, "unexpected network call"
+
+        provider = self._provider(responder, use_visitor_identity=True)
+        first = provider.search_videos("查询词")
+        second = provider.fetch_video_metadata("BV1aaaaaaaaa")
+        self.assertEqual(first.status, "blocked")
+        self.assertEqual(second.status, "blocked")
+        self.assertTrue(provider.risk_control_latched)
+        self.assertEqual(len(self.transport_calls), 1)
+        self.assertIn("finger/spi", self.transport_calls[0]["url"])
+        self.assertNotIn("search/type", self.transport_calls[0]["url"])
+
+    def test_spi_api_risk_code_latches_entire_run(self):
+        def responder(url):
+            if "finger/spi" in url:
+                return 200, json.dumps({"code": -412, "message": "请求被拦截"})
+            return 200, bili_view_body()
+
+        provider = self._provider(responder, use_visitor_identity=True)
+        outcome = provider.search_videos("查询词")
+        self.assertEqual(outcome.status, "blocked")
+        self.assertTrue(provider.risk_control_latched)
+        self.assertEqual(len(self.transport_calls), 1)
+
+    def test_spi_html_challenge_latches_entire_run(self):
+        def responder(url):
+            if "finger/spi" in url:
+                return 200, "<!DOCTYPE html><html>出错啦</html>"
+            return 200, bili_search_body()
+
+        provider = self._provider(responder, use_visitor_identity=True)
+        outcome = provider.search_videos("查询词")
+        self.assertEqual(outcome.status, "blocked")
+        self.assertTrue(provider.risk_control_latched)
+        self.assertEqual(len(self.transport_calls), 1)
+        self.assertIn("finger/spi", self.transport_calls[0]["url"])
 
     def test_request_interval_sleeps_between_calls(self):
         provider = self._provider(lambda url: (200, bili_search_body()), request_interval=1.5,
@@ -779,21 +831,22 @@ class ReferenceCandidateSetTests(unittest.TestCase):
 
 
 class ServiceRiskControlLatchTests(unittest.TestCase):
-    """Nexus Round 2 blocker: once a real platform block occurs mid-run, the
-    rest of the same discovery run must not issue any further network
-    requests, and the artifact must degrade honestly instead of crashing."""
+    """Nexus Round 2/3 blockers: once a real platform block occurs mid-run,
+    the rest of the same discovery run must not issue any further network
+    requests, and the artifact must degrade honestly instead of crashing.
+    Includes the visitor-bootstrap entry point (default anonymous mode)."""
 
     def setUp(self):
         self.urls = []
 
-    def _provider(self, responder):
+    def _provider(self, responder, use_visitor_identity=False):
         def transport(url, headers, timeout):
             self.urls.append(url)
             status, body = responder(url)
             return TransportResponse(status, body)
 
         return BilibiliReferenceProvider(
-            transport=transport, use_visitor_identity=False,
+            transport=transport, use_visitor_identity=use_visitor_identity,
             request_interval=0.0, sleep=lambda seconds: None,
         )
 
@@ -901,6 +954,56 @@ class ServiceRiskControlLatchTests(unittest.TestCase):
             self.assertEqual(candidate["view_count_status"], "unavailable")
             self.assertEqual(candidate["retrieval_note"], "metadata_fetch_blocked")
             self.assertIsNone(candidate["view_count"])
+
+    def test_visitor_bootstrap_risk_control_stops_entire_run(self):
+        """Nexus Round 3 / Owner directive: in default anonymous mode
+        (use_visitor_identity=True), a risk-controlled SPI bootstrap stops
+        the whole run — one network call total, zero search requests, and
+        an honest blocked artifact with manual-URL guidance."""
+
+        def responder(url):
+            if "finger/spi" in url:
+                return 412, "Blocked"
+            return 200, "unexpected call"
+
+        provider = self._provider(responder, use_visitor_identity=True)
+        artifact = build_reference_candidate_set(
+            MOSCOW_TOPIC, (), provider=provider,
+            now="2026-10-20T12:00:00+00:00",
+        )
+        self.assertEqual(len(self.urls), 1)
+        self.assertIn("finger/spi", self.urls[0])
+        search_hits = [u for u in self.urls if "search/type" in u]
+        view_hits = [u for u in self.urls if "web-interface/view" in u]
+        self.assertEqual(search_hits, [])
+        self.assertEqual(view_hits, [])
+        self.assertEqual(artifact["status"], "blocked")
+        self.assertEqual(artifact["candidates"], [])
+        self.assertIn("--url", artifact["action_note"])
+
+    def test_visitor_bootstrap_risk_control_with_user_url_degrades(self):
+        """Same entry point with a user reference: the reference survives as
+        an honestly unverified candidate; exactly one network call (the
+        blocked bootstrap) is made in the entire run."""
+
+        def responder(url):
+            if "finger/spi" in url:
+                return 412, "Blocked"
+            return 200, "unexpected call"
+
+        provider = self._provider(responder, use_visitor_identity=True)
+        artifact = build_reference_candidate_set(
+            MOSCOW_TOPIC, ("BV1aaaaaaaaa",), provider=provider,
+            now="2026-10-20T12:00:00+00:00",
+        )
+        self.assertEqual(len(self.urls), 1)
+        self.assertIn("finger/spi", self.urls[0])
+        self.assertEqual(len(artifact["candidates"]), 1)
+        self.assertEqual(artifact["status"], "degraded")
+        candidate = artifact["candidates"][0]
+        self.assertTrue(candidate["user_supplied"])
+        self.assertEqual(candidate["view_count_status"], "unavailable")
+        self.assertEqual(candidate["retrieval_note"], "metadata_fetch_blocked")
 
 
 class ReferenceCliTests(unittest.TestCase):

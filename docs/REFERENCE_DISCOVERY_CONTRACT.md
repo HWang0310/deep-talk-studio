@@ -55,7 +55,7 @@ Python 侧可注入 transport（离线确定性测试）与自定义 provider。
 ## 访问方式与合规边界
 
 - 仅匿名访问浏览器首访即用的公开端点（搜索 + 单视频元数据）；可通过 B 站自身公开的访客初始化端点获得随机、与账号无关的访客标识（`--no-visitor-identity` 关闭，Nexus 已确认此产品选择）。标识仅存于内存，不写日志、不写工件。
-- **风控熔断（run 内 circuit latch）**：同一次发现运行中首次真实遇到 HTTP 403/412/429、HTML 拦截页或 API 层已知风控码（如 `code=-412`）时，Provider 立即进入阻断状态，后续所有 `search_videos`/`fetch_video_metadata` **不再发起任何网络请求**，直接返回 blocked；产物 status 诚实降级为 `degraded`/`blocked`，绝不误报 ok。普通超时/5xx 不触发熔断（仍为可重试的 `failed`）。无任何绕过机制。
+- **风控熔断（run 内 circuit latch）**：同一次发现运行中首次真实遇到 HTTP 403/412/429、HTML 拦截页或 API 层已知风控码（如 `code=-412`）时，Provider 立即进入阻断状态，后续所有 `search_videos`/`fetch_video_metadata` **不再发起任何网络请求**，直接返回 blocked；产物 status 诚实降级为 `degraded`/`blocked`，绝不误报 ok。**匿名访客初始化请求本身遇风控（412/403/429、HTML 拦截页、API `-412`）同样触发熔断**——运行在任何搜索或元数据请求发出之前即停止；访客初始化的良性失败（网络错误、5xx、非风控 JSON）仍静默降级，运行继续（不带访客标识）。普通超时/5xx 不触发熔断（仍为可重试的 `failed`）。无任何绕过机制。
 - HTTP 412/403/429、拦截页、以及 API 层已知风控码（如 `code=-412`）一律标 `blocked`/`degraded` 并降级为用户提供链接的离线补齐；未知非零 API 码保持 `failed`，不猜测归类；永不重试绕过、伪造签名或解验证码。瞬时故障（网络、5xx）最多重试 2 次并退避。
 - 内建限速：请求间隔默认 1 秒、超时 15 秒、查询 ≤4 条 ×1 页、单视频核验 ≤15 次。
 
@@ -67,5 +67,5 @@ Python 侧可注入 transport（离线确定性测试）与自定义 provider。
 
 ## 测试
 
-- 离线确定性单测：`tests/test_reference_discovery.py`（注入 fake transport/provider；覆盖 URL 规范化、去重、排序、缺失/冲突播放量、低相关排除、不足结果、412/API-412 降级、run 内风控熔断——首个 query blocked 后不再请求后续 query、单视频核验 blocked 后不再请求其余视频、部分候选已核验时诚实降级、多用户 BV 首个 blocked 后不再请求其余 BV、元数据失效用户 BVID 与搜索重叠的确定性排除、候选上限 5、输入脱敏与工件隐私、`--print-json` 纯 JSON stdout、工件校验、CLI 装配）。
+- 离线确定性单测：`tests/test_reference_discovery.py`（注入 fake transport/provider；覆盖 URL 规范化、去重、排序、缺失/冲突播放量、低相关排除、不足结果、412/API-412 降级、run 内风控熔断——首个 query blocked 后不再请求后续 query、单视频核验 blocked 后不再请求其余视频、部分候选已核验时诚实降级、多用户 BV 首个 blocked 后不再请求其余 BV、**匿名访客初始化 SPI 遇 412/API-412/HTML 拦截页时整 run 熔断（默认 `use_visitor_identity=True` 路径，全 run 仅 1 次网络请求）、SPI 良性失败不熔断继续**、元数据失效用户 BVID 与搜索重叠的确定性排除、候选上限 5、输入脱敏与工件隐私、`--print-json` 纯 JSON stdout、工件校验、CLI 装配）。
 - 真实网络冒烟：`tests/test_reference_discovery_live.py`，仅 `DEEPTALK_LIVE_BILI_SMOKE=1` 显式开启，一次运行、默认限速，CI 不依赖 B 站。

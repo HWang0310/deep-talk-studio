@@ -9,7 +9,10 @@ Design constraints (Issue #24):
   browser performs on first visit). It is an anonymous, account-unlinked
   identifier: kept in memory only, never logged, never persisted into
   artifacts or files. Reading the user's browser profile or cookies is not
-  supported.
+  supported. If the bootstrap call itself is risk-controlled, the provider
+  latches and the run stops before any search or metadata request; benign
+  bootstrap failures degrade silently and the run continues without an
+  identity.
 - HTTP 412 / 403 / 429 and non-JSON HTML error pages are reported as
   ``blocked``. Blocked outcomes are never retried and never bypassed — no
   signing, no captcha solving, no credential use.
@@ -135,8 +138,11 @@ class BilibiliReferenceProvider:
     interception page, or API-level risk-control code ``-412``), the
     provider latches ``blocked`` state and performs **no further network
     requests**; every subsequent ``search_videos`` / ``fetch_video_metadata``
-    call returns ``blocked`` without touching the network. Ordinary
-    timeouts and 5xx failures do not latch (they remain retryable failures).
+    call returns ``blocked`` without touching the network. This includes the
+    anonymous visitor-initialization bootstrap: if that call is itself
+    risk-controlled, the run stops before any search or per-video request
+    is issued. Ordinary timeouts and 5xx failures do not latch (they remain
+    retryable failures, and a failed bootstrap simply degrades silently).
     No bypass mechanism exists or may be added.
     """
 
@@ -313,7 +319,8 @@ class BilibiliReferenceProvider:
         interprets API-level ``code`` values because they mean different
         things for search vs per-video metadata — except the uniform
         risk-control codes, which latch here. When the risk-control latch is
-        set, no network request is issued at all.
+        set (either before this call or by the visitor bootstrap it just
+        performed), no network request is issued at all.
         """
 
         if self._blocked_latch:
@@ -325,6 +332,12 @@ class BilibiliReferenceProvider:
                                          "api_code": None, "message": ""}
         for attempt in range(1, attempts + 1):
             self._ensure_visitor_identity()
+            if self._blocked_latch:
+                # the visitor bootstrap itself was risk-controlled: stop
+                # before issuing any search / metadata request
+                return {"status": "blocked", "http_status": None, "api_code": None,
+                        "message": "平台风控阻断已触发，本次运行不再发起后续请求",
+                        "body": None}
             headers = {"User-Agent": USER_AGENT, "Referer": referer}
             identity = self._visitor.value
             if identity:
@@ -372,7 +385,15 @@ class BilibiliReferenceProvider:
             self._last_request_made = True
 
     def _ensure_visitor_identity(self) -> None:
-        """Best-effort anonymous visitor bootstrap; failure degrades silently."""
+        """Anonymous visitor bootstrap with fail-closed risk handling.
+
+        Benign failures (transport error, HTTP 5xx, unexpected-but-JSON
+        payloads) degrade silently and the run continues without a visitor
+        identity. A genuine risk-control answer on the bootstrap call
+        itself — HTTP 403/412/429, a non-JSON interception/challenge page,
+        or an API-level risk-control code like ``-412`` — latches the
+        provider so the run stops before any search or per-video request.
+        """
 
         visitor = self._visitor
         if visitor.mode != "anonymous" or visitor.initialized:
@@ -381,11 +402,25 @@ class BilibiliReferenceProvider:
         headers = {"User-Agent": USER_AGENT, "Referer": VIDEO_REFERER}
         try:
             response = self._paced_transport(VISITOR_SPI_ENDPOINT, headers)
-            if response.status_code != 200:
-                return
-            payload = json.loads(response.body)
-            value = (payload.get("data") or {}).get("b_3")
-            if isinstance(value, str) and value:
-                visitor.value = value
-        except (TransportError, json.JSONDecodeError, TypeError, ValueError):
+        except TransportError:
             return
+        if response.status_code in BLOCKING_HTTP_STATUSES:
+            self._blocked_latch = True
+            return
+        if response.status_code != 200:
+            return
+        try:
+            payload = json.loads(response.body)
+        except (json.JSONDecodeError, TypeError):
+            # a JSON endpoint answering with an HTML challenge page is a
+            # genuine risk-control signal, not a transient failure
+            self._blocked_latch = True
+            return
+        if not isinstance(payload, dict):
+            return
+        if payload.get("code") in API_RISK_CONTROL_CODES:
+            self._blocked_latch = True
+            return
+        value = (payload.get("data") or {}).get("b_3")
+        if isinstance(value, str) and value:
+            visitor.value = value

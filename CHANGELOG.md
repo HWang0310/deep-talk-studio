@@ -11,6 +11,12 @@ AIGC:
 
 # Changelog
 
+## Unreleased — 2026-10-20 — Issue #24 — Nexus Round 3 / Owner directive: visitor bootstrap latches on risk control (PR #25 round 4)
+
+- Closed the last gap in the run-level risk-control latch: the default anonymous visitor-initialization request (`_ensure_visitor_identity`, `use_visitor_identity=True`) now participates in the circuit. When the bootstrap call itself answers with HTTP 403/412/429, a non-JSON HTML challenge page, or API risk code `-412`, the provider latches immediately and `_request_json` returns `blocked` right after the bootstrap — the run stops before any search or per-video request is issued (exactly one network call in total; artifact `blocked`, or `degraded` with user references kept).
+- Benign bootstrap failures (transport errors, HTTP 5xx, unexpected-but-non-risk JSON) do not latch and the run continues without a visitor identity, preserving fail-open-free-but-safe degradation; ordinary timeouts/5xx were never risk-control signals and still are not. No bypass mechanism added.
+- New regressions (6) at the `use_visitor_identity=True` entry point: provider-level SPI HTTP 412 latch, SPI API `-412` latch, SPI HTML challenge latch (each asserts exactly one total transport call and zero search/view requests), benign SPI 503 and SPI transport-error non-latch; service-level end-to-end — SPI 412 with no user URLs → zero search/view requests and an honest `blocked` artifact with manual-URL guidance; SPI 412 with a user URL → `degraded` artifact keeping the reference honestly unverified after a single bootstrap call. The previous "SPI failure degrades silently" test was rewritten to a genuine benign failure (503) since a JSON endpoint answering with HTML is now correctly classified as a challenge. Owner decision (synced in #24): anonymous visitor mode stays default-ON with the opt-out switch; no login integration this round; no Chrome cookies.
+
 ## Unreleased — 2026-10-20 — Issue #24 — Nexus Round 2 fix: risk-control circuit latch (PR #25 round 3)
 
 - Implemented the run-level risk-control latch required by the Round 2 review: the first genuine platform block observed in a discovery run (HTTP 403/412/429, HTML interception page, or API-level risk code `-412`) sets a provider-level latch; every subsequent `search_videos` / `fetch_video_metadata` call in the same run returns `blocked` **without issuing any further network request** — no next query, no remaining per-video verifications, no remaining user-BV checks. Artifact status degrades honestly (`degraded`/`blocked`, never `ok`).
