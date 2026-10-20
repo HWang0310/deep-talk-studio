@@ -15,7 +15,7 @@
 ## Current control-plane state
 
 - `v1.0.0` is formally released.
-- **No active implementation Issue, PR or engineering execution lane.** Issue #21 (content-driven Script V1 duration) was accepted by Nexus at exact PR head `5812473ca6784c84ee767304304b91e5872ca106`, merged via [PR #22](https://github.com/HWang0310/deep-talk-studio/pull/22) into main at `9ac3ff47df927fc843adff9b7eda79004c91c34c`, and closed completed. This is a post-v1.0 `main` improvement, not a new formal release. Creator-local Research and Content Thesis were not modified.
+- **Current active engineering lane: Creator Workbench UI [Issue #26](https://github.com/HWang0310/deep-talk-studio/issues/26)** (Forge / TeleAgent, Nexus review): first localhost browser vertical slice for topic input → accepted Bilibili reference discovery → candidate list. Parent product direction is [#23](https://github.com/HWang0310/deep-talk-studio/issues/23). Bilibili reference discovery [Issue #24](https://github.com/HWang0310/deep-talk-studio/issues/24) passed Nexus exact-SHA review and [PR #25](https://github.com/HWang0310/deep-talk-studio/pull/25) merged to main at `90919cf8b2eadc361ffa4a879211c8d7fc089e73`, **ACCEPTED / IMPLEMENTED_UNRELEASED** (not formally released, no UI included in #24). Historical script policy [Issue #21 / PR #22](https://github.com/HWang0310/deep-talk-studio/pull/22) is also merged; v1.0.0 release/tag unchanged.
 - Issue #19 was created during the engineering-governance refresh by mistake; the Owner had requested standards adoption / control-plane compaction only, not activation of Product Architecture V2 Phase D. Issue #19 is closed `not_planned` and is historical context only.
 - Product Architecture V2 Phase D/E/F remain future work. Phase D is a documented candidate, **not** the current product priority and **not started**.
 - The old Nexus session-transfer Issue #3 is closed and superseded by the released project state and this compact recovery index. It remains durable history and must not be used as current task state.
@@ -24,7 +24,7 @@
 
 ## Immediate next action
 
-1. For the current creator episode, safely sync the accepted `main` change into the existing local workspace without overwriting dirty/unpushed work, then reuse approved local Research r10 and the approved Content Thesis for normal V1 Script generation and independent review. No new Research, approval or product development is implied. Further engineering work requires a new Owner product goal.
+1. **Next product implementation**: Forge should read [Issue #26](https://github.com/HWang0310/deep-talk-studio/issues/26) and the merged #24 contract, inspect existing UI/server technology and propose the smallest localhost creator UI for topic → Bilibili reference discovery. Post plan and evidence to #26; work on a dedicated branch and PR for Nexus review, no self-merge. Do not add account login, downloads, LLM settings or unrelated scope yet. Existing user episode work remains independent and private.
 2. Before any future dispatch, fetch live `engineering-journal` and read the current `AGENT-OPERATING-MODEL.md` plus `BACKEND-CAPABILITY-CERTIFICATION.md`.
 3. Recover DeepTalk engineer identities only from the current DeepTalk `AGENTS.md` roster.
 4. When a real implementation task is selected, maintain one active execution/review thread; once a PR exists, that PR is the default active thread.
