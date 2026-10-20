@@ -36,7 +36,7 @@ AIGC:
 
 Python 侧可注入 transport（离线确定性测试）与自定义 provider。
 
-### Mac 本地 Web UI（Issue #26，IMPLEMENTED_UNRELEASED 待审）
+### Mac 本地 Web UI（Issue #26 / PR #27，Nexus PASS / ACCEPTED / IMPLEMENTED_UNRELEASED，已合入 main）
 
 ```bash
 ./scripts/deeptalk ui          # http://127.0.0.1:8321/，仅绑定本机回环
