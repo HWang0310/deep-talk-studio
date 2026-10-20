@@ -36,6 +36,14 @@ AIGC:
 
 Python 侧可注入 transport（离线确定性测试）与自定义 provider。
 
+### Mac 本地 Web UI（Issue #26，IMPLEMENTED_UNRELEASED 待审）
+
+```bash
+./scripts/deeptalk ui          # http://127.0.0.1:8321/，仅绑定本机回环
+```
+
+零新依赖（Python 标准库 HTTP 服务）+ 原生中文创建者页面，直接调用本合同的服务与 Provider：每次点击"搜索"都是一个新的有界 run，完整保留 run 级风控熔断。端点仅三个：`GET /`（页面）、`GET /healthz`、`POST /api/discover`（唯一业务端点；请求体 `{topic, urls?}`，响应即本合同工件 JSON，`blocked/degraded` 同样返回 200 + 诚实 status 由 UI 呈现降级指引）。输入限制：请求体 ≤8KB（413）、主题 1–200 字、链接 0–5 条 × ≤300 字（400 + 类型化中文错误）；检索以锁串行化（一次一个有界 run，重复点击排队为新 run 而非绕过）；工件落盘同上述唯一 `REF-*` 规则。
+
 ## 选择流水线（确定性）
 
 1. **用户链接优先**：URL → BVID 规范化；格式错误、重复、超过上限（>5）、视频无效/失效/受限均以类型化 reason 记录在 `rejected_user_urls`，绝不静默丢弃；元数据获取被平台阻断的用户链接保留为 `unverified`/`metadata_fetch_blocked` 候选。用户候选永远排在自动候选之前；同一 BVID 在搜索中再次出现会合并 query 溯源；**已被元数据拒绝的用户 BVID 再次出现在搜索中时被确定性排除（不重新请求、不进入自动候选、不崩溃）**。隐私：工件 `user_supplied_urls` 只存无参数 canonical URL；`rejected_user_urls[].input` 只存脱敏摘录（URL 去参去尾斜杠截断，非 URL 截断），原始输入绝不回显。

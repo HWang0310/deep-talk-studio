@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>DeepTalk 参考视频工作台</title>
+<style>
+  :root {
+    --brand: #b3261e;
+    --brand-dark: #7f1d1b;
+    --bg: #f6f6f4;
+    --card: #ffffff;
+    --text: #222222;
+    --muted: #6b6b6b;
+    --line: #e6e3de;
+    --ok: #2c6e49;
+    --warn: #9a6700;
+    --bad: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    line-height: 1.6;
+  }
+  header {
+    background: var(--brand);
+    color: #fff;
+    padding: 16px 20px;
+  }
+  header h1 { margin: 0; font-size: 20px; font-weight: 700; }
+  header .sub { font-size: 12px; opacity: .85; margin-top: 4px; }
+  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 64px; }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 18px 18px 14px;
+    box-shadow: 0 1px 5px rgba(0,0,0,.07);
+    margin-bottom: 16px;
+  }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+  label .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+  input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    background: #fff;
+  }
+  input:focus-visible, button:focus-visible, a:focus-visible {
+    outline: 2px solid var(--brand); outline-offset: 1px;
+  }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    border: 1px solid var(--line);
+    background: #faf9f7;
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  button:hover { background: #f0efec; }
+  button[disabled] { opacity: .5; cursor: not-allowed; }
+  #search-btn {
+    background: var(--brand); border-color: var(--brand); color: #fff;
+    font-size: 15px; padding: 10px 22px; font-weight: 600;
+  }
+  #search-btn:hover { background: var(--brand-dark); }
+  .ref-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .ref-row input { flex: 1; }
+  .ref-row button { white-space: nowrap; }
+  .actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+  #run-status { font-size: 13px; color: var(--muted); }
+  .status-line { font-size: 14px; margin: 6px 0; }
+  .status-ok { color: var(--ok); font-weight: 600; }
+  .status-degraded { color: var(--warn); font-weight: 600; }
+  .status-blocked { color: var(--bad); font-weight: 600; }
+  .muted { color: var(--muted); font-size: 12.5px; }
+  .meta-line { margin: 4px 0; }
+  .candidate { border-top: 1px solid var(--line); padding: 14px 0 10px; }
+  .candidate:first-child { border-top: none; }
+  .badge {
+    display: inline-block; font-size: 12px; border-radius: 6px;
+    padding: 1px 8px; margin-right: 8px; vertical-align: 2px; font-weight: 600;
+  }
+  .badge-user { background: #e8f0fe; color: #1a56db; }
+  .badge-search { background: #e7f4ea; color: var(--ok); }
+  .title-link { color: var(--brand); text-decoration: none; font-weight: 600; font-size: 15px; }
+  .title-link:hover { text-decoration: underline; }
+  .meta-grid { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 4px; }
+  .meta-grid .item { font-size: 13px; color: var(--muted); }
+  .views-verified { color: var(--text); font-weight: 600; }
+  .views-unknown { color: var(--muted); }
+  .via { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .rejection { font-size: 13px; color: var(--warn); margin: 2px 0; }
+  details { margin-top: 12px; font-size: 13px; }
+  details summary { cursor: pointer; color: var(--muted); }
+  details ul { margin: 6px 0 0; padding-left: 20px; color: var(--muted); }
+  .error-box {
+    background: #fdecea; border: 1px solid #f5c6c0; color: var(--bad);
+    padding: 10px 12px; border-radius: 8px; margin-top: 12px; font-size: 14px;
+  }
+  .coverage { background: #f7f5f0; border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
+  footer.site { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 30px; }
+  @media (max-width: 600px) {
+    main { padding: 14px 10px 40px; }
+    .card { padding: 14px 12px 10px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>DeepTalk 参考视频工作台</h1>
+  <div class="sub">本机 127.0.0.1 · 匿名访问 · 只检索元数据，不下载视频</div>
+</header>
+
+<main>
+  <section class="card" aria-labelledby="form-title">
+    <h2 id="form-title">新建检索</h2>
+    <label for="topic">视频主题 <span class="hint">必填，最多 200 字</span></label>
+    <input id="topic" name="topic" type="text" maxlength="200" autocomplete="off"
+           placeholder="例如：莫斯科大学留学生旭日旗事件">
+    <label id="refs-label">B 站参考链接 <span class="hint">可选 0–5 条；用户链接优先保留，与搜索结果按 BV 号去重</span></label>
+    <div id="ref-list" aria-labelledby="refs-label"></div>
+    <button id="add-ref" type="button" aria-controls="ref-list">+ 添加参考链接</button>
+    <div class="actions">
+      <button id="search-btn" type="button">搜索参考视频</button>
+      <span id="run-status" role="status"></span>
+    </div>
+    <div id="error-box" class="error-box" hidden></div>
+  </section>
+
+  <section id="result" class="card" hidden aria-live="polite" aria-labelledby="result-title">
+    <h2 id="result-title">检索结果</h2>
+    <p id="run-meta" class="muted meta-line"></p>
+    <p id="run-note" class="status-line"></p>
+    <div id="coverage" class="coverage muted" hidden></div>
+    <div id="rejections"></div>
+    <div id="candidates"></div>
+    <details id="limitations-wrap">
+      <summary>数据说明与限制</summary>
+      <ul id="limitations"></ul>
+    </details>
+  </section>
+</main>
+
+<footer class="site">DeepTalk Studio · 参考视频仅用于研究叙事结构，不作为事实来源 · 排序不等同于站内整体排名</footer>
+
+<script>
+'use strict';
+
+(function () {
+  var MAX_REFS = 5;
+  var REASON_TEXT = {
+    malformed_reference: "格式无法识别",
+    not_bilibili_url: "不是 B 站链接",
+    short_link_unsupported: "暂不支持 b23.tv 短链，请粘贴完整链接",
+    duplicate_bvid: "与前面某条重复",
+    exceeds_max_candidates: "超出最多 5 条上限",
+    video_invalid: "视频无效",
+    video_unavailable: "视频已失效或不可见",
+    video_restricted: "视频受限，无法访问"
+  };
+  var STATUS_TEXT = {
+    ok: "检索完成",
+    degraded: "部分完成（有降级）",
+    blocked: "本次检索被平台限制"
+  };
+
+  var topicEl = document.getElementById('topic');
+  var addBtn = document.getElementById('add-ref');
+  var refList = document.getElementById('ref-list');
+  var searchBtn = document.getElementById('search-btn');
+  var runStatus = document.getElementById('run-status');
+  var errorBox = document.getElementById('error-box');
+  var resultCard = document.getElementById('result');
+  var runMeta = document.getElementById('run-meta');
+  var runNote = document.getElementById('run-note');
+  var coverage = document.getElementById('coverage');
+  var rejectionsEl = document.getElementById('rejections');
+  var candidatesEl = document.getElementById('candidates');
+  var limitationsEl = document.getElementById('limitations');
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) { node.className = className; }
+    if (text !== undefined && text !== null) { node.textContent = text; }
+    return node;
+  }
+
+  function refCount() { return refList.querySelectorAll('input').length; }
+
+  function syncAddButton() {
+    addBtn.disabled = refCount() >= MAX_REFS;
+    addBtn.textContent = refCount() >= MAX_REFS
+      ? '已到 5 条上限' : '+ 添加参考链接';
+  }
+
+  function addRefInput() {
+    if (refCount() >= MAX_REFS) { return; }
+    var row = document.createElement('div');
+    row.className = 'ref-row';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 300;
+    input.setAttribute('aria-label', 'B 站参考链接 ' + (refCount() + 1));
+    input.placeholder = 'https://www.bilibili.com/video/BV… 或直接粘贴 BV 号';
+    var remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = '移除';
+    remove.setAttribute('aria-label', '移除第 ' + (refCount() + 1) + ' 条参考链接');
+    remove.addEventListener('click', function () {
+      row.remove();
+      syncAddButton();
+    });
+    row.appendChild(input);
+    row.appendChild(remove);
+    refList.appendChild(row);
+    syncAddButton();
+    if (refCount() === 1) { input.focus(); }
+  }
+
+  function formatViews(candidate) {
+    if (candidate.view_count_status === 'verified' && typeof candidate.view_count === 'number') {
+      return { text: candidate.view_count.toLocaleString('zh-CN') + ' 播放（已核验）', cls: 'views-verified' };
+    }
+    if (candidate.view_count_status === 'unavailable') {
+      return { text: '播放量不可用（元数据获取受限）', cls: 'views-unknown' };
+    }
+    return { text: '播放量未知（未核验，不采用搜索页数字）', cls: 'views-unknown' };
+  }
+
+  function formatDateTime(iso) {
+    if (!iso) { return '—'; }
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) { return iso; }
+    return d.toLocaleString('zh-CN', { hour12: false });
+  }
+
+  function showRequestError(message) {
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+  }
+
+  function clearRequestError() {
+    errorBox.hidden = true;
+    errorBox.textContent = '';
+  }
+
+  function render(artifact) {
+    resultCard.hidden = false;
+    runMeta.textContent = '';
+    runNote.textContent = '';
+    rejectionsEl.textContent = '';
+    candidatesEl.textContent = '';
+    limitationsEl.textContent = '';
+    coverage.hidden = false;
+    coverage.textContent = '';
+
+    var statusText = STATUS_TEXT[artifact.status] || artifact.status;
+    runMeta.appendChild(el('span', 'status-' + artifact.status, statusText));
+    runMeta.appendChild(document.createTextNode(' · 生成时间 ' + formatDateTime(artifact.generated_at)));
+    var s = artifact.search || {};
+    runMeta.appendChild(document.createTextNode(
+      ' · 检索到 ' + (s.raw_result_count || 0) + ' 条，去重后 ' +
+      (s.deduplicated_count || 0) + ' 条，播放量核验 ' +
+      (s.verification_performed || 0) + ' 次'
+    ));
+
+    runNote.textContent = artifact.action_note || '';
+
+    coverage.textContent = (s.coverage_note || '') +
+      '（查询词：' + (artifact.query_plan || []).join('；') + '）';
+
+    (artifact.rejected_user_urls || []).forEach(function (r) {
+      var reason = REASON_TEXT[r.reason] || r.reason;
+      rejectionsEl.appendChild(el('p', 'rejection', '已跳过：' + r.input + '（' + reason + '）'));
+    });
+
+    (artifact.candidates || []).forEach(function (c) {
+      var item = el('div', 'candidate');
+      var head = el('div');
+      head.appendChild(el('span', 'badge ' + (c.user_supplied ? 'badge-user' : 'badge-search'),
+                          c.user_supplied ? '用户链接' : '搜索发现'));
+      var link = el('a', 'title-link', c.title || '（标题不可用）');
+      link.href = c.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      head.appendChild(link);
+      item.appendChild(head);
+
+      var views = formatViews(c);
+      var grid = el('div', 'meta-grid');
+      grid.appendChild(el('span', 'item ' + views.cls, views.text));
+      grid.appendChild(el('span', 'item', 'UP：' + (c.uploader || '—')));
+      grid.appendChild(el('span', 'item', '发布：' + formatDateTime(c.published_at)));
+      grid.appendChild(el('span', 'item', '抓取：' + formatDateTime(c.fetched_at)));
+      item.appendChild(grid);
+
+      var via = c.found_via_queries || [];
+      var origin = c.user_supplied ? '用户提供' : '自动搜索';
+      if (c.user_supplied && via.length > 1) { origin += ' + 搜索命中合并'; }
+      item.appendChild(el('div', 'via', '来源：' + origin));
+      candidatesEl.appendChild(item);
+    });
+
+    (artifact.limitations || []).forEach(function (text) {
+      limitationsEl.appendChild(el('li', null, text));
+    });
+    resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function setBusy(busy, message) {
+    searchBtn.disabled = busy;
+    addBtn.disabled = busy || refCount() >= MAX_REFS;
+    topicEl.disabled = busy;
+    runStatus.textContent = message || '';
+  }
+
+  function runSearch() {
+    if (searchBtn.disabled) { return; }
+    clearRequestError();
+    var topic = topicEl.value.trim();
+    var urls = [];
+    refList.querySelectorAll('input').forEach(function (input) {
+      var v = input.value.trim();
+      if (v) { urls.push(v); }
+    });
+    if (!topic) {
+      showRequestError('请先输入视频主题。');
+      topicEl.focus();
+      return;
+    }
+    setBusy(true, '正在检索（匿名访问，有界请求）…');
+    fetch('/api/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic: topic, urls: urls })
+    }).then(function (resp) {
+      return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+    }).then(function (result) {
+      setBusy(false);
+      if (!result.ok) {
+        showRequestError(result.data && result.data.error ? result.data.error : '请求失败，请重试。');
+        return;
+      }
+      render(result.data);
+    }).catch(function () {
+      setBusy(false);
+      showRequestError('网络错误：无法连接本机服务。');
+    });
+  }
+
+  addBtn.addEventListener('click', addRefInput);
+  searchBtn.addEventListener('click', runSearch);
+  topicEl.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') { event.preventDefault(); runSearch(); }
+  });
+  syncAddButton();
+})();
+</script>
+</body>
+</html>
