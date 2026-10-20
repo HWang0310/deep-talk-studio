@@ -11,7 +11,7 @@ AIGC:
 
 # Reference Discovery Contract（B 站参考视频发现）v1
 
-> **状态：IMPLEMENTED_UNRELEASED，等待 Nexus 审核（Issue #24）。** 本合同描述 Creater Workbench Phase 1 的最小可用能力：按主题 + 0–5 条用户链接，产出最多 5 条带完整溯源的 B 站参考视频候选。它不是 v1.0.0 的一部分，不是生产默认能力，不改变任何既有 canonical contract。
+> **状态：NEXUS PASS / ACCEPTED / IMPLEMENTED_UNRELEASED；PR #25 已合入 `main`（Issue #24）。** 本合同描述 Creater Workbench Phase 1 的最小可用能力：按主题 + 0–5 条用户链接，产出最多 5 条带完整溯源的 B 站参考视频候选。它不是 v1.0.0 的一部分，不是生产默认能力，不改变任何既有 canonical contract。
 
 ## 范围
 
