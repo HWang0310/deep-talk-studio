@@ -11,6 +11,12 @@ AIGC:
 
 # Changelog
 
+## Unreleased — 2026-10-20 — Issue #21 — Script V1 content-driven duration
+
+- Replaced the new V1 script path's fixed 5–6 minute editorial gate with content-driven length and optional soft duration preferences; actual estimates and deviations remain transparent. No replacement minute quota.
+- Preserved historical V1/0.4 readability, Research/Thesis approval, 15 existing plus 17 V1 review checks, grounding, review integrity and immutable revisions. Added a 100,000-character spoken-text processing budget and invalid-preference checks.
+- Added synthetic regression coverage; no private creator artifacts are used or changed. Implementation candidate only, awaiting Nexus PR review; no merge, release/tag, plugin or production change.
+
 ## Unreleased — 2026-10-20 — Owner quick-start documentation (docs-only)
 
 - Added [START_HERE.md](START_HERE.md) as the single Chinese entry for creator use versus Nexus PM project maintenance, including ordinary-language prompts, actual v1.0 prerequisite gates, animation-plugin local setup caveats, and troubleshooting.

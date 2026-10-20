@@ -9,7 +9,7 @@ Turn one explicitly approved Research Report into an original Chinese oral scrip
 
 ## Required contract
 
-Read `references/script-contract.md` completely before writing or revising. Load `config/script-profile.json`. Do not ask a normal user to edit JSON, provide paths, manage IDs, or run commands.
+Read `references/script-contract.md` completely before writing or revising. For the current Thesis-bound V1 path load `config/script-profile-v1.json`, the approved Content Thesis Card and its Review. `config/script-profile.json` is legacy 0.4 compatibility, not a fallback around V1 gates. Do not ask a normal user to edit JSON, provide paths, manage IDs, or run commands.
 
 ## Approval gate
 
@@ -24,13 +24,14 @@ Read `references/script-contract.md` completely before writing or revising. Load
 3. Write natural oral Chinese with a Research-grounded opening hook and value promise, a mid-script re-hook / information turn when needed, story movement, fair alternative explanation, original analysis, and a conclusion payoff that resolves the opening promise. Never invent or exaggerate facts for a hook. Avoid report prose and fixed “首先、其次、最后” templates.
 4. Keep every Beat typed as `fact`, `attribution`, `analysis`, `transition`, or `question`. Facts use verified confirmed Claims. Statements, media reports, commentary, and unverified material use natural attribution. Analysis keeps its basis Claims and never masquerades as fact.
 5. Never place Claim IDs, Evidence IDs, URLs, debug labels, or source numbers in narration. Never imitate a named creator; translate a style request into high-level traits such as shorter sentences, denser information, or stronger narrative movement.
-6. Respect an explicit duration such as 8, 10, or 15 minutes. Default to about 12 minutes. This is an estimate, not measured playback time.
-7. Save the model-owned content in an ignored working location and prepare Script Draft 0.4. If validation rejects grounding, fix the content rather than weakening the validator.
+6. Content decides length. With no explicit duration, pass no minute preference and choose scope from the approved evidence and narrative needs. With an explicit duration, treat it as a soft preference: no filler and no deletion of essential argument to hit a count. Return the actual derived estimate and explain meaningful deviations; never alter speaking-rate metadata to fake compliance.
+7. Save model-owned content in an ignored working location. Use the V1 workflow with the V1 profile and formally approved Thesis Card (including its passing Review); the legacy CLI alone does not supply this binding. If validation rejects grounding or a technical text budget, repair the content or report the blocker, never weaken the validator.
 
 ## Independent Script Review
 
 1. Start a separate review pass after the Draft exists. Read only the approved Research Report and Script Draft. Do not browse or reuse the Writer's self-assessment.
 2. Check the opening hook, value promise, necessary re-hook / information turn and conclusion payoff, plus unsupported facts, attribution, evidence-strength inflation, unverified-as-fact, avoid Claims, must-keep coverage, high-risk wording, uncertainty, analysis/fact separation, research-gap invention, perspective fairness, oral naturalness, repetition, density, AI report tone, originality risk, and usability. Missing Hook-aware structure must be a blocking `hook_structure` issue under `narrative_structure`.
+   V1 additionally requires all 17 quality checks. Review content clarity, completeness and pacing; a minute-preference deviation alone is not failure. Identify padding or harmful compression through the existing checks and explain the content reason for a meaningful deviation.
 3. Output only review content: issues, checks, reasons, and fixes. Every failed check needs its matching typed issue; factual safety failures need the matching blocking issue. Do not use `not_applicable` for factual safety checks. The Python core owns issue IDs, severity, blocking count, gate status, review linkage, and final Script status.
 4. Apply and save the Review Artifact plus the next immutable Script revision. If blocking issues exist, keep `draft` and explain simply that the script still has factual-boundary problems. Do not present it as reviewed.
 

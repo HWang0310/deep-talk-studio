@@ -22,13 +22,22 @@ def render_editor_markdown(
     review_artifact: Optional[Mapping[str, Any]] = None,
 ) -> str:
     validate_script_draft(script, report, profile, review_artifact)
+    mode = script.data.get('duration_mode')
+    duration_line = (
+        '- 时长：内容决定时长，无分钟偏好（下列估算不是写作配额）'
+        if mode == 'content_driven' else
+        f'- 时长软偏好：约 {script.target_duration_minutes:g} 分钟；实际偏差 '
+        f'{script.estimated_duration_minutes - script.target_duration_minutes:+g} 分钟（非阻断；不填充、不强压论证）'
+        if mode == 'preference' else
+        f'- 目标时长：约 {script.target_duration_minutes:g} 分钟'
+    )
     lines = [
         f"# Script Editor Version：{script.working_title}",
         "",
         f"- Script：{script.script_id} / r{script.revision}",
         f"- Research：{script.report_id} / r{script.report_revision}",
         f"- 状态：{script.status}",
-        f"- 目标时长：约 {script.target_duration_minutes:g} 分钟",
+        duration_line,
         f"- 预计口播：约 {script.estimated_duration_minutes:g} 分钟（{script.character_count} 字符，估算值）",
         f"- 核心观点：{script.thesis}",
         f"- 给观众的承诺：{script.audience_promise}",

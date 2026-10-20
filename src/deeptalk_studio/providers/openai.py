@@ -113,7 +113,7 @@ class OpenAIResponsesProvider:
         self,
         report: Dict[str, Any],
         profile: Dict[str, Any],
-        target_duration_minutes: float,
+        target_duration_minutes: Optional[float],
         schema: Dict[str, Any],
     ) -> ProviderResult:
         return self._run_structured_generation(

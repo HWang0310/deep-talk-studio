@@ -125,6 +125,8 @@ def create_script_revision(
         if target_duration_minutes is None
         else target_duration_minutes
     )
+    if target_duration_minutes is None and previous.data.get('duration_mode') == 'content_driven':
+        target = None
     return prepare_script_draft(
         clean_content,
         report,
@@ -139,6 +141,7 @@ def create_script_revision(
         change_summary=change_summary,
         beat_ids=assigned_ids,
         beat_identity=identity,
+        content_thesis_card=previous.content_thesis_card,
     )
 
 

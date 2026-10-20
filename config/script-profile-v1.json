@@ -3,10 +3,10 @@
   "platform": "Bilibili",
   "format": "真人露脸、兼容旁白的中文深度口播",
   "language": "zh-CN",
-  "default_duration_minutes": 5.5,
+  "default_duration_minutes": null,
   "chars_per_minute": 260,
   "duration_tolerance_ratio": 0.1,
-  "duration_range_minutes": [5, 6],
+  "duration_policy": "content_driven",
   "oral_style": [
     "先让观众听见一个真实矛盾，再逐步给出自己的判断",
     "信息密度高，但每一段都要推动问题、冲突或理解",

@@ -15,7 +15,7 @@
 ## Current control-plane state
 
 - `v1.0.0` is formally released.
-- **Active execution thread: [Issue #21](https://github.com/HWang0310/deep-talk-studio/issues/21)** (Script V1 content-driven length policy; Owner direction confirmed 2026-10-20). No implementation PR yet. When the PR exists, PR becomes the active review/correction thread. No other development lane authorized.
+- **Active task: [Issue #21](https://github.com/HWang0310/deep-talk-studio/issues/21)** (Script V1 content-driven length policy; Owner direction confirmed 2026-10-20). Implementation branch: `agent/issue21-content-driven-duration`, based on live main `fbf559700e46a5bc8dddbcad871b3cd58742b8f4`. The linked implementation PR is the sole execution/review/correction thread once opened; Nexus decides acceptance. No other development lane or creator-episode writing is authorized by this engineering task.
 - Issue #19 was created during the engineering-governance refresh by mistake; the Owner had requested standards adoption / control-plane compaction only, not activation of Product Architecture V2 Phase D. Issue #19 is closed `not_planned` and is historical context only.
 - Product Architecture V2 Phase D/E/F remain future work. Phase D is a documented candidate, **not** the current product priority and **not started**.
 - The old Nexus session-transfer Issue #3 is closed and superseded by the released project state and this compact recovery index. It remains durable history and must not be used as current task state.

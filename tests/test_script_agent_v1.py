@@ -47,14 +47,15 @@ class ScriptAgentV1Tests(unittest.TestCase):
         self.profile = load_script_profile(Path("config/script-profile-v1.json"))
         self.thesis = _approved_thesis(self.report)
 
-    def test_v1_requires_human_confirmed_thesis_and_enforces_five_to_six_minutes(self):
+    def test_v1_requires_human_confirmed_thesis_with_advisory_duration(self):
         with self.assertRaises(ScriptValidationError):
             prepare_script_draft(_v1_content(), self.report, self.profile, created_at="2026-08-24T10:03:00+08:00", script_id="v1-missing", target_duration_minutes=5.5)
         script = prepare_script_draft(_v1_content(), self.report, self.profile, created_at="2026-08-24T10:03:00+08:00", script_id="v1-script", target_duration_minutes=5.5, content_thesis_card=self.thesis)
         self.assertEqual(script.artifact_version, "1")
         self.assertEqual(script.content_thesis_card_id, "v1-card")
-        with self.assertRaises(ScriptValidationError):
-            prepare_script_draft(_v1_content(), self.report, self.profile, created_at="2026-08-24T10:03:00+08:00", script_id="v1-wrong-duration", target_duration_minutes=8, content_thesis_card=self.thesis)
+        longer_preference = prepare_script_draft(_v1_content(), self.report, self.profile, created_at="2026-08-24T10:03:00+08:00", script_id="v1-preference", target_duration_minutes=8, content_thesis_card=self.thesis)
+        self.assertEqual(longer_preference.target_duration_minutes, 8)
+        self.assertEqual(longer_preference.duration_mode, "preference")
 
     def test_v1_audio_only_failure_is_a_blocking_quality_gate(self):
         script = prepare_script_draft(_v1_content(), self.report, self.profile, created_at="2026-08-24T10:03:00+08:00", script_id="v1-quality", target_duration_minutes=5.5, content_thesis_card=self.thesis)

@@ -15,9 +15,26 @@ Writer 只接受同时满足以下条件的 Research Report：
 
 确认操作必须创建新 Research revision，并保存用户原始确认文本。原 `reviewed` revision 不覆盖；后续任何研究内容 revision 都会重置 approval。用户撤回或更换底稿时，不能继续沿用旧批准状态。
 
-## 2. Script Profile 0.4
+## 2. Script Profiles
 
-`config/script-profile.json` 是默认创作配置：B 站、真人露脸、中文深度口播，默认 12 分钟、每分钟约 260 个有效口播字符、允许 20% 编辑容差。用户可用“8 分钟”“做长一点”“紧凑一些”等自然语言调整，程序只接受 3–30 分钟。
+`config/script-profile.json` 是 legacy 0.4 配置，也是旧 CLI 的兼容默认：B 站、真人露脸、中文深度口播，默认 12 分钟、每分钟约 260 个有效口播字符、允许 20% 编辑容差。旧流程可用“8 分钟”“做长一点”“紧凑一些”等自然语言调整，目标字段接受 3–30 分钟；当前 Thesis-bound V1 使用下述机制。
+
+### 当前 Thesis-bound V1 时长机制（Issue #21，待 Nexus 验收）
+
+当前 V1 使用 `config/script-profile-v1.json`，`duration_policy=content_driven`，无默认分钟目标。篇幅取决于已批准研究、论证完整性与叙事需要；用户指定时长仅为软偏好，不得为了凑时长填充，也不得为了压缩而牺牲重要论证。旧 0.4 配置及 CLI 的默认行为保留用于兼容，不能用它绕过 V1 Thesis 绑定。
+
+API 未指定时传 `target_duration_minutes=None`；显式偏好须为有限正数。正文完成后按实际有效字符和配置语速推算，Editor 显示偏好、实际估算及偏差；有意义的偏差由 Writer/Reviewer 解释内容原因，不独立导致 Gate fail。不以调整语速、拆稿或伪造估算规避规则。
+
+新 V1 工件新增可选、机器拥有的 `duration_mode`：
+
+- `content_driven`：现有数值字段 `target_duration_minutes` 保存实际推算值，表示内容计划观察值，不是假造的用户偏好；读取时必须与推算值一致。
+- `preference`：该字段保存用户明确偏好；实际估算可偏离。模式及该字段纳入新稿的 Review 内容摘要。
+
+旧 V1 工件缺少该标记时仍按原 5–6 分钟契约和原摘要验证，旧 profile 仍可加载；旧 0.4 工件保持 3–30 分钟目标边界。旧工件不重写。新内容修订采用当前策略、保留正式 Thesis 和同一 Research 绑定，并清空旧 Review，必须重新审稿。
+
+新 V1 不设编辑性分钟上下限。真实处理边界为非空口播及 narration + closing 原始文本不超过 100,000 字符；非法/非有限偏好拒绝。Provider 原有超时、资源和生成失败处理保留。字符预算是技术处理预算，不是允许以填充凑满的篇幅。
+
+所有 Research Approval、正式 Thesis Review/人工确认、15 项既有审核、17 项 V1 Quality Gate、事实/证据绑定、字数推算、Review linkage 和不可覆盖修订规则不变。任何质量失败仍阻断，不因时长自由而放宽。
 
 Profile 同时规定信息密度、故事性、观点冲突、自然归因和原创分析要求，并禁止洗稿、模仿特定创作者、长段引用、AI 报告腔和把未知写成定论。
 
