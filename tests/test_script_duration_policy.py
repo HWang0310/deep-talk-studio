@@ -119,7 +119,7 @@ class ScriptDurationPolicyTests(unittest.TestCase):
         self.assertEqual(revised.review_state['state'], 'not_reviewed')
 
     def test_invalid_preferences_and_resource_budget_fail_closed(self):
-        for value in [True, False, 0, -1, float('nan'), float('inf'), '10']:
+        for value in [True, False, 0, -1, float('nan'), float('inf'), 10**400, '10']:
             with self.subTest(value=value), self.assertRaises(ScriptValidationError):
                 self.draft(target_duration_minutes=value)
         with self.assertRaisesRegex(ScriptValidationError, '字符.*预算'):

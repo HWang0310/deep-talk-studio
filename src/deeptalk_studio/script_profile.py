@@ -21,10 +21,16 @@ def content_driven_profile(profile: Mapping) -> bool:
 
 def validate_duration_preference(value: Optional[float]) -> None:
     # No editorial minute envelope; the actual text has a processing budget.
-    if value is not None and (
-        isinstance(value, bool) or not isinstance(value, (int, float))
-        or not math.isfinite(value) or value <= 0
-    ):
+    if value is None:
+        return
+    try:
+        valid = (
+            not isinstance(value, bool) and isinstance(value, (int, float))
+            and math.isfinite(value) and value > 0
+        )
+    except OverflowError:
+        valid = False
+    if not valid:
         raise ScriptValidationError('时长偏好必须是有限正数')
 
 
