@@ -26,7 +26,7 @@ AIGC:
 
 ## Current Product Positioning
 
-Issue #21 implements the Owner-approved content-driven Script V1 duration policy as an **unreleased implementation candidate, awaiting Nexus review**. New V1 scripts have no fixed editorial minute range; a creator's duration is a soft preference. The precise compatibility, technical text budget and unchanged approval/review boundaries are owned by [Script Contract](docs/SCRIPT_CONTRACT.md). No creator episode has been resumed by this maintenance task.
+Issue #21's Owner-approved content-driven Script V1 duration policy is **Nexus PASS / ACCEPTED and MERGED into `main`** via [PR #22](https://github.com/HWang0310/deep-talk-studio/pull/22) (merge SHA `9ac3ff47df927fc843adff9b7eda79004c91c34c`), post-v1.0 and not part of a new formal release. New V1 scripts have no fixed editorial minute range; a creator's duration is a soft preference. The precise compatibility, technical text budget and unchanged approval/review boundaries are owned by [Script Contract](docs/SCRIPT_CONTRACT.md). No creator episode was resumed by that engineering task.
 
 DeepTalk Studio helps a creator turn a defensible topic into a reviewed spoken script, then prepare evidence-bound visual assets and precise placement suggestions against the creator's final clean A-roll.
 
