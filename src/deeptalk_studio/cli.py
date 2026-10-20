@@ -265,6 +265,16 @@ def build_parser() -> argparse.ArgumentParser:
                                help="禁用匿名访客标识初始化（搜索可能被平台拦截）")
     discover_refs.add_argument("--print-json", action="store_true",
                                help="把完整 JSON 工件输出到 stdout")
+    webui_parser = subparsers.add_parser(
+        "ui",
+        help="启动 Mac 本地 Web UI（输入主题，搜索 B 站参考视频）",
+    )
+    webui_parser.add_argument("--port", type=int, default=8321,
+                              help="本机端口（默认 8321；仅绑定 127.0.0.1）")
+    webui_parser.add_argument("--output", type=Path, default=REPO_ROOT / "discoveries",
+                              help="检索工件保存目录（默认 discoveries/，写入唯一 REF-* 文件不覆盖）")
+    webui_parser.add_argument("--no-visitor-identity", action="store_true",
+                              help="禁用匿名访客标识初始化（搜索可能被平台拦截）")
     align_video = subparsers.add_parser("align-video", help="从剪好的真人口播生成可视粗剪")
     align_video.add_argument("--session", type=Path, required=True)
     revise_bridge = subparsers.add_parser("revise-edit-bridge", help="用自然语言调整粗剪画面")
@@ -294,6 +304,14 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    # 本地 Web UI 是长期运行的独立服务，不进入统一的 try/except 收尾
+    if args.command == "ui":
+        from .webui import run_webui
+        return run_webui(
+            args.port,
+            output_dir=args.output,
+            use_visitor_identity=not args.no_visitor_identity,
+        )
     try:
         if args.command == "discover-references":
             from .bilibili_reference_provider import BilibiliReferenceProvider
