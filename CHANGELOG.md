@@ -15,7 +15,7 @@ AIGC:
 
 - Replaced the new V1 script path's fixed 5–6 minute editorial gate with content-driven length and optional soft duration preferences; actual estimates and deviations remain transparent. No replacement minute quota.
 - Preserved historical V1/0.4 readability, Research/Thesis approval, 15 existing plus 17 V1 review checks, grounding, review integrity and immutable revisions. Added a 100,000-character spoken-text processing budget and invalid-preference checks.
-- Added synthetic regression coverage; no private creator artifacts are used or changed. Implementation candidate only, awaiting Nexus PR review; no merge, release/tag, plugin or production change.
+- Added synthetic regression coverage; no private creator artifacts were used or changed. Nexus reviewed exact PR head `5812473ca6784c84ee767304304b91e5872ca106` and accepted; [PR #22](https://github.com/HWang0310/deep-talk-studio/pull/22) was merged at `9ac3ff47df927fc843adff9b7eda79004c91c34c`, Issue #21 closed completed. Post-v1.0 `main` improvement; no new formal release/tag, plugin or production change.
 
 ## Unreleased — 2026-10-20 — Owner quick-start documentation (docs-only)
 
