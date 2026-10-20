@@ -11,6 +11,12 @@ AIGC:
 
 # Changelog
 
+## Unreleased — 2026-10-20 — Issue #24 — Bilibili reference discovery provider (Creater Workbench Phase 1)
+
+- Implemented the smallest UI-ready B站 reference-video discovery capability: topic + 0–5 user URLs → URL canonicalization/metadata validation (user references kept first, typed rejection reasons) → bounded anonymous multi-query search → deterministic anchor/trigram relevance filtering → BVID dedup → bounded per-video view-count verification → up to 5 machine-readable candidates in a fail-closed validated `reference-candidate-set/1` artifact written to gitignored `discoveries/`.
+- Added `BilibiliReferenceProvider` (injectable transport, optional anonymous visitor bootstrap kept in memory only, `--no-visitor-identity` opt-out; HTTP 412/403/429 and interception pages fail to `blocked`/`degraded` and degrade to manual references — no circumvention, no cookies/credentials) and the `discover-references` CLI subcommand with `--print-json` for the future local Web UI. Search-snippet view counts are never presented as verified; sorting coverage is recorded as “检索范围内最高播放量”, never site-wide ranking.
+- Deterministic offline tests in `tests/test_reference_discovery.py` (46 tests, injected fake transport/provider) plus an explicit opt-in live smoke `tests/test_reference_discovery_live.py` (`DEEPTALK_LIVE_BILI_SMOKE=1`), no CI dependence on Bilibili. Contract documented in `docs/REFERENCE_DISCOVERY_CONTRACT.md`, listed in `docs/INDEX.md`. No video downloads, no UI build, no release/tag, no canonical-contract change; awaiting [Issue #24](https://github.com/HWang0310/deep-talk-studio/issues/24) Nexus review.
+
 ## Unreleased — 2026-10-20 — Issue #21 — Script V1 content-driven duration
 
 - Replaced the new V1 script path's fixed 5–6 minute editorial gate with content-driven length and optional soft duration preferences; actual estimates and deviations remain transparent. No replacement minute quota.
