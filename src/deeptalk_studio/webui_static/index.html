@@ -25,6 +25,9 @@
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
     line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
   header {
     background: var(--brand);
@@ -33,13 +36,15 @@
   }
   header h1 { margin: 0; font-size: 20px; font-weight: 700; }
   header .sub { font-size: 12px; opacity: .85; margin-top: 4px; }
-  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 64px; }
+  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 64px; width: 100%; flex: 1 0 auto; display: flex; flex-direction: column; justify-content: safe center; }
   .card {
     background: var(--card);
     border-radius: 12px;
     padding: 18px 18px 14px;
     box-shadow: 0 1px 5px rgba(0,0,0,.07);
     margin-bottom: 16px;
+    flex: 0 0 auto;
+    width: 100%;
   }
   h2 { font-size: 16px; margin: 0 0 8px; }
   label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
@@ -103,15 +108,20 @@
   details { margin-top: 12px; font-size: 13px; }
   details summary { cursor: pointer; color: var(--muted); }
   details ul { margin: 6px 0 0; padding-left: 20px; color: var(--muted); }
+  #result.stale { opacity: .55; }
   .error-box {
     background: #fdecea; border: 1px solid #f5c6c0; color: var(--bad);
     padding: 10px 12px; border-radius: 8px; margin-top: 12px; font-size: 14px;
   }
   .coverage { background: #f7f5f0; border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
-  footer.site { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 30px; }
+  footer.site { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 30px; margin-top: auto; }
   @media (max-width: 600px) {
     main { padding: 14px 10px 40px; }
     .card { padding: 14px 12px 10px; }
+    .ref-row { flex-wrap: wrap; }
+    .ref-row input { flex: 1 1 100%; }
+    .ref-row button { margin-left: auto; min-height: 40px; min-width: 88px; }
+    #search-btn { width: 100%; }
   }
 </style>
 </head>
@@ -180,6 +190,8 @@
   var searchBtn = document.getElementById('search-btn');
   var runStatus = document.getElementById('run-status');
   var errorBox = document.getElementById('error-box');
+  var baseTitle = document.title;
+  var busyTimer = null;
   var resultCard = document.getElementById('result');
   var runMeta = document.getElementById('run-meta');
   var runNote = document.getElementById('run-note');
@@ -321,7 +333,26 @@
     searchBtn.disabled = busy;
     addBtn.disabled = busy || refCount() >= MAX_REFS;
     topicEl.disabled = busy;
-    runStatus.textContent = message || '';
+    if (busy) {
+      // previous results still visible during a new search: dim them so the
+      // in-flight status and the old "检索完成" result card cannot be mistaken
+      // for one consistent state
+      if (!resultCard.hidden) { resultCard.classList.add('stale'); }
+      var startedAt = Date.now();
+      var renderProgress = function () {
+        var seconds = Math.floor((Date.now() - startedAt) / 1000);
+        runStatus.textContent = (message || '正在检索…') +
+          ' 已用 ' + seconds + ' 秒（含播放量逐条核验，通常需 10–60 秒，请勿重复提交）';
+      };
+      document.title = '检索中… · ' + baseTitle;
+      renderProgress();
+      busyTimer = window.setInterval(renderProgress, 1000);
+    } else {
+      if (busyTimer !== null) { window.clearInterval(busyTimer); busyTimer = null; }
+      resultCard.classList.remove('stale');
+      document.title = baseTitle;
+      runStatus.textContent = message || '';
+    }
   }
 
   function runSearch() {

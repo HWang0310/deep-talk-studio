@@ -193,6 +193,37 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertNotIn("innerHTML", body)
         self.assertIn("textContent", body)
 
+    def test_index_ui_trial_progress_and_staleness_contract(self):
+        """Issue #29 UI-trial invariants: slow-search feedback must keep an
+        elapsed timer with a do-not-resubmit reassurance, previous results are
+        dimmed while a new search runs (stale class), and the busy interval is
+        always cleared when the search finishes."""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        # live elapsed timer + expected-duration reassurance during search
+        self.assertIn("已用", body)
+        self.assertIn("请勿重复提交", body)
+        # title switches to in-progress and is restored from a saved base title
+        self.assertIn("检索中…", body)
+        self.assertIn("baseTitle", body)
+        # previous result card is dimmed while a new search is in flight
+        self.assertIn("#result.stale", body)
+        self.assertIn("classList.add('stale')", body)
+        self.assertIn("classList.remove('stale')", body)
+        # the busy interval must be cleared on completion (no leaking timers)
+        self.assertIn("clearInterval(busyTimer)", body)
+
+    def test_index_ui_trial_responsive_layout_contract(self):
+        """Issue #29 UI-trial responsive invariants: on narrow screens the
+        reference-link input wraps to a full row with a tappable remove
+        button, and the search button spans the full width."""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn("@media (max-width: 600px)", body)
+        self.assertIn(".ref-row { flex-wrap: wrap; }", body)
+        self.assertIn("min-height: 40px", body)
+        self.assertIn("#search-btn { width: 100%; }", body)
+
     def test_healthz(self):
         status, headers, body = self.get("/healthz")
         self.assertEqual(status, 200)
