@@ -12,11 +12,11 @@
       "asset_filename": "M001.png",
       "placement_advice": "按真实时间放入对应位置。",
       "why": "事件在 2026 年 8 月 9 日发生。",
-      "provenance": "未找到可核验的复用依据。",
+      "provenance": "权利页核验：公共领域，可自由使用。",
       "qa_status": "pass",
       "requires_human_review": false,
       "fallback_outcome": "REAL_MATERIAL",
-      "alignment_digest": "6fb21de36a4090799c7aca40650d2d79e7c1731a0ddb7babe14f64595613c310"
+      "alignment_digest": "3042297da500a6eea8e28e3576f0ca4dcc26640f4635283f4c2dbe32a0e427e4"
     },
     {
       "sequence": 2,
@@ -26,15 +26,15 @@
       "actual_start_timecode": "00:00:06.760",
       "actual_end_timecode": "00:00:17.460",
       "spoken_summary": "当事机构在公告中的说法是，问题来自流程故障。这证明机构给出了这种解释，却不等于原因已经被独立证实。",
-      "decision": "REAL_MATERIAL",
-      "asset_filename": "M002.mp4",
-      "placement_advice": "按真实时间放入对应位置，使用该素材片段 0.20–1.20 秒。",
-      "why": "事件在 2026 年 8 月 9 日发生。",
-      "provenance": "未找到可核验的复用依据。",
-      "qa_status": "pass",
-      "requires_human_review": false,
-      "fallback_outcome": "REAL_MATERIAL",
-      "alignment_digest": "6fb21de36a4090799c7aca40650d2d79e7c1731a0ddb7babe14f64595613c310"
+      "decision": "AUDIO_ONLY",
+      "asset_filename": "",
+      "placement_advice": "无画面：该时间段仍需人工补画面，不要假装已有真人画面。",
+      "why": "该时间段的候选素材没有可核验的复用授权（未知、需授权或仅可参考），不能自动使用，需要人工补画面或先取得授权。",
+      "provenance": "",
+      "qa_status": "not_applicable",
+      "requires_human_review": true,
+      "fallback_outcome": "AUDIO_ONLY",
+      "alignment_digest": "3042297da500a6eea8e28e3576f0ca4dcc26640f4635283f4c2dbe32a0e427e4"
     },
     {
       "sequence": 3,
@@ -52,7 +52,7 @@
       "qa_status": "not_applicable",
       "requires_human_review": true,
       "fallback_outcome": "AUDIO_ONLY",
-      "alignment_digest": "6fb21de36a4090799c7aca40650d2d79e7c1731a0ddb7babe14f64595613c310"
+      "alignment_digest": "3042297da500a6eea8e28e3576f0ca4dcc26640f4635283f4c2dbe32a0e427e4"
     },
     {
       "sequence": 4,
@@ -70,7 +70,7 @@
       "qa_status": "not_applicable",
       "requires_human_review": true,
       "fallback_outcome": "AUDIO_ONLY",
-      "alignment_digest": "6fb21de36a4090799c7aca40650d2d79e7c1731a0ddb7babe14f64595613c310"
+      "alignment_digest": "3042297da500a6eea8e28e3576f0ca4dcc26640f4635283f4c2dbe32a0e427e4"
     }
   ],
   "manifest_assets": [
@@ -79,29 +79,14 @@
       "asset_class": "REAL_MATERIAL",
       "qa_status": "ready",
       "filename": "M001.png",
-      "local_path": "/private/var/folders/8s/_lxwv_9d2x3b0y2wwq2qjrp00000gn/T/tmpd3vkk5ii/session/DeepTalk-Aligned-Edit/episode/06_真实素材/M001.png",
+      "local_path": "/private/var/folders/8s/_lxwv_9d2x3b0y2wwq2qjrp00000gn/T/tmpcilavihp/session/DeepTalk-Aligned-Edit/episode/06_真实素材/M001.png",
       "byte_size": 627,
       "sha256": "241f1fd4f9e52df30fe8d11698e60a3ebfec92efa5cf3b95cdb51ee0d105f70a",
-      "provenance": "未找到可核验的复用依据。",
+      "provenance": "权利页核验：公共领域，可自由使用。",
       "placement_advice": "按真实时间放入对应位置。",
       "time_range": {
         "start_seconds": "0.03",
         "end_seconds": "6.4"
-      }
-    },
-    {
-      "opportunity_id": "OP002",
-      "asset_class": "REAL_MATERIAL",
-      "qa_status": "ready",
-      "filename": "M002.mp4",
-      "local_path": "/private/var/folders/8s/_lxwv_9d2x3b0y2wwq2qjrp00000gn/T/tmpd3vkk5ii/session/DeepTalk-Aligned-Edit/episode/06_真实素材/M002.mp4",
-      "byte_size": 81362,
-      "sha256": "2e8ca87f84a4739dbaf5d7cb273bb6870a0c0753247e625d5604fed4e814a4c8",
-      "provenance": "未找到可核验的复用依据。",
-      "placement_advice": "按真实时间放入对应位置，使用该素材片段 0.20–1.20 秒。",
-      "time_range": {
-        "start_seconds": "6.76",
-        "end_seconds": "17.46"
       }
     }
   ]

@@ -28,6 +28,11 @@
     },
     {
       "group": "audio_delivery",
+      "check_name": "clean_aroll_gate_rederived",
+      "outcome": "pass"
+    },
+    {
+      "group": "audio_delivery",
       "check_name": "no_preview_generated",
       "outcome": "pass"
     },
@@ -51,5 +56,5 @@
     }
   ],
   "package_gate_status": "warnings",
-  "qa_digest": "013fc9612a0927fb7b5a02c3d0cf8c47cd3df5b329dd76fc4c04e6bd78bc662c"
+  "qa_digest": "019d18a887b3249b7fc81593fc05d45ea37b5614aee68f05b3907ecd168953e3"
 }
