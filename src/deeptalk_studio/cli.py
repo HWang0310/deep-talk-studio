@@ -388,13 +388,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if not candidates:
                 print("把已经剪好口气的正式真人口播视频拖进来（也支持已定稿的本地口播 WAV/MP3）。\nmp4 / mov / wav / mp3 都可以。\n不需要另外录音。\n不需要自己提取音轨。\n不需要标记时间点。")
                 return 0
-            from .edit_bridge_session import resolve_real_edit_bridge_session, run_real_edit_bridge_session
+            from .audio_delivery import AudioDeliveryError
+            from .edit_bridge_session import (
+                RealEditBridgeSessionError,
+                resolve_real_edit_bridge_session,
+                run_real_edit_bridge_session,
+            )
             from .transcription.local_whisper_cpp import (
                 WhisperCppBootstrapError,
                 resolve_default_transcription_provider,
             )
             import uuid
-            resolved = resolve_real_edit_bridge_session(session)
+            try:
+                resolved = resolve_real_edit_bridge_session(session)
+            except RealEditBridgeSessionError as exc:
+                print(f"还没法开始对齐：{exc}", file=sys.stderr)
+                return 2
             provider = resolve_default_transcription_provider()
             print("正在准备本地语音识别模型；首次使用需要下载一次。")
             try:
@@ -405,6 +414,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 )
             except WhisperCppBootstrapError as exc:
                 print(f"本地语音识别准备失败：{exc}", file=sys.stderr)
+                return 2
+            except (AudioDeliveryError, RealEditBridgeSessionError) as exc:
+                print(f"这次对齐还没有完成：{exc}", file=sys.stderr)
                 return 2
             if getattr(result, "preview_path", None) is not None:
                 print(f"对齐粗剪已经生成：{result.preview_path}")

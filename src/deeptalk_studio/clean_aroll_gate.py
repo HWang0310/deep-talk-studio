@@ -39,7 +39,13 @@ def _text(transcript: Mapping | None) -> str:
         return ""
     if isinstance(transcript.get("text"), str):
         return transcript["text"]
-    return "".join(str(item.get("text", "")) for item in transcript.get("timed_units", []))
+    # timed-transcript/1 units carry the spoken text as `spoken_text`; older
+    # plain shapes may use `text`.  Reading neither would silently disable the
+    # retake detection on every real transcript.
+    return "".join(
+        str(item.get("spoken_text", item.get("text", "")))
+        for item in transcript.get("timed_units", [])
+    )
 
 
 def _explicit_full_retake_count(text: str) -> int:

@@ -20,7 +20,30 @@ from tests.media_fixture_factory import MediaFixtureSpec,build_media_fixture
 def _material(title,url,beat,anchor,asset_type,video_reference):
  return {"title":title,"source_url":url,"page_url":url,"publisher_creator":"Synthetic Official","asset_type":asset_type,"published_at":"2026-08-09","intended_role":"evidence","cue_numbers":[],"claim_ids":["C1"],"evidence_link_ids":["E1"],"suggested_usage":"集成测试画面。","caption":"事件在 2026 年 8 月 9 日发生。","illustrative_only":False,"claimed_rights_status":"unknown","claimed_rights_basis":"仅供集成测试核对。","claimed_license_url":"","relevance":5,"grounding_strength":5,"visual_clarity":5,"reuse_safety":2,"acquisition_effort":1,"ranking_reason":"完整生产入口回归。","capture":{"page_number":1,"capture_region":"完整画面","source_context":"集成测试原创素材","what_it_proves":"事件日期。","what_it_does_not_prove":"不证明事件原因。"},"video_reference":video_reference,"_beat":beat,"_anchor":anchor}
 
-def create_integrated_roots(root:Path):
+def _rights_entries(rows,mode):
+ """Rights manifest entries per mode; `verified` adds matching inspections.
+
+ `verified` clears the image (M001) for reuse through a verified public-domain
+ rights page.  The ranged video clip deliberately stays uncleared: Production
+ only renders image-based scenes, so a rights-cleared local video reference is
+ exercised by the audio-delivery rights gate itself (it becomes an explicit
+ visual gap with the reason recorded), never by silently entering the pack.
+ """
+ if mode=="unknown":return [],[]
+ image_rights={"url":rows[0]["source_url"],"rights_status":"public_domain","rights_basis":"权利页核验：公共领域，可自由使用。","rights_evidence_url":"https://example.com/e2e-image-rights","license_url":"","verified_at":"2026-08-13T20:00:00+08:00","tool_reference":"open:rights-image"}
+ if mode=="verified":
+  extra=[
+   {"url":"https://example.com/e2e-image-rights","inspected_at":"2026-08-13T20:00:00+08:00","inspection_method":"codex_web_open","tool_reference":"open:rights-image"},
+  ]
+  return extra,[image_rights]
+ if mode=="permission_required":
+  return [],[
+   dict(image_rights,rights_status="permission_required",rights_basis="仅取得口头许可，未见书面授权。",rights_evidence_url=rows[0]["source_url"],license_url="",tool_reference="open:"+rows[0]["title"]),
+   dict(image_rights,url=rows[1]["source_url"],rights_status="permission_required",rights_basis="仅取得口头许可，未见书面授权。",rights_evidence_url=rows[1]["source_url"],license_url="",tool_reference="open:"+rows[1]["title"]),
+  ]
+ raise ValueError("rights_mode 必须是 unknown / permission_required / verified")
+
+def create_integrated_roots(root:Path,*,rights_mode:str="unknown"):
  report,script,script_review=reviewed_inputs();profile=load_material_profile();asset_root=root/"material_assets"/"MAT-INTEGRATED"
  image=asset_root/"acquired"/"M001.png";image.parent.mkdir(parents=True);subprocess.run(["ffmpeg","-v","error","-y","-f","lavfi","-i","color=c=navy:s=320x180:d=0.1","-frames:v","1",str(image)],check=True)
  ranged=build_media_fixture(asset_root/"acquired",MediaFixtureSpec(name="M002",duration="2"));unranged=build_media_fixture(asset_root/"acquired",MediaFixtureSpec(name="M003",duration="2"))
@@ -38,14 +61,21 @@ def create_integrated_roots(root:Path):
  entries=[]
  for row in rows:
   entries.append({"url":row["source_url"],"inspected_at":"2026-08-13T20:00:00+08:00","inspection_method":"codex_web_open","tool_reference":"open:"+row["title"]})
- rights={"entries":[]}
+ extra_inspections,rights_entries=_rights_entries(rows,rights_mode)
+ entries.extend(extra_inspections)
+ rights={"entries":rights_entries}
  package=prepare_material_package(content,script,report,profile,inspection_manifest={"entries":entries},rights_manifest=rights,created_at="2026-08-13T20:00:00+08:00",package_id="MAT-INTEGRATED")
  files=[image,ranged,unranged];data=package.to_dict()
  for item,path in zip(data["materials"],files):item.update(local_path=str(path.resolve()),byte_size=path.stat().st_size,sha256=hashlib.sha256(path.read_bytes()).hexdigest())
  package=MaterialPackage(data);visual_path=render_visual_svg(package.generated_visuals[0],asset_root/"generated");package=update_package_assets(package,visual_records={package.generated_visuals[0]["visual_id"]:visual_asset_record(visual_path)})
  data=package.to_dict();data["package_digest"]=material_package_digest(data);package=MaterialPackage(data);packages=root/"material_packages";r1=save_material_package(package,packages)
- issues=[{"issue_type":"permission_needed","material_ids":[item["material_id"]],"visual_ids":[],"cue_ids":list(item["cue_ids"]),"explanation":"无公开复用依据。","suggested_fix":"只保留编辑核对。"} for item in package.materials]
- review=prepare_material_review({"issues":issues,"checks":[{"check_name":name,"outcome":"fail" if name=="rights_reuse" else "pass","reason":"集成测试 canonical 审查完成。"} for name in MATERIAL_REVIEW_CHECK_NAMES],"overall_notes":"完整入口回归。"},package,script,report,profile,created_at="2026-08-13T20:01:00+08:00",review_id="MRV-INTEGRATED")
+ if rights_mode=="verified":
+  # rights-verified positive fixture: independent review passes every check
+  issues=[];checks=[{"check_name":name,"outcome":"pass","reason":"canonical 审查完成。"} for name in MATERIAL_REVIEW_CHECK_NAMES]
+ else:
+  issues=[{"issue_type":"permission_needed","material_ids":[item["material_id"]],"visual_ids":[],"cue_ids":list(item["cue_ids"]),"explanation":"无公开复用依据。","suggested_fix":"只保留编辑核对。"} for item in package.materials]
+  checks=[{"check_name":name,"outcome":"fail" if name=="rights_reuse" else "pass","reason":"集成测试 canonical 审查完成。"} for name in MATERIAL_REVIEW_CHECK_NAMES]
+ review=prepare_material_review({"issues":issues,"checks":checks,"overall_notes":"完整入口回归。"},package,script,report,profile,created_at="2026-08-13T20:01:00+08:00",review_id="MRV-INTEGRATED")
  save_material_review_artifact(review.artifact,package,packages);r2=save_material_package(review.package,packages)
  production_profile=load_production_profile();plan=prepare_production_plan(review.package,script,report,production_profile,asset_root,created_at="2026-08-13T20:02:00+08:00",production_id="PROD-INTEGRATED",renderer_mode="remotion")
  motion_dir=root/"production_assets"/"PROD-INTEGRATED"/"assets";motion_dir.mkdir(parents=True);outputs=[]

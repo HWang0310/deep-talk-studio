@@ -57,6 +57,20 @@ def _digest(value: Mapping) -> str:
     ).hexdigest()
 
 
+def compute_edit_map_digest(machine_map: Mapping) -> str:
+    """Canonical edit-map digest (the only accepted `map_digest` value)."""
+    return _digest(machine_map)
+
+
+def compute_manifest_digest(manifest: Mapping) -> str:
+    """Canonical asset-manifest digest (the only accepted `manifest_digest` value)."""
+    data = dict(manifest)
+    data.pop("manifest_digest", None)
+    return hashlib.sha256(
+        json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
 def _timecode(value: str) -> str:
     milliseconds = round(float(value) * 1000)
     seconds, ms = divmod(milliseconds, 1000)
@@ -249,7 +263,7 @@ def build_production_asset_pack(
         "alignment_digest": accepted_roots["alignment_digest"],
         "transcript_digest": accepted_roots["transcript_digest"],
     }
-    manifest["manifest_digest"] = hashlib.sha256(json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    manifest["manifest_digest"] = compute_manifest_digest(manifest)
     machine_map = {
         "artifact_version": "edit-map/1",
         "created_at": str(created_at),
@@ -260,7 +274,7 @@ def build_production_asset_pack(
         "asset_manifest_digest": manifest["manifest_digest"],
         "rows": rows,
     }
-    machine_map["map_digest"] = _digest(machine_map)
+    machine_map["map_digest"] = compute_edit_map_digest(machine_map)
     edit_dir = root / "09_剪辑表"; record_dir = root / "_DeepTalk记录"
     markdown_path = edit_dir / "剪辑表.md"; csv_path = edit_dir / "剪辑表.csv"; json_path = record_dir / "edit-map.json"; manifest_path = record_dir / "visual-asset-manifest.json"
     markdown_path.write_text(_markdown(rows), encoding="utf-8")

@@ -14,6 +14,16 @@ Deterministic mapping rules (fail closed, never auto-pick):
   that span and is file/SHA/production/rights-verified; multiple ready
   candidates for the same cue are a VISUAL_GAP (no auto-winner).
 - FACT_CONFLICT and low-confidence spans are keep_only and become VISUAL_GAP.
+
+Rights boundary (canonical Rights/Reuse contract): `production_status=ready`
+only proves local file integrity (the material bridge deliberately keeps
+`rights_reuse_affects_production_gate=False`), never reuse authorization.
+Only materials whose validated `rights_status` is one of the canonical
+`SAFE_REUSE_STATUSES` (public_domain / explicit_reuse_allowed /
+creative_commons / official_press_asset) with inspected provenance and
+ready_to_use eligibility may enter the Asset Pack; unknown,
+permission-required, editorial-reference-only and avoid materials become an
+AUDIO_ONLY visual gap with the reason recorded, and never enter the manifest.
 """
 
 from __future__ import annotations
@@ -26,6 +36,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from .asset_pack_workflow import build_production_asset_pack
 from .fact_conflict import detect_fact_conflicts
+from .material_schema import SAFE_REUSE_STATUSES
 from .semantic_timeline import build_semantic_timeline
 
 
@@ -103,12 +114,17 @@ def derive_audio_assets(
     *,
     timeline_id: str,
     created_at: str,
+    clean_aroll_gate_status: str,
 ) -> dict:
     """Project semantic timeline + visual opportunities + candidate assets.
 
     Returns a dict: roots, timeline, visual_plan, candidates, gaps, span_to_cue.
     The visual plan is a visual-director-plan/1-compatible projection with a
     deterministic span_id on every opportunity and is fully re-derivable.
+
+    `clean_aroll_gate_status` must be the controlled result of the real Clean
+    A-roll Gate on this media+transcript; it is bound into the delivery roots
+    and can never be hardcoded by a caller.
     """
     script = _data(script)
     # the alignment artifact itself is produced by the real audio chain; the
@@ -125,8 +141,13 @@ def derive_audio_assets(
     blocked = {str(item.get("beat_id", "")) for item in fact_conflicts if item.get("display_blocked")}
     cue_by_id = {str(item.get("cue_id", "")): item for item in alignment.get("cue_timeline", [])}
 
-    # ready local material candidates bound to exactly one cue
+    # ready local material candidates bound to exactly one cue.  Rights are
+    # verified here (not by the material bridge): only canonical safe-reuse
+    # statuses with inspected provenance and ready_to_use eligibility pass;
+    # everything else is recorded as a rights-blocked visual gap instead of an
+    # automatic asset.
     by_cue: dict[str, list[dict]] = {}
+    rights_blocked_by_cue: dict[str, list[dict]] = {}
     for item in material_view.get("items", []):
         if item.get("source_kind") != "material":
             continue
@@ -145,6 +166,9 @@ def derive_audio_assets(
         if len(cue_ids) != 1 or cue_ids[0] not in cue_by_id:
             continue
         if not _verified_local(item):
+            continue
+        if item.get("rights_status") not in SAFE_REUSE_STATUSES or item.get("historical_eligibility_status") != "ready_to_use":
+            rights_blocked_by_cue.setdefault(cue_ids[0], []).append(item)
             continue
         by_cue.setdefault(cue_ids[0], []).append(item)
 
@@ -187,7 +211,10 @@ def derive_audio_assets(
         elif cue_id:
             owned = by_cue.get(cue_id, [])
             if not owned:
-                why = "该时间段没有通过权利/文件校验的合规素材，需要人工补画面。"
+                if rights_blocked_by_cue.get(cue_id):
+                    why = "该时间段的候选素材没有可核验的复用授权（未知、需授权或仅可参考），不能自动使用，需要人工补画面或先取得授权。"
+                else:
+                    why = "该时间段没有通过权利/文件校验的合规素材，需要人工补画面。"
             elif len(owned) > 1:
                 why = "该时间段存在多个可复用素材候选，无法自动挑选，需要人工决定。"
             else:
@@ -251,7 +278,7 @@ def derive_audio_assets(
             "alignment_digest": str(alignment.get("artifact_digest", "")),
             "transcript_digest": str(timeline.get("transcript_digest", "")),
             "timing_provenance": "actual_aroll_alignment",
-            "clean_aroll_gate_status": "accepted",
+            "clean_aroll_gate_status": clean_aroll_gate_status,
         },
         "timeline": timeline,
         "visual_plan": visual_plan,
@@ -270,9 +297,10 @@ def run_audio_only_delivery(
 ):
     """Concrete audio-only chain ending in Asset Pack + Edit Map.
 
-    Reuses the existing narration/ASR/alignment chain, then adds the formal
-    semantic-timeline -> visual-plan -> Asset Pack delivery.  No preview is
-    rendered, no A-roll frame is manufactured.
+    Reuses the existing narration/ASR/alignment chain, runs the formal Clean
+    A-roll Gate on the real transcript, then adds the formal semantic-timeline
+    -> visual-plan -> Asset Pack delivery.  No preview is rendered, no A-roll
+    frame is manufactured.
     """
     from .alignment_builder import build_script_alignment
     from .alignment_profile import load_alignment_profile
@@ -315,6 +343,14 @@ def run_audio_only_delivery(
     provider_result = provider.transcribe(extracted, chunk_plan, "zh", configured_model)
     transcript = build_timed_transcript(provider_result, media, extracted, mapping, chunk_plan, transcript_id=id_factory("TRANSCRIPT"), created_at=now)
     validate_timed_transcript(transcript, media, extracted, mapping, chunk_plan)
+    # Formal Clean A-roll Gate on the real transcript (same retake/complete-run
+    # detection as the human branch).  A needs_manual_cleanup result blocks the
+    # delivery with the gate's own owner-facing message; the controlled result
+    # is bound into the delivery roots and can never be hardcoded.
+    from .clean_aroll_gate import inspect_clean_aroll
+    gate = inspect_clean_aroll(media, transcript)
+    if gate.status != "accepted":
+        raise AudioDeliveryError(gate.user_message)
     subtitle_profile = load_subtitle_profile()
     subtitle = build_subtitle_artifact(transcript, media, subtitle_profile, subtitle_id=id_factory("SUBTITLE"), created_at=now)
     material_profile = load_material_profile()
@@ -356,6 +392,7 @@ def run_audio_only_delivery(
     delivery = derive_audio_assets(
         _data(inputs.script), alignment, fact_conflicts, material_view,
         timeline_id=id_factory("TIMELINE"), created_at=now,
+        clean_aroll_gate_status=gate.status,
     )
     episode_root = root / "episode"
     pack = build_production_asset_pack(
@@ -368,6 +405,7 @@ def run_audio_only_delivery(
         (transcript, "actual-transcript.json"),
         (alignment, "alignment.json"),
         (delivery["timeline"], "semantic-timeline.json"),
+        (gate.to_dict(), "clean-aroll-gate.json"),
     ):
         (aroll_dir / name).write_text(json.dumps(source, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
@@ -379,6 +417,7 @@ def run_audio_only_delivery(
         media, extracted, mapping, chunk_plan, chunk_profile, transcript,
         subtitle, subtitle_profile, inputs, alignment, alignment_profile, cues,
         material_view, timing, rough_profile, preview_profile, bridge, delivery, pack, episode_root, allowed_roots,
+        gate=gate,
     )
     qa = run_audio_edit_bridge_qa(qa_inputs)
     if qa["package_gate_status"] == "fail":
@@ -390,6 +429,7 @@ def run_audio_only_delivery(
         "media": media, "extracted": extracted, "mapping": mapping, "transcript": transcript,
         "subtitle": subtitle, "alignment": alignment, "delivery": delivery,
         "asset_pack": pack, "qa": qa, "qa_path": qa_path, "preview_path": None,
+        "qa_context": getattr(qa_inputs, "context", None),
         "paths": {
             "markdown": pack.markdown_path, "csv": pack.csv_path,
             "json": pack.json_path, "manifest": pack.manifest_path,

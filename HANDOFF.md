@@ -13,6 +13,21 @@ AIGC:
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-10-21：Issue #30 / PR #31 — Nexus round-1 CHANGES_REQUIRED 修复（封存中点，Orion 接手 Forge）
+
+- **接手背景：** Forge 交付 `2346c47` 后 Nexus 首轮代码复审给出 4 项 BLOCKING（版权边界、Clean Gate 被绕过、no-preview QA 占位 `pass`、交付工件 digest 可篡改）。本轮由 Orion 在原分支 `agent/issue30-audio-only-delivery` 上继续。
+- **已完成（代码 + 测试 + 契约文档）：**
+  - `audio_delivery.py`：素材候选增加 canonical Rights/Reuse 核验（`SAFE_REUSE_STATUSES` + inspected + ready_to_use + 文件/SHA），unknown/permission-required/reference-only 转 `AUDIO_ONLY` 并记录原因；真实 Clean A-roll Gate 在真实 transcript 后执行并绑定 roots；Gate 工件写入 `05_A-roll/clean-aroll-gate.json`。
+  - `clean_aroll_gate.py`：修复 `_text()` 字段名缺陷——真实 `timed-transcript/1` 的单元字段是 `spoken_text`，原实现读 `text` 导致重录检测从未在真实转录上生效（视频分支从未调用 Gate，属存量潜在 bug）。
+  - `edit_bridge_qa.py`：`_audio_no_preview` 去掉占位 `pass`，改为校验 Preview 帧等于真实时间轴确定性推导（fps 取自 preview profile）且 disabled/unready placement 恒为 -1；新增 `validate_audio_delivery_artifacts`（重算并校验 `map_digest`/`manifest_digest`、交叉绑定、素材 local_path Episode 包含性与候选一致性，只读无副作用）；`validate_audio_delivery_assets` 增加包含性；`clean_aroll_gate_rederived` 进 audio_delivery QA 组。
+  - `asset_pack_workflow.py`：暴露 `compute_edit_map_digest` / `compute_manifest_digest` 作为唯一 digest 定义（行为不变）。
+  - `cli.py`：Gate/会话失败以人话提示并返回 2。
+  - `tests/integrated_upstream_factory.py`：新增 `rights_mode`（unknown 默认不变 / permission_required / verified），verified 模式为自建合成图片附可核验公共领域权利页（M002.mp4 有意保持未授权，作为权利 Gate 负例样本；Production 只渲染图像类场景，ready_to_use 的本地 .mp4 会被既有 `_validate_file_type` 拒绝——这是既有边界，本任务不改）。
+  - 契约文档：`docs/EDIT_BRIDGE_CONTRACT.md`、`docs/ASSET_PACK_EDIT_MAP_CONTRACT.md`、`.agents/skills/align-video/SKILL.md`（quick_validate 通过）。
+- **测试：** `tests/test_audio_only_delivery.py` 16/16（含 rights unknown/permission_required 全 AUDIO_ONLY 负例、verified 正例、重录标记 Gate 阻断、Preview 帧篡改、digest-only 篡改、自洽路径替换）；关联模块 57 pass；全量 1025 tests：1023 pass + 2 个存量 Remotion/Chrome 环境失败（`test_visual_asset_engine_fixture`/`test_visual_asset_renderer`，已在改动前 head `2346c47` 复现，与本轮无关）。
+- **未完成（封存项，恢复后第一件事）：** 刷新 `evaluations/issue30_cli_e2e/` 真实 CLI E2E 证据——当前目录内仍是修复前 Forge 运行的旧证据（含 Nexus 指出的违规行）；runner 已更新为 `rights_mode="verified"`（`.temp/run_cli_e2e.py`，未入库），恢复后运行 `/Users/hwang/.workbuddy/binaries/python/versions/3.13.12/bin/python3 .temp/run_cli_e2e.py` 一次即可（本机 whisper.cpp large-v3 缓存已存在，合成 say 语音，约需数分钟）。
+- **未做：** 未合并、未改 v1.0.0/tag/release、未改 narration schema、未动 B站模块、无新 UI；未自行标记 READY_FOR_NEXUS_REVIEW（等证据刷新后由下一轮完成并报告新 SHA）。
+
 ## 2026-09-10：DT-V1-REL-001 — v1.0.0 formal release
 
 > Time-ordered addendum. The RC preparation entry below is preserved as produced at its own time; this entry records the subsequent release execution. Canonical current truth remains [PROJECT_STATE.md](PROJECT_STATE.md).
