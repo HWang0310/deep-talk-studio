@@ -47,10 +47,15 @@ from pathlib import Path
 from typing import Callable, Dict, Optional
 
 from .bilibili_reference_provider import BilibiliReferenceProvider
+from .content_director import ContentDirectorValidationError
 from .reference_discovery import (
     ReferenceDiscoveryError,
     build_reference_candidate_set,
 )
+from .script_validation import ScriptValidationError
+from .validation import ReportValidationError
+from .workbench.flow import WorkbenchFlowError
+from .workbench.llm import WorkbenchLLMError
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8321
@@ -59,6 +64,24 @@ MAX_TOPIC_CHARS = 200
 MAX_URL_COUNT = 5
 MAX_URL_CHARS = 300
 SOCKET_TIMEOUT_SECONDS = 10
+# Workbench route body caps (bytes): settings may carry a long key; pasted
+# source text is intentionally generous; long-running operations stay small.
+WORKBENCH_ROUTE_CAPS = {
+    "/api/workbench/settings": 32 * 1024,
+    "/api/workbench/settings/test": 2048,
+    "/api/workbench/session/start": 32 * 1024,
+    "/api/workbench/references/acquire": 64 * 1024,
+    "/api/workbench/references/analyze": 2048,
+    "/api/workbench/sources/url": 4096,
+    "/api/workbench/sources/text": 420 * 1024,
+    "/api/workbench/research/generate": 16 * 1024,
+    "/api/workbench/fact-check/run": 2048,
+    "/api/workbench/research/approve": 16 * 1024,
+    "/api/workbench/thesis/generate": 2048,
+    "/api/workbench/thesis/review": 2048,
+    "/api/workbench/thesis/approve": 16 * 1024,
+    "/api/workbench/script/generate": 2048,
+}
 
 _STATIC_DIR = Path(__file__).resolve().parent / "webui_static"
 INDEX_HTML_PATH = _STATIC_DIR / "index.html"
@@ -178,7 +201,7 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return "Content-Type 必须是 application/json"
         return None
 
-    def _content_length_state(self) -> str:
+    def _content_length_state(self, cap: int = MAX_REQUEST_BYTES) -> str:
         """Validate framing headers before any body read. Returns a state."""
 
         te_values = [value.strip().lower()
@@ -194,14 +217,14 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return "length_invalid"
         if length < 0:
             return "length_negative"
-        if length > MAX_REQUEST_BYTES:
+        if length > cap:
             return "length_too_large"
         return "ok"
 
-    def _read_body(self) -> Optional[bytes]:
+    def _read_body(self, cap: int = MAX_REQUEST_BYTES) -> Optional[bytes]:
         """Read exactly Content-Length bytes; None means the request was rejected."""
 
-        state = self._content_length_state()
+        state = self._content_length_state(cap)
         if state == "transfer_encoding":
             self.close_connection = True
             _send_json(self, 411, {"error": "不支持 Transfer-Encoding 请求"})
@@ -216,7 +239,7 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return None
         if state == "length_too_large":
             self.close_connection = True
-            _send_json(self, 413, {"error": f"请求体超过 {MAX_REQUEST_BYTES} 字节上限"})
+            _send_json(self, 413, {"error": "请求体超过上限"})
             return None
         length = int((self.headers.get_all("Content-Length") or ["0"])[0].strip())
         return self.rfile.read(length) if length else b""
@@ -240,6 +263,12 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         if path == "/healthz":
             _send_json(self, 200, {"ok": True, "service": SERVICE_NAME})
             return
+        if path == "/api/workbench/state":
+            self._handle_workbench_get_state()
+            return
+        if path == "/api/workbench/script/final":
+            self._handle_workbench_final_script()
+            return
         _send_json(self, 404, {"error": "路径不存在"})
 
     def do_POST(self) -> None:
@@ -249,9 +278,17 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             _send_json(self, 403, {"error": rejection})
             return
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path != "/api/discover":
-            _send_json(self, 404, {"error": "路径不存在"})
+        if parsed.path == "/api/discover":
+            self._handle_discover_post()
             return
+        if parsed.path.startswith("/api/workbench/"):
+            self._handle_workbench_post(parsed.path)
+            return
+        _send_json(self, 404, {"error": "路径不存在"})
+
+    # -- discovery ------------------------------------------------------
+
+    def _handle_discover_post(self) -> None:
         rejection = self._content_type_rejection()
         if rejection:
             self.close_connection = True
@@ -260,16 +297,22 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         raw = self._read_body()
         if raw is None:
             return
+        artifact = self._run_discovery(raw)
+        if artifact is None:
+            return
+        _send_json(self, 200, artifact)
+
+    def _run_discovery(self, raw: bytes):
         try:
             payload = json.loads(raw.decode("utf-8")) if raw else {}
         except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
             _send_json(self, 400, {"error": "请求体不是合法 JSON"})
-            return
+            return None
         try:
             request = validate_discover_payload(payload)
         except WebUIRequestError as exc:
             _send_json(self, 400, {"error": str(exc)})
-            return
+            return None
         server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment]
         try:
             # one bounded discovery run at a time; a repeated click queues as
@@ -283,15 +326,206 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         except ArtifactWriteConflict:
             self.log_error("artifact write conflict for a run")
             _send_json(self, 500, {"error": "结果工件写入冲突，未覆盖已有文件，请重试检索"})
-            return
+            return None
         except ReferenceDiscoveryError as exc:
             _send_json(self, 400, {"error": f"参考视频发现失败：{exc}"})
-            return
-        except Exception as exc:  # provider/IO crash must not kill the server
-            self.log_error("discovery run failed: %s", type(exc).__name__)
+            return None
+        except Exception:  # provider/IO crash must not kill the server
+            self.log_error("discovery run failed: provider/IO")
             _send_json(self, 500, {"error": "本次检索执行失败，请稍后重试"})
+            return None
+        return artifact
+
+    # -- workbench ------------------------------------------------------
+
+    def _workbench_flow(self):
+        server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment]
+        return server.flow
+
+    def _workbench_json_body(self, path: str) -> Optional[Dict[str, object]]:
+        rejection = self._content_type_rejection()
+        if rejection:
+            self.close_connection = True
+            _send_json(self, 415, {"error": rejection})
+            return None
+        raw = self._read_body(WORKBENCH_ROUTE_CAPS.get(path, MAX_REQUEST_BYTES))
+        if raw is None:
+            return None
+        try:
+            payload = json.loads(raw.decode("utf-8")) if raw else {}
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            _send_json(self, 400, {"error": "请求体不是合法 JSON"})
+            return None
+        if not isinstance(payload, dict):
+            _send_json(self, 400, {"error": "请求体必须是 JSON 对象"})
+            return None
+        return payload
+
+    @staticmethod
+    def _workbench_call(action):
+        """Run one flow action and map its exceptions to typed JSON replies."""
+
+        try:
+            return action(), None
+        except WorkbenchFlowError as exc:
+            return None, (400, {"error": str(exc)})
+        except WorkbenchLLMError as exc:
+            return None, (400, {"error": str(exc)})
+        except (ReportValidationError, ScriptValidationError, ContentDirectorValidationError) as exc:
+            return None, (400, {"error": f"引擎校验未通过：{exc}"})
+        except Exception as exc:  # never kill the local server on one step
+            return None, (500, {"error": f"这一步执行失败：{type(exc).__name__}：{str(exc)[:300]}"})
+
+    def _handle_workbench_get_state(self) -> None:
+        flow = self._workbench_flow()
+
+        def _read():
+            settings = flow.get_settings()
+            session = flow.store.load_latest()
+            view = flow.view(session["session_id"]) if session else None
+            return {"settings": settings, "session": view}
+
+        result, error = self._workbench_call(_read)
+        if error:
+            _send_json(self, error[0], error[1])
             return
-        _send_json(self, 200, artifact)
+        _send_json(self, 200, result)
+
+    def _handle_workbench_final_script(self) -> None:
+        flow = self._workbench_flow()
+
+        def _read():
+            session = flow.store.load_latest()
+            if not session:
+                raise WorkbenchFlowError("还没有创作会话，请从输入选题开始")
+            return flow.final_script(session["session_id"])
+
+        result, error = self._workbench_call(_read)
+        if error:
+            _send_json(self, error[0], error[1])
+            return
+        _send_json(self, 200, result)
+
+    def _handle_workbench_post(self, path: str) -> None:
+        flow = self._workbench_flow()
+        payload = self._workbench_json_body(path)
+        if payload is None:
+            return
+        server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment"]
+        session_id = str(payload.get("session_id", "") or "")
+        if path == "/api/workbench/settings":
+            result, error = self._workbench_call(lambda: flow.save_settings(payload))
+        elif path == "/api/workbench/settings/test":
+            result, error = self._workbench_call(flow.test_settings)
+        elif path == "/api/workbench/session/start":
+            def _start():
+                discovery = self._run_discovery(
+                    json.dumps(
+                        {
+                            "topic": payload.get("topic", ""),
+                            "urls": payload.get("urls", []),
+                        }
+                    ).encode("utf-8")
+                )
+                if discovery is None:
+                    raise WorkbenchFlowError("参考检索失败，无法开启本集创作")
+                candidates = discovery.get("candidates", [])
+                session = flow.store.create(
+                    str(payload.get("topic", "")).strip() or "（未命名选题）",
+                    candidates,
+                    None,
+                )
+                return {"session": flow.view(session["session_id"])}
+
+            result, error = self._workbench_call(_start)
+        elif path == "/api/workbench/references/acquire":
+            def _acquire():
+                with server.workbench_lock:
+                    return flow.acquire_references(
+                        session_id,
+                        payload.get("bvids", []),
+                        str(payload.get("authorization_text", "")),
+                    )
+
+            result, error = self._workbench_call(_acquire)
+        elif path == "/api/workbench/references/analyze":
+            def _analyze():
+                with server.workbench_lock:
+                    return flow.analyze_reference(session_id, str(payload.get("bvid", "")))
+
+            result, error = self._workbench_call(_analyze)
+        elif path == "/api/workbench/sources/url":
+            def _source_url():
+                with server.workbench_lock:
+                    return flow.add_source_url(session_id, payload.get("url", ""))
+
+            result, error = self._workbench_call(_source_url)
+        elif path == "/api/workbench/sources/text":
+            def _source_text():
+                with server.workbench_lock:
+                    return flow.add_source_text(
+                        session_id,
+                        payload.get("title", ""),
+                        payload.get("text", ""),
+                        payload.get("url", ""),
+                    )
+
+            result, error = self._workbench_call(_source_text)
+        elif path == "/api/workbench/research/generate":
+            def _research():
+                with server.workbench_lock:
+                    return flow.generate_research(
+                        session_id, str(payload.get("research_question", ""))
+                    )
+
+            result, error = self._workbench_call(_research)
+        elif path == "/api/workbench/fact-check/run":
+            def _fact_check():
+                with server.workbench_lock:
+                    return flow.run_fact_check(session_id)
+
+            result, error = self._workbench_call(_fact_check)
+        elif path == "/api/workbench/research/approve":
+            def _approve_research():
+                with server.workbench_lock:
+                    return flow.approve_research(
+                        session_id, str(payload.get("confirmation", ""))
+                    )
+
+            result, error = self._workbench_call(_approve_research)
+        elif path == "/api/workbench/thesis/generate":
+            def _thesis_generate():
+                with server.workbench_lock:
+                    return flow.generate_thesis(session_id)
+
+            result, error = self._workbench_call(_thesis_generate)
+        elif path == "/api/workbench/thesis/review":
+            def _thesis_review():
+                with server.workbench_lock:
+                    return flow.review_thesis(session_id)
+
+            result, error = self._workbench_call(_thesis_review)
+        elif path == "/api/workbench/thesis/approve":
+            def _thesis_approve():
+                with server.workbench_lock:
+                    return flow.approve_thesis(
+                        session_id, str(payload.get("confirmation", ""))
+                    )
+
+            result, error = self._workbench_call(_thesis_approve)
+        elif path == "/api/workbench/script/generate":
+            def _script():
+                with server.workbench_lock:
+                    return flow.generate_script(session_id)
+
+            result, error = self._workbench_call(_script)
+        else:
+            _send_json(self, 404, {"error": "路径不存在"})
+            return
+        if error:
+            _send_json(self, error[0], error[1])
+            return
+        _send_json(self, 200, result)
 
     # -- logging (redacted) ---------------------------------------------
 
@@ -317,11 +551,20 @@ class _DeepTalkWebUIServer(ThreadingHTTPServer):
         *,
         output_dir: Path,
         provider_factory: Callable[[], object],
+        flow,
     ):
         super().__init__(address, _DeepTalkWebUIHandler)
         self.output_dir = Path(output_dir)
         self.provider_factory = provider_factory
         self.discovery_lock = threading.Lock()
+        self.workbench_lock = threading.Lock()
+        self.flow = flow
+
+
+def _default_repo_root() -> Path:
+    """Repository root that owns the canonical engine trees (not the CWD)."""
+
+    return Path(__file__).resolve().parents[2]
 
 
 def make_server(
@@ -330,13 +573,19 @@ def make_server(
     output_dir: Path,
     provider_factory: Callable[[], object],
     host: str = DEFAULT_HOST,
+    flow=None,
 ) -> _DeepTalkWebUIServer:
     """Build the loopback server. ``port=0`` picks an ephemeral port (tests)."""
 
+    if flow is None:
+        from .workbench.flow import WorkbenchFlow
+
+        flow = WorkbenchFlow(_default_repo_root())
     return _DeepTalkWebUIServer(
         (host, int(port)),
         output_dir=output_dir,
         provider_factory=provider_factory,
+        flow=flow,
     )
 
 

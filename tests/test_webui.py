@@ -34,7 +34,7 @@ from tests.test_reference_discovery import (
 class LocalWebUITestCase(unittest.TestCase):
     """Starts a real loopback server per test with an injected fake provider."""
 
-    def start_server(self, provider=None):
+    def start_server(self, provider=None, flow=None):
         provider = provider or FakeProvider(
             default_search=ok_search(
                 search_item("BV1hi000000A", "莫斯科大学留学生旭日旗事件进展", views=900),
@@ -49,6 +49,7 @@ class LocalWebUITestCase(unittest.TestCase):
             0,
             output_dir=Path(tmp.name),
             provider_factory=lambda: provider,
+            flow=flow,
         )
         self.addCleanup(server.server_close)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -188,25 +189,27 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertEqual(headers.get("X-Content-Type-Options"), "nosniff")
         self.assertIn('lang="zh-CN"', body)
         self.assertIn('id="topic"', body)
-        self.assertIn("/api/discover", body)  # the only business endpoint
+        # Issue #23 unified workbench: the page drives the same canonical
+        # discovery service through the session-start endpoint
+        self.assertIn("/api/workbench/session/start", body)
         # XSS-safety: the page must never use innerHTML for rendering
         self.assertNotIn("innerHTML", body)
         self.assertIn("textContent", body)
 
     def test_index_ui_trial_progress_and_staleness_contract(self):
-        """Issue #29 UI-trial invariants: slow-search feedback must keep an
-        elapsed timer with a do-not-resubmit reassurance, previous results are
-        dimmed while a new search runs (stale class), and the busy interval is
-        always cleared when the search finishes."""
+        """Issue #29 UI-trial invariants: slow-action feedback must keep an
+        elapsed timer with a do-not-resubmit reassurance, previous sections
+        are dimmed while a new operation runs (stale class), and the busy
+        interval is always cleared when the operation finishes."""
         status, _, body = self.get("/")
         self.assertEqual(status, 200)
-        # live elapsed timer + expected-duration reassurance during search
+        # live elapsed timer + expected-duration reassurance during operation
         self.assertIn("已用", body)
         self.assertIn("请勿重复提交", body)
         # title switches to in-progress and is restored from a saved base title
-        self.assertIn("检索中…", body)
+        self.assertIn("处理中…", body)
         self.assertIn("baseTitle", body)
-        # previous result card is dimmed while a new search is in flight
+        # previous result card is dimmed while a new operation is in flight
         self.assertIn("#result.stale", body)
         self.assertIn("classList.add('stale')", body)
         self.assertIn("classList.remove('stale')", body)
@@ -569,3 +572,149 @@ class ArtifactExclusivityTests(LocalWebUITestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorkbenchRoutesTests(LocalWebUITestCase):
+    """Issue #23 unified workbench HTTP surface (fake LLM + fake fetch)."""
+
+    def _flow(self, root: Path):
+        from tests.test_workbench import FakeWorkbenchLLM, _fake_fetcher
+
+        from deeptalk_studio.workbench.flow import WorkbenchFlow
+
+        return WorkbenchFlow(
+            root,
+            provider_factory=lambda settings: FakeWorkbenchLLM(settings),
+            fetcher=_fake_fetcher,
+        )
+
+    def test_settings_roundtrip_over_http_and_masked_echo(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.start_server(flow=self._flow(root))
+            status, _, body = self.post("/api/workbench/settings", {
+                "provider_mode": "chat",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "test-model",
+                "api_key": "sk-aaaaaaaaaaaaaaaaaaaaaaaa",
+                "downloads_dir": str(root),
+            })
+            self.assertEqual(status, 200)
+            payload = json.loads(body)
+            self.assertNotIn("sk-aaaaaaaaaaaaaaaaaaaaaaaa", body)
+            self.assertIn("…", payload["api_key_masked"])
+            self.assertTrue(payload["configured"])
+            status, _, body = self.get("/api/workbench/state?" ) if False else (0, None, None)
+            # (state GET covered by the full-loop test below)
+
+    def test_workbench_unknown_route_is_404_and_settings_test_requires_config(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.start_server(flow=self._flow(root))
+            status, _, _ = self.post("/api/workbench/no-such-step", {})
+            self.assertEqual(status, 404)
+            status, _, body = self.post("/api/workbench/settings/test", {})
+            self.assertEqual(status, 400)
+            self.assertIn("设置尚未完成", json.loads(body)["error"])
+
+    def test_full_creation_loop_over_http_local_user_path(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.start_server(flow=self._flow(root))
+            # settings (chat mode against the scripted provider)
+            status, _, body = self.post("/api/workbench/settings", {
+                "provider_mode": "chat",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "test-model",
+                "api_key": "sk-test",
+                "downloads_dir": str(root),
+            })
+            self.assertEqual(status, 200, body)
+            # state
+            status, _, body = self._get_state()
+            self.assertEqual(status, 200)
+            self.assertIsNone(json.loads(body)["session"])
+            # session start (discovery through the injected fake provider)
+            status, _, body = self.post("/api/workbench/session/start", {
+                "topic": "莫斯科大学留学生旭日旗事件",
+                "urls": [],
+            })
+            self.assertEqual(status, 200, body)
+            session = json.loads(body)
+            sid = session["session"]["session_id"]
+            self.assertGreaterEqual(len(session["session"]["references"]), 1)
+            # pasted research source (fetcher rejects generic urls in fixture)
+            status, _, body = self.post("/api/workbench/sources/text", {
+                "session_id": sid,
+                "title": "示例新闻社：图书馆明年起夜间开放",
+                "text": (
+                    "示例新闻社2026年10月20日报道，该市图书馆宣布自明年起将开放夜间阅览室，"
+                    "每周三和周五延长开放至二十三点，首年预算大约为一百二十万元。"
+                    "馆长说明夜间开放主要是为了服务备考学生和加班人群，馆方将与志愿者组织合作安排值班。"
+                ),
+                "url": "https://example.com/news/night-library",
+            })
+            self.assertEqual(status, 200, body)
+            status, _, body = self.post("/api/workbench/sources/text", {
+                "session_id": sid,
+                "title": "市财政局：2027年度公共文化支出预算说明",
+                "text": (
+                    "市财政局官网2026年10月21日发布预算说明，2027年度公共文化支出拟增长百分之八，"
+                    "其中图书馆系统新增夜间开放专项经费一百二十万元，用于安保、照明与志愿服务补贴。"
+                    "说明同时指出，该专项经费为试点性质，有效期一年，期满后由市图书馆提交评估报告再定去留。"
+                ),
+                "url": "https://example.gov.cn/budget/2027-culture",
+            })
+            self.assertEqual(status, 200, body)
+            # research draft → fact check → approval
+            status, _, body = self.post("/api/workbench/research/generate", {
+                "session_id": sid, "research_question": "钱怎么花？",
+            })
+            self.assertEqual(status, 200, body)
+            self.assertIn("fact_check_pending", body)
+            status, _, body = self.post("/api/workbench/fact-check/run", {"session_id": sid})
+            self.assertEqual(status, 200, body)
+            fc = json.loads(body)
+            self.assertEqual(fc["gate_status"], "pass", body)
+            status, _, body = self.post("/api/workbench/research/approve", {
+                "session_id": sid, "confirmation": "我确认研究结论，批准进入写稿。",
+            })
+            self.assertEqual(status, 200, body)
+            self.assertTrue(json.loads(body)["ready_for_script"])
+            # thesis → review → approve
+            status, _, body = self.post("/api/workbench/thesis/generate", {"session_id": sid})
+            self.assertEqual(status, 200, body)
+            status, _, body = self.post("/api/workbench/thesis/review", {"session_id": sid})
+            self.assertEqual(status, 200, body)
+            self.assertEqual(json.loads(body)["gate_decision"], "pass", body)
+            status, _, body = self.post("/api/workbench/thesis/approve", {
+                "session_id": sid,
+                "confirmation": "我确认本期内容方向与选题卡一致，确认进入写稿。",
+            })
+            self.assertEqual(status, 200, body)
+            # script + review + final
+            status, _, body = self.post("/api/workbench/script/generate", {"session_id": sid})
+            self.assertEqual(status, 200, body)
+            script = json.loads(body)
+            self.assertEqual(script["status"], "reviewed", body)
+            status, _, body = self._get_final()
+            self.assertEqual(status, 200)
+            final = json.loads(body)
+            self.assertIn("夜间图书馆", final["teleprompter_text"])
+
+    def _get_state(self):
+        return self._get_json("/api/workbench/state")
+
+    def _get_final(self):
+        return self._get_json("/api/workbench/script/final")
+
+    def _get_json(self, path):
+        request = urllib.request.Request(self.base + path)
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return response.status, dict(response.headers), response.read().decode("utf-8")

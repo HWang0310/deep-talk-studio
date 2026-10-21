@@ -25,6 +25,14 @@ from ..script_prompt import (
     build_script_review_prompt,
     build_script_writer_prompt,
 )
+from ..thesis_prompt import (
+    REFERENCE_SUMMARY_SYSTEM_PROMPT,
+    THESIS_REVIEWER_SYSTEM_PROMPT,
+    THESIS_WRITER_SYSTEM_PROMPT,
+    build_reference_summary_prompt,
+    build_thesis_review_prompt,
+    build_thesis_writer_prompt,
+)
 from .base import ProviderResult
 
 
@@ -75,6 +83,7 @@ class OpenAIResponsesProvider:
         model: str = "gpt-5.6",
         timeout: int = 600,
         transport: Optional[Transport] = None,
+        endpoint: Optional[str] = None,
     ) -> None:
         if not api_key.strip():
             raise ValueError("OpenAI API key 不能为空")
@@ -82,6 +91,10 @@ class OpenAIResponsesProvider:
         self.model = model
         self.timeout = timeout
         self.transport = transport or _default_transport
+        if endpoint is not None:
+            if not endpoint.startswith(("http://", "https://")):
+                raise ValueError("OpenAI Responses 端点必须是有效 HTTP(S) 地址")
+            self.endpoint = endpoint.rstrip("/")
 
     def research(
         self, topic: str, schema: Dict[str, Any], research_handoff: Optional[Dict[str, Any]] = None
@@ -134,6 +147,50 @@ class OpenAIResponsesProvider:
             build_script_review_prompt(report, script),
             schema,
             "deep_talk_script_review",
+        )
+
+    def write_thesis(
+        self,
+        report: Dict[str, Any],
+        narrative_insights: Optional[list] = None,
+    ) -> ProviderResult:
+        from ..schema import THESIS_CONTENT_JSON_SCHEMA
+
+        return self._run_structured_generation(
+            THESIS_WRITER_SYSTEM_PROMPT,
+            build_thesis_writer_prompt(report, narrative_insights),
+            THESIS_CONTENT_JSON_SCHEMA,
+            "deep_talk_thesis_content",
+        )
+
+    def review_thesis(
+        self,
+        report: Dict[str, Any],
+        card_content: Dict[str, Any],
+        check_names: list,
+    ) -> ProviderResult:
+        from ..schema import THESIS_REVIEW_CONTENT_JSON_SCHEMA
+
+        return self._run_structured_generation(
+            THESIS_REVIEWER_SYSTEM_PROMPT,
+            build_thesis_review_prompt(report, card_content, check_names),
+            THESIS_REVIEW_CONTENT_JSON_SCHEMA,
+            "deep_talk_thesis_review",
+        )
+
+    def summarize_reference(
+        self,
+        transcript_text: str,
+        metrics: Dict[str, Any],
+        metadata: Dict[str, Any],
+    ) -> ProviderResult:
+        from ..schema import REFERENCE_NARRATIVE_JSON_SCHEMA
+
+        return self._run_structured_generation(
+            REFERENCE_SUMMARY_SYSTEM_PROMPT,
+            build_reference_summary_prompt(transcript_text, metrics, metadata),
+            REFERENCE_NARRATIVE_JSON_SCHEMA,
+            "deep_talk_reference_summary",
         )
 
     def search_materials(
@@ -254,3 +311,27 @@ class OpenAIResponsesProvider:
                 if content.get("type") == "output_text" and content.get("text"):
                     return content["text"]
         raise ValueError("missing output_text")
+
+    def run_structured(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        schema: Dict[str, Any],
+        schema_name: str,
+        *,
+        web_search: bool = False,
+    ) -> ProviderResult:
+        """Public structured runner for controlled application embeddings.
+
+        ``web_search=True`` reuses the provenance-carrying search pipeline
+        (research/fact-check); the default is a plain structured generation
+        used by the Creator Workbench thesis/script steps.
+        """
+
+        if web_search:
+            return self._run_structured_search(
+                system_prompt, user_prompt, schema, schema_name
+            )
+        return self._run_structured_generation(
+            system_prompt, user_prompt, schema, schema_name
+        )
