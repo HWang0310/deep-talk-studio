@@ -398,6 +398,7 @@ def run_audio_only_delivery(
     pack = build_production_asset_pack(
         delivery["roots"], delivery["timeline"]["spans"], delivery["visual_plan"],
         delivery["candidates"], episode_root=episode_root, created_at=now,
+        media_kind="audio",
     )
     # 05_A-roll/: real-time lineage artifacts, read-only copies
     aroll_dir = episode_root / "05_A-roll"; aroll_dir.mkdir(parents=True, exist_ok=True)

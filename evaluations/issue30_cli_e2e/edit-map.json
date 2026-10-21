@@ -12,11 +12,11 @@
       "asset_filename": "M001.png",
       "placement_advice": "按真实时间放入对应位置。",
       "why": "事件在 2026 年 8 月 9 日发生。",
-      "provenance": "权利页核验：公共领域，可自由使用。",
+      "provenance": "模拟权利数据（synthetic fixture）：未发生真实联网核验，非真实第三方复用许可，仅用于验证 Rights Gate 流程。",
       "qa_status": "pass",
       "requires_human_review": false,
       "fallback_outcome": "REAL_MATERIAL",
-      "alignment_digest": "3042297da500a6eea8e28e3576f0ca4dcc26640f4635283f4c2dbe32a0e427e4"
+      "alignment_digest": "edeaf36efa579b61564f3b9466a9184328146f9c0eee5b73487147e313c95683"
     },
     {
       "sequence": 2,
@@ -34,7 +34,7 @@
       "qa_status": "not_applicable",
       "requires_human_review": true,
       "fallback_outcome": "AUDIO_ONLY",
-      "alignment_digest": "3042297da500a6eea8e28e3576f0ca4dcc26640f4635283f4c2dbe32a0e427e4"
+      "alignment_digest": "edeaf36efa579b61564f3b9466a9184328146f9c0eee5b73487147e313c95683"
     },
     {
       "sequence": 3,
@@ -52,7 +52,7 @@
       "qa_status": "not_applicable",
       "requires_human_review": true,
       "fallback_outcome": "AUDIO_ONLY",
-      "alignment_digest": "3042297da500a6eea8e28e3576f0ca4dcc26640f4635283f4c2dbe32a0e427e4"
+      "alignment_digest": "edeaf36efa579b61564f3b9466a9184328146f9c0eee5b73487147e313c95683"
     },
     {
       "sequence": 4,
@@ -70,7 +70,7 @@
       "qa_status": "not_applicable",
       "requires_human_review": true,
       "fallback_outcome": "AUDIO_ONLY",
-      "alignment_digest": "3042297da500a6eea8e28e3576f0ca4dcc26640f4635283f4c2dbe32a0e427e4"
+      "alignment_digest": "edeaf36efa579b61564f3b9466a9184328146f9c0eee5b73487147e313c95683"
     }
   ],
   "manifest_assets": [
@@ -79,10 +79,10 @@
       "asset_class": "REAL_MATERIAL",
       "qa_status": "ready",
       "filename": "M001.png",
-      "local_path": "/private/var/folders/8s/_lxwv_9d2x3b0y2wwq2qjrp00000gn/T/tmpcilavihp/session/DeepTalk-Aligned-Edit/episode/06_真实素材/M001.png",
+      "local_path": "/private/var/folders/8s/_lxwv_9d2x3b0y2wwq2qjrp00000gn/T/tmpgfn8pxv_/session/DeepTalk-Aligned-Edit/episode/06_真实素材/M001.png",
       "byte_size": 627,
       "sha256": "241f1fd4f9e52df30fe8d11698e60a3ebfec92efa5cf3b95cdb51ee0d105f70a",
-      "provenance": "权利页核验：公共领域，可自由使用。",
+      "provenance": "模拟权利数据（synthetic fixture）：未发生真实联网核验，非真实第三方复用许可，仅用于验证 Rights Gate 流程。",
       "placement_advice": "按真实时间放入对应位置。",
       "time_range": {
         "start_seconds": "0.03",

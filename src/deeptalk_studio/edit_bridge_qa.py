@@ -311,10 +311,13 @@ def _audio_asset_pack_rederived(context):
  import tempfile, json as _json
  validate_audio_delivery_artifacts(context.pack, context.episode_root, context.delivery)
  with tempfile.TemporaryDirectory(prefix="audio-delivery-replay-") as tmp:
+  # replay must use the same truthful wording as the delivered guide
+  # (the audio guide never suggests keeping a human frame; Issue #30)
   replay=build_production_asset_pack(
    context.delivery["roots"],context.delivery["timeline"]["spans"],
    context.delivery["visual_plan"],context.delivery["candidates"],
    episode_root=Path(tmp)/"episode",created_at=context.created_at,
+   media_kind=str(context.media.get("media_kind","video")),
   )
   def comparable_bytes(path: Path) -> bytes:
    return path.read_bytes().replace(str(Path(context.episode_root).resolve()).encode("utf-8"), b"<EPISODE>")

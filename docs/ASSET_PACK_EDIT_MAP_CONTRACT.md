@@ -42,4 +42,5 @@ Edit Map 每行都含实际 A-roll start/end、口播摘要、决策、素材文
 - 素材映射为确定性投影：一个语义 span 只能对应一个 cue；有多个候选、多个 cue 或未选片段的视频参考时按 `VISUAL_GAP` 处理，绝不自动挑选。
 - 素材入包前必须通过 canonical Rights/Reuse 核验：只有 validated `rights_status` 属于 `SAFE_REUSE_STATUSES`、provenance 为 inspected、eligibility 为 ready_to_use、且文件/SHA 校验通过的本地素材才能成为 `REAL_MATERIAL` 行并带真实 provenance；`production_status=ready` 仅证明文件完整性。unknown / permission_required / reference-only 等没有可核验复用依据的素材一律转 `AUDIO_ONLY`（说明原因），不得标 `qa_status=pass`，不进 asset manifest。
 - 交付工件（`剪辑表.md/.csv`、`edit-map.json`、`visual-asset-manifest.json`）的 `map_digest` / `manifest_digest` 与交叉绑定可被独立重算校验；素材 `local_path` 必须位于当前 Episode 内且与已验收候选一致，篡改 fail-closed。
+- 剪辑表前言按媒体类型区分（`build_production_asset_pack` 的 `media_kind`，fail-closed）：真人 MP4 文案保持原状；纯音频交付的前言必须说明本次交付没有真人画面——有素材的段落照表使用、标记「需人工补画面」的段落需人工补入——绝不使用「保持人物画面」类表述。
 - 真人 MP4 的 `KEEP_A_ROLL` 语义、fallback 链与视觉文案保持原状。

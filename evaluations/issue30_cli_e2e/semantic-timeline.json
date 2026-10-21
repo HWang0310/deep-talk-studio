@@ -1,10 +1,10 @@
 {
   "artifact_version": "semantic-timeline/1",
-  "timeline_id": "TIMELINE-4a7e7ae0f37b412e9041c3fb764eac90",
-  "created_at": "2026-10-21T17:09:35+08:00",
+  "timeline_id": "TIMELINE-b60a017152a34ac8bf9abee020e44e32",
+  "created_at": "2026-10-21T18:19:55+08:00",
   "timing_provenance": "actual_aroll_alignment",
-  "alignment_digest": "3042297da500a6eea8e28e3576f0ca4dcc26640f4635283f4c2dbe32a0e427e4",
-  "transcript_digest": "0d413a6864ddf555ca1dc01ba4fbcae81362a016567b881e6d252550b633de5c",
+  "alignment_digest": "edeaf36efa579b61564f3b9466a9184328146f9c0eee5b73487147e313c95683",
+  "transcript_digest": "61d7b243e66e9670f0cc136d1f8f1f3be5c08cc0e9e0b2818d275084eacd4017",
   "spans": [
     {
       "span_id": "ST001",
@@ -47,5 +47,5 @@
       "reason": "safe_real_alignment"
     }
   ],
-  "timeline_digest": "dea8ec0875527e8cbab18e49639ed1e24ec3ce50c8c2c840e861ec7b49e9f4b6"
+  "timeline_digest": "386b69c76e6a71c07f4055632199993f051ac9d28f357241b269b68b8645c3cd"
 }

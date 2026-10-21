@@ -13,6 +13,15 @@ AIGC:
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-10-21：Issue #30 / PR #31 — Nexus round-2 CHANGES_REQUIRED 修复（两处交付真实性小修，Forge 续作）
+
+- **接手背景：** Nexus 第二轮复审（@ `565b0b2`）认可四项 round-1 BLOCKING 修复并要求不返工，仅指出两处交付真实性问题：①audio-only 剪辑表前言固定写「其余无素材段落保持人物画面」，对无视频轨的纯音频交付暗示真人画面；②合成测试 fixture 的模拟权利证据（example.com 占位、`codex_web_open` stub）在 README/剪辑表/汇报中被表述为已实际核验的公共领域权利页。
+- **最小修复（不改四项已通过修复、不扩功能）：**
+  - `asset_pack_workflow.py`：`build_production_asset_pack` 新增 fail-closed `media_kind` 参数（默认 `video` 原文案逐字保留；`audio` 前言改为纯音频语义——有素材段照表使用、缺口需人工补画面，绝不出现「人物画面」；其他值报错）。`audio_delivery.py` 传 `audio`；QA 重推导 replay 从受控 `media` 工件取同一 `media_kind`，保证重推导字节一致。
+  - `tests/integrated_upstream_factory.py`：verified 正例的 `rights_basis` 改为明确标识「模拟权利数据（synthetic fixture）：未发生真实联网核验，非真实第三方复用许可」；正式 Rights Gate 强度不变。`CHANGELOG.md`（round-1 条目中的 fixture 表述同步更正）与 `evaluations/issue30_cli_e2e/README.md` 同步改口。
+- **回归：**`tests/test_audio_only_delivery.py` 新增 video/audio 双侧确定性文案回归（含无缺口形态与非法 media_kind fail-closed）与 fixture 模拟标识断言；E2E 断言剪辑表无「人物画面」、REAL_MATERIAL 行 provenance 含「模拟权利数据」。真实 CLI E2E 证据待重刷（`.temp/run_cli_e2e.py`，未入库）。
+- **约束：**未合并、未改 v1.0.0/tag/release、未改 narration schema；完成后在 GitHub 报告新 SHA，等 Nexus 最终复审。
+
 ## 2026-10-21：Issue #30 / PR #31 — Nexus round-1 CHANGES_REQUIRED 修复（封存中点，Orion 接手 Forge）
 
 - **接手背景：** Forge 交付 `2346c47` 后 Nexus 首轮代码复审给出 4 项 BLOCKING（版权边界、Clean Gate 被绕过、no-preview QA 占位 `pass`、交付工件 digest 可篡改）。本轮由 Orion 在原分支 `agent/issue30-audio-only-delivery` 上继续。
@@ -22,7 +31,7 @@ AIGC:
   - `edit_bridge_qa.py`：`_audio_no_preview` 去掉占位 `pass`，改为校验 Preview 帧等于真实时间轴确定性推导（fps 取自 preview profile）且 disabled/unready placement 恒为 -1；新增 `validate_audio_delivery_artifacts`（重算并校验 `map_digest`/`manifest_digest`、交叉绑定、素材 local_path Episode 包含性与候选一致性，只读无副作用）；`validate_audio_delivery_assets` 增加包含性；`clean_aroll_gate_rederived` 进 audio_delivery QA 组。
   - `asset_pack_workflow.py`：暴露 `compute_edit_map_digest` / `compute_manifest_digest` 作为唯一 digest 定义（行为不变）。
   - `cli.py`：Gate/会话失败以人话提示并返回 2。
-  - `tests/integrated_upstream_factory.py`：新增 `rights_mode`（unknown 默认不变 / permission_required / verified），verified 模式为自建合成图片附可核验公共领域权利页（M002.mp4 有意保持未授权，作为权利 Gate 负例样本；Production 只渲染图像类场景，ready_to_use 的本地 .mp4 会被既有 `_validate_file_type` 拒绝——这是既有边界，本任务不改）。
+  - `tests/integrated_upstream_factory.py`：新增 `rights_mode`（unknown 默认不变 / permission_required / verified），verified 模式为自建合成图片附**明确标识的模拟权利数据**（synthetic fixture，未发生真实联网核验、非真实第三方复用许可，仅验证 Rights Gate 流程；M002.mp4 有意保持未授权，作为权利 Gate 负例样本；Production 只渲染图像类场景，ready_to_use 的本地 .mp4 会被既有 `_validate_file_type` 拒绝——这是既有边界，本任务不改）。
   - 契约文档：`docs/EDIT_BRIDGE_CONTRACT.md`、`docs/ASSET_PACK_EDIT_MAP_CONTRACT.md`、`.agents/skills/align-video/SKILL.md`（quick_validate 通过）。
 - **测试：** `tests/test_audio_only_delivery.py` 16/16（含 rights unknown/permission_required 全 AUDIO_ONLY 负例、verified 正例、重录标记 Gate 阻断、Preview 帧篡改、digest-only 篡改、自洽路径替换）；关联模块 57 pass；全量 1025 tests：1023 pass + 2 个存量 Remotion/Chrome 环境失败（`test_visual_asset_engine_fixture`/`test_visual_asset_renderer`，已在改动前 head `2346c47` 复现，与本轮无关）。
 - **未完成（封存项，恢复后第一件事）：** 刷新 `evaluations/issue30_cli_e2e/` 真实 CLI E2E 证据——当前目录内仍是修复前 Forge 运行的旧证据（含 Nexus 指出的违规行）；runner 已更新为 `rights_mode="verified"`（`.temp/run_cli_e2e.py`，未入库），恢复后运行 `/Users/hwang/.workbuddy/binaries/python/versions/3.13.12/bin/python3 .temp/run_cli_e2e.py` 一次即可（本机 whisper.cpp large-v3 缓存已存在，合成 say 语音，约需数分钟）。

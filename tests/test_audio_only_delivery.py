@@ -139,6 +139,16 @@ class AudioDeliveryE2ETests(unittest.TestCase):
                     # rights-verified provenance only: never "no verifiable basis"
                     self.assertNotIn("未找到可核验的复用依据", row["provenance"])
                     self.assertTrue(row["provenance"].strip())
+                    # synthetic fixture provenance must stay clearly marked as
+                    # simulated — never read as an actually verified license
+                    self.assertIn("模拟权利数据", row["provenance"])
+            # the delivered audio-only guide must never suggest keeping a
+            # human frame (no fake A-roll; Issue #30 Nexus round-2 fix)
+            guide = result["paths"]["markdown"].read_text(encoding="utf-8")
+            self.assertNotIn("保持人物画面", guide)
+            self.assertNotIn("人物画面", guide)
+            self.assertIn("没有真人画面", guide)
+            self.assertIn("照表使用素材", guide)
             for path in (result["paths"]["markdown"], result["paths"]["csv"], result["paths"]["json"], result["paths"]["manifest"]):
                 self.assertTrue(path.is_file())
             self.assertTrue(any(a["asset_class"] == REAL_MATERIAL for a in pack.manifest["assets"]))
@@ -330,14 +340,105 @@ class AudioDeliveryUnitTests(unittest.TestCase):
             ]}
             roots = {"clean_aroll_gate_status": "accepted", "timing_provenance": "actual_aroll_alignment",
                      "alignment_digest": "a" * 64, "transcript_digest": "b" * 64}
-            pack = build_production_asset_pack(roots, spans, plan, [], episode_root=root / "episode", created_at=NOW)
+            pack = build_production_asset_pack(roots, spans, plan, [], episode_root=root / "episode", created_at=NOW, media_kind="audio")
             row = pack.machine_map["rows"][0]
             self.assertEqual(row["decision"], AUDIO_ONLY)
             self.assertEqual(row["asset_filename"], "")
             self.assertEqual(row["qa_status"], "not_applicable")
             self.assertTrue(row["requires_human_review"])
-            self.assertIn("补画面", pack.markdown_path.read_text(encoding="utf-8"))
+            guide = pack.markdown_path.read_text(encoding="utf-8")
+            self.assertIn("补画面", guide)
+            self.assertNotIn("人物画面", guide)
             self.assertEqual(pack.manifest["asset_count"], 0)
+
+    def test_video_edit_guide_wording_stays_original_and_invalid_kind_fails(self):
+        """Deterministic media-kind wording regression (Nexus round-2 fix).
+
+        The real human-camera MP4 guide keeps its original wording verbatim;
+        the audio-only guide never suggests keeping a human frame; any other
+        media kind fails closed.
+        """
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            spans = [
+                {"span_id": "ST001", "actual_start_seconds": "0.0", "actual_end_seconds": "1.2", "summary": "开头段", "visual_eligibility": "safe"},
+                {"span_id": "ST002", "actual_start_seconds": "1.2", "actual_end_seconds": "2.4", "summary": "无画面段", "visual_eligibility": "safe"},
+            ]
+            gap_plan = {"alignment_digest": "a" * 64, "opportunities": [
+                {"opportunity_id": "OP001", "span_id": "ST001", "decision": "KEEP_A_ROLL",
+                 "why_visual": "保留讲述者。", "review_requirement": "not_needed"},
+                {"opportunity_id": "OP002", "span_id": "ST002", "decision": AUDIO_ONLY,
+                 "why_visual": "该时间段无真人画面可保留，需要人工补画面。", "review_requirement": "not_needed"},
+            ]}
+            # audio branch never carries KEEP_A_ROLL rows: its gap plan pairs a
+            # delivered material row with an explicit AUDIO_ONLY gap row
+            audio_gap_plan = {"alignment_digest": "a" * 64, "opportunities": [
+                {"opportunity_id": "OP001", "span_id": "ST001", "decision": REAL_MATERIAL,
+                 "why_visual": "证据素材。", "review_requirement": "not_needed"},
+                {"opportunity_id": "OP002", "span_id": "ST002", "decision": AUDIO_ONLY,
+                 "why_visual": "该时间段无真人画面可保留，需要人工补画面。", "review_requirement": "not_needed"},
+            ]}
+            full_plan = {"alignment_digest": "a" * 64, "opportunities": [
+                {"opportunity_id": "OP001", "span_id": "ST001", "decision": "KEEP_A_ROLL",
+                 "why_visual": "保留讲述者。", "review_requirement": "not_needed"},
+                {"opportunity_id": "OP002", "span_id": "ST002", "decision": "KEEP_A_ROLL",
+                 "why_visual": "保留讲述者。", "review_requirement": "not_needed"},
+            ]}
+            audio_full_plan = {"alignment_digest": "a" * 64, "opportunities": [
+                {"opportunity_id": "OP001", "span_id": "ST001", "decision": REAL_MATERIAL,
+                 "why_visual": "证据素材。", "review_requirement": "not_needed"},
+                {"opportunity_id": "OP002", "span_id": "ST002", "decision": REAL_MATERIAL,
+                 "why_visual": "证据素材。", "review_requirement": "not_needed"},
+            ]}
+            roots = {"clean_aroll_gate_status": "accepted", "timing_provenance": "actual_aroll_alignment",
+                     "alignment_digest": "a" * 64, "transcript_digest": "b" * 64}
+            # video (default and explicit): original wording stays verbatim
+            for kwargs in ({}, {"media_kind": "video"}):
+                pack = build_production_asset_pack(roots, spans, gap_plan, [], episode_root=root / "episode", created_at=NOW, **kwargs)
+                guide = pack.markdown_path.read_text(encoding="utf-8")
+                self.assertIn("标记「需人工补画面」的段落没有画面，请自行补入；其余无素材段落保持人物画面", guide)
+            pack = build_production_asset_pack(roots, spans, full_plan, [], episode_root=root / "episode", created_at=NOW, media_kind="video")
+            self.assertIn("没有素材的段落保持人物画面", pack.markdown_path.read_text(encoding="utf-8"))
+            # audio: truthful no-human-frame wording in both gap shapes
+            material = root / "M001.png"; material.write_bytes(b"material-bytes")
+            candidate = {
+                "opportunity_id": "OP001", "asset_class": REAL_MATERIAL, "qa_status": "ready",
+                "filename": "M001.png", "local_path": str(material),
+                "sha256": hashlib.sha256(material.read_bytes()).hexdigest(),
+                "provenance": "模拟权利数据（synthetic fixture）。",
+                "placement_advice": "按真实时间放入对应位置。",
+            }
+            pack = build_production_asset_pack(roots, spans, audio_gap_plan, [candidate], episode_root=root / "episode", created_at=NOW, media_kind="audio")
+            guide = pack.markdown_path.read_text(encoding="utf-8")
+            self.assertNotIn("人物画面", guide)
+            self.assertIn("没有真人画面", guide)
+            self.assertIn("有素材的段落照表使用素材", guide)
+            self.assertIn("请自行补入", guide)
+            second = root / "M002.png"; second.write_bytes(b"material-bytes-2")
+            second_candidate = dict(candidate, opportunity_id="OP002", filename="M002.png", local_path=str(second), sha256=hashlib.sha256(second.read_bytes()).hexdigest())
+            pack = build_production_asset_pack(roots, spans, audio_full_plan, [candidate, second_candidate], episode_root=root / "episode", created_at=NOW, media_kind="audio")
+            guide = pack.markdown_path.read_text(encoding="utf-8")
+            self.assertNotIn("人物画面", guide)
+            self.assertIn("各段落照表使用素材", guide)
+            # anything else fails closed
+            with self.assertRaises(AssetPackWorkflowError):
+                build_production_asset_pack(roots, spans, gap_plan, [], episode_root=root / "episode", created_at=NOW, media_kind="document")
+
+    def test_verified_fixture_rights_stay_marked_synthetic(self):
+        """The positive E2E fixture must never read as an actually verified
+        third-party license: the simulated rights wording stays clearly
+        marked as synthetic (Nexus round-2 fix)."""
+        from tests.integrated_upstream_factory import _rights_entries
+        rows = [
+            {"source_url": "https://example.com/e2e-image", "title": "日期图片"},
+            {"source_url": "https://example.com/e2e-ranged", "title": "已选范围视频"},
+        ]
+        _, entries = _rights_entries(rows, "verified")
+        basis = str(entries[0]["rights_basis"])
+        self.assertIn("模拟权利数据", basis)
+        self.assertIn("非真实第三方复用许可", basis)
+        self.assertIn("未发生真实联网核验", basis)
+        self.assertNotIn("权利页核验：公共领域", basis)
 
     def test_approved_facts_are_review_bound_not_empty_when_bound(self):
         with tempfile.TemporaryDirectory() as raw:

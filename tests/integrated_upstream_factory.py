@@ -21,16 +21,22 @@ def _material(title,url,beat,anchor,asset_type,video_reference):
  return {"title":title,"source_url":url,"page_url":url,"publisher_creator":"Synthetic Official","asset_type":asset_type,"published_at":"2026-08-09","intended_role":"evidence","cue_numbers":[],"claim_ids":["C1"],"evidence_link_ids":["E1"],"suggested_usage":"集成测试画面。","caption":"事件在 2026 年 8 月 9 日发生。","illustrative_only":False,"claimed_rights_status":"unknown","claimed_rights_basis":"仅供集成测试核对。","claimed_license_url":"","relevance":5,"grounding_strength":5,"visual_clarity":5,"reuse_safety":2,"acquisition_effort":1,"ranking_reason":"完整生产入口回归。","capture":{"page_number":1,"capture_region":"完整画面","source_context":"集成测试原创素材","what_it_proves":"事件日期。","what_it_does_not_prove":"不证明事件原因。"},"video_reference":video_reference,"_beat":beat,"_anchor":anchor}
 
 def _rights_entries(rows,mode):
- """Rights manifest entries per mode; `verified` adds matching inspections.
+ """Synthetic rights-manifest entries per mode; `verified` adds matching
+  inspections.  IMPORTANT: this fixture is entirely simulated — no real web
+  page is ever opened and no real third-party reuse license is granted.  The
+  example.com URLs and the codex_web_open inspection records are stub data
+  that exercise the canonical Rights Gate flow inside tests only; the
+  `rights_basis` wording must stay clearly marked as simulated so the E2E
+  evidence never reads as an actually verified public-domain license.
 
- `verified` clears the image (M001) for reuse through a verified public-domain
- rights page.  The ranged video clip deliberately stays uncleared: Production
- only renders image-based scenes, so a rights-cleared local video reference is
- exercised by the audio-delivery rights gate itself (it becomes an explicit
- visual gap with the reason recorded), never by silently entering the pack.
+  `verified` clears the image (M001) through this simulated public-domain
+  entry.  The ranged video clip deliberately stays uncleared: Production
+  only renders image-based scenes, so a rights-cleared local video reference is
+  exercised by the audio-delivery rights gate itself (it becomes an explicit
+  visual gap with the reason recorded), never by silently entering the pack.
  """
  if mode=="unknown":return [],[]
- image_rights={"url":rows[0]["source_url"],"rights_status":"public_domain","rights_basis":"权利页核验：公共领域，可自由使用。","rights_evidence_url":"https://example.com/e2e-image-rights","license_url":"","verified_at":"2026-08-13T20:00:00+08:00","tool_reference":"open:rights-image"}
+ image_rights={"url":rows[0]["source_url"],"rights_status":"public_domain","rights_basis":"模拟权利数据（synthetic fixture）：未发生真实联网核验，非真实第三方复用许可，仅用于验证 Rights Gate 流程。","rights_evidence_url":"https://example.com/e2e-image-rights","license_url":"","verified_at":"2026-08-13T20:00:00+08:00","tool_reference":"open:rights-image"}
  if mode=="verified":
   extra=[
    {"url":"https://example.com/e2e-image-rights","inspected_at":"2026-08-13T20:00:00+08:00","inspection_method":"codex_web_open","tool_reference":"open:rights-image"},
