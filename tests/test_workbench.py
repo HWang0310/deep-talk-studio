@@ -380,8 +380,10 @@ class FakeWorkbenchLLM:
         self._research = _research_payload()
         self._fact_check = None
         self._invented_url = False
+        self.received_reference_insights = []
 
     def research(self, topic, research_question, sources, insights):
+        self.received_reference_insights.append(list(insights or []))
         data = json.loads(json.dumps(self._research, ensure_ascii=False))
         if self._invented_url:
             data["sources"].append(
@@ -409,6 +411,7 @@ class FakeWorkbenchLLM:
         return ProviderResult(data=data, provenance=ProviderProvenance(search_calls=(), citations=()))
 
     def write_thesis(self, report, narrative_insights=None):
+        self.received_reference_insights.append(list(narrative_insights or []))
         data = _thesis_payload(report if isinstance(report, dict) else report.to_dict())
         validate_json_schema(data, THESIS_CONTENT_JSON_SCHEMA, "deep_talk_thesis_content")
         return ProviderResult(data=data, provenance=ProviderProvenance(search_calls=(), citations=()))
@@ -423,6 +426,10 @@ class FakeWorkbenchLLM:
         return ProviderResult(
             data={
                 "narrative_summary": "以问题开场，先事实后分析，结尾回扣。",
+                "creator_viewpoint": (
+                    "%s：先摆事实再鲜明评判的评论视角，关注事件本身与后续处理。"
+                    % str(metadata.get("title", "测试参考"))[:40]
+                ),
                 "hook_style": "直接提问式钩子",
                 "pacing": "中速，段间有停顿",
                 "struct_patterns": ["问题—事实—评价", "结尾回扣"],
@@ -474,7 +481,7 @@ def _fake_fetcher(url):
     return {"ok": False, "url": url, "error": "测试：不支持的地址"}
 
 
-def _fake_discovery(topic, urls):
+def _fake_discovery(topic, urls, count=3):
     return {
         "candidates": [
             {
@@ -489,9 +496,13 @@ def _fake_discovery(topic, urls):
                 "user_supplied": False,
                 "fetched_at": "2026-10-21T12:00:00+08:00",
             }
-            for index in range(1, 4)
+            for index in range(1, count + 1)
         ]
     }
+
+
+def _fake_discovery_five(topic, urls):
+    return _fake_discovery(topic, urls, count=5)
 
 
 class _FakeCompleted:
@@ -885,6 +896,564 @@ class FullLoopTests(unittest.TestCase):
             bad_flow = self._flow(root, provider_bad_fc)
             bad_result = bad_flow.run_fact_check(sid2)
             self.assertGreater(bad_result["quote_downgraded_checks"], 0)
+
+
+class ThesisPromptTests(unittest.TestCase):
+    """Real prompt builders must work end to end (fakes bypass them, so a
+    broken import or rendering would otherwise only surface at runtime)."""
+
+    def test_build_thesis_writer_prompt_renders_comparison(self):
+        from deeptalk_studio.workbench.prompts import (
+            serialize_reference_insights,
+        )
+        from deeptalk_studio.thesis_prompt import build_thesis_writer_prompt
+
+        study = {
+            "bvid": "BV1x",
+            "title": "测试参考视频",
+            "view_count": 1000,
+            "duration_seconds": 120,
+            "cps": 5.0,
+            "question_count": 2,
+            "narrative_summary": "以问题开场，先事实后分析。",
+            "creator_viewpoint": "先摆事实再鲜明评判的评论视角。",
+            "hook_style": "直接提问式钩子",
+            "pacing": "中速",
+            "struct_patterns": ["问题—事实—评价"],
+            "takeaways": ["开场给全信息量"],
+        }
+        report = {"claims": [], "limitations": [], "open_questions": []}
+        prompt = build_thesis_writer_prompt(report, serialize_reference_insights([study]))
+        self.assertIn("参考视频叙事与观点对比", prompt)
+        self.assertIn("可归因观点：先摆事实再鲜明评判的评论视角。", prompt)
+        self.assertIn("差异化定位", prompt)
+
+    def test_build_research_prompt_renders_comparison(self):
+        from deeptalk_studio.workbench.prompts import (
+            build_workbench_research_user_prompt,
+            serialize_reference_insights,
+        )
+
+        study = {
+            "bvid": "BV1x",
+            "title": "测试参考视频",
+            "view_count": 1000,
+            "duration_seconds": 120,
+            "narrative_summary": "以问题开场，先事实后分析。",
+            "creator_viewpoint": "批评立场，聚焦后续处理。",
+            "hook_style": "直接提问式钩子",
+            "struct_patterns": ["问题—事实—评价"],
+        }
+        prompt = build_workbench_research_user_prompt(
+            "主题", "问题？", [], serialize_reference_insights([study])
+        )
+        self.assertIn("参考视频叙事与观点对比", prompt)
+        self.assertIn("批评立场，聚焦后续处理。", prompt)
+        self.assertIn("绝不作为事实来源", prompt)
+
+
+class NetFetchTests(unittest.TestCase):
+    """Issue #23 B2: user-supplied source URLs may only reach public
+    HTTP(S) destinations (no loopback/private/link-local SSRF, no rebinding
+    window, no proxy bypass, no non-http redirect targets)."""
+
+    def test_rejects_non_http_schemes(self):
+        from deeptalk_studio.workbench import netfetch
+
+        for url in ("ftp://example.com/x", "file:///etc/passwd", "gopher://example.com"):
+            result = netfetch.fetch_public_source(url)
+            self.assertFalse(result["ok"], url)
+            self.assertIn("拒绝", result["error"])
+
+    def test_rejects_private_ip_literals_without_any_socket(self):
+        from deeptalk_studio.workbench import netfetch
+
+        for url in (
+            "http://127.0.0.1/x",
+            "http://127.0.0.1:8931/v1/models",
+            "http://10.0.0.5/x",
+            "http://192.168.1.1/",
+            "http://169.254.169.254/latest/meta-data",
+            "http://[::1]/",
+            "http://[fe80::1]/",
+            "http://0.0.0.0/",
+            "http://224.0.0.1/",
+            "http://192.0.2.10/doc",           # TEST-NET-1 (documentation)
+            "http://100.64.0.1/cgnat",         # shared address space
+        ):
+            result = netfetch.fetch_public_source(url)
+            self.assertFalse(result["ok"], url)
+            self.assertIn("公网", result["error"], url)
+
+    def test_rejects_hostnames_resolving_to_private_space(self):
+        import socket
+
+        from deeptalk_studio.workbench import netfetch
+
+        def to_loopback(host, port, *args):
+            return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("127.0.0.1", port))]
+
+        def mixed(host, port, *args):
+            return [
+                (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("93.184.216.34", port)),
+                (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("10.1.2.3", port)),
+            ]
+
+        def no_answer(host, port, *args):
+            return []
+
+        def dns_error(host, port, *args):
+            raise socket.gaierror("rebinding uncertainty")
+
+        expectations = {
+            "loopback": ("公网",),
+            "mixed_private": ("公网",),
+            "no_answer": ("未解析出任何公网地址",),
+            "dns_error": ("无法解析", "不确定性即失败"),
+        }
+        for name, resolver in (
+            ("loopback", to_loopback),
+            ("mixed_private", mixed),
+            ("no_answer", no_answer),
+            ("dns_error", dns_error),
+        ):
+            result = netfetch.fetch_public_source("http://source.example/x", resolver=resolver)
+            self.assertFalse(result["ok"], name)
+            for fragment in expectations[name]:
+                self.assertIn(fragment, result["error"], name)
+
+    def test_public_resolution_is_pinned_and_dials_only_validated_ips(self):
+        import socket
+
+        from deeptalk_studio.workbench import netfetch
+
+        # A public answer passes validation; the dial then fails fast (no
+        # such listener) without any security rejection — and any *second*
+        # answer that flips private never reaches the socket because the
+        # connection is pinned to the validated list.
+        calls = []
+
+        def rebind_after_first(host, port, *args):
+            calls.append(host)
+            if len(calls) == 1:
+                return [
+                    (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("93.184.216.34", port))
+                ]
+            return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("127.0.0.1", port))]
+
+        connection = netfetch._PinnedHTTPConnection("rebind.example", 80, timeout=0.2)
+        connection.resolver = rebind_after_first
+        with self.assertRaises(netfetch.WorkbenchSourceFetchError) as ctx:
+            connection.connect()
+        # 证词：连接只拨向第一个（也是唯一的）已验证公网地址，从未重解析。
+        self.assertEqual(len(calls), 1)
+        self.assertIn("无法连接任何已验证的公网地址", str(ctx.exception))
+
+    def test_redirect_guard_rejects_non_http_targets(self):
+        import urllib.request
+
+        from deeptalk_studio.workbench import netfetch
+
+        handler = netfetch._StrictRedirectHandler()
+        request = urllib.request.Request("http://public.example/a")
+        for bad_target in ("ftp://example.com/x", "file:///etc/passwd"):
+            with self.assertRaises(netfetch.WorkbenchSourceFetchError):
+                handler.redirect_request(request, None, 302, "Found", None, bad_target)
+        allowed = handler.redirect_request(request, None, 302, "Found", None, "http://other.example/b")
+        self.assertIsInstance(allowed, urllib.request.Request)
+        self.assertEqual(handler.max_redirections, netfetch.MAX_REDIRECTS)
+
+    def test_fetch_public_source_ignores_environment_proxies(self):
+        # Even with proxy env vars set, the fetcher must dial directly
+        # (a proxy would bypass the public-IP validation).
+        import os
+        import socket
+
+        from deeptalk_studio.workbench import netfetch
+
+        old = {key: os.environ.get(key) for key in ("http_proxy", "HTTP_PROXY")}
+        try:
+            os.environ["http_proxy"] = "http://127.0.0.1:7897"
+            os.environ["HTTP_PROXY"] = "http://127.0.0.1:7897"
+
+            def resolver_local(host, port, *args):
+                return [(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("192.168.0.10", port))]
+
+            result = netfetch.fetch_public_source(
+                "http://internal.example/x", resolver=resolver_local, timeout=0.2
+            )
+            self.assertFalse(result["ok"])
+            # 192.168.0.10 (private) rejected — NOT the loopback proxy address,
+            # proving the connection did not go via the configured proxy.
+            self.assertIn("192.168.0.10", result["error"])
+        finally:
+            for key, value in old.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+
+class TopicConsistencyTests(unittest.TestCase):
+    """Issue #23 B1: off-topic research/thesis/script must fail closed at
+    generation AND approval/delivery boundaries — the exact observed E2E
+    mismatch was a Moscow University topic with a library-themed payload."""
+
+    def _flow(self, root: Path, provider=None):
+        provider = provider or FakeWorkbenchLLM
+        return WorkbenchFlow(
+            root,
+            discovery_runner=_fake_discovery,
+            provider_factory=lambda settings: provider(settings)
+            if isinstance(provider, type)
+            else provider,
+            fetcher=_fake_fetcher,
+            acquire_runner=None,
+            audio_runner=None,
+            whisper_runner=None,
+        )
+
+    def _configure(self, root: Path):
+        save_settings(root, apply_settings_update(load_settings(root), {
+            "provider_mode": "chat",
+            "chat_base_url": "https://llm.example.com/v1",
+            "model": "test-model",
+            "api_key": "sk-test-key",
+            "downloads_dir": str(root.resolve()),
+        }))
+
+    def test_off_topic_research_is_rejected_not_relabelled(self):
+        """The observed mismatch: Moscow session topic + library payload
+        (fixtures) — research must not even be saved, let alone approved."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._configure(root)
+            flow = self._flow(root)
+            view = flow.start_session("莫斯科大学留学生旭日旗事件", [])
+            sid = view["session_id"]
+            flow.add_source_text(
+                sid, "示例新闻社：图书馆夜间开放", SOURCE_A_TEXT,
+                "https://example.com/news/night-library",
+            )
+            flow.add_source_text(
+                sid, "市财政局预算说明", SOURCE_B_TEXT,
+                "https://example.gov.cn/budget/2027-culture",
+            )
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.generate_research(sid, "")
+            self.assertIn("选题主题明显不符", str(ctx.exception))
+            # nothing was written: no draft, no approval possible
+            session = flow.store.load(sid)
+            self.assertEqual(session["research"]["status"], "not_started")
+            self.assertFalse(session["research"]["draft_path"])
+            state = flow.view(sid)
+            self.assertEqual(state["references_readiness"]["analyzed"], 0)
+            self.assertEqual(state["references_readiness"]["eligible"], 0)
+
+    def test_off_topic_report_cannot_be_approved_and_cannot_drive_script(self):
+        """A topical session produces a reviewed report; if the session topic
+        then diverges from the saved report (tampering/off-topic boundaries),
+        approval and script generation must both fail closed."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._configure(root)
+            flow = self._flow(root)
+            view = flow.start_session("本市图书馆夜间开放试点", [])
+            sid = view["session_id"]
+            flow.add_source_text(
+                sid, "示例新闻社", SOURCE_A_TEXT, "https://example.com/news/night-library"
+            )
+            flow.add_source_text(
+                sid, "市财政局预算说明", SOURCE_B_TEXT,
+                "https://example.gov.cn/budget/2027-culture",
+            )
+            flow.generate_research(sid, "")
+            flow.run_fact_check(sid)
+            # flip the session topic: the saved review is now off-topic
+            flow.store.update(sid, lambda s: s.update({"topic": "莫斯科大学留学生旭日旗事件"}))
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.approve_research(sid, "我确认研究结论，批准进入写稿。")
+            self.assertIn("选题主题明显不符", str(ctx.exception))
+            self.assertIn("待批准的研究报告", str(ctx.exception))
+
+    def test_off_topic_thesis_payload_is_rejected(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._configure(root)
+            # library topic + Moscow-themed thesis payload → reject
+            class ForeignThesisProvider(FakeWorkbenchLLM):
+                def write_thesis(self, report, narrative_insights=None):
+                    from deeptalk_studio.schema import (
+                        THESIS_CONTENT_JSON_SCHEMA,
+                    )
+
+                    data = {
+                        "core_question": "莫斯科大学旭日旗事件该怎么看？",
+                        "one_sentence_answer": "先分清证据层级。",
+                        "core_thesis": "莫斯科大学事件的定性要等校方程序。",
+                        "counterintuitive_point": "最响亮的说法不等于最重的证据。",
+                        "target_emotion": "清醒克制",
+                        "resonance": "反感被带节奏",
+                        "approval_point": "肯定群体立场正当",
+                        "comment_tension": "严惩与程序",
+                        "spokesperson_value": "替观众排队信息",
+                        "value_identity": "讲证据层级",
+                        "strongest_evidence_claim_ids": ["C2"],
+                        "counter_evidence_claim_ids": ["C1"],
+                        "uncertainty_limits": list(report["limitations"]),
+                        "crowded_angles": ["不做情绪宣泄"],
+                        "differentiated_angle": "按证据层级讲莫斯科大学事件。",
+                        "hook_promise": "三个问题开场。",
+                        "ending_question_or_judgment": "等权威披露再判断。",
+                        "competitive_insight_notes": ["参考观点仅作对比。"],
+                    }
+                    validate_json_schema(data, THESIS_CONTENT_JSON_SCHEMA, "deep_talk_thesis_content")
+                    return ProviderResult(
+                        data=data,
+                        provenance=ProviderProvenance(search_calls=(), citations=()),
+                    )
+
+            flow = self._flow(root, ForeignThesisProvider)
+            view = flow.start_session("本市图书馆夜间开放试点", [])
+            sid = view["session_id"]
+            flow.add_source_text(
+                sid, "示例新闻社", SOURCE_A_TEXT, "https://example.com/news/night-library"
+            )
+            flow.add_source_text(
+                sid, "市财政局预算说明", SOURCE_B_TEXT,
+                "https://example.gov.cn/budget/2027-culture",
+            )
+            flow.generate_research(sid, "")
+            flow.run_fact_check(sid)
+            flow.approve_research(sid, "我确认研究结论，批准进入写稿。")
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.generate_thesis(sid)
+            self.assertIn("选题主题明显不符", str(ctx.exception))
+            session = flow.store.load(sid)
+            self.assertEqual(session["thesis"]["status"], "not_started")
+
+    def test_topical_paraphrase_still_passes(self):
+        """Semantic paraphrase must NOT be rejected: a report that omits the
+        literal topic string but keeps the key entities still passes."""
+        from deeptalk_studio.workbench.flow import (
+            MIN_TOPIC_COVERAGE,
+            ensure_topic_consistency,
+        )
+
+        coverage = ensure_topic_consistency(
+            "莫斯科大学留学生旭日旗事件",
+            [
+                "一名在莫斯科国立大学就读的中国留学生身披旭日旗后公开道歉，"
+                "留学生群体递交联名信，校方通报开除学籍并办理遣返。"
+            ],
+            what="测试",
+        )
+        self.assertGreaterEqual(coverage, MIN_TOPIC_COVERAGE)
+
+
+class ReferenceSynthesisTests(unittest.TestCase):
+    """Issue #23 B3: analyzed-N/eligible-M readiness, explicit
+    partial-analysis override, and the deterministic five-way viewpoint
+    comparison injected into research + thesis."""
+
+    def _flow(self, root: Path, provider=None, discovery=_fake_discovery):
+        provider = provider or FakeWorkbenchLLM
+        return WorkbenchFlow(
+            root,
+            discovery_runner=discovery,
+            provider_factory=lambda settings: provider(settings)
+            if isinstance(provider, type)
+            else provider,
+            fetcher=_fake_fetcher,
+            acquire_runner=None,
+            audio_runner=None,
+            whisper_runner=None,
+        )
+
+    def _configure(self, root: Path):
+        save_settings(root, apply_settings_update(load_settings(root), {
+            "provider_mode": "chat",
+            "chat_base_url": "https://llm.example.com/v1",
+            "model": "test-model",
+            "api_key": "sk-test-key",
+            "downloads_dir": str(root.resolve()),
+        }))
+
+    def _mark_downloaded(self, flow, sid, bvids):
+        def mutate(session):
+            for bvid in bvids:
+                session["references"].setdefault(bvid, {})
+                session["references"][bvid]["status"] = "downloaded"
+                session["references"][bvid]["media_path"] = str(Path("/tmp/fake-%s.mp4" % bvid))
+                session["references"][bvid]["title"] = "测试参考 %s" % bvid
+                session["references"][bvid]["url"] = "https://www.bilibili.com/video/%s" % bvid
+
+        flow.store.update(sid, mutate)
+
+    def _mark_analyzed(self, flow, sid, bvid, viewpoint="测试观点：先事实后评判。"):
+        ref_dir = flow.store.references_dir(sid) / bvid
+        ref_dir.mkdir(parents=True, exist_ok=True)
+        study = {
+            "bvid": bvid,
+            "title": "测试参考 %s" % bvid,
+            "view_count": 1234,
+            "duration_seconds": 100.0,
+            "cps": 5.2,
+            "question_count": 3,
+            "narrative_summary": "以问题开场，先事实后分析，结尾回扣。",
+            "creator_viewpoint": viewpoint,
+            "hook_style": "直接提问式钩子",
+            "pacing": "中速",
+            "struct_patterns": ["问题—事实—评价", "结尾回扣"],
+            "takeaways": ["开场给全信息量"],
+        }
+        path = ref_dir / "study.json"
+        path.write_text(json.dumps(study, ensure_ascii=False), encoding="utf-8")
+
+        def mutate(session):
+            session["references"].setdefault(bvid, {})
+            session["references"][bvid]["status"] = "analyzed"
+            session["references"][bvid]["study_path"] = str(path)
+            session["references"][bvid]["media_path"] = str(Path("/tmp/fake-%s.mp4" % bvid))
+            session["references"][bvid]["title"] = "测试参考 %s" % bvid
+            session["references"][bvid]["url"] = "https://www.bilibili.com/video/%s" % bvid
+
+        flow.store.update(sid, mutate)
+
+    def test_research_blocked_until_analysis_complete_or_explicit_override(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._configure(root)
+            flow = self._flow(root)
+            view = flow.start_session("本市图书馆夜间开放试点", [], )
+            sid = view["session_id"]
+            self._mark_downloaded(flow, sid, ["BV1test1", "BV1test2"])
+            self._mark_analyzed(flow, sid, "BV1test1")
+            flow.add_source_text(
+                sid, "示例新闻社", SOURCE_A_TEXT, "https://example.com/news/night-library"
+            )
+            flow.add_source_text(
+                sid, "市财政局预算说明", SOURCE_B_TEXT,
+                "https://example.gov.cn/budget/2027-culture",
+            )
+            # 1/2 analyzed → blocked without override
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.generate_research(sid, "")
+            self.assertIn("参考分析尚未完成", str(ctx.exception))
+            self.assertIn("1/2", str(ctx.exception))
+            # override requires a real reason
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.generate_research(sid, "", allow_partial=True, partial_reason="短")
+            self.assertIn("理由", str(ctx.exception))
+            # explicit override proceeds and records the honest partial state
+            result = flow.generate_research(
+                sid, "",
+                allow_partial=True,
+                partial_reason="本地转写中断，先基于已完成的 1 条参考继续研究",
+            )
+            self.assertEqual(result["reference_comparison"]["analyzed"], 1)
+            self.assertEqual(result["reference_comparison"]["eligible"], 2)
+            self.assertTrue(result["reference_comparison"]["partial"])
+            stored = flow.store.load(sid)["research"]["reference_comparison"]
+            self.assertTrue(stored["partial"])
+            self.assertIn("1 条参考", stored["partial_reason"])
+            self.assertEqual(stored["bvids"], ["BV1test1"])
+
+    def test_full_five_analysis_injects_comparison_and_chains_to_script(self):
+        """Deterministic full-five regression: all five authorized references
+        analyzed → no override needed → research and thesis prompts carry the
+        five-way comparison → chain completes to a reviewed, topical script
+        whose delivery view reports the honest 5/5 synthesis."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._configure(root)
+            provider = FakeWorkbenchLLM({})
+            flow = self._flow(root, provider=provider, discovery=_fake_discovery_five)
+            view = flow.start_session("本市图书馆夜间开放试点", [])
+            sid = view["session_id"]
+            bvids = ["BV1test%d" % index for index in range(1, 6)]
+            self._mark_downloaded(flow, sid, bvids)
+            viewpoints = [
+                "观点一：聚焦预算金额与性价比。",
+                "观点二：关注服务人群定位。",
+                "观点三：强调评估机制缺位。",
+                "观点四：反对仓促续期或取消。",
+                "观点五：支持试行但要求公开数据。",
+            ]
+            for bvid, viewpoint in zip(bvids, viewpoints):
+                self._mark_analyzed(flow, sid, bvid, viewpoint=viewpoint)
+            flow.add_source_text(
+                sid, "示例新闻社", SOURCE_A_TEXT, "https://example.com/news/night-library"
+            )
+            flow.add_source_text(
+                sid, "市财政局预算说明", SOURCE_B_TEXT,
+                "https://example.gov.cn/budget/2027-culture",
+            )
+            # readiness 5/5 → no override allowed/needed; research proceeds
+            readiness = flow.view(sid)["references_readiness"]
+            self.assertEqual((readiness["analyzed"], readiness["eligible"]), (5, 5))
+            result = flow.generate_research(sid, "钱怎么花，谁来评？")
+            cmp = result["reference_comparison"]
+            self.assertEqual((cmp["analyzed"], cmp["eligible"]), (5, 5))
+            self.assertEqual(cmp["viewpoint_count"], 5)
+            self.assertFalse(cmp["partial"])
+
+            # the provider received the enriched five-way comparison
+            insights = provider.received_reference_insights
+            provider_insights = [insight for call in insights for insight in call]
+            self.assertGreaterEqual(len(provider_insights), 5)
+            for viewpoint in viewpoints:
+                self.assertTrue(
+                    any(viewpoint in str(i.get("creator_viewpoint", "")) for i in provider_insights),
+                    viewpoint,
+                )
+            from deeptalk_studio.workbench.prompts import (
+                build_workbench_research_user_prompt,
+                render_reference_comparison,
+            )
+
+            block = render_reference_comparison(provider_insights[:5])
+            self.assertIn("可归因观点", block)
+            self.assertIn("N 方对比小结", block)
+            self.assertIn("问题—事实—评价（5/5 条）", block)
+            prompt = build_workbench_research_user_prompt(
+                "本市图书馆夜间开放试点", "钱怎么花？", [], provider_insights[:5]
+            )
+            self.assertIn("参考视频叙事与观点对比", prompt)
+            self.assertIn("禁止拼凑或复述", prompt)
+
+            # full chain to a reviewed script with honest synthesis metadata
+            flow.run_fact_check(sid)
+            flow.approve_research(sid, "我确认研究结论，批准进入写稿。")
+            thesis = flow.generate_thesis(sid)
+            self.assertEqual(thesis["status"], "draft")
+            # thesis call also received the comparison
+            self.assertTrue(
+                any(
+                    "观点" in str(i.get("creator_viewpoint", ""))
+                    for call in insights
+                    for i in call
+                )
+            )
+            review = flow.review_thesis(sid)
+            self.assertEqual(review["gate_decision"], "pass", review)
+            confirmed = flow.approve_thesis(
+                sid, "我确认本期内容方向与选题卡一致，确认进入写稿。"
+            )
+            self.assertEqual(confirmed["status"], "approved_for_script")
+            script = flow.generate_script(sid)
+            self.assertEqual(script["status"], "reviewed", script)
+            self.assertEqual(script["gate_status"], "pass")
+            synthesis = script["reference_synthesis"]
+            self.assertEqual((synthesis["analyzed"], synthesis["eligible"]), (5, 5))
+            self.assertEqual(synthesis["viewpoint_count"], 5)
+            self.assertFalse(synthesis["partial"])
+            final = flow.final_script(sid)
+            self.assertIn("夜间图书馆", final["teleprompter_text"])
+            self.assertEqual(final["reference_synthesis"]["eligible"], 5)
+            stored = flow.store.load(sid)["research"]["reference_comparison"]
+            self.assertEqual(len(stored["bvids"]), 5)
+            self.assertFalse(stored["partial"])
 
 
 if __name__ == "__main__":

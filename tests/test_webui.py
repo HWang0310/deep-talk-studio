@@ -578,12 +578,17 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
     """Issue #23 unified workbench HTTP surface (fake LLM + fake fetch)."""
 
     def _flow(self, root: Path):
-        from tests.test_workbench import FakeWorkbenchLLM, _fake_fetcher
+        from tests.test_workbench import (
+            FakeWorkbenchLLM,
+            _fake_discovery,
+            _fake_fetcher,
+        )
 
         from deeptalk_studio.workbench.flow import WorkbenchFlow
 
         return WorkbenchFlow(
             root,
+            discovery_runner=_fake_discovery,
             provider_factory=lambda settings: FakeWorkbenchLLM(settings),
             fetcher=_fake_fetcher,
         )
@@ -626,7 +631,13 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
 
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
-            self.start_server(flow=self._flow(root))
+            library_provider = FakeProvider(
+                default_search=ok_search(
+                    search_item("BV1li000000A", "本市图书馆夜间开放试点来了 夜间阅览室", views=900),
+                    search_item("BV1li000000B", "本市图书馆夜间开放至二十三点 有回应", views=500),
+                )
+            )
+            self.start_server(provider=library_provider, flow=self._flow(root))
             # settings (chat mode against the scripted provider)
             status, _, body = self.post("/api/workbench/settings", {
                 "provider_mode": "chat",
@@ -640,9 +651,11 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
             status, _, body = self._get_state()
             self.assertEqual(status, 200)
             self.assertIsNone(json.loads(body)["session"])
-            # session start (discovery through the injected fake provider)
+            # session start (discovery through the injected fake provider) —
+            # topic must be topical-consistent with the scripted fixtures
+            # (Issue #23 B1 guards off-topic output fail-closed)
             status, _, body = self.post("/api/workbench/session/start", {
-                "topic": "莫斯科大学留学生旭日旗事件",
+                "topic": "本市图书馆夜间开放试点",
                 "urls": [],
             })
             self.assertEqual(status, 200, body)
@@ -713,6 +726,139 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
 
     def _get_final(self):
         return self._get_json("/api/workbench/script/final")
+
+    def test_topic_mismatch_research_rejected_over_http(self):
+        """Issue #23 B1 (observed E2E mismatch): Moscow session topic +
+        library-themed scripted payload → research generation must 400 with
+        the typed mismatch error, nothing saved."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            library_provider = FakeProvider(
+                default_search=ok_search(
+                    search_item("BV1li000000A", "本市图书馆夜间开放试点来了 夜间阅览室", views=900),
+                )
+            )
+            self.start_server(provider=library_provider, flow=self._flow(root))
+            self.post("/api/workbench/settings", {
+                "provider_mode": "chat",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "test-model",
+                "api_key": "sk-test",
+                "downloads_dir": str(root),
+            })
+            status, _, body = self.post("/api/workbench/session/start", {
+                "topic": "莫斯科大学留学生旭日旗事件", "urls": [],
+            })
+            self.assertEqual(status, 200, body)
+            sid = json.loads(body)["session"]["session_id"]
+            self.post("/api/workbench/sources/text", {
+                "session_id": sid,
+                "title": "示例新闻社：图书馆夜间开放",
+                "text": (
+                    "示例新闻社2026年10月20日报道，该市图书馆宣布自明年起将开放夜间阅览室，"
+                    "每周三和周五延长开放至二十三点，首年预算大约为一百二十万元。"
+                ),
+                "url": "https://example.com/news/night-library",
+            })
+            self.post("/api/workbench/sources/text", {
+                "session_id": sid,
+                "title": "市财政局预算说明",
+                "text": (
+                    "市财政局官网2026年10月21日发布预算说明，2027年度公共文化支出拟增长百分之八，"
+                    "其中图书馆系统新增夜间开放专项经费一百二十万元。说明同时指出该专项经费为试点性质。"
+                ),
+                "url": "https://example.gov.cn/budget/2027-culture",
+            })
+            status, _, body = self.post("/api/workbench/research/generate", {
+                "session_id": sid, "research_question": "",
+            })
+            self.assertEqual(status, 400, body)
+            self.assertIn("选题主题明显不符", json.loads(body)["error"])
+            # nothing was saved — the mismatch negative regression is complete
+            status, _, body = self._get_state()
+            research = json.loads(body)["session"]["research"]
+            self.assertEqual(research["status"], "not_started")
+            self.assertFalse(research["draft_path"])
+
+    def test_partial_analysis_override_plumbing_over_http(self):
+        """Issue #23 B3: with a downloaded-but-unanalyzed reference, research
+        without the override is a typed 400; with explicit override + reason
+        the server records the honest partial comparison."""
+        import tempfile
+
+        from tests.test_workbench import _fake_discovery
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.start_server(flow=self._flow(root))
+            flow = self.server.flow
+            # seed a session directly through the real store (test fixture)
+            session = flow.store.create(
+                "本市图书馆夜间开放试点",
+                _fake_discovery("本市图书馆夜间开放试点", [])["candidates"],
+                None,
+            )
+            sid = session["session_id"]
+
+            def _mark(state):
+                for bvid in ("BV1test1", "BV1test2"):
+                    state["references"].setdefault(bvid, {})
+                    state["references"][bvid]["status"] = (
+                        "analyzed" if bvid == "BV1test1" else "downloaded"
+                    )
+                    state["references"][bvid]["media_path"] = "/tmp/fake.mp4"
+
+            flow.store.update(sid, _mark)
+            self.post("/api/workbench/settings", {
+                "provider_mode": "chat",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "test-model",
+                "api_key": "sk-test",
+                "downloads_dir": str(root),
+            })
+            self.post("/api/workbench/sources/text", {
+                "session_id": sid,
+                "title": "示例新闻社：图书馆夜间开放",
+                "text": (
+                    "示例新闻社2026年10月20日报道，该市图书馆宣布自明年起将开放夜间阅览室，"
+                    "每周三和周五延长开放至二十三点，首年预算大约为一百二十万元。"
+                    "馆长说明夜间开放主要是为了服务备考学生和加班人群，馆方将与志愿者组织合作安排值班。"
+                ),
+                "url": "https://example.com/news/night-library",
+            })
+            self.post("/api/workbench/sources/text", {
+                "session_id": sid,
+                "title": "市财政局预算说明",
+                "text": (
+                    "市财政局官网2026年10月21日发布预算说明，2027年度公共文化支出拟增长百分之八，"
+                    "其中图书馆系统新增夜间开放专项经费一百二十万元，用于安保、照明与志愿服务补贴。"
+                    "说明同时指出，该专项经费为试点性质，有效期一年，期满后由市图书馆提交评估报告再定去留。"
+                ),
+                "url": "https://example.gov.cn/budget/2027-culture",
+            })
+            status, _, body = self.post("/api/workbench/research/generate", {
+                "session_id": sid, "research_question": "",
+            })
+            self.assertEqual(status, 400, body)
+            self.assertIn("参考分析尚未完成", json.loads(body)["error"])
+            self.assertIn("1/2", json.loads(body)["error"])
+
+            status, _, body = self.post("/api/workbench/research/generate", {
+                "session_id": sid,
+                "research_question": "",
+                "partial_override": True,
+                "partial_reason": "本地转写耗时过长，先基于已完成的 1 条参考继续研究",
+            })
+            self.assertEqual(status, 200, body)
+            comparison = json.loads(body)["reference_comparison"]
+            self.assertEqual((comparison["analyzed"], comparison["eligible"]), (1, 2))
+            self.assertTrue(comparison["partial"])
+            status, _, body = self._get_state()
+            stored = json.loads(body)["session"]["research"]["reference_comparison"]
+            self.assertTrue(stored["partial"])
+            self.assertIn("1 条参考", stored["partial_reason"])
 
     def _get_json(self, path):
         request = urllib.request.Request(self.base + path)

@@ -12,14 +12,10 @@ text; otherwise it is downgraded to ``unverified`` with an honest note.
 """
 
 import hashlib
-import html as html_module
 import json
 import re
-import urllib.error
-import urllib.request
 import uuid
 from datetime import datetime
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
@@ -65,98 +61,104 @@ def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-# --- page fetcher (user-supplied URLs only) ----------------------------------
+# --- page fetcher (user-supplied URLs, public-internet-only; Issue #23 B2)----
 
-
-class _TextExtractor(HTMLParser):
-    _SKIP = {"script", "style", "noscript", "template", "svg", "head"}
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.parts: List[str] = []
-        self._skip_depth = 0
-        self.title = ""
-        self._title_depth = 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag in self._SKIP:
-            self._skip_depth += 1
-        if tag == "title" and not self._skip_depth:
-            self._title_depth += 1
-
-    def handle_endtag(self, tag):
-        if tag in self._SKIP and self._skip_depth:
-            self._skip_depth -= 1
-        if tag == "title" and self._title_depth:
-            self._title_depth -= 1
-
-    def handle_data(self, data):
-        if self._title_depth:
-            self.title += data.strip() + " "
-        elif not self._skip_depth and data.strip():
-            self.parts.append(data.strip())
-
-    def text(self) -> str:
-        return re.sub(r"\s{2,}", " ", " ".join(self.parts))
-
-
-MAX_FETCH_BYTES = 2 * 1024 * 1024
-FETCH_TIMEOUT_SECONDS = 25
-
-
-def default_fetcher(url: str) -> Dict[str, Any]:
-    if not isinstance(url, str) or not url.startswith(("http://", "https://")):
-        return {"ok": False, "url": url, "error": "仅支持 http(s) 链接"}
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "DeepTalkWorkbench/1.0 (local personal tool)",
-            "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
-        },
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
-            status = getattr(response, "status", 200)
-            if status and status >= 400:
-                return {"ok": False, "url": url, "error": f"来源返回 HTTP {status}"}
-            content_type = response.headers.get("Content-Type", "")
-            raw = response.read(MAX_FETCH_BYTES + 1)
-            final_url = response.geturl()
-    except urllib.error.HTTPError as exc:
-        return {"ok": False, "url": url, "error": f"来源返回 HTTP {exc.code}"}
-    except (urllib.error.URLError, TimeoutError, OSError):
-        return {"ok": False, "url": url, "error": "无法访问该链接（网络错误或超时）"}
-    if len(raw) > MAX_FETCH_BYTES:
-        return {"ok": False, "url": url, "error": "页面过大（超过 2MB），请改用粘贴文本"}
-    decoded = raw.decode("utf-8", errors="replace")
-    if "html" in content_type.lower() or "<html" in decoded[:512].lower():
-        extractor = _TextExtractor()
-        try:
-            extractor.feed(decoded)
-            extractor.close()
-        except Exception:
-            pass
-        text = extractor.text()
-        title = extractor.title.strip()
-    else:
-        text = decoded
-        title = ""
-    if len(text.strip()) < 50:
-        return {"ok": False, "url": url, "error": "页面正文过少（可能是动态渲染页），请改用粘贴文本"}
-    return {
-        "ok": True,
-        "url": url,
-        "final_url": final_url,
-        "title": title or url,
-        "text": text[:200000],
-        "bytes": len(raw),
-        "sha256": hashlib.sha256(raw).hexdigest(),
-        "fetched_at": _now(),
-    }
+# ``default_fetcher`` comes from netfetch: it resolves and validates every
+# destination (A/AAAA, public unicast only), pins connections to the
+# validated addresses (no DNS-rebinding window), only follows http(s)
+# redirects (capped), and keeps the same result contract (ok/url/error or
+# ok/title/text/sha256/...) so the paste-text fallback keeps working.
+from .netfetch import fetch_public_source as default_fetcher  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
+
+
+# --- topic-consistency guard (Issue #23 B1) -----------------------------------
+#
+# The browser E2E proved a real failure mode: a model can return a perfectly
+# schema-valid but *off-topic* research/thesis/script payload (Moscow topic
+# in, library script out) and the flow used to overwrite ``payload["topic"]``
+# with the session topic, masking the mismatch.  ``ensure_topic_consistency``
+# fails closed on that: it compares the session topic's signal tokens
+# (CJK character bigrams + ASCII words) against the model/stage content and
+# rejects obvious foreign-topic output *before* it can be saved, approved or
+# delivered as Gate-passed.  Semantic paraphrases stay allowed — matching
+# key entities (e.g. 莫斯科大学 / 留学生 / 旭日旗) is enough.
+
+MIN_TOPIC_COVERAGE = 0.2
+
+
+def _topic_signal_tokens(topic: str) -> List[str]:
+    tokens: List[str] = []
+    for run in re.findall(r"[\u4e00-\u9fff]+", topic):
+        if len(run) == 1:
+            tokens.append(run)
+        else:
+            tokens.extend(run[i : i + 2] for i in range(len(run) - 1))
+    tokens.extend(
+        word.lower()
+        for word in re.findall(r"[A-Za-z0-9][A-Za-z0-9\-_.]{2,}", topic)
+    )
+    return tokens
+
+
+def ensure_topic_consistency(
+    topic: str, texts: Sequence[Any], *, what: str
+) -> float:
+    """Fail closed unless ``texts`` mention enough of the session topic."""
+
+    subject = " ".join(str(text or "") for text in texts)
+    tokens = _topic_signal_tokens(str(topic or ""))
+    if not tokens:
+        return 0.0  # degenerate topic: nothing comparable (session topics are 1–200 chars)
+    covered = sum(1 for token in tokens if token and token in subject)
+    coverage = covered / len(tokens)
+    if coverage < MIN_TOPIC_COVERAGE:
+        raise WorkbenchFlowError(
+            f"{what}与选题主题明显不符（关键内容一致度约 {coverage:.0%}），已拒绝写入："
+            "模型输出疑似偏离本集选题或引用了无关材料；请检查模型输出或更换更贴合选题的来源后重试。"
+        )
+    return coverage
+
+
+def _report_topic_texts(report: Mapping[str, Any]) -> List[str]:
+    data = report.get("data", report) if isinstance(report, Mapping) else {}
+    claims = data.get("claims", []) or []
+    sources = data.get("sources", []) or []
+    return [
+        str(data.get("topic", "")),
+        str(data.get("research_question", "")),
+        str(data.get("scope_summary", "")),
+        str(data.get("executive_summary", "")),
+    ] + [
+        str(claim.get("claim", ""))
+        for claim in claims
+        if isinstance(claim, Mapping)
+    ] + [
+        str(source.get("title", "")) + str(source.get("stance_summary", ""))
+        for source in sources
+        if isinstance(source, Mapping)
+    ]
+
+
+_THESIS_CONSISTENCY_KEYS = (
+    "core_question",
+    "one_sentence_answer",
+    "core_thesis",
+    "counterintuitive_point",
+    "differentiated_angle",
+    "hook_promise",
+    "ending_question_or_judgment",
+    "competitive_insight_notes",
+)
+
+
+def _card_topic_texts(data: Mapping[str, Any]) -> List[str]:
+    return [
+        str(data.get(key, ""))
+        for key in _THESIS_CONSISTENCY_KEYS
+    ] + [str(note) for note in (data.get("crowded_angles") or [])]
 
 
 def _prune_dangling(content: Dict[str, Any]) -> Dict[str, Any]:
@@ -292,6 +294,7 @@ class WorkbenchFlow:
             "created_at": session["created_at"],
             "status": session["status"],
             "references": references,
+            "references_readiness": self._reference_readiness(session),
             "sources": session["sources"] and [
                 {key: source[key] for key in ("sid", "url", "title", "kind", "fetched_at")}
                 for source in session["sources"]
@@ -329,6 +332,7 @@ class WorkbenchFlow:
                 "top_terms",
                 "hook_text",
                 "narrative_summary",
+                "creator_viewpoint",
                 "hook_style",
                 "pacing",
                 "struct_patterns",
@@ -600,10 +604,36 @@ class WorkbenchFlow:
                 known[data["url"]] = data
         return known
 
-    def generate_research(self, session_id: str, research_question: str = "") -> Dict[str, Any]:
+    def generate_research(
+        self,
+        session_id: str,
+        research_question: str = "",
+        *,
+        allow_partial: bool = False,
+        partial_reason: str = "",
+    ) -> Dict[str, Any]:
         session = self.store.load(session_id)
         if not session["sources"]:
             raise WorkbenchFlowError("请先添加至少一条研究来源（网页链接或粘贴文本）")
+        # Issue #23 B3: reference-analysis readiness.  Research must see
+        # every *authorized* (downloaded) reference analyzed, or carry an
+        # explicit, reason-bearing partial-analysis override — 1/5 must
+        # never be silently labeled as full synthesis.
+        readiness = self._reference_readiness(session)
+        pending = readiness["pending_bvids"]
+        if pending and not allow_partial:
+            raise WorkbenchFlowError(
+                f"参考分析尚未完成：已分析 {readiness['analyzed']}/{readiness['eligible']} 条已授权参考，"
+                f"还有 {len(pending)} 条未做本地转写分析。请先完成剩余参考的分析；"
+                "若确认要基于部分参考继续（将如实记录为部分分析，不等同完整五方对比），"
+                "请勾选「允许部分分析」并填写理由。"
+            )
+        if pending and allow_partial:
+            reason = str(partial_reason or "").strip()
+            if len(reason) < 10:
+                raise WorkbenchFlowError(
+                    "选择「允许部分分析」时必须填写不少于 10 字的理由（将逐字存档）"
+                )
         llm = self._llm()
         sources_payload = self._sources_payload(session)
         insights = self._narrative_insights(session)
@@ -650,6 +680,17 @@ class WorkbenchFlow:
                 + "；".join(invented[:3])
             )
         content = _prune_dangling(content)
+        # Issue #23 B1: fail closed on off-topic research before anything is
+        # saved (the observed E2E mismatch: Moscow session, library payload).
+        ensure_topic_consistency(
+            session["topic"],
+            [content.get("topic", ""), content.get("scope_summary", ""),
+             content.get("executive_summary", "")]
+            + [claim.get("claim", "") for claim in content.get("claims", [])]
+            + [source.get("title", "") + str(source.get("stance_summary", ""))
+               for source in content.get("sources", [])],
+            what="研究草稿",
+        )
         report_id = f"RPT-{uuid.uuid4().hex}"
         created = _now()
         data = {
@@ -697,9 +738,13 @@ class WorkbenchFlow:
                 "approved_path": "",
                 "report_id": report_id,
                 "revision": report.revision,
+                "reference_comparison": comparison,
             }
             new_session["status"] = "research"
 
+        comparison = self._comparison_snapshot(
+            session, readiness, partial_reason=partial_reason
+        )
         self.store.update(session_id, _mutate)
         return {
             "report_id": report_id,
@@ -710,6 +755,55 @@ class WorkbenchFlow:
             "gate_reasons": report.quality_summary.get("gate_reasons", []),
             "claim_count": len(content["claims"]),
             "source_count": len(content["sources"]),
+            "reference_comparison": {
+                "analyzed": comparison["analyzed"],
+                "eligible": comparison["eligible"],
+                "viewpoint_count": comparison["viewpoint_count"],
+                "partial": comparison["partial"],
+            },
+        }
+
+    def _reference_readiness(self, session: Mapping[str, Any]) -> Dict[str, Any]:
+        """Issue #23 B3: analyzed-N / eligible-M readiness of authorized refs.
+
+        Eligible = references the owner actually authorized (downloaded or
+        analyzed).  Never-downloaded discovery candidates are not "pending"
+        — they were never authorized — so choosing not to acquire a reference
+        never blocks research.
+        """
+        references = session.get("references", {})
+        analyzed: List[str] = []
+        pending: List[str] = []
+        for bvid, state in references.items():
+            status = (state or {}).get("status")
+            if status == "analyzed":
+                analyzed.append(bvid)
+            elif status == "downloaded":
+                pending.append(bvid)
+        return {
+            "analyzed": len(analyzed),
+            "eligible": len(analyzed) + len(pending),
+            "pending_bvids": pending,
+        }
+
+    def _comparison_snapshot(
+        self, session: Mapping[str, Any], readiness: Mapping[str, Any],
+        partial_reason: str = "",
+    ) -> Dict[str, Any]:
+        """Honest snapshot of what the reference comparison actually used."""
+        insights = self._narrative_insights(session)
+        return {
+            "analyzed": readiness["analyzed"],
+            "eligible": readiness["eligible"],
+            "bvids": [str(insight.get("bvid", "")) for insight in insights if insight.get("bvid")],
+            "viewpoint_count": sum(
+                1 for insight in insights if insight.get("creator_viewpoint")
+            ),
+            "partial": bool(readiness["pending_bvids"]),
+            "partial_reason": (
+                str(partial_reason or "").strip() if readiness["pending_bvids"] else ""
+            ),
+            "recorded_at": _now(),
         }
 
     def run_fact_check(self, session_id: str) -> Dict[str, Any]:
@@ -876,6 +970,12 @@ class WorkbenchFlow:
         report = ResearchReport.from_dict(
             json.loads(Path(reviewed_path).read_text(encoding="utf-8"))
         )
+        # Issue #23 B1: an off-topic report can never be approved, even if a
+        # draft slipped in through another path.
+        ensure_topic_consistency(
+            session["topic"], _report_topic_texts(report.to_dict()),
+            what="待批准的研究报告",
+        )
         if not str(confirmation).strip():
             raise WorkbenchFlowError("请填写明确的批准确认说明")
         paths = run_report_approval(
@@ -918,6 +1018,11 @@ class WorkbenchFlow:
             result = llm.write_thesis(report.to_dict(), insights)
         except WorkbenchLLMError as exc:
             raise WorkbenchFlowError(str(exc)) from None
+        # Issue #23 B1: fail closed on off-topic thesis payload before save.
+        ensure_topic_consistency(
+            session["topic"], _card_topic_texts(result.data),
+            what="选题卡草稿",
+        )
         card_id = f"CTC-wb-{session['session_id'].split('-')[-1]}"
         prepared = prepare_codex_content_thesis(
             result.data, report, self.repo_root / "content_theses", card_id=card_id
@@ -1002,6 +1107,11 @@ class WorkbenchFlow:
         card = ContentThesisCard(
             json.loads(Path(draft_path).read_text(encoding="utf-8"))
         )
+        # Issue #23 B1: an off-topic card can never be confirmed for writing.
+        ensure_topic_consistency(
+            session["topic"], _card_topic_texts(card.data),
+            what="待确认的选题卡",
+        )
         review_artifact = json.loads(Path(review_path).read_text(encoding="utf-8"))
         if not str(confirmation).strip():
             raise WorkbenchFlowError("请填写明确的选题确认说明（需包含「确认」与「进入写稿」）")
@@ -1043,6 +1153,16 @@ class WorkbenchFlow:
         session = self.store.load(session_id)
         report = self._approved_report(session)
         card = self._approved_thesis(session)
+        # Issue #23 B1: an off-topic report/card can never drive a script —
+        # and an off-topic script can never reach the delivery view.
+        ensure_topic_consistency(
+            session["topic"], _report_topic_texts(report.to_dict()),
+            what="写稿所依据的研究报告",
+        )
+        ensure_topic_consistency(
+            session["topic"], _card_topic_texts(card.data),
+            what="写稿所依据的选题卡",
+        )
         llm = self._llm()
         result = run_script_workflow(
             report,
@@ -1051,6 +1171,14 @@ class WorkbenchFlow:
             profile=load_workbench_script_profile(),
             content_thesis_card=card,
         )
+        teleprompter_path = Path(result.reviewed.json).with_name(
+            Path(result.reviewed.json).stem + ".teleprompter.md"
+        )
+        if teleprompter_path.is_file():
+            ensure_topic_consistency(
+                session["topic"], [teleprompter_path.read_text(encoding="utf-8")],
+                what="口播稿",
+            )
         view = self._script_view(session_id, str(result.reviewed.json))
         view["review_path"] = str(result.review_artifact)
         if view.get("gate_status") != "pass":
@@ -1111,6 +1239,23 @@ class WorkbenchFlow:
             "teleprompter_text": teleprompter.read_text(encoding="utf-8")
             if teleprompter.is_file()
             else "",
+            "topic": session.get("topic", ""),
+            "reference_synthesis": self._synthesis_view(session.get("research", {})),
+        }
+
+    @staticmethod
+    def _synthesis_view(research: Mapping[str, Any]) -> Dict[str, Any]:
+        """Honest reference-synthesis summary shown with every script view
+        (Issue #23 B3): analyzed N / eligible M, partial or not."""
+        comparison = research.get("reference_comparison") or {}
+        if not comparison:
+            return {}
+        return {
+            "analyzed": comparison.get("analyzed", 0),
+            "eligible": comparison.get("eligible", 0),
+            "viewpoint_count": comparison.get("viewpoint_count", 0),
+            "partial": bool(comparison.get("partial")),
+            "partial_reason": str(comparison.get("partial_reason", "")),
         }
 
     def final_script(self, session_id: str) -> Dict[str, Any]:

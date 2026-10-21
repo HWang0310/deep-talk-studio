@@ -475,7 +475,10 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             def _research():
                 with server.workbench_lock:
                     return flow.generate_research(
-                        session_id, str(payload.get("research_question", ""))
+                        session_id,
+                        str(payload.get("research_question", "")),
+                        allow_partial=bool(payload.get("partial_override")),
+                        partial_reason=str(payload.get("partial_reason", ""))[:500],
                     )
 
             result, error = self._workbench_call(_research)

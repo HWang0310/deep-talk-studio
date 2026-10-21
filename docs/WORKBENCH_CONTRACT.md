@@ -40,7 +40,7 @@ AIGC:
 | `/references/analyze` | POST | 单条参考 → ffmpeg 抽音频 → 本地 whisper.cpp large-v3 转写 → 叙事手法 JSON（hook/pacing/struct_patterns 等，含 top_terms 频次） |
 | `/sources/url` | POST | 抓取一条独立来源原文（URL） |
 | `/sources/text` | POST | 粘贴一条独立来源正文（标题 + 正文 + 来源 URL；页面抓不到时使用） |
-| `/research/generate` | POST | 研究草稿（落盘 canonical `reports/` 研究工件树，研究 mode 记录真实来源） |
+| `/research/generate` | POST | 研究草稿（落盘 canonical `reports/` 研究工件树，研究 mode 记录真实来源）；可选 `partial_override` + `partial_reason`：已授权参考未全部完成分析时必须显式带 override 与理由（≥10 字，逐字存档） |
 | `/fact-check/run` | POST | 独立事实核查（真实 Fact-Check 引擎 + 质量门禁） |
 | `/research/approve` | POST | 用户批准研究结论（确认词约束） |
 | `/thesis/generate` | POST | 生成选题卡（V1 内容驱动 profile + 批准研究） |
@@ -53,10 +53,13 @@ AIGC:
 
 1. **本机 HTTP 边界**（同发现合同）：127.0.0.1 绑定、窄 Host 白名单、Origin 同源检查、JSON `Content-Type` 强制、读 body 前先验证 `Content-Length`；每个工作台路由有独立请求体上限（`WORKBENCH_ROUTE_CAPS`，超限 413），全部工作台写操作经 `workbench_lock` 串行化（一次一个状态变更，不并发写会话）。
 2. **授权获取合同**：下载前必须提交用户填写的授权声明（逐字存档进每条 `acquisition.json`）；下载目录必须是用户在设置中指定的**已存在**目录；工具固定为本机 `yt-dlp`，无 cookie、无登录、单一 720p 格式选择、单条 900 秒超时；平台拒绝访问（风控/验证/登录墙）时返回中文诚实错误、不做任何绕过。下载文件记录大小与 SHA-256。
-3. **参考视频天花板原则**：参考视频产物**只**用于叙事结构启发（`insights` 注入研究），研究/事实/素材三查全来自独立来源；参考转录文本永不进入任何正式素材包或事实主张。
-4. **LLM 提供方式**：两种模式——OpenAI Responses（支持模型联网研究 `web_search`）与通用 Chat 兼容（**仅用用户提供的来源**；研究输出中出现未被用户提供的来源 URL 即 fail-closed 拒绝，绝不静默接受）；连通性测试要求模型对固定 prompt 回复「正常」。
-5. **核查引文重核**：事实核查返回的 `verified` 检查必须附「」引文（≥12 字）且服务器在来源正文中逐字找到该引文；找不到即降级 `unverified` 并在 UI/报告中如实说明，绝不静默放行。
-6. **既有引擎门禁全部保留**：approved research 的 confirmed_fact 需 2 个独立来源组、高风险主张 100% 核查覆盖、证据覆盖 ≥80%、Script Review 33 项全过 —— 工作台无任何降低。
+3. **选题一致性门禁（B1，fail-closed）**：研究草稿、选题卡草稿在**生成时**即做选题一致性校验（主题信号词覆盖率 < 20% 即拒绝写入，语义改写保留）；研究批准、选题卡人工确认、写稿（研究报告 + 选题卡 + 口播稿终稿）在**批准/交付边界**复核同一校验——偏题内容既不能保存、不能批准，也不可能以 Gate pass 形态交付。
+4. **来源抓取公网限定（B2，fail-closed）**：用户提供的来源 URL 仅允许真实公网 HTTP(S) 目标——连接前解析（A/AAAA）并要求**全部**解析结果为公网单播地址（拒绝 loopback/私网/链路本地/保留/多播/文档网段），连接**固定**到已验证地址（验证与拨号之间无 DNS 重绑定窗口），重定向仅跟随 http(s) 且上限 4 跳（每跳同规则复验），显式禁用系统代理（防代理侧绕过）；解析失败/含糊一律拒绝并提示粘贴正文回退。合法公网来源抓取行为不变。
+5. **参考视频天花板原则**：参考视频产物**只**用于叙事结构启发与可归因观点对比（`creator_viewpoint` 为立场概括、非事实转述），研究/事实/素材三查全来自独立来源；参考转录文本永不进入任何正式素材包或事实主张。
+6. **五方综合就绪度（B3，fail-closed）**：生成研究草稿前必须完成**所有已授权（已下载）参考**的本地分析，或由用户**显式勾选部分分析并填写理由**（≥10 字，逐字存档）——UI 明示 `已分析 N / 已授权 M`，任何部分分析都如实记录（`reference_comparison.partial`），绝不以 1/5 冒充完整综合；研究/选题卡提示词注入确定性「N 方观点对比」（逐条可归因观点 + 高频结构/钩子/语速统计），选题卡可在差异化定位中概括引用各参考创作者观点（明确归因、禁止复述表达、绝不作为事实来源）。
+7. **LLM 提供方式**：两种模式——OpenAI Responses（支持模型联网研究 `web_search`）与通用 Chat 兼容（**仅用用户提供的来源**；研究输出中出现未被用户提供的来源 URL 即 fail-closed 拒绝，绝不静默接受）；连通性测试要求模型对固定 prompt 回复「正常」。
+8. **核查引文重核**：事实核查返回的 `verified` 检查必须附「」引文（≥12 字）且服务器在来源正文中逐字找到该引文；找不到即降级 `unverified` 并在 UI/报告中如实说明，绝不静默放行。
+9. **既有引擎门禁全部保留**：approved research 的 confirmed_fact 需 2 个独立来源组、高风险主张 100% 核查覆盖、证据覆盖 ≥80%、Script Review 33 项全过 —— 工作台无任何降低。
 
 ## 工件落盘
 
@@ -73,4 +76,4 @@ AIGC:
 
 ## 测试
 
-`tests/test_workbench.py`（7/7）：全闭环夹具测试（会话→来源→研究→核查→批准→选题卡→审核→确认→写稿→审核→交付）、chat 模式编造来源 fail-closed、坏引文降级；`tests/test_webui.py::WorkbenchRoutesTests`（3/3）：路由边界与 body 上限；见 ISSUE E2E 证据目录 `evaluations/issue23_workbench/`（真实浏览器全链路 + 截图）。
+`tests/test_workbench.py`（23 项）：全闭环夹具测试（会话→来源→研究→核查→批准→选题卡→审核→确认→写稿→审核→交付）、chat 模式编造来源 fail-closed、坏引文降级、**B1 选题一致性三重负回归**（莫斯科主题+图书馆夹具在研究/批准/写稿边界全拒、改写保留正例）、**B2 netfetch 确定性测试**（私网字面量/私网解析/混合解析/重绑定固定/非 http 重定向/代理旁路防护）、**B3 就绪度与 override**（未完成分析阻断 + 显式 override 记录）、**确定性完整五方综合链**（5/5 分析→对比注入研究与选题卡→脚本交付视图如实标注 5/5），以及 **ThesisPromptTests**（直接测试真实 prompt builder 的对比块渲染——防止真实构建路径再次只被 fake provider 覆盖）；`tests/test_webui.py`（路由层）：边界、body 上限、B1 负例 HTTP 400、partial_override 管道；浏览器 E2E 证据：`evaluations/issue23_workbench/`。

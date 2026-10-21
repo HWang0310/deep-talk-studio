@@ -17,7 +17,7 @@ THESIS_WRITER_SYSTEM_PROMPT = """你是 DeepTalk Studio 的 Content Thesis 编�
 边界：
 - 只能使用这份报告中已存在的主张（claims）与其证据，不得从记忆或网络补充新事实。
 - ID（如 C1、C12）必须真实存在于报告 claims 中，不得编造。
-- 参考视频的叙事分析只可用于启发结构、钩子与节奏的想法，绝不能作为事实来源，更不能模仿或复述任何具体表达。
+- 参考视频的对比材料分两层使用：①叙事手法（结构、钩子与节奏）可用于启发；②「可归因观点」概括了各参考创作者的立场，只允许在 competitive_insight_notes 与 differentiated_angle 中以明确归因、概括的方式引用（如「多数参考创作者持批评立场，聚焦处理程序」），用于差异化定位——但它们绝不能作为事实来源、证据或主张支撑，不得评价创作者个人，不得拼凑、模仿或复述其具体表达。
 - 报告的 limitations 与 open_questions 必须如实转化为 uncertainty_limits，不得弱化或删除。
 - 输出必须是符合给定 JSON Schema 的单个 JSON 对象，不得输出解释文字。"""
 
@@ -31,12 +31,12 @@ THESIS_REVIEWER_SYSTEM_PROMPT = """你是 DeepTalk Studio 的独立 Thesis Revie
 - 输出必须是符合给定 JSON Schema 的单个 JSON 对象，不得输出解释文字。"""
 
 
-REFERENCE_SUMMARY_SYSTEM_PROMPT = """你是 DeepTalk Studio 的参考视频叙事分析员。你只分析叙事手法与结构，绝不评价内容真实性。
+REFERENCE_SUMMARY_SYSTEM_PROMPT = """你是 DeepTalk Studio 的参考视频叙事分析员。你只分析叙事手法、结构与可归因的观点立场，绝不评价内容真实性。
 
 硬边界：
 - 参考视频不是事实来源：不得把其内容当作事实、证据或研究结论。
-- 不得复述、模仿其具体表达或台词；只能用高度概括的中文描述手法。
-- 不评价创作者个人，不引用其具体观点。
+- creator_viewpoint 只能用两三句高度概括、明确归因的中文描述该创作者在视频中的观点立场（观点描述，非事实转述，例如「对事件持批评立场，主张关注后续处理程序」）；不得评价创作者个人人设。
+- 其余字段不得复述、模仿其具体表达或台词；只能用高度概括的中文描述手法。
 - 输出必须是符合给定 JSON Schema 的单个 JSON 对象。"""
 
 
@@ -68,20 +68,15 @@ def build_thesis_writer_prompt(
 ) -> str:
     insights_text = ""
     if narrative_insights:
-        lines = []
-        for insight in narrative_insights[:5]:
-            lines.append(
-                "- {title}（{views} 播放，{dur:.0f} 秒）：{summary}".format(
-                    title=str(insight.get("title", ""))[:60],
-                    views=insight.get("view_count", "—"),
-                    dur=float(insight.get("duration_seconds", 0) or 0),
-                    summary=str(insight.get("narrative_summary", ""))[:280],
-                )
+        from .workbench.prompts import render_reference_comparison
+
+        block = render_reference_comparison(list(narrative_insights))
+        if block:
+            insights_text = (
+                "\n\n" + block
+                + "\n（以上对比仅用于差异化定位与结构启发：可归因观点可在 competitive_insight_notes / differentiated_angle"
+                " 中以明确归因的概括方式参考，绝不能作为事实来源或证据支撑，禁止拼凑或复述任何具体表达）"
             )
-        insights_text = (
-            "\n\n参考视频叙事分析（仅供结构/节奏/钩子启发，禁止作为事实来源，禁止模仿表达）：\n"
-            + "\n".join(lines)
-        )
     claims = report.get("claims", [])
     claim_lines = [
         "{cid}（{cls}，{risk}）：{text}".format(
@@ -156,6 +151,8 @@ def build_reference_summary_prompt(
             },
             ensure_ascii=False,
         )
-        + "\n\n请输出该视频的叙事手法分析：narrative_summary（200字内，高度概括）、hook_style（开场钩子类型与效果）、"
-        "pacing（节奏与信息密度特征）、struct_patterns（3-5个结构手法）、takeaways（2-3条可借鉴但没有抄袭风险的写作手法）。"
+        + "\n\n请输出该视频的叙事手法与观点立场分析：narrative_summary（200字内，高度概括）、"
+        "creator_viewpoint（两三句内，高度概括、明确归因的创作者观点立场描述；观点描述而非事实转述）、"
+        "hook_style（开场钩子类型与效果）、pacing（节奏与信息密度特征）、"
+        "struct_patterns（3-5个结构手法）、takeaways（2-3条可借鉴但没有抄袭风险的写作手法）。"
     )

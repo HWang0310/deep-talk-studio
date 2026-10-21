@@ -283,6 +283,14 @@
       </div>
     </details>
     <div id="source-list" class="src-list"></div>
+    <div id="research-readiness" class="muted" role="status"></div>
+    <div id="partial-override-box" hidden style="margin-top:10px;padding:10px;border:1px solid #d9d9d9;border-radius:8px">
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="partial-allow">
+        允许部分分析（将如实记录为部分分析，不等同完整五方对比）
+      </label>
+      <textarea id="partial-reason" maxlength="500" placeholder="说明理由（至少 10 字，将逐字存档），例如：本地转写耗时过长，先基于已完成的 3 条参考继续研究" style="margin-top:8px"></textarea>
+    </div>
     <div class="actions">
       <button id="research-generate" type="button" class="primary">生成研究草稿</button>
       <button id="fact-check-run" type="button">执行独立核查</button>
@@ -559,6 +567,13 @@
     var anyReference = session.references.length > 0;
     analysisCard.hidden = !anyReference;
     if (!anyReference) { return; }
+    // Issue #23 B3: visible analyzed-N / eligible-M readiness.
+    var readiness = session.references_readiness || {};
+    var statusEl = document.getElementById('analysis-status');
+    var total = session.references.length;
+    statusEl.textContent = '就绪度：已分析 ' + (readiness.analyzed || 0) + ' · 已下载待分析 '
+      + Math.max(0, (readiness.eligible || 0) - (readiness.analyzed || 0)) + ' · 本集候选 ' + total
+      + '（研究要求：所有已授权参考完成分析，或明确选择部分分析）';
     var targets = session.references.filter(function (c) {
       return (c.study_status || 'not_analyzed') !== 'analyzed';
     });
@@ -604,6 +619,9 @@
         item.appendChild(rows);
         if (c.study.hook_text) {
           item.appendChild(el('p', 'muted', '开场（前两段）：' + String(c.study.hook_text).slice(0, 120) + '…'));
+        }
+        if (c.study.creator_viewpoint) {
+          item.appendChild(el('p', null, '可归因观点：' + String(c.study.creator_viewpoint)));
         }
         if (c.study.narrative_summary) {
           item.appendChild(el('p', null, '叙事手法：' + c.study.narrative_summary));
@@ -729,7 +747,20 @@
       item.appendChild(el('div', 'muted', s.kind === 'pasted' ? '（用户粘贴正文）' : s.url));
       list.appendChild(item);
     });
+    // Issue #23 B3: visible analyzed-N / eligible-M readiness + explicit
+    // partial-analysis override control (never silently label partial as full).
+    var readiness = session.references_readiness || { analyzed: 0, eligible: 0 };
+    var readinessEl = document.getElementById('research-readiness');
+    var pending = Math.max(0, (readiness.eligible || 0) - (readiness.analyzed || 0));
+    readinessEl.textContent = '参考分析就绪度：已分析 ' + (readiness.analyzed || 0) + ' / 已授权 '
+      + (readiness.eligible || 0) + (pending > 0 ? ' 条（还有 ' + pending + ' 条待本地转写分析）' : ' 条（完整分析）');
+    document.getElementById('partial-override-box').hidden = pending <= 0;
     var research = session.research || {};
+    var comparison = research.reference_comparison;
+    if (comparison && (comparison.analyzed !== undefined)) {
+      readinessEl.textContent += ' · 上次研究注入对比：' + comparison.analyzed + '/' + comparison.eligible
+        + ' 条（观点 ' + (comparison.viewpoint_count || 0) + ' 条' + (comparison.partial ? '，部分分析' : '') + '）';
+    }
     document.getElementById('research-approve-box').hidden = !(research.status === 'reviewed' || research.status === 'ready_for_script');
     var statusEl = document.getElementById('research-status');
     var states = {
@@ -774,12 +805,23 @@
 
   document.getElementById('research-generate').addEventListener('click', function () {
     if (!currentSession) { return; }
-    api('/api/workbench/research/generate', {
+    var payload = {
       session_id: currentSession.session_id,
       research_question: document.getElementById('research-question').value
-    }, { message: '生成研究草稿（调用你的模型服务）…' }).then(function (result) {
+    };
+    if (document.getElementById('partial-allow').checked) {
+      payload.partial_override = true;
+      payload.partial_reason = document.getElementById('partial-reason').value;
+    }
+    api('/api/workbench/research/generate', payload, { message: '生成研究草稿（调用你的模型服务）…' }).then(function (result) {
       var summary = document.getElementById('research-summary');
       summary.appendChild(el('p', 'status-line', '研究草稿 r' + result.revision + '：' + result.claim_count + ' 条主张 · ' + result.source_count + ' 个来源 · 质量 Gate：' + result.gate_status));
+      if (result.reference_comparison) {
+        var cmp = result.reference_comparison;
+        summary.appendChild(el('p', 'muted', '参考观点对比：已注入 ' + cmp.analyzed + '/' + cmp.eligible
+          + ' 条已分析参考（可归因观点 ' + (cmp.viewpoint_count || 0) + ' 条'
+          + (cmp.partial ? '，部分分析——已如实记录，不等同完整五方对比' : '') + '）'));
+      }
       if (result.gate_reasons && result.gate_reasons.length) {
         var ul = el('ul', 'gate-reasons');
         result.gate_reasons.forEach(function (reason) { ul.appendChild(el('li', null, reason)); });
@@ -900,6 +942,14 @@
       }[script.status] || script.status;
       document.getElementById('script-status').textContent = '状态：' + text;
     }
+    // Issue #23 B3: synthesis honesty on the delivery view — how many
+    // analyzed references actually informed this session's comparison.
+    var synthesis = (session.research || {}).reference_comparison;
+    if (synthesis && synthesis.analyzed !== undefined && script.status === 'reviewed') {
+      document.getElementById('script-status').textContent += 
+        ' · 参考综合：' + synthesis.analyzed + '/' + synthesis.eligible + ' 条已分析参考进入对比'
+        + (synthesis.partial ? '（部分分析，不等同完整五方对比）' : '');
+    }
   }
 
   document.getElementById('script-generate').addEventListener('click', function () {
@@ -922,6 +972,12 @@
     summary.appendChild(el('p', 'status-line', '《' + (result.working_title || '未命名') + '》· ' +
       (result.character_count || 0) + ' 字 · 预计 ' + (result.estimated_duration_minutes || '—') + ' 分钟 · ' +
       (result.beat_count || 0) + ' 段 · 审核 Gate：' + (result.gate_status || '—')));
+    if (result.reference_synthesis && result.reference_synthesis.analyzed !== undefined) {
+      summary.appendChild(el('p', 'muted', '参考综合：' + result.reference_synthesis.analyzed + '/' +
+        result.reference_synthesis.eligible + ' 条已分析参考进入对比（可归因观点 '
+        + (result.reference_synthesis.viewpoint_count || 0) + ' 条'
+        + (result.reference_synthesis.partial ? '，部分分析——不等同完整五方对比' : '') + '）'));
+    }
     (result.blocking_issues || []).forEach(function (issue) {
       issuesEl.appendChild(el('div', 'issue', '[' + issue.issue_type + '] ' + issue.explanation +
         (issue.suggested_fix ? ' → ' + issue.suggested_fix : '')));
@@ -930,7 +986,7 @@
       bodyEl.hidden = false;
       bodyEl.textContent = result.teleprompter_text;
       copyBtn.hidden = false;
-      metaEl.textContent = '口播稿文件：' + result.teleprompter_path;
+      metaEl.textContent = '口播稿文件：' + result.teleprompter_path + ' · 选题：' + (result.topic || '');
     } else {
       bodyEl.hidden = true;
       copyBtn.hidden = true;

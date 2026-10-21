@@ -907,9 +907,17 @@ THESIS_REVIEW_CONTENT_JSON_SCHEMA = _object(
 REFERENCE_NARRATIVE_JSON_SCHEMA = _object(
     {
         "narrative_summary": _string(),
+        "creator_viewpoint": _string(),
         "hook_style": _string(),
         "pacing": _string(),
         "struct_patterns": _string_array(),
         "takeaways": _string_array(),
     }
 )
+# ``creator_viewpoint`` is optional for backward compatibility with studies
+# analyzed before Issue #23 B3 (they render as「未提取到观点立场」); new
+# analyses request it explicitly (attributable stance summary, never facts).
+REFERENCE_NARRATIVE_JSON_SCHEMA["required"] = [
+    key for key in REFERENCE_NARRATIVE_JSON_SCHEMA["required"]
+    if key != "creator_viewpoint"
+]
