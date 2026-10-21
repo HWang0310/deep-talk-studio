@@ -1,0 +1,93 @@
+{
+  "rows": [
+    {
+      "sequence": 1,
+      "span_id": "ST001",
+      "actual_start_seconds": "0.03",
+      "actual_end_seconds": "6.4",
+      "actual_start_timecode": "00:00:00.030",
+      "actual_end_timecode": "00:00:06.400",
+      "spoken_summary": "事件发生在八月九日。这个时间点有两份相互独立的公开材料支持。",
+      "decision": "REAL_MATERIAL",
+      "asset_filename": "M001.png",
+      "placement_advice": "按真实时间放入对应位置。",
+      "why": "事件在 2026 年 8 月 9 日发生。",
+      "provenance": "模拟权利数据（synthetic fixture）：未发生真实联网核验，非真实第三方复用许可，仅用于验证 Rights Gate 流程。",
+      "qa_status": "pass",
+      "requires_human_review": false,
+      "fallback_outcome": "REAL_MATERIAL",
+      "alignment_digest": "edeaf36efa579b61564f3b9466a9184328146f9c0eee5b73487147e313c95683"
+    },
+    {
+      "sequence": 2,
+      "span_id": "ST002",
+      "actual_start_seconds": "6.76",
+      "actual_end_seconds": "17.46",
+      "actual_start_timecode": "00:00:06.760",
+      "actual_end_timecode": "00:00:17.460",
+      "spoken_summary": "当事机构在公告中的说法是，问题来自流程故障。这证明机构给出了这种解释，却不等于原因已经被独立证实。",
+      "decision": "AUDIO_ONLY",
+      "asset_filename": "",
+      "placement_advice": "无画面：该时间段仍需人工补画面，不要假装已有真人画面。",
+      "why": "该时间段的候选素材没有可核验的复用授权（未知、需授权或仅可参考），不能自动使用，需要人工补画面或先取得授权。",
+      "provenance": "",
+      "qa_status": "not_applicable",
+      "requires_human_review": true,
+      "fallback_outcome": "AUDIO_ONLY",
+      "alignment_digest": "edeaf36efa579b61564f3b9466a9184328146f9c0eee5b73487147e313c95683"
+    },
+    {
+      "sequence": 3,
+      "span_id": "ST003",
+      "actual_start_seconds": "17.78",
+      "actual_end_seconds": "32.6",
+      "actual_start_timecode": "00:00:17.780",
+      "actual_end_timecode": "00:00:32.600",
+      "spoken_summary": "这里真正值得追问的，是公众为什么总被迫在官方解释和网络猜测之间二选一。其实还存在第三种选择：承认事件已经发生，也承认原因证据还不够。",
+      "decision": "AUDIO_ONLY",
+      "asset_filename": "",
+      "placement_advice": "无画面：该时间段仍需人工补画面，不要假装已有真人画面。",
+      "why": "该时间段没有通过权利/文件校验的合规素材，需要人工补画面。",
+      "provenance": "",
+      "qa_status": "not_applicable",
+      "requires_human_review": true,
+      "fallback_outcome": "AUDIO_ONLY",
+      "alignment_digest": "edeaf36efa579b61564f3b9466a9184328146f9c0eee5b73487147e313c95683"
+    },
+    {
+      "sequence": 4,
+      "span_id": "ST004",
+      "actual_start_seconds": "32.9",
+      "actual_end_seconds": "40.5",
+      "actual_start_timecode": "00:00:32.900",
+      "actual_end_timecode": "00:00:40.500",
+      "spoken_summary": "网络上确实流传过人为操纵的说法，但现有核查没有找到可以验证它的原始证据。",
+      "decision": "AUDIO_ONLY",
+      "asset_filename": "",
+      "placement_advice": "无画面：该时间段仍需人工补画面，不要假装已有真人画面。",
+      "why": "该时间段无真人画面可保留，需要人工补画面。",
+      "provenance": "",
+      "qa_status": "not_applicable",
+      "requires_human_review": true,
+      "fallback_outcome": "AUDIO_ONLY",
+      "alignment_digest": "edeaf36efa579b61564f3b9466a9184328146f9c0eee5b73487147e313c95683"
+    }
+  ],
+  "manifest_assets": [
+    {
+      "opportunity_id": "OP001",
+      "asset_class": "REAL_MATERIAL",
+      "qa_status": "ready",
+      "filename": "M001.png",
+      "local_path": "/private/var/folders/8s/_lxwv_9d2x3b0y2wwq2qjrp00000gn/T/tmpgfn8pxv_/session/DeepTalk-Aligned-Edit/episode/06_真实素材/M001.png",
+      "byte_size": 627,
+      "sha256": "241f1fd4f9e52df30fe8d11698e60a3ebfec92efa5cf3b95cdb51ee0d105f70a",
+      "provenance": "模拟权利数据（synthetic fixture）：未发生真实联网核验，非真实第三方复用许可，仅用于验证 Rights Gate 流程。",
+      "placement_advice": "按真实时间放入对应位置。",
+      "time_range": {
+        "start_seconds": "0.03",
+        "end_seconds": "6.4"
+      }
+    }
+  ]
+}

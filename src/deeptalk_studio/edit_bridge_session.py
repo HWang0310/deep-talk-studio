@@ -109,12 +109,13 @@ def resolve_real_edit_bridge_session(session_root, repo_root=None):
     root = Path(repo_root or Path(__file__).resolve().parents[2]).resolve()
     runtime_config = load_artifact_runtime_config(root)
     artifact_resolver = RuntimeArtifactResolver(runtime_config)
+    from .narration_media import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
     videos = [
         path for path in session.iterdir()
-        if path.is_file() and not path.is_symlink() and path.suffix.casefold() in {".mp4", ".mov", ".m4v"}
+        if path.is_file() and not path.is_symlink() and path.suffix.casefold() in (VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)
     ] if session.is_dir() else []
     if len(videos) != 1:
-        raise RealEditBridgeSessionError("请只放入一个已经剪好口气的真人口播视频")
+        raise RealEditBridgeSessionError("请只放入一个已经剪好口气的真人口播视频，或一个已定稿的本地口播 WAV/MP3")
     production_path, plan = _select_current_production(
         (root / "production_packages").rglob("production-plan-r*.json"),
         lambda value: (
@@ -213,10 +214,18 @@ def run_real_edit_bridge_session(
     if root.exists():
         raise RealEditBridgeSessionError("本次对齐输出已经存在，不会覆盖；请使用新的试用目录")
     now = clock(); renderer = renderer or RemotionAlignedPreviewRenderer()
+    from .narration_media import probe_narration_media
+    media_probe = probe_narration_media(inputs.clean_aroll_path)
+    if not media_probe.video_stream["present"]:
+        # audio-only final narration owns the real timeline; deliver Asset Pack + Edit Map
+        from .audio_delivery import run_audio_only_delivery
+        return run_audio_only_delivery(
+            inputs, provider, clock=clock, id_factory=id_factory,
+        )
     media_result = import_narration_media(inputs.clean_aroll_path, root / "narration-media", imported_at=now, id_factory=id_factory)
     media = media_result.artifact
     if media["media_kind"] != "video":
-        raise RealEditBridgeSessionError("这一阶段需要真人口播视频，不接受纯音频")
+        raise RealEditBridgeSessionError("这一阶段需要真人口播视频或已定稿口播音频")
     preferred_sample_rate = getattr(provider, "preferred_sample_rate", 48000)
     extraction_profile = audio_extraction_profile(sample_rate=preferred_sample_rate)
     extracted_result = extract_transcription_audio(media, root / "derived" / "transcription.wav", profile=extraction_profile, created_at=now)

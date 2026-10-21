@@ -22,12 +22,13 @@ class AssetPackWorkflowError(ValueError):
     """The formal creator-facing package cannot be safely assembled."""
 
 
-DECISIONS = {"KEEP_A_ROLL", "REAL_MATERIAL", "MG_MOTION", "ADVANCED_MOTION"}
+DECISIONS = {"KEEP_A_ROLL", "REAL_MATERIAL", "MG_MOTION", "ADVANCED_MOTION", "AUDIO_ONLY"}
 FALLBACKS = {
     "ADVANCED_MOTION": ("MG_MOTION", "REAL_MATERIAL", "KEEP_A_ROLL"),
     "MG_MOTION": ("REAL_MATERIAL", "KEEP_A_ROLL"),
     "REAL_MATERIAL": ("KEEP_A_ROLL",),
     "KEEP_A_ROLL": (),
+    "AUDIO_ONLY": (),
 }
 ASSET_DIRECTORIES = {
     "REAL_MATERIAL": "06_真实素材",
@@ -51,6 +52,20 @@ class ProductionAssetPackResult:
 def _digest(value: Mapping) -> str:
     data = dict(value)
     data.pop("map_digest", None)
+    return hashlib.sha256(
+        json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+def compute_edit_map_digest(machine_map: Mapping) -> str:
+    """Canonical edit-map digest (the only accepted `map_digest` value)."""
+    return _digest(machine_map)
+
+
+def compute_manifest_digest(manifest: Mapping) -> str:
+    """Canonical asset-manifest digest (the only accepted `manifest_digest` value)."""
+    data = dict(manifest)
+    data.pop("manifest_digest", None)
     return hashlib.sha256(
         json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -103,9 +118,14 @@ def _place_asset(episode_root: Path, asset: Mapping) -> Path:
 
 
 def _row(span: Mapping, opportunity: Mapping, asset: Mapping | None, fallback_outcome: str) -> dict:
-    decision = opportunity["decision"] if asset is not None or opportunity["decision"] == "KEEP_A_ROLL" else fallback_outcome
+    decision = opportunity["decision"] if asset is not None or opportunity["decision"] in {"KEEP_A_ROLL", "AUDIO_ONLY"} else fallback_outcome
     start = str(span["actual_start_seconds"]); end = str(span["actual_end_seconds"])
-    if decision == "KEEP_A_ROLL":
+    if decision == "AUDIO_ONLY":
+        placement = "无画面：该时间段仍需人工补画面，不要假装已有真人画面。"
+        filename = ""
+        provenance = ""
+        qa_status = "not_applicable"
+    elif decision == "KEEP_A_ROLL":
         placement = "保持人物画面。"
         filename = ""
         provenance = ""
@@ -129,6 +149,7 @@ def _row(span: Mapping, opportunity: Mapping, asset: Mapping | None, fallback_ou
         "why": str(opportunity.get("why_visual", "保留人物表达。")),
         "provenance": provenance,
         "qa_status": qa_status,
+        "requires_human_review": decision == "AUDIO_ONLY",
         "fallback_outcome": fallback_outcome,
         "alignment_digest": str(opportunity.get("alignment_digest", "")),
     }
@@ -139,8 +160,8 @@ def _choose_asset(opportunity: Mapping, assets: Sequence[Mapping]) -> tuple[str,
     if decision not in DECISIONS:
         raise AssetPackWorkflowError("Visual Director decision 无效")
     candidate = _asset_for(str(opportunity["opportunity_id"]), decision, assets)
-    if decision == "KEEP_A_ROLL":
-        return "KEEP_A_ROLL", None
+    if decision in {"KEEP_A_ROLL", "AUDIO_ONLY"}:
+        return decision, None
     if candidate:
         return decision, candidate
     for fallback in FALLBACKS[decision]:
@@ -150,28 +171,47 @@ def _choose_asset(opportunity: Mapping, assets: Sequence[Mapping]) -> tuple[str,
     return "KEEP_A_ROLL", None
 
 
-def _markdown(rows: Sequence[Mapping]) -> str:
-    blocks = ["# 剪辑表", "", "按下面的真实口播时间，在剪映把素材拖到对应位置。没有素材的段落保持人物画面。"]
+def _markdown(rows: Sequence[Mapping], media_kind: str = "video") -> str:
+    # A real human-camera MP4 keeps its original wording.  An audio-only final
+    # narration owns the timeline without any human frames, so its guide must
+    # never suggest keeping the on-camera person (no fake A-roll, Issue #30).
+    has_gap = any(row.get("requires_human_review") for row in rows)
+    if media_kind == "video":
+        intro = (
+            "按下面的真实口播时间，在剪映把素材拖到对应位置。标记「需人工补画面」的段落没有画面，请自行补入；其余无素材段落保持人物画面。"
+            if has_gap else
+            "按下面的真实口播时间，在剪映把素材拖到对应位置。没有素材的段落保持人物画面。"
+        )
+    else:
+        intro = (
+            "按下面的真实口播时间，在剪映把素材拖到对应位置。本次交付是纯口播音频定稿，没有真人画面：有素材的段落照表使用素材；标记「需人工补画面」的段落没有画面，请自行补入。"
+            if has_gap else
+            "按下面的真实口播时间，在剪映把素材拖到对应位置。本次交付是纯口播音频定稿，没有真人画面：各段落照表使用素材。"
+        )
+    blocks = ["# 剪辑表", "", intro]
     for row in rows:
         blocks.extend([
             "",
             f"## {row['actual_start_timecode']}–{row['actual_end_timecode']}",
             f"内容：{row['spoken_summary']}",
             f"建议：{row['decision']}",
-            f"素材：{row['asset_filename'] or '不需要素材，保持人物。'}",
+            f"素材：{row['asset_filename'] or ('不需要素材，保留主音轨。' if row['decision'] == 'AUDIO_ONLY' else '不需要素材，保持人物。')}",
             f"怎么放：{row['placement_advice']}",
             f"原因：{row['why']}",
         ])
         if row["provenance"]:
             blocks.append(f"来源：{row['provenance']}")
         blocks.append(f"QA：{row['qa_status']}")
+        if row.get("requires_human_review"):
+            blocks.append("需人工补画面：是")
     return "\n".join(blocks) + "\n"
 
 
 def _csv(rows: Sequence[Mapping]) -> str:
     fields = [
         "sequence", "actual_start_seconds", "actual_end_seconds", "actual_start_timecode", "actual_end_timecode",
-        "spoken_summary", "decision", "asset_filename", "placement_advice", "why", "provenance", "qa_status", "fallback_outcome",
+        "spoken_summary", "decision", "asset_filename", "placement_advice", "why", "provenance", "qa_status",
+        "requires_human_review", "fallback_outcome",
     ]
     stream = io.StringIO()
     writer = csv.DictWriter(stream, fieldnames=fields)
@@ -188,8 +228,17 @@ def build_production_asset_pack(
     *,
     episode_root: Path,
     created_at: str,
+    media_kind: str = "video",
 ) -> ProductionAssetPackResult:
-    """Assemble only independently usable assets and an exact human edit guide."""
+    """Assemble only independently usable assets and an exact human edit guide.
+
+    `media_kind` selects the truthful edit-guide wording: "video" keeps the
+    real human-camera wording unchanged; "audio" (pure narration WAV/MP3,
+    Issue #30) must never claim a human frame exists.  Anything else fails
+    closed.
+    """
+    if media_kind not in {"video", "audio"}:
+        raise AssetPackWorkflowError("Asset Pack 的媒体类型无效")
     _validate_roots(accepted_roots)
     if visual_director_plan.get("alignment_digest") != accepted_roots["alignment_digest"]:
         raise AssetPackWorkflowError("Visual Director 与真实 A-roll Alignment 不一致")
@@ -233,7 +282,7 @@ def build_production_asset_pack(
         "alignment_digest": accepted_roots["alignment_digest"],
         "transcript_digest": accepted_roots["transcript_digest"],
     }
-    manifest["manifest_digest"] = hashlib.sha256(json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    manifest["manifest_digest"] = compute_manifest_digest(manifest)
     machine_map = {
         "artifact_version": "edit-map/1",
         "created_at": str(created_at),
@@ -244,10 +293,10 @@ def build_production_asset_pack(
         "asset_manifest_digest": manifest["manifest_digest"],
         "rows": rows,
     }
-    machine_map["map_digest"] = _digest(machine_map)
+    machine_map["map_digest"] = compute_edit_map_digest(machine_map)
     edit_dir = root / "09_剪辑表"; record_dir = root / "_DeepTalk记录"
     markdown_path = edit_dir / "剪辑表.md"; csv_path = edit_dir / "剪辑表.csv"; json_path = record_dir / "edit-map.json"; manifest_path = record_dir / "visual-asset-manifest.json"
-    markdown_path.write_text(_markdown(rows), encoding="utf-8")
+    markdown_path.write_text(_markdown(rows, media_kind), encoding="utf-8")
     csv_path.write_text(_csv(rows), encoding="utf-8-sig")
     json_path.write_text(json.dumps(machine_map, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

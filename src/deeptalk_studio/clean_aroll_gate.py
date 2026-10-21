@@ -39,7 +39,13 @@ def _text(transcript: Mapping | None) -> str:
         return ""
     if isinstance(transcript.get("text"), str):
         return transcript["text"]
-    return "".join(str(item.get("text", "")) for item in transcript.get("timed_units", []))
+    # timed-transcript/1 units carry the spoken text as `spoken_text`; older
+    # plain shapes may use `text`.  Reading neither would silently disable the
+    # retake detection on every real transcript.
+    return "".join(
+        str(item.get("spoken_text", item.get("text", "")))
+        for item in transcript.get("timed_units", [])
+    )
 
 
 def _explicit_full_retake_count(text: str) -> int:
@@ -50,7 +56,7 @@ def _explicit_full_retake_count(text: str) -> int:
 
 
 def inspect_clean_aroll(media: Mapping, transcript: Mapping | None = None) -> CleanARollGateResult:
-    if media.get("media_kind") != "video" or not str(media.get("media_id", "")).strip() or len(str(media.get("artifact_digest", ""))) != 64:
+    if media.get("media_kind") not in {"video", "audio"} or not str(media.get("media_id", "")).strip() or len(str(media.get("artifact_digest", ""))) != 64:
         raise CleanARollGateError("Clean A-roll 媒体身份无效")
     blocker_count = _explicit_full_retake_count(_text(transcript))
     if transcript:

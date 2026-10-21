@@ -8,7 +8,7 @@ from typing import Any,Callable,List,Mapping,Optional,Sequence
 class EditBridgeQAError(ValueError):pass
 @dataclass
 class EditBridgeQAInputs:
- checks:List["QACheck"];placements:List[dict];preview_used_placement_ids:List[str]
+ checks:List["QACheck"];placements:List[dict];preview_used_placement_ids:List[str];context:Optional[Any]=None
 @dataclass(frozen=True)
 class QACheck:
  group:str;check_name:str;validator:Callable[[],None];issue_type:str;severity:str="blocking"
@@ -31,23 +31,26 @@ class CanonicalEditBridgeQAContext:
  artifact_resolver:Optional[Any]=None
 
 REQUIRED_GROUPS={"root","transcript","alignment","placement","preview"}
+AUDIO_DELIVERY_REQUIRED_GROUPS={"root","transcript","alignment","placement","audio_delivery"}
 
 def _digest(value):
  p=dict(value);p.pop("qa_digest",None);return hashlib.sha256(json.dumps(p,ensure_ascii=False,sort_keys=True,separators=(",", ":")).encode()).hexdigest()
-def run_edit_bridge_qa(inputs):
+def run_edit_bridge_qa(inputs, required_groups=None, include_preview_used_check=True):
  checks=[];issues=[]
+ required=set(REQUIRED_GROUPS if required_groups is None else required_groups)
  def check(group,name,outcome,issue_type="",severity="blocking"):
   checks.append({"group":group,"check_name":name,"outcome":"pass" if outcome else "fail"})
   if not outcome:issues.append({"issue_id":f"EBI{len(issues)+1:04d}","issue_type":issue_type,"scope":group,"severity":severity})
  groups={item.group for item in inputs.checks}
- for group in sorted(REQUIRED_GROUPS-groups):check(group,"required_group_present",False,"missing_required_qa_group")
+ for group in sorted(required-groups):check(group,"required_group_present",False,"missing_required_qa_group")
  for item in inputs.checks:
   try:item.validator();outcome=True
   except Exception:outcome=False
   check(item.group,item.check_name,outcome,item.issue_type,item.severity)
- by_id={p["placement_id"]:p for p in inputs.placements};used_ready=all(pid in by_id and by_id[pid].get("placement_status")=="ready" for pid in inputs.preview_used_placement_ids)
- used_ready=used_ready or all(pid=="VP0000" or (pid in by_id and by_id[pid].get("placement_status")=="ready" and by_id[pid].get("preview_enabled",True)) for pid in inputs.preview_used_placement_ids)
- check("preview","preview_uses_ready_only",used_ready,"preview_used_unready_asset")
+ if include_preview_used_check:
+  by_id={p["placement_id"]:p for p in inputs.placements};used_ready=all(pid in by_id and by_id[pid].get("placement_status")=="ready" for pid in inputs.preview_used_placement_ids)
+  used_ready=used_ready or all(pid=="VP0000" or (pid in by_id and by_id[pid].get("placement_status")=="ready" and by_id[pid].get("preview_enabled",True)) for pid in inputs.preview_used_placement_ids)
+  check("preview","preview_uses_ready_only",used_ready,"preview_used_unready_asset")
  unready=[p for p in inputs.placements if p.get("placement_status")!="ready"]
  if unready:issues.append({"issue_id":f"EBI{len(issues)+1:04d}","issue_type":"partial_placement_unready","scope":"placement","severity":"warning"})
  gate="fail" if any(i["severity"]=="blocking" for i in issues) else "warnings" if issues else "pass"
@@ -176,3 +179,205 @@ def run_canonical_edit_bridge_qa(context):
 
 def validate_canonical_edit_bridge_qa(qa,context):
  validate_edit_bridge_qa(qa,build_canonical_edit_bridge_qa_inputs(context))
+
+# ---------------------------------------------------------------------------
+# Audio-only delivery QA (Issue #30): same-strength re-derivation plus
+# fail-closed audio-delivery checks.  The video preview chain is never touched.
+# ---------------------------------------------------------------------------
+
+def _audio_media_kind(context):
+ if context.media.get("media_kind")!="audio" or bool(context.media.get("video_stream",{}).get("present")):
+  raise EditBridgeQAError("audio 交付只接受无视频流的纯音频媒体")
+
+def _audio_clean_gate(context):
+ from .clean_aroll_gate import inspect_clean_aroll
+ gate=inspect_clean_aroll(context.media,context.transcript)
+ if gate.status!="accepted":
+  raise EditBridgeQAError("Clean A-roll Gate 未通过："+gate.user_message)
+ if context.delivery["roots"].get("clean_aroll_gate_status")!="accepted":
+  raise EditBridgeQAError("交付 roots 的 Clean A-roll Gate 状态不是受控 accepted")
+
+def _audio_no_preview(context):
+ if context.preview_path is not None or context.preview_manifest is not None:
+  raise EditBridgeQAError("audio 交付不得声明 Preview")
+ outputs=Path(context.episode_root).parent/"outputs"
+ if outputs.is_dir() and list(outputs.glob("ALIGNED_PREVIEW*.mp4")):
+  raise EditBridgeQAError("audio 交付不得生成 Preview 视频")
+ # Preview frame fields are timeline-derived metadata shared with the video
+ # branch: the canonical placement derivation stamps real frames on every
+ # ready, preview-enabled placement.  In the audio branch they must equal the
+ # deterministic derivation from the real timeline and the profile fps — never
+ # values pointing at an externally rendered preview file — and disabled or
+ # unready placements must stay -1.  A mismatch fails closed.
+ from .canonical_time import preview_frame
+ fps=int(context.preview_profile["fps"])
+ for p in context.placements:
+  if p.get("placement_status")!="ready" or not p.get("preview_enabled",True):
+   if p.get("preview_in_frame",-1)>=0 or p.get("preview_out_frame",-1)>=0:
+    raise EditBridgeQAError("未启用 Preview 的 placement 不得携带 Preview 帧")
+   continue
+  expected_in=preview_frame(Decimal(str(p["preview_effective_in_seconds"])),fps)
+  expected_out=preview_frame(Decimal(str(p["preview_effective_out_seconds"])),fps)
+  if p.get("preview_in_frame")!=expected_in or p.get("preview_out_frame")!=expected_out:
+   raise EditBridgeQAError("Preview 帧不是真实时间轴的确定性推导，可能指向外部预览文件")
+
+def _audio_visual_gap(context):
+ rows=context.pack.machine_map.get("rows",[])
+ manifest_filenames={str(a.get("filename","")) for a in context.pack.manifest.get("assets",[])}
+ if not rows:
+  raise EditBridgeQAError("audio 交付缺少剪辑表行")
+ for row in rows:
+  decision=str(row.get("decision",""))
+  if decision=="AUDIO_ONLY":
+   if row.get("asset_filename") or row.get("qa_status")!="not_applicable" or row.get("requires_human_review") is not True:
+    raise EditBridgeQAError("AUDIO_ONLY 行必须无素材、非 QA-ready 且需人工补画面")
+   if row.get("asset_filename") in manifest_filenames:
+    raise EditBridgeQAError("AUDIO_ONLY 行不得引用 manifest 素材")
+  elif decision=="KEEP_A_ROLL":
+   raise EditBridgeQAError("audio 分支禁止 KEEP_A_ROLL（无真人画面可保留）")
+  elif decision=="REAL_MATERIAL":
+   if row.get("asset_filename") not in manifest_filenames:
+    raise EditBridgeQAError("REAL_MATERIAL 行缺少已入 manifest 的素材")
+ if any(a.get("asset_class")=="AUDIO_ONLY" for a in context.pack.manifest.get("assets",[])):
+  raise EditBridgeQAError("manifest 不得包含 AUDIO_ONLY")
+
+def _inside_episode(path: Path, episode_root: Path) -> bool:
+    try:
+        Path(path).resolve().relative_to(Path(episode_root).resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def validate_audio_delivery_assets(manifest, episode_root):
+    """Re-verify delivered material files against the manifest (post-hoc audit)."""
+    episode = Path(episode_root).resolve()
+    for asset in manifest.get("assets", []):
+        path = Path(str(asset.get("local_path", "")))
+        if path.is_symlink() or not path.is_file() or not _inside_episode(path, episode):
+            raise EditBridgeQAError("Asset Pack 素材文件被修改、缺失或越出 Episode 根")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != str(asset.get("sha256", "")):
+            raise EditBridgeQAError("Asset Pack 素材文件被修改或缺失")
+
+
+def validate_audio_delivery_artifacts(pack, episode_root, delivery=None):
+    """Verify the formal on-disk delivery artifacts before any re-derivation.
+
+    Digest-stripping comparison alone cannot detect a tampered artifact, so the
+    formal `edit-map.json` / `visual-asset-manifest.json` are first checked for
+    self-digest consistency, cross-bindings against each other and the
+    controlled delivery roots, in-memory pack equality, and per-asset local
+    paths that stay inside the current Episode and match an accepted candidate
+    with intact file integrity.  Read-only: never writes or rewrites anything.
+    """
+    from .asset_pack_workflow import compute_edit_map_digest, compute_manifest_digest
+    episode = Path(episode_root).resolve()
+    machine = json.loads(Path(pack.json_path).read_text(encoding="utf-8"))
+    manifest = json.loads(Path(pack.manifest_path).read_text(encoding="utf-8"))
+    if machine.get("map_digest") != compute_edit_map_digest(machine):
+        raise EditBridgeQAError("edit-map.json 的 map_digest 与内容不一致")
+    if manifest.get("manifest_digest") != compute_manifest_digest(manifest):
+        raise EditBridgeQAError("visual-asset-manifest.json 的 manifest_digest 与内容不一致")
+    if machine.get("asset_manifest_digest") != manifest.get("manifest_digest"):
+        raise EditBridgeQAError("edit-map 与 asset manifest 的 digest 交叉绑定不一致")
+    for key in ("alignment_digest", "transcript_digest"):
+        if machine.get(key) != manifest.get(key):
+            raise EditBridgeQAError(f"edit-map 与 asset manifest 的 {key} 绑定不一致")
+    if dict(pack.machine_map) != machine or dict(pack.manifest) != manifest:
+        raise EditBridgeQAError("正式交付工件与内存中的 Asset Pack 不一致")
+    if delivery is not None:
+        roots = delivery.get("roots", {})
+        for key in ("alignment_digest", "transcript_digest", "timing_provenance"):
+            if machine.get(key) != roots.get(key):
+                raise EditBridgeQAError(f"edit-map 的 {key} 与受控 delivery roots 不一致")
+    accepted = None
+    if delivery is not None:
+        accepted = {
+            (str(candidate.get("filename", "")), str(candidate.get("sha256", "")))
+            for candidate in delivery.get("candidates", [])
+        }
+    for asset in manifest.get("assets", []):
+        path = Path(str(asset.get("local_path", "")))
+        if path.is_symlink() or not path.is_file() or not _inside_episode(path, episode):
+            raise EditBridgeQAError("Asset Pack 素材路径越出当前 Episode 或文件不可用")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != str(asset.get("sha256", "")):
+            raise EditBridgeQAError("Asset Pack 素材文件被修改或缺失")
+        if accepted is not None and (str(asset.get("filename", "")), str(asset.get("sha256", ""))) not in accepted:
+            raise EditBridgeQAError("Asset Pack 素材不是已验收的合规候选")
+
+
+def _audio_asset_pack_rederived(context):
+ from .asset_pack_workflow import build_production_asset_pack
+ import tempfile, json as _json
+ validate_audio_delivery_artifacts(context.pack, context.episode_root, context.delivery)
+ with tempfile.TemporaryDirectory(prefix="audio-delivery-replay-") as tmp:
+  # replay must use the same truthful wording as the delivered guide
+  # (the audio guide never suggests keeping a human frame; Issue #30)
+  replay=build_production_asset_pack(
+   context.delivery["roots"],context.delivery["timeline"]["spans"],
+   context.delivery["visual_plan"],context.delivery["candidates"],
+   episode_root=Path(tmp)/"episode",created_at=context.created_at,
+   media_kind=str(context.media.get("media_kind","video")),
+  )
+  def comparable_bytes(path: Path) -> bytes:
+   return path.read_bytes().replace(str(Path(context.episode_root).resolve()).encode("utf-8"), b"<EPISODE>")
+  def comparable_edit(path: Path) -> str:
+   value=_json.loads(path.read_text(encoding="utf-8")); value.pop("map_digest",None); value.pop("asset_manifest_digest",None)
+   return _json.dumps(value,sort_keys=True,ensure_ascii=False)
+  def comparable_manifest(path: Path) -> str:
+   value=_json.loads(path.read_text(encoding="utf-8")); value.pop("manifest_digest",None)
+   for asset in value.get("assets",[]):asset.pop("local_path",None)
+   return _json.dumps(value,sort_keys=True,ensure_ascii=False)
+  if comparable_bytes(context.pack.markdown_path)!=comparable_bytes(replay.markdown_path) or \
+     comparable_bytes(context.pack.csv_path)!=comparable_bytes(replay.csv_path):
+   raise EditBridgeQAError("Asset Pack 人读交付与 canonical 重推导不一致")
+  if comparable_edit(context.pack.json_path)!=comparable_edit(replay.json_path):
+   raise EditBridgeQAError("Edit Map 机器内容与 canonical 重推导不一致")
+  if comparable_manifest(context.pack.manifest_path)!=comparable_manifest(replay.manifest_path):
+   raise EditBridgeQAError("Asset Manifest 内容与 canonical 重推导不一致")
+  validate_audio_delivery_assets(context.pack.manifest, context.episode_root)
+
+def build_audio_delivery_qa_inputs(
+ media,extracted,mapping,chunk_plan,chunk_profile,transcript,
+ subtitle,subtitle_profile,episode_inputs,alignment,alignment_profile,cues,
+ material_view,timing,rough_profile,preview_profile,bridge,delivery,pack,episode_root,allowed_roots,
+ gate=None,
+):
+ """Audio QA: 4 shared re-derivation groups + audio_delivery group."""
+ from types import SimpleNamespace
+ from .asset_pack_workflow import build_production_asset_pack
+ from .material_profile import load_material_profile
+ timing_profiles=(rough_profile,preview_profile,media["presentation_duration_seconds"])
+ context=SimpleNamespace(
+  media=media,extracted=extracted,mapping=mapping,chunk_plan=chunk_plan,
+  chunk_profile=chunk_profile,transcript=transcript,script=episode_inputs.script,
+  alignment_profile=alignment_profile,cues=cues,alignment=alignment,
+  material_view=material_view,material_package_path=episode_inputs.material_package_path,
+  report=episode_inputs.report,material_profile=load_material_profile(),
+  material_asset_root=episode_inputs.material_asset_root,
+  production_plan=episode_inputs.production_plan,motion_manifest=episode_inputs.motion_manifest,
+  production_qa=episode_inputs.production_qa,placements=tuple(timing.placements),
+  timing_profiles=timing_profiles,timing_result=timing,bridge=bridge,
+  preview_profile=preview_profile,preview_manifest=None,preview_path=None,
+  preview_used_placement_ids=[],allowed_roots=tuple(Path(p).resolve() for p in allowed_roots),
+  subtitle_artifact=subtitle,subtitle_profile=subtitle_profile,
+  episode_visual_preference=None,post_alignment_visual_plan=None,
+  output_truth_evidence=None,artifact_resolver=episode_inputs.artifact_resolver,
+  episode_root=episode_root,delivery=delivery,pack=pack,created_at=str(pack.machine_map.get("created_at","")),
+  previous_bridge=None,revision_adjustment=None,gate=gate,
+ )
+ checks=[
+  QACheck("root","root_artifacts_revalidated",lambda:_validate_root_chain(context),"invalid_root_binding"),
+  QACheck("transcript","mapping_chunk_transcript_rederived",lambda:_validate_transcript_chain(context),"invalid_transcript_chain"),
+  QACheck("alignment","normalization_status_risk_rederived",lambda:_validate_alignment_chain(context),"alignment_false_ready"),
+  QACheck("placement","placement_files_and_timing_rederived",lambda:_validate_placement_chain(context),"invalid_placement_chain"),
+  QACheck("audio_delivery","media_kind_audio",lambda:_audio_media_kind(context),"invalid_media_kind"),
+  QACheck("audio_delivery","clean_aroll_gate_rederived",lambda:_audio_clean_gate(context),"clean_aroll_gate_not_accepted"),
+  QACheck("audio_delivery","no_preview_generated",lambda:_audio_no_preview(context),"preview_generated_for_audio"),
+  QACheck("audio_delivery","visual_gap_truthful",lambda:_audio_visual_gap(context),"fake_visual_gap"),
+  QACheck("audio_delivery","asset_pack_rederived",lambda:_audio_asset_pack_rederived(context),"asset_pack_not_rederived"),
+ ]
+ return EditBridgeQAInputs(checks,list(timing.placements),[],context)
+
+def run_audio_edit_bridge_qa(inputs):
+ return run_edit_bridge_qa(inputs,required_groups=AUDIO_DELIVERY_REQUIRED_GROUPS,include_preview_used_check=False)

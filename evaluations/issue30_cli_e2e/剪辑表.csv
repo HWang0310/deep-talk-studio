@@ -1,0 +1,5 @@
+﻿sequence,actual_start_seconds,actual_end_seconds,actual_start_timecode,actual_end_timecode,spoken_summary,decision,asset_filename,placement_advice,why,provenance,qa_status,requires_human_review,fallback_outcome
+1,0.03,6.4,00:00:00.030,00:00:06.400,事件发生在八月九日。这个时间点有两份相互独立的公开材料支持。,REAL_MATERIAL,M001.png,按真实时间放入对应位置。,事件在 2026 年 8 月 9 日发生。,模拟权利数据（synthetic fixture）：未发生真实联网核验，非真实第三方复用许可，仅用于验证 Rights Gate 流程。,pass,False,REAL_MATERIAL
+2,6.76,17.46,00:00:06.760,00:00:17.460,当事机构在公告中的说法是，问题来自流程故障。这证明机构给出了这种解释，却不等于原因已经被独立证实。,AUDIO_ONLY,,无画面：该时间段仍需人工补画面，不要假装已有真人画面。,该时间段的候选素材没有可核验的复用授权（未知、需授权或仅可参考），不能自动使用，需要人工补画面或先取得授权。,,not_applicable,True,AUDIO_ONLY
+3,17.78,32.6,00:00:17.780,00:00:32.600,这里真正值得追问的，是公众为什么总被迫在官方解释和网络猜测之间二选一。其实还存在第三种选择：承认事件已经发生，也承认原因证据还不够。,AUDIO_ONLY,,无画面：该时间段仍需人工补画面，不要假装已有真人画面。,该时间段没有通过权利/文件校验的合规素材，需要人工补画面。,,not_applicable,True,AUDIO_ONLY
+4,32.9,40.5,00:00:32.900,00:00:40.500,网络上确实流传过人为操纵的说法，但现有核查没有找到可以验证它的原始证据。,AUDIO_ONLY,,无画面：该时间段仍需人工补画面，不要假装已有真人画面。,该时间段无真人画面可保留，需要人工补画面。,,not_applicable,True,AUDIO_ONLY

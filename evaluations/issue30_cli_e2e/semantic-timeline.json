@@ -1,0 +1,51 @@
+{
+  "artifact_version": "semantic-timeline/1",
+  "timeline_id": "TIMELINE-b60a017152a34ac8bf9abee020e44e32",
+  "created_at": "2026-10-21T18:19:55+08:00",
+  "timing_provenance": "actual_aroll_alignment",
+  "alignment_digest": "edeaf36efa579b61564f3b9466a9184328146f9c0eee5b73487147e313c95683",
+  "transcript_digest": "61d7b243e66e9670f0cc136d1f8f1f3be5c08cc0e9e0b2818d275084eacd4017",
+  "spans": [
+    {
+      "span_id": "ST001",
+      "beat_id": "B001",
+      "actual_start_seconds": "0.03",
+      "actual_end_seconds": "6.4",
+      "summary": "事件发生在八月九日。这个时间点有两份相互独立的公开材料支持。",
+      "alignment_status": "aligned",
+      "visual_eligibility": "safe",
+      "reason": "safe_real_alignment"
+    },
+    {
+      "span_id": "ST002",
+      "beat_id": "B002",
+      "actual_start_seconds": "6.76",
+      "actual_end_seconds": "17.46",
+      "summary": "当事机构在公告中的说法是，问题来自流程故障。这证明机构给出了这种解释，却不等于原因已经被独立证实。",
+      "alignment_status": "aligned",
+      "visual_eligibility": "safe",
+      "reason": "safe_real_alignment"
+    },
+    {
+      "span_id": "ST003",
+      "beat_id": "B003",
+      "actual_start_seconds": "17.78",
+      "actual_end_seconds": "32.6",
+      "summary": "这里真正值得追问的，是公众为什么总被迫在官方解释和网络猜测之间二选一。其实还存在第三种选择：承认事件已经发生，也承认原因证据还不够。",
+      "alignment_status": "aligned",
+      "visual_eligibility": "safe",
+      "reason": "safe_real_alignment"
+    },
+    {
+      "span_id": "ST004",
+      "beat_id": "B004",
+      "actual_start_seconds": "32.9",
+      "actual_end_seconds": "40.5",
+      "summary": "网络上确实流传过人为操纵的说法，但现有核查没有找到可以验证它的原始证据。",
+      "alignment_status": "aligned",
+      "visual_eligibility": "safe",
+      "reason": "safe_real_alignment"
+    }
+  ],
+  "timeline_digest": "386b69c76e6a71c07f4055632199993f051ac9d28f357241b269b68b8645c3cd"
+}
