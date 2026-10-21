@@ -1,0 +1,55 @@
+{
+  "artifact_version": "edit-bridge-qa/1",
+  "checks": [
+    {
+      "group": "root",
+      "check_name": "root_artifacts_revalidated",
+      "outcome": "pass"
+    },
+    {
+      "group": "transcript",
+      "check_name": "mapping_chunk_transcript_rederived",
+      "outcome": "pass"
+    },
+    {
+      "group": "alignment",
+      "check_name": "normalization_status_risk_rederived",
+      "outcome": "pass"
+    },
+    {
+      "group": "placement",
+      "check_name": "placement_files_and_timing_rederived",
+      "outcome": "pass"
+    },
+    {
+      "group": "audio_delivery",
+      "check_name": "media_kind_audio",
+      "outcome": "pass"
+    },
+    {
+      "group": "audio_delivery",
+      "check_name": "no_preview_generated",
+      "outcome": "pass"
+    },
+    {
+      "group": "audio_delivery",
+      "check_name": "visual_gap_truthful",
+      "outcome": "pass"
+    },
+    {
+      "group": "audio_delivery",
+      "check_name": "asset_pack_rederived",
+      "outcome": "pass"
+    }
+  ],
+  "issues": [
+    {
+      "issue_id": "EBI0001",
+      "issue_type": "partial_placement_unready",
+      "scope": "placement",
+      "severity": "warning"
+    }
+  ],
+  "package_gate_status": "warnings",
+  "qa_digest": "013fc9612a0927fb7b5a02c3d0cf8c47cd3df5b329dd76fc4c04e6bd78bc662c"
+}

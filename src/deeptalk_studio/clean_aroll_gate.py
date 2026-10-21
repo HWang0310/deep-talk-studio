@@ -50,7 +50,7 @@ def _explicit_full_retake_count(text: str) -> int:
 
 
 def inspect_clean_aroll(media: Mapping, transcript: Mapping | None = None) -> CleanARollGateResult:
-    if media.get("media_kind") != "video" or not str(media.get("media_id", "")).strip() or len(str(media.get("artifact_digest", ""))) != 64:
+    if media.get("media_kind") not in {"video", "audio"} or not str(media.get("media_id", "")).strip() or len(str(media.get("artifact_digest", ""))) != 64:
         raise CleanARollGateError("Clean A-roll 媒体身份无效")
     blocker_count = _explicit_full_retake_count(_text(transcript))
     if transcript:

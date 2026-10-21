@@ -18,3 +18,13 @@
 - historical absolute path 是 digest-covered 证据，不因工作区迁移而改写。`align-video` 通过 machine-local canonical root、显式可信 historical roots 和消费者推导的 artifact-relative identity 生成独立 runtime observation；任何 unknown root、traversal、identity mismatch、symlink、missing、size/SHA mismatch 或 artifact tampering 均失败关闭。
 - machine-local 配置若给出 `current_production_id`，只接受该精确且 bindings 合格的 Production。未配置时的兼容 fallback 只按 Artifact 自有时间、revision、identity 与 lexical path 确定性排序，不读取 filesystem mtime；正式不可变 current-production index 仍是后续架构项。
 - synthetic pass 只说明实现和对抗测试通过；真实用户拖入实际 Clean A-roll 并审看成片前，不得声称真实 E2E 或 V1.0 pass。
+
+## Audio-only 分支（Issue #30，IMPL'D UNRELEASED）
+
+创作者已定稿的本地口播 WAV/MP3（本人录音或外部 AI 配音，来源在 Episode 元数据/人工声明中留痕）可以成为唯一 canonical timeline，与真人 MP4 流程一致地产出：真实时间轴（实际采样推导）、合规素材推荐与 **Asset Pack + Edit Map** 交付。
+
+- 媒体导入/ASR/对齐/语义时间线复用同一既有链条；正式 QA 复用 root/transcript/alignment/placement 四组重推导，并增加 `audio_delivery` 专属 fail-closed 检查（媒体确为纯音频、无 preview/mux 产物、AUDIO_ONLY 行不冒充 QA-ready 素材、Asset Pack 可从 canonical roots 重推导）。
+- 纯音频不渲染 Preview、不 mux、不生成 `ALIGNED_PREVIEW`。
+- 无真人画面时决策为 `AUDIO_ONLY`（禁止 `KEEP_A_ROLL` 与"结束后回到人物"类误导文案）；该行必须无素材路径、不计为 QA-ready、明确"需人工补画面"（含缺口原因）。用户可后续在剪映手工补画面。
+- 仅经过确定性映射（span↔cue 一一对应）、文件/SHA/权利校验通过的本地素材进入资产包；多候选、多 cue、未选片段的视频参考一律 `VISUAL_GAP` fail-closed，不自动挑选。
+- 既有真人 MP4 流程与 5 组 canonical QA（含 Preview）保持不变。

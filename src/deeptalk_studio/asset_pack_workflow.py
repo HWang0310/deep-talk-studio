@@ -22,12 +22,13 @@ class AssetPackWorkflowError(ValueError):
     """The formal creator-facing package cannot be safely assembled."""
 
 
-DECISIONS = {"KEEP_A_ROLL", "REAL_MATERIAL", "MG_MOTION", "ADVANCED_MOTION"}
+DECISIONS = {"KEEP_A_ROLL", "REAL_MATERIAL", "MG_MOTION", "ADVANCED_MOTION", "AUDIO_ONLY"}
 FALLBACKS = {
     "ADVANCED_MOTION": ("MG_MOTION", "REAL_MATERIAL", "KEEP_A_ROLL"),
     "MG_MOTION": ("REAL_MATERIAL", "KEEP_A_ROLL"),
     "REAL_MATERIAL": ("KEEP_A_ROLL",),
     "KEEP_A_ROLL": (),
+    "AUDIO_ONLY": (),
 }
 ASSET_DIRECTORIES = {
     "REAL_MATERIAL": "06_真实素材",
@@ -103,9 +104,14 @@ def _place_asset(episode_root: Path, asset: Mapping) -> Path:
 
 
 def _row(span: Mapping, opportunity: Mapping, asset: Mapping | None, fallback_outcome: str) -> dict:
-    decision = opportunity["decision"] if asset is not None or opportunity["decision"] == "KEEP_A_ROLL" else fallback_outcome
+    decision = opportunity["decision"] if asset is not None or opportunity["decision"] in {"KEEP_A_ROLL", "AUDIO_ONLY"} else fallback_outcome
     start = str(span["actual_start_seconds"]); end = str(span["actual_end_seconds"])
-    if decision == "KEEP_A_ROLL":
+    if decision == "AUDIO_ONLY":
+        placement = "无画面：该时间段仍需人工补画面，不要假装已有真人画面。"
+        filename = ""
+        provenance = ""
+        qa_status = "not_applicable"
+    elif decision == "KEEP_A_ROLL":
         placement = "保持人物画面。"
         filename = ""
         provenance = ""
@@ -129,6 +135,7 @@ def _row(span: Mapping, opportunity: Mapping, asset: Mapping | None, fallback_ou
         "why": str(opportunity.get("why_visual", "保留人物表达。")),
         "provenance": provenance,
         "qa_status": qa_status,
+        "requires_human_review": decision == "AUDIO_ONLY",
         "fallback_outcome": fallback_outcome,
         "alignment_digest": str(opportunity.get("alignment_digest", "")),
     }
@@ -139,8 +146,8 @@ def _choose_asset(opportunity: Mapping, assets: Sequence[Mapping]) -> tuple[str,
     if decision not in DECISIONS:
         raise AssetPackWorkflowError("Visual Director decision 无效")
     candidate = _asset_for(str(opportunity["opportunity_id"]), decision, assets)
-    if decision == "KEEP_A_ROLL":
-        return "KEEP_A_ROLL", None
+    if decision in {"KEEP_A_ROLL", "AUDIO_ONLY"}:
+        return decision, None
     if candidate:
         return decision, candidate
     for fallback in FALLBACKS[decision]:
@@ -151,27 +158,36 @@ def _choose_asset(opportunity: Mapping, assets: Sequence[Mapping]) -> tuple[str,
 
 
 def _markdown(rows: Sequence[Mapping]) -> str:
-    blocks = ["# 剪辑表", "", "按下面的真实口播时间，在剪映把素材拖到对应位置。没有素材的段落保持人物画面。"]
+    has_gap = any(row.get("requires_human_review") for row in rows)
+    intro = (
+        "按下面的真实口播时间，在剪映把素材拖到对应位置。标记「需人工补画面」的段落没有画面，请自行补入；其余无素材段落保持人物画面。"
+        if has_gap else
+        "按下面的真实口播时间，在剪映把素材拖到对应位置。没有素材的段落保持人物画面。"
+    )
+    blocks = ["# 剪辑表", "", intro]
     for row in rows:
         blocks.extend([
             "",
             f"## {row['actual_start_timecode']}–{row['actual_end_timecode']}",
             f"内容：{row['spoken_summary']}",
             f"建议：{row['decision']}",
-            f"素材：{row['asset_filename'] or '不需要素材，保持人物。'}",
+            f"素材：{row['asset_filename'] or ('不需要素材，保留主音轨。' if row['decision'] == 'AUDIO_ONLY' else '不需要素材，保持人物。')}",
             f"怎么放：{row['placement_advice']}",
             f"原因：{row['why']}",
         ])
         if row["provenance"]:
             blocks.append(f"来源：{row['provenance']}")
         blocks.append(f"QA：{row['qa_status']}")
+        if row.get("requires_human_review"):
+            blocks.append("需人工补画面：是")
     return "\n".join(blocks) + "\n"
 
 
 def _csv(rows: Sequence[Mapping]) -> str:
     fields = [
         "sequence", "actual_start_seconds", "actual_end_seconds", "actual_start_timecode", "actual_end_timecode",
-        "spoken_summary", "decision", "asset_filename", "placement_advice", "why", "provenance", "qa_status", "fallback_outcome",
+        "spoken_summary", "decision", "asset_filename", "placement_advice", "why", "provenance", "qa_status",
+        "requires_human_review", "fallback_outcome",
     ]
     stream = io.StringIO()
     writer = csv.DictWriter(stream, fieldnames=fields)

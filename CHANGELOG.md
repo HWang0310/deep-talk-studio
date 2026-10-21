@@ -1,3 +1,13 @@
+# Changelog
+
+## Unreleased — 2026-10-21 — Issue #30 — audio-only final-delivery (WAV/MP3 real timeline → Asset Pack + Edit Map)
+
+- **Final narration audio owns the timeline.** `align-video --session` now accepts a single WAV/MP3 (human-recorded or externally AI-generated narration, provenance declared by the owner) in addition to MP4/MOV; the existing narration/ASR/alignment chain is reused unchanged and the delivery is a truthful Asset Pack + Edit Map (`剪辑表.md/.csv`, `edit-map.json`, `visual-asset-manifest.json`) with token-level real timecodes copied from the actual audio.
+- **Fail-closed audio QA**: the formal QA reuses the root/transcript/alignment/placement re-derivation groups and adds `audio_delivery` checks — media must be truly audio-only, no Preview/mux artifact may exist, every `AUDIO_ONLY` row must be asset-less, non-QA-ready and `requires_human_review`, and the Asset Pack must re-derive from canonical roots (temp-root replay, no side effects). Video's 5-group canonical QA (including Preview) is unchanged.
+- **No fake human frame**: audio-only deliveries never produce `KEEP_A_ROLL` or “回到人物” wording; unmapped/multi-cue/multi-candidate/unranged-video spans become explicit `VISUAL_GAP` rows that require manual frame-filling. Delivered material files and outputs are tamper-rejected.
+- New files: `src/deeptalk_studio/audio_delivery.py` (projection layer: approved-facts binding, span↔cue mapping, material candidates, delivery chain), `tests/test_audio_only_delivery.py` (unit + E2E WAV/MP3/video-reject/tamper). Evidence: `evaluations/issue30_cli_e2e/` (real CLI run with local whisper.cpp large-v3 on synthesized Mandarin speech).
+- Scope unchanged: no narration-schema change (source attribution stays as Episode-level metadata), no embedded TTS, no B站 module changes, no new UI, no release/tag change, no auto-editing/publishing.
+
 ---
 AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'

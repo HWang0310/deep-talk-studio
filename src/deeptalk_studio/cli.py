@@ -380,12 +380,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return 0 if artifact["candidates"] else 2
         if args.command == "align-video":
             session = Path(args.session)
+            from .narration_media import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
             candidates = [] if not session.exists() else [
                 path for path in session.iterdir()
-                if path.is_file() and not path.is_symlink() and path.suffix.casefold() in {".mp4", ".mov"}
+                if path.is_file() and not path.is_symlink() and path.suffix.casefold() in (VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)
             ]
             if not candidates:
-                print("把已经剪好口气的正式真人口播视频拖进来。\nmp4 / mov 都可以。\n不需要另外录音。\n不需要自己提取音轨。\n不需要标记时间点。")
+                print("把已经剪好口气的正式真人口播视频拖进来（也支持已定稿的本地口播 WAV/MP3）。\nmp4 / mov / wav / mp3 都可以。\n不需要另外录音。\n不需要自己提取音轨。\n不需要标记时间点。")
                 return 0
             from .edit_bridge_session import resolve_real_edit_bridge_session, run_real_edit_bridge_session
             from .transcription.local_whisper_cpp import (
@@ -405,7 +406,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             except WhisperCppBootstrapError as exc:
                 print(f"本地语音识别准备失败：{exc}", file=sys.stderr)
                 return 2
-            print(f"对齐粗剪已经生成：{result.preview_path}")
+            if getattr(result, "preview_path", None) is not None:
+                print(f"对齐粗剪已经生成：{result.preview_path}")
+            else:
+                markdown = result["paths"]["markdown"]
+                print(f"对齐剪辑包已经生成：{markdown}")
+                print(f"机器剪辑表与素材清单：{(Path(markdown).parent.parent / '_DeepTalk记录').resolve()}")
             return 0
         if args.command == "revise-edit-bridge":
             from .edit_bridge_session import load_real_edit_bridge_session_result,revise_real_edit_bridge_session
