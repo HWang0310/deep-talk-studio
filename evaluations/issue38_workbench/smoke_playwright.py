@@ -17,6 +17,7 @@ import sys
 import tempfile
 import time
 import urllib.request
+from urllib.parse import urlparse
 import wave
 from pathlib import Path
 from typing import List, Sequence
@@ -39,6 +40,9 @@ def _redact(text: str) -> str:
 
 
 def _health(url: str) -> dict:
+    parsed = urlparse(url)
+    if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+        raise SmokeFailure("offline smoke requires an http loopback URL")
     with urllib.request.urlopen(url.rstrip("/") + "/healthz", timeout=10) as response:
         payload = json.loads(response.read().decode("utf-8"))
     if payload != {"ok": True, "service": "deeptalk-webui"}:
