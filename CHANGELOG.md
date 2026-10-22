@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-10-22 — Issue #38 — Creator Workbench 离线浏览器验收
+
+- 增加 `evaluations/issue38_workbench/fixture_server.py` 与可重复的 `smoke_playwright.py`：仅使用 loopback 离线夹具，验证设置掩码、五条参考候选、音频二进制导入/预览、`WAITING_FOR_OWNER_REVIEW`、刷新恢复、Tab 键可达、375px 无横向溢出与健康检查；fixture 状态不会冒充真实模型或真实 Bilibili 结果。
+- 修复创建会话后 `/api/workbench/session/start` 返回不完整状态导致设置区清空的问题；响应现在保留掩码设置与会话状态。长 SHA/本地路径状态文案支持断词，避免移动端横向滚动。
+- 证据截图保存在 `evaluations/issue38_workbench/screenshots/`（运行时副本在 `output/playwright/`）。`tests.test_workbench` + `tests.test_webui` 101/101、`tests.test_audio_only_delivery` 18/18、`tests.test_deepseek_tools` 4/4；全量 `unittest discover -s tests` 1088 pass、7 skipped。
+- 本轮没有调用 DeepSeek/Search/Fetch 或其他付费模型，没有上传 Owner 私人音频；真实模型创作质量、Owner API Key、版权/审核决定仍为 **UNVERIFIED / WAITING**。
+
 ## Unreleased — 2026-10-22 — Issue #37 — local audio timeline and Edit Map delivery
 
 - Added a bounded, atomic local narration import for WAV/MP3/M4A/AAC/FLAC/MP4/MOV/M4V. Each session records the declared origin, byte size, SHA-256 and import status without overwriting existing files or following traversal/symlink targets.
