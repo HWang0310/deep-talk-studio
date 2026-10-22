@@ -262,6 +262,51 @@ class StaticPageTests(LocalWebUITestCase):
         # 阶段聚焦：同一时间只显示一个阶段内容
         self.assertIn("node.hidden = id !== stageId", body)
 
+    def test_new_episode_mode_hides_old_session_until_explicit_start_or_cancel(self):
+        """Nexus B1: entering a new episode must leave the old session intact
+        while the topic hero is the only visible creator surface."""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn('id="cancel-new-episode"', body)
+        self.assertIn("var newEpisodeMode = false", body)
+        self.assertIn("previousSessionForNewEpisode", body)
+        self.assertIn("function enterNewEpisode", body)
+        self.assertIn("function cancelNewEpisode", body)
+        self.assertIn("stageBar.hidden = true", body)
+        self.assertIn("STAGES.forEach(function (id) { document.getElementById(id).hidden = true; })", body)
+
+    def test_script_result_is_cleared_and_async_reload_is_session_bound(self):
+        """Nexus B2: a reviewed manuscript from episode A cannot leak into
+        episode B while a stale final-script request is still in flight."""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn("function clearScriptResult", body)
+        self.assertIn("renderedScriptKey = null", body)
+        self.assertIn("expectedSessionId", body)
+        self.assertIn("currentSession.session_id === expectedSessionId", body)
+        self.assertIn("scriptResultSessionId", body)
+
+    def test_reference_guided_visual_contract_is_present(self):
+        """The creator and settings surfaces must expose the new hierarchy,
+        instead of only swapping the previous card palette."""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        for marker in (
+            'class="hero-mark"', 'class="hero-composer"',
+            'class="composer-toolbar"', 'class="prompt-hints"',
+            'id="settings-cancel"', 'id="toggle-key"', 'API 地址',
+            'settings-actions', 'settings-card'
+        ):
+            self.assertIn(marker, body)
+
+    def test_offline_fixture_sources_are_explicitly_labeled(self):
+        """B3 evidence must never read a mixed fixture source list as live
+        independent reporting."""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn("offline_fixture", body)
+        self.assertIn("离线演示夹具：仅用于验证页面流程，不代表真实独立研究来源。", body)
+
     def test_index_ui_trial_progress_and_staleness_contract(self):
         """Issue #29 UI-trial invariants: slow-action feedback must keep an
         elapsed timer with a do-not-resubmit reassurance, previous sections

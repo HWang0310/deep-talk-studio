@@ -1,75 +1,94 @@
-# Issue #44 — 极简创作页 + 独立大模型设置页（两页 UX）真实浏览器验收证据
+# Issue #44 / PR #45 — 极简创作页与独立模型设置页
 
-> **结论：两页 UX 全链真实浏览器走通，两轮视觉迭代完成，全量回归绿。PR 基于 PR #39–#43 依赖栈，未合并、未发布，等待 Nexus UX Review。**
+> **状态：READY_FOR_NEXUS_UX_REREVIEW。** 本分支保留 PR #45 的工作流和后端门禁，完成参考截图导向的首页 / 设置页重设计，并修复 Nexus Review B1、B2、B3。PR 保持打开，未合并。
 
-## 交付的 UX 结构（Owner 已批准的方向）
+## 视觉与交互交付
 
-**只有两个主屏幕，同一时刻绝不垂直同时渲染：**
+### 创作首页 /
 
-- **A. 创作页（默认首页 `/`）**
-  - 顶栏：左 `DeepTalk`，右 `⚙ 设置`（唯一常驻入口，无侧边栏/多级菜单）
-  - 全新状态：大选题输入 + `开始创作` 主按钮（第一屏即全部内容）
-  - 开集后：阶段条（本集主题 + `＋ 新一集`）+ 三个概念阶段 `① 视频参考 · ② 观点与资料 · ③ 原创口播稿`，一次只显示当前阶段，随时回看不丢会话
-  - 参考视频 = 短卡片（标题两行截断 + 已核验播放 + UP + 状态徽章），BVID/发布抓取时间/叙事分析/转写时间段收进「详情」折叠
-  - 口播稿 = 衬线阅读区（文稿是主角）；审核通过后唯一红色主按钮移交为 `继续做音频与素材 →`
-  - 音频与素材仅在口播稿审核通过后成为可选阶段（tab 或按钮进入），不常驻
-- **B. 大模型设置页（独立路由 `/settings`）**
-  - `← 返回创作` 常驻；主体只放：服务商（DeepSeek 默认）/ 模型名称 / API Key（掩码）/ `保存设置` / `测试连接`
-  - 连接状态徽章如实分级：`未配置` / `已保存未验证` / `已连接` / `连接失败` / `模拟服务（fixture）`，本地端点自动标注 `（本地服务）`
-  - 服务端点藏在 `高级设置`；下载文件夹是独立的短折叠 `下载位置`
-  - DeepSeek 预设按 #34 合同默认 `https://api.deepseek.com` + `deepseek-flash`
-- **导航**：`pushState` 单文档切换（不刷新页面），选题草稿写 `localStorage` —— 设置↔创作往返与硬刷新后，已输入主题与全部会话进度都不丢
+- 全视口奶白背景、居中衬线标题、独立珊瑚色抽象标记和轻柔阴影。
+- 宽大的多行创作框带内置工具栏、参考链接入口、圆形开始按钮和少量提示胶囊；输入框支持多行，'⌘/Ctrl + Enter' 开始创作。
+- 右上角保留唯一设置入口；首页没有侧边栏、调试面板或卡片墙。
+- 开始创作后保留原有视频搜索、授权下载、转写、叙事分析、研究、选题卡、审核和写稿功能。阶段条只显示当前阶段，已完成阶段仍可回看。
 
-## 环境（诚实标注）
+### 独立设置页 /settings
 
-- 仓库：`/Users/hwang/Movies/Program/DeepTalk/deep-talk-studio`，分支 `agent/issue44-minimal-ux`（基于 PR #43 头分支 `agent/issue38-workbench-qa`，即已含 PR #39–#43 全部功能）
-- **试用地址（本机）**：
-  - `http://127.0.0.1:8321/` — 主入口，含一次真实完成的演示会话（5/5 真实分析 → 五方对比 → 已交付口播稿）
-  - `http://127.0.0.1:8322/` — 隔离全新环境（`.temp/issue44-demo-root`，临时 root），体验空白首页与真实检索
-- LLM：**本地 mock chat-completions 服务（127.0.0.1:8931，`.temp/mock_llm_server.py`，gitignored 诚实夹具，与 `tests/test_workbench.py` 脚本同源）**——绝不冒充真实 DeepSeek 输出
-- 真实环节：B 站匿名检索（本轮两次全新 5 候选检索，播放量 9.7 万–79 万逐条核验）、8321 演示会话的 5 条参考为 Issue #23/#38 E2E **真实授权下载 + whisper large-v3 真实转写**的结果（非本轮伪造）、全部 canonical 质量门禁/批准/SSRF 防护原样保留
-- 本轮 **零付费调用**：未调用真实 DeepSeek/联网 Search/Fetch，设置页 Key 为演示假 Key（`sk-E2E-DEMO-…`，仅掩码回显）；真实 DeepSeek 创作质量仍为 `WAITING_FOR_OWNER_API_KEY`
+- 独立路由和返回创作入口；桌面双列、手机单列，表单留白和层级按参考图重排。
+- 主字段：服务商（DeepSeek 默认）、模型名称、掩码 API Key、API 地址、测试连接、保存、取消。
+- 高级端点和下载位置按需折叠；连接状态明确区分未配置、已保存未验证、已连接、失败和本地夹具。
+- API Key 仍只由本地设置存储，页面只显示掩码；本轮没有调用真实 DeepSeek 或任何付费模型。
 
-## 步骤记录（全部真实浏览器操作，Playwright Chromium）
+## Nexus Review 修复
 
-| # | 步骤 | 结果 | 证据 |
-|---|---|---|---|
-| 01 | 打开全新环境首页 | ✓ 只有 hero 选题输入 + 开始创作 + 右上角 ⚙ 设置，无任何堆砌 | `01-desktop-home-empty-hero.png` |
-| 02 | 点右上角 ⚙ 设置 | ✓ pushState 切到 `/settings`，两视图互斥、JS marker 证明无刷新 | 控制台验证 + `03` |
-| 03 | 设置页保存 DeepSeek + 假 Key | ✓ 徽章 `已保存未验证`，Key 只显掩码 `sk-E…-key`，端点默认 `api.deepseek.com/chat/completions` | `03-desktop-settings-deepseek-masked-key.png` |
-| 04 | 切 Chat 兼容指向本地 mock → 保存 → 测试连接 | ✓ 徽章 `已连接（本地服务）`——真实调用了所配置端点（本地夹具，无付费） | `04-desktop-settings-connected-local-fixture.png` |
-| 05 | 返回创作 | ✓ URL 回 `/`、视图切换、选题草稿保留 | evaluate 记录 |
-| 06 | 输入选题 → 硬刷新页面 | ✓ 草稿从 localStorage 恢复 | evaluate 记录 |
-| 07 | 开始创作（真实 B 站检索） | ✓ 5 条全新真实候选（播放 791,521 / 400,774 / 290,952 / 168,090 / 97,804，全部「已核验」），三阶段条出现，默认聚焦 ① | `02-desktop-home-five-references.png` |
-| 08 | 新会话点 ② ③ 阶段 | ✓ 按需展示：只显示等待提示（"完成②的研究批准后…"），无未解锁控件堆砌；无音频 tab | evaluate 记录 |
-| 09 | 主入口 8321（真实完成会话） | ✓ 三 tab 全 ✓，默认聚焦 ③ 口播稿；**重载后定稿正文正确渲染**（本轮修复） | `07-desktop-script-manuscript-delivered.png` |
-| 10 | ① 视频参考（5/5 已分析） | ✓ 授权区自动收起，5 张卡片全绿「已分析」，详情展开含真实转写/叙事分析 | `05-desktop-stage1-references-analyzed.png` |
-| 11 | ② 观点与资料 | ✓ 五方对比 5/5（观点 5 条）+ 独立来源列表 + DeepSeek 计费工具折叠 | `06-desktop-stage2-research-five-way.png` |
-| 12 | 交付后主操作移交 | ✓ `重新生成` 降级为次级、`复制全文` 前置、`继续做音频与素材 →` 唯一红色主按钮 | `07` |
-| 13 | 375px 手机端 | ✓ 首页/设置/文稿三视图无横向溢出（scrollWidth=375），顶部 ⚙ 设置保留，触控区 ≥44px | `08/09/10-mobile-375-*.png` |
-| 14 | 键盘可达 | ✓ Tab 首焦点 = `← 返回创作`，`:focus-visible` 红环，Enter 返回创作；主题输入 Enter 即开始创作 | evaluate 记录 |
+### B1：新一集状态隔离
 
-## 浏览器 E2E 发现并修复的真实缺陷（均配断言/复测）
+点击 '＋ 新一集' 后只显示新的创作首页，阶段条和旧阶段全部隐藏；上一集会话保留在内存中。点击 '取消' 恢复上一集的主题、当前阶段和文稿。真实浏览器断言：
 
-1. **（阻断级）两视图同时渲染**：`.settings-page`/`.stage-bar` 的显式 `display:flex` 覆盖了 `hidden` 属性的 UA 样式——首次加载时创作页与设置页垂直堆叠（正是 Owner 明令禁止的形态）。修复：全局 `[hidden] { display: none !important; }`。
-2. **（阻断级）重载后口播稿正文丢失**：正文只在「生成」动作后填充（旧 UI 同样如此），刷新/重开页面后已交付文稿不可读。修复：`script.reviewed` 时幂等调用现有 `GET /api/workbench/script/final`（按 session+revision 去重）拉取定稿全文渲染。
-3. **（一致性）首访状态行**：未保存过设置时连接详情行误报「当前服务：OpenAI Responses」（后端默认），与 DeepSeek 首访预设矛盾。修复：首用状态显示「还没有保存过设置…」。
+~~~json
+{
+  "heroVisible": true,
+  "stageBarVisible": false,
+  "visibleStages": [],
+  "noteVisible": true,
+  "oldBodyText": 582,
+  "oldSummaryText": 94
+}
+~~~
 
-## 两轮视觉迭代（截图审阅 → 修复 → 复测）
+### B2：旧文稿与异步结果隔离
 
-- **Round 1**：hero 中文换行 balance/pretty；授权输入框加高加深边框；视频标题两行截断 + hover 原生 tooltip；卡片 hover 微亮；小字行高 1.6；阶段 tab 选中态对比度增强（浅粉底 + 描边）；正文区衬线阅读（Songti SC）+ 边框加深；文件路径收进「文稿存档位置」折叠；交付后 `生成` 按钮降级、`继续做音频与素材` 升为唯一主按钮。
-- **Round 2**：双冒号文案规范（`状态：审核通过，…`）；`复制全文` 前置；选题卡已确认后 `独立审核` 停用、`生成` 降级；`研究批准` 框只在待批准时出现；就绪度括号说明与「（已核验）」降为浅灰；正文左右内边距加宽至舒适行宽（35–40 字/行）；参考综合信息去重（只在交付摘要出现一次）；存档折叠 hover 可点提示；kv 标签内边距；就绪度行孤字断行修复；手机端正文回退无衬线。
-- 每轮均对关键截图做视觉模型审阅并逐项核实（含两处评审误报被实测推翻：状态文字实为垂直居中 delta=0；手机占位符无截断 307px>288px）。
+进入新会话时清空旧文稿正文、摘要、审核状态和复制/归档动作。定稿异步加载同时绑定 'session_id'、'script_id' 和 'revision'；旧会话请求返回后不会写入新会话 DOM。真实浏览器延迟返回回归结果：
 
-## 测试
+~~~json
+{
+  "beforeRelease": {
+    "topic": "本集：第二集：城市夜间空间",
+    "bodyHidden": true,
+    "bodyText": "",
+    "summaryText": ""
+  },
+  "afterRelease": {
+    "topic": "本集：第二集：城市夜间空间",
+    "bodyHidden": true,
+    "bodyText": "",
+    "summaryText": ""
+  }
+}
+~~~
 
-- `tests.test_webui` **61/61**（新增两页互斥、pushState+localStorage 草稿、三阶段+音频门控、连接状态五分级等断言，全部静态约定断言沿用既有模式）
-- `tests.test_workbench` **44/44**（含既有 UI 断言：`study_error`/`失败待重试`/`unverified`/`重新分析`/`segments`）
-- **全量 `pytest tests/`：1085 passed / 7 skipped / 0 failed**（两轮 UI 改动后均复跑）
-- 无任何后端 API/门禁改动：授权声明逐字存档、五方对比诚实分级、部分分析显式理由、DeepSeek 计费 opt-in、SSRF/回环边界、选题一致性守卫全部原样
+### B3：研究夹具不再混入错误主题
 
-## 已知限制（如实）
+本轮浏览器验收使用莫斯科大学旭日旗事件主题的五条本地离线演示材料，全部标题带 '【离线演示夹具】' 前缀。研究页显示固定免责声明：
 
-- 研究草稿与选题卡的正文详情（主张列表/检查表）不随重载重渲染——重载后保留状态行、就绪度与五方对比行（本轮已为「口播稿」补上定稿重载渲染，因为它是主交付物）
-- 参考卡片无封面图：B 站匿名 API 候选数据不含封面字段，按「cover if available」如实缺省，不伪造
-- `继续做音频与素材` 沿用既有音频交付链（真实 ASR/对齐/Edit Map），本轮未改其内部功能
+> 离线演示夹具：仅用于验证页面流程，不代表真实独立研究来源。
+
+截图中不再出现图书馆、预算等无关虚构来源；实际研究来源仍需用户提供并经过现有门禁。
+
+## 真实浏览器证据
+
+使用 Playwright Chromium，在本机 loopback UI 上反复检查桌面 1440px 与手机 375px：
+
+| 验收 | 结果 | 证据 |
+| --- | --- | --- |
+| 空白首页与参考图层级 | 通过；无滚动条，首页只有创作入口 | [01-desktop-home-empty-hero.png](screenshots/01-desktop-home-empty-hero.png) |
+| 设置页 DeepSeek 默认与掩码 Key | 通过；API 地址可见，Key 未回显明文 | [03-desktop-settings-deepseek-masked-key.png](screenshots/03-desktop-settings-deepseek-masked-key.png) |
+| 设置页本地 Chat 连接测试 | 通过；真实调用本地 fixture，状态显示“已连接（本地服务）” | [04-desktop-settings-connected-local-fixture.png](screenshots/04-desktop-settings-connected-local-fixture.png) |
+| 五条视频参考、逐条已分析 | 通过；保留视频搜索、转写和叙事分析 | [05-desktop-stage1-references-analyzed.png](screenshots/05-desktop-stage1-references-analyzed.png) |
+| 五方研究与主题一致的离线来源 | 通过；5/5、免责声明和五条主题一致材料可见 | [06-desktop-stage2-research-five-way.png](screenshots/06-desktop-stage2-research-five-way.png) |
+| 审核通过的中文口播稿 | 通过；正文、复制、存档和音频/素材入口均保留 | [07-desktop-script-manuscript-delivered.png](screenshots/07-desktop-script-manuscript-delivered.png) |
+| B1 新一集隔离态 | 通过；新首页单独显示，取消可恢复上一集 | [11-desktop-new-episode-only.png](screenshots/11-desktop-new-episode-only.png) |
+| 375px 手机首页、设置、文稿 | 通过；三页 'scrollWidth === 375'，无横向溢出 | [08](screenshots/08-mobile-375-home.png) / [09](screenshots/09-mobile-375-settings.png) / [10](screenshots/10-mobile-375-manuscript.png) |
+
+完整的 B1/B2 断言和浏览器输出见 [browser-evidence.md](browser-evidence.md)。
+
+## 测试结果
+
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **109 passed**
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1089 passed, 7 skipped**
+- 内联 JavaScript：'node --check /tmp/deeptalk-webui.js' → **通过**
+- 'git diff --check' → **通过**
+- 未修改无关后端、模型门禁、SSRF 防护或生产工作流；未提交本地密钥、模型输出、缓存或临时会话。
+
+## 截图与凭据说明
+
+截图是本轮真实浏览器输出，存放在 'screenshots/'。设置页使用仅用于验收的假 Key，截图只显示 'sk-E…ONLY' 掩码；本地连接图使用 '127.0.0.1:8931' 的 loopback fixture，不代表真实模型质量。真实 DeepSeek 创作仍保持 'WAITING_FOR_OWNER_API_KEY'，等待 Nexus 审核，不自行合并。
