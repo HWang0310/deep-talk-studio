@@ -81,6 +81,18 @@ class SessionStore:
                 },
                 "references": {},  # bvid -> {"status": ..., "study_path": ...}
                 "sources": [],  # [{"sid","url","title","kind","path","fetched_at"}]
+                # DeepSeek Search/Fetch is an explicit, per-session budgeted
+                # action.  Keep the budget and redacted provenance in the
+                # durable session so a browser refresh cannot silently reset
+                # the cap or make a paid request appear to be free.
+                "search_budget": {
+                    "opt_in": False,
+                    "max_requests": 0,
+                    "used": 0,
+                    "results": [],
+                    "records": [],
+                    "last_error": "",
+                },
                 "research": {
                     "status": "not_started",
                     "draft_path": "",

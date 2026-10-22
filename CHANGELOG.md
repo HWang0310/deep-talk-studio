@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-10-22 — Issue #36 — opt-in DeepSeek Search/Fetch sources
+
+- Added a dependency-free DeepSeek Search/Fetch client using the official tool paths with typed, secret-free HTTP/timeout/response errors; all tests use injected offline transports and no paid request was made.
+- Search and Fetch are separate explicit UI actions. Each session persists an opt-in latch, a monotonic 1–20 request cap, redacted request provenance, and resumable search candidates; cap exhaustion and missing `WAITING_FOR_OWNER_API_KEY` configuration fail closed.
+- Only an explicitly fetched result becomes a `deepseek_fetched` research source, carrying request ID, retrieval time, publication metadata, method/status, and SHA-256. Search snippets remain discovery-only and are never treated as evidence; existing manual URL/paste sources are unchanged.
+- Tests: DeepSeek client + Workbench/WebUI focused regressions 8/8; full Workbench/WebUI suite 95/95. Real DeepSeek Search/Fetch was not called.
+
 ## Unreleased — 2026-10-22 — Issue #35 — resumable reference transcription and analysis
 
 - Authorized acquisition failures and model-analysis failures now survive reloads with attempt/error provenance; failed or `unverified` references remain in the readiness denominator and cannot silently count as analyzed.

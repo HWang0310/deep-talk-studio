@@ -41,6 +41,7 @@ from ..validation import ReportValidationError, validate_json_schema
 from ..workflow import run_fact_check_review, run_report_approval
 from . import acquisition
 from .llm import WorkbenchLLM, WorkbenchLLMError, build_llm
+from .deepseek_tools import DeepSeekSearchFetchClient, DeepSeekToolError
 from .prompts import serialize_reference_insights
 from .session import SessionStore
 from .settings import (
@@ -64,6 +65,11 @@ class WorkbenchFlowError(ValueError):
 
 def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+DEEPSEEK_MAX_REQUESTS = 20
+DEEPSEEK_DEFAULT_REQUESTS = 5
+DEEPSEEK_MAX_QUERY_CHARS = 500
 
 
 # --- page fetcher (user-supplied URLs, public-internet-only; Issue #23 B2)----
@@ -288,6 +294,7 @@ class WorkbenchFlow:
         *,
         discovery_runner: Optional[Callable[[str, List[str]], Dict[str, Any]]] = None,
         provider_factory: Optional[Callable[[Mapping[str, Any]], WorkbenchLLM]] = None,
+        deepseek_client_factory: Optional[Callable[[Mapping[str, Any]], Any]] = None,
         fetcher: Optional[Callable[[str], Dict[str, Any]]] = None,
         acquire_runner=None,
         audio_runner=None,
@@ -298,6 +305,7 @@ class WorkbenchFlow:
         self.repo_root = Path(repo_root)
         self.store = SessionStore(self.repo_root / "workbench")
         self.provider_factory = provider_factory or (lambda settings: build_llm(settings))
+        self.deepseek_client_factory = deepseek_client_factory or self._default_deepseek_client
         self.connection_kind = connection_kind or ("fixture" if provider_factory is not None else "real")
         self.fetcher = fetcher or default_fetcher
         self.acquire_runner = acquire_runner
@@ -305,6 +313,26 @@ class WorkbenchFlow:
         self.whisper_runner = whisper_runner
         self.whisper_bootstrap = whisper_bootstrap
         self.discovery_runner = discovery_runner
+
+    @staticmethod
+    def _default_deepseek_client(settings: Mapping[str, Any]) -> DeepSeekSearchFetchClient:
+        """Build the paid Search/Fetch client only after the flow gates it.
+
+        Settings stores a Chat-compatible base (normally
+        ``https://api.deepseek.com``).  The tools API owns its ``/v1/tools``
+        suffix, so remove a user-entered ``/v1`` or Chat endpoint suffix once
+        here rather than ever composing ``/v1/v1``.
+        """
+
+        base = str(settings.get("chat_base_url", "") or "").strip().rstrip("/")
+        for suffix in ("/chat/completions", "/v1"):
+            if base.endswith(suffix):
+                base = base[: -len(suffix)].rstrip("/")
+        return DeepSeekSearchFetchClient(
+            str(settings.get("api_key", "")),
+            base_url=base or "https://api.deepseek.com",
+            timeout=int(settings.get("timeout_seconds", 600) or 600),
+        )
 
     # -- settings ------------------------------------------------------------
 
@@ -420,6 +448,7 @@ class WorkbenchFlow:
 
     def view(self, session_id: str) -> Dict[str, Any]:
         session = self.store.load(session_id)
+        search_budget = self._search_budget_view(session)
         references = []
         for reference in session["discovery"]["candidates"]:
             bvid = reference.get("bvid", "")
@@ -443,13 +472,51 @@ class WorkbenchFlow:
             "references": references,
             "references_readiness": self._reference_readiness(session),
             "sources": session["sources"] and [
-                {key: source[key] for key in ("sid", "url", "title", "kind", "fetched_at")}
+                {key: source.get(key, "") for key in (
+                    "sid", "url", "title", "kind", "fetched_at",
+                    "request_id", "retrieved_at", "published_at",
+                    "provenance_method", "provenance_status", "sha256",
+                )}
                 for source in session["sources"]
             ],
+            "search_budget": search_budget,
+            "search_results": list(search_budget.get("results", [])),
             "research": session["research"],
             "thesis": session["thesis"],
             "script": session["script"],
         }
+
+    @staticmethod
+    def _search_budget_defaults() -> Dict[str, Any]:
+        return {
+            "opt_in": False,
+            "max_requests": 0,
+            "used": 0,
+            "results": [],
+            "records": [],
+            "last_error": "",
+        }
+
+    def _search_budget_view(self, session: Mapping[str, Any]) -> Dict[str, Any]:
+        """Return a redacted, backward-compatible budget snapshot."""
+
+        raw = session.get("search_budget") or {}
+        budget = self._search_budget_defaults()
+        for key in budget:
+            if key in raw:
+                budget[key] = raw[key]
+        # Keep the browser contract bounded even if an old/corrupt session was
+        # edited by hand.  Search content is never stored in this view.
+        budget["results"] = [
+            dict(item) for item in (budget.get("results") or [])
+            if isinstance(item, Mapping)
+        ][-50:]
+        budget["records"] = [
+            {key: value for key, value in dict(item).items() if key != "token"}
+            for item in (budget.get("records") or [])
+            if isinstance(item, Mapping)
+        ][-100:]
+        return budget
 
     def _load_study(self, session: Mapping[str, Any], bvid: str) -> Optional[Dict[str, Any]]:
         state = session["references"].get(bvid, {})
@@ -897,15 +964,25 @@ class WorkbenchFlow:
 
         def _mutate(new_session):
             if existing is None:
-                new_session["sources"].append(
-                    {"sid": sid, "url": url, "title": title, "kind": kind, "fetched_at": payload["fetched_at"]}
-                )
+                new_session["sources"].append({
+                    key: payload.get(key, "") for key in (
+                        "sid", "url", "title", "kind", "fetched_at",
+                        "request_id", "retrieved_at", "published_at",
+                        "provenance_method", "provenance_status", "sha256",
+                    )
+                })
             else:
                 for source in new_session["sources"]:
                     if source["sid"] == sid:
                         source["title"] = title
                         source["kind"] = kind
                         source["fetched_at"] = payload["fetched_at"]
+                        for key in (
+                            "request_id", "retrieved_at", "published_at",
+                            "provenance_method", "provenance_status", "sha256",
+                        ):
+                            if key in payload:
+                                source[key] = payload[key]
 
         self.store.update(session_id, _mutate)
         return {key: payload[key] for key in ("sid", "url", "title", "kind", "fetched_at")}
@@ -965,6 +1042,299 @@ class WorkbenchFlow:
                 }
             )
         return payload
+
+    # -- optional DeepSeek Search/Fetch tools -------------------------------
+
+    def _deepseek_settings(self) -> Dict[str, Any]:
+        settings = load_settings(self.repo_root)
+        if settings.get("provider_mode") != "deepseek":
+            raise WorkbenchFlowError(
+                "DeepSeek Search/Fetch 仅在设置中选择 DeepSeek 提供方式后可用"
+            )
+        if not is_configured(settings):
+            raise WorkbenchFlowError(
+                "设置尚未完成（WAITING_FOR_OWNER_API_KEY）：请先在设置中填写 DeepSeek API Key、模型和服务地址",
+                payload={"status": "waiting_for_api_key", "connection_kind": self.connection_kind},
+            )
+        return settings
+
+    @staticmethod
+    def _validate_search_opt_in(opt_in: Any) -> None:
+        if opt_in is not True:
+            raise WorkbenchFlowError(
+                "DeepSeek Search/Fetch 可能产生计费；请先明确勾选并设置本次请求上限"
+            )
+
+    @staticmethod
+    def _requested_search_cap(value: Any, current: int = 0) -> int:
+        if value is None or value == "":
+            value = current or DEEPSEEK_DEFAULT_REQUESTS
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise WorkbenchFlowError(
+                f"DeepSeek Search/Fetch 请求上限必须是 1–{DEEPSEEK_MAX_REQUESTS} 的整数"
+            )
+        if not 1 <= value <= DEEPSEEK_MAX_REQUESTS:
+            raise WorkbenchFlowError(
+                f"DeepSeek Search/Fetch 请求上限必须是 1–{DEEPSEEK_MAX_REQUESTS} 的整数"
+            )
+        if current and value > current:
+            raise WorkbenchFlowError("本集请求上限只能保持或降低，不能在已开始后提高")
+        return value
+
+    def _reserve_deepseek_request(
+        self,
+        session_id: str,
+        *,
+        operation: str,
+        opt_in: Any,
+        max_requests: Any,
+    ) -> Tuple[Dict[str, Any], str]:
+        """Atomically record one billed-tool slot before the network call."""
+
+        self._validate_search_opt_in(opt_in)
+        settings = self._deepseek_settings()
+        token = uuid.uuid4().hex[:16]
+
+        def _mutate(session_state):
+            raw = session_state.get("search_budget") or {}
+            budget = self._search_budget_defaults()
+            for key in budget:
+                if key in raw:
+                    budget[key] = raw[key]
+            cap = self._requested_search_cap(max_requests, int(budget.get("max_requests", 0) or 0))
+            used = int(budget.get("used", 0) or 0)
+            if used >= cap:
+                raise WorkbenchFlowError(
+                    f"DeepSeek Search/Fetch 本集请求已达到上限（{cap} 次）；请降低范围或开启新会话"
+                )
+            budget.update({"opt_in": True, "max_requests": cap, "used": used + 1, "last_error": ""})
+            records = list(budget.get("records") or [])
+            records.append({
+                "token": token,
+                "operation": operation,
+                "reserved_at": _now(),
+                "status": "reserved",
+            })
+            budget["records"] = records[-100:]
+            session_state["search_budget"] = budget
+
+        self.store.update(session_id, _mutate)
+        return settings, token
+
+    @staticmethod
+    def _safe_request_id(value: Any) -> str:
+        clean = str(value or "")[:200]
+        return clean if re.fullmatch(r"[A-Za-z0-9._:-]{0,200}", clean) else ""
+
+    @staticmethod
+    def _safe_tool_error(exc: BaseException, api_key: str = "") -> str:
+        message = str(exc)[:500]
+        if api_key:
+            message = message.replace(api_key, "[已隐藏]")
+        return message
+
+    def _finish_deepseek_request(
+        self,
+        session_id: str,
+        token: str,
+        *,
+        status: str,
+        request_id: str = "",
+        detail: Optional[Mapping[str, Any]] = None,
+        error: str = "",
+    ) -> Dict[str, Any]:
+        def _mutate(session_state):
+            budget = self._search_budget_defaults()
+            raw = session_state.get("search_budget") or {}
+            for key in budget:
+                if key in raw:
+                    budget[key] = raw[key]
+            records = list(budget.get("records") or [])
+            for record in reversed(records):
+                if isinstance(record, dict) and record.get("token") == token:
+                    record.update({
+                        "status": status,
+                        "request_id": self._safe_request_id(request_id),
+                        "finished_at": _now(),
+                    })
+                    if detail:
+                        record.update(dict(detail))
+                    if error:
+                        record["error"] = error[:500]
+                    break
+            budget["records"] = records[-100:]
+            budget["last_error"] = error[:500] if error else ""
+            session_state["search_budget"] = budget
+
+        session = self.store.update(session_id, _mutate)
+        return self._search_budget_view(session)
+
+    def _deepseek_client(self, settings: Mapping[str, Any]):
+        try:
+            return self.deepseek_client_factory(settings)
+        except DeepSeekToolError as exc:
+            raise WorkbenchFlowError(
+                self._safe_tool_error(exc, str(settings.get("api_key", ""))),
+                payload={"status": "failed", "error_category": exc.category},
+            ) from None
+
+    def search_deepseek(
+        self,
+        session_id: str,
+        query: str,
+        *,
+        opt_in: bool,
+        max_requests: Optional[int] = None,
+        count: int = 5,
+        need_content: bool = False,
+    ) -> Dict[str, Any]:
+        query = str(query or "").strip()
+        if not query or len(query) > DEEPSEEK_MAX_QUERY_CHARS:
+            raise WorkbenchFlowError(
+                f"DeepSeek Search 问题不能为空且不能超过 {DEEPSEEK_MAX_QUERY_CHARS} 字"
+            )
+        if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 50:
+            raise WorkbenchFlowError("DeepSeek Search 返回数量必须是 1–50 的整数")
+        settings, token = self._reserve_deepseek_request(
+            session_id,
+            operation="search",
+            opt_in=opt_in,
+            max_requests=max_requests,
+        )
+        try:
+            client = self._deepseek_client(settings)
+            result = client.search(query, count=count, need_content=bool(need_content))
+            request_id = self._safe_request_id(result.get("request_id", ""))
+            retrieved_at = _now()
+            safe_results = []
+            for item in result.get("results", [])[:50]:
+                if not isinstance(item, Mapping):
+                    continue
+                url = str(item.get("url", "")).strip()
+                if not url.startswith(("http://", "https://")):
+                    continue
+                safe_results.append({
+                    "title": str(item.get("title", ""))[:300],
+                    "url": url[:2000],
+                    "published_at": str(item.get("published_at", ""))[:80],
+                    "snippet": str(item.get("content", item.get("snippet", "")))[:800],
+                    "request_id": request_id,
+                    "retrieved_at": retrieved_at,
+                    "provenance_status": "discovered_only",
+                    "is_evidence": False,
+                })
+            budget = self._finish_deepseek_request(
+                session_id,
+                token,
+                status="succeeded",
+                request_id=request_id,
+                detail={"query": query, "result_count": len(safe_results)},
+            )
+
+            def _store_results(session_state):
+                raw = session_state.get("search_budget") or {}
+                merged = self._search_budget_defaults()
+                for key in merged:
+                    if key in raw:
+                        merged[key] = raw[key]
+                merged["results"] = (list(merged.get("results") or []) + safe_results)[-50:]
+                session_state["search_budget"] = merged
+
+            session = self.store.update(session_id, _store_results)
+            return {
+                "query": query,
+                "request_id": request_id,
+                "results": safe_results,
+                "search_budget": self._search_budget_view(session),
+            }
+        except Exception as exc:
+            message = self._safe_tool_error(exc, str(settings.get("api_key", "")))
+            category = getattr(exc, "category", "provider_error")
+            budget = self._finish_deepseek_request(
+                session_id,
+                token,
+                status="failed",
+                error=message,
+                detail={"error_category": category},
+            )
+            raise WorkbenchFlowError(
+                message,
+                payload={"status": "failed", "error_category": category, "search_budget": budget},
+            ) from None
+
+    def fetch_deepseek_source(
+        self,
+        session_id: str,
+        url: str,
+        *,
+        opt_in: bool,
+        max_requests: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        cleaned = str(url or "").strip()
+        if not cleaned.startswith(("http://", "https://")):
+            raise WorkbenchFlowError("DeepSeek Fetch 只接受 http(s) 原文链接")
+        session = self.store.load(session_id)
+        budget = self._search_budget_view(session)
+        selected = any(
+            isinstance(item, Mapping) and item.get("url") == cleaned
+            for item in budget.get("results", [])
+        )
+        if not selected:
+            raise WorkbenchFlowError("请先在本集 DeepSeek Search 结果中选择要抓取的链接")
+        settings, token = self._reserve_deepseek_request(
+            session_id,
+            operation="fetch",
+            opt_in=opt_in,
+            max_requests=max_requests,
+        )
+        try:
+            client = self._deepseek_client(settings)
+            result = client.fetch(cleaned)
+            request_id = self._safe_request_id(result.get("request_id", ""))
+            text = str(result.get("content", ""))
+            retrieved_at = _now()
+            source = self._store_source(
+                session_id,
+                url=cleaned,
+                title=str(result.get("title", cleaned))[:200],
+                text=text,
+                kind="deepseek_fetched",
+                extra={
+                    "request_id": request_id,
+                    "retrieved_at": retrieved_at,
+                    "published_at": str(result.get("published_at", ""))[:80],
+                    "provenance_method": "deepseek_fetch",
+                    "provenance_status": "fetched",
+                    "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                },
+            )
+            budget = self._finish_deepseek_request(
+                session_id,
+                token,
+                status="succeeded",
+                request_id=request_id,
+                detail={"url": cleaned, "sid": source["sid"]},
+            )
+            return {
+                **source,
+                "request_id": request_id,
+                "retrieved_at": retrieved_at,
+                "search_budget": budget,
+            }
+        except Exception as exc:
+            message = self._safe_tool_error(exc, str(settings.get("api_key", "")))
+            category = getattr(exc, "category", "provider_error")
+            budget = self._finish_deepseek_request(
+                session_id,
+                token,
+                status="failed",
+                error=message,
+                detail={"url": cleaned, "error_category": category},
+            )
+            raise WorkbenchFlowError(
+                message,
+                payload={"status": "failed", "error_category": category, "search_budget": budget},
+            ) from None
 
     # -- research ------------------------------------------------------------
 
