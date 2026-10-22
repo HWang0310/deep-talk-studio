@@ -12,6 +12,7 @@ Neither mode ever logs the API key; errors carry model-answer tails only.
 
 import json
 import re
+import socket
 from typing import Any, Callable, Dict, List, Mapping, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -46,6 +47,17 @@ ChatTransport = Callable[[str, Dict[str, str], Dict[str, Any], int], Dict[str, A
 
 class WorkbenchLLMError(RuntimeError):
     """A workbench LLM call failed (never includes the API key)."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        category: str = "provider_error",
+        http_status: Optional[int] = None,
+    ) -> None:
+        super().__init__(message)
+        self.category = category
+        self.http_status = http_status
 
 
 def _strip_code_fence(text: str) -> str:
@@ -82,9 +94,7 @@ class ChatCompletionsProvider:
         if not model.strip():
             raise WorkbenchLLMError("模型名不能为空")
         base = chat_base_url.rstrip("/")
-        self.endpoint = (
-            base if base.endswith("/chat/completions") else base + "/chat/completions"
-        )
+        self.endpoint = base if base.endswith("/chat/completions") else base + "/chat/completions"
         self._api_key = api_key
         self.model = model
         self.timeout = timeout
@@ -106,20 +116,56 @@ class ChatCompletionsProvider:
         try:
             response = self.transport(self.endpoint, headers, payload, self.timeout)
         except HTTPError as exc:
+            category = {
+                401: "unauthorized",
+                402: "payment_required",
+                403: "forbidden",
+                429: "rate_limited",
+            }.get(exc.code, "http_error")
+            hints = {
+                "unauthorized": "API Key 无效或已过期，请在设置中替换",
+                "payment_required": "账户余额或计费状态不允许本次请求，请检查预算",
+                "forbidden": "服务拒绝访问，请检查模型权限或端点",
+                "rate_limited": "请求过于频繁，请稍后重试或降低并发",
+                "http_error": "请检查地址、Key 与模型名",
+            }
             raise WorkbenchLLMError(
-                f"模型服务返回 HTTP {exc.code}，请检查地址、Key 与模型名"
+                f"模型服务返回 HTTP {exc.code}：{hints[category]}",
+                category=category,
+                http_status=exc.code,
             ) from None
-        except URLError:
-            raise WorkbenchLLMError("无法连接模型服务，请检查网络或服务地址") from None
+        except (TimeoutError, socket.timeout):
+            raise WorkbenchLLMError(
+                "模型服务连接超时，请检查网络或调高超时设置", category="timeout"
+            ) from None
+        except URLError as exc:
+            if isinstance(getattr(exc, "reason", None), (TimeoutError, socket.timeout)):
+                raise WorkbenchLLMError(
+                    "模型服务连接超时，请检查网络或调高超时设置", category="timeout"
+                ) from None
+            raise WorkbenchLLMError(
+                "无法连接模型服务，请检查网络或服务地址", category="network"
+            ) from None
         except (ValueError, KeyError, TypeError):
-            raise WorkbenchLLMError("模型服务返回了无法解析的响应") from None
+            raise WorkbenchLLMError(
+                "模型服务返回了无法解析的响应", category="invalid_response"
+            ) from None
         try:
             content = response["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
-            raise WorkbenchLLMError("模型服务响应缺少对话内容") from None
+            raise WorkbenchLLMError(
+                "模型服务响应缺少对话内容", category="invalid_response"
+            ) from None
         if not isinstance(content, str) or not content.strip():
-            raise WorkbenchLLMError("模型服务返回了空内容")
+            raise WorkbenchLLMError("模型服务返回了空内容", category="empty_response")
         return content
+
+    def ping(self) -> None:
+        answer = self._complete("你是连通性测试助手。", "请只回复两个字：正常")
+        if "正常" not in answer[:40]:
+            raise WorkbenchLLMError(
+                "模型连通性测试未返回预期内容", category="unexpected_response"
+            )
 
     @staticmethod
     def _validated(text: str, schema: Dict[str, Any], schema_name: str) -> Dict[str, Any]:
@@ -290,12 +336,8 @@ class WorkbenchLLM:
     # -- connection test -----------------------------------------------------
 
     def ping(self) -> None:
-        if self.mode == "chat":
-            answer = self._chat._complete(
-                "你是连通性测试助手。", "请只回复两个字：正常"
-            )
-            if "正常" not in answer[:40]:
-                raise WorkbenchLLMError("模型连通性测试未返回预期内容")
+        if self.mode in {"chat", "deepseek"}:
+            self._chat.ping()
             return
         try:
             result = self._responses.run_structured(

@@ -177,6 +177,7 @@
         <div>
           <label for="st-mode">提供方式</label>
           <select id="st-mode">
+            <option value="deepseek">DeepSeek（默认，Chat 兼容）</option>
             <option value="responses">OpenAI Responses（支持联网研究）</option>
             <option value="chat">通用 Chat 兼容（仅用你提供的来源）</option>
           </select>
@@ -194,6 +195,10 @@
           <input id="st-chat" type="text" placeholder="https://你的服务/v1">
         </div>
         <div>
+          <label for="st-endpoint">实际请求端点</label>
+          <input id="st-endpoint" type="text" readonly aria-readonly="true">
+        </div>
+        <div>
           <label for="st-key">API Key <span class="hint" id="st-key-hint">保存后仅显示掩码</span></label>
           <input id="st-key" type="password" autocomplete="off" placeholder="仅保存在本机">
         </div>
@@ -205,8 +210,10 @@
       <div class="actions">
         <button id="settings-save" type="button">保存设置</button>
         <button id="settings-test" type="button">测试连接</button>
+        <button id="settings-clear-key" type="button">清除 API Key</button>
         <span id="settings-status" class="muted" role="status"></span>
       </div>
+      <p id="settings-connection" class="muted" role="status">连接状态：尚未测试</p>
     </div>
   </details>
 </header>
@@ -697,13 +704,36 @@
     document.getElementById('st-model').value = settings.model || '';
     document.getElementById('st-base').value = settings.base_url || '';
     document.getElementById('st-chat').value = settings.chat_base_url || '';
+    document.getElementById('st-endpoint').value = settings.endpoint || '';
     document.getElementById('st-dir').value = settings.downloads_dir || '';
     document.getElementById('st-key').value = '';
     var hint = document.getElementById('st-key-hint');
     hint.textContent = settings.api_key_masked
       ? '当前：' + settings.api_key_masked + '（留空保持不变）'
       : '未设置';
+    var statusText = {
+      not_tested: '尚未测试',
+      waiting_for_api_key: '等待填写 API Key',
+      passed: '真实连接成功',
+      failed: '连接失败'
+    }[settings.connection_status] || settings.connection_status || '尚未测试';
+    var kindText = settings.connection_kind === 'fixture' ? '测试夹具' : '真实连接';
+    document.getElementById('settings-connection').textContent =
+      '连接状态：' + statusText + ' · ' + kindText + ' · 提供方：' +
+      (settings.provider_label || settings.provider_mode || '—') + ' · 模型：' +
+      (settings.model || '—') + ' · 端点：' + (settings.endpoint || '—');
   }
+
+  document.getElementById('st-mode').addEventListener('change', function () {
+    if (this.value === 'deepseek') {
+      if (!document.getElementById('st-chat').value) {
+        document.getElementById('st-chat').value = 'https://api.deepseek.com';
+      }
+      if (!document.getElementById('st-model').value) {
+        document.getElementById('st-model').value = 'deepseek-flash';
+      }
+    }
+  });
 
   document.getElementById('settings-save').addEventListener('click', function () {
     var payload = {
@@ -739,9 +769,27 @@
       body: '{}'
     }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
       .then(function (result) {
-        statusEl.textContent = result.ok ? '连接正常' : (result.data.error || '连接失败');
+        statusEl.textContent = result.ok
+          ? '真实连接正常（' + (result.data.provider || '') + ' / ' + (result.data.model || '') + '）'
+          : (result.data.error || '连接失败');
+        return refresh();
       })
       .catch(function () { statusEl.textContent = '网络错误'; });
+  });
+
+  document.getElementById('settings-clear-key').addEventListener('click', function () {
+    var statusEl = document.getElementById('settings-status');
+    statusEl.textContent = '清除中…';
+    fetch('/api/workbench/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: '' })
+    }).then(function (resp) {
+      return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+    }).then(function (result) {
+      statusEl.textContent = result.ok ? 'API Key 已清除' : (result.data.error || '清除失败');
+      if (result.ok) { renderSettings(result.data); }
+    }).catch(function () { statusEl.textContent = '网络错误'; });
   });
 
   // ---- research ----
