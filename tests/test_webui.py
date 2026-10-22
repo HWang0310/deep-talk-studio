@@ -351,14 +351,40 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn('value="deepseek"', body)
         self.assertIn("api.deepseek.com", body)
         self.assertIn("connection_kind", body)
-        # 连接状态如实分级：未配置 / 已保存未验证 / 已连接 / 连接失败 /
-        # 模拟服务（fixture），并以自然语言给出下一步建议。
+        # 连接状态如实分级：未配置 / 已保存未验证 / 已连接 / 连接失败，
+        # 并以自然语言给出下一步建议；开发/夹具连接呈现为独立的
+        # 「开发测试环境」状态，绝不冒充真实成功。
         self.assertIn("未配置", body)
         self.assertIn("已保存未验证", body)
         self.assertIn("已连接", body)
         self.assertIn("连接失败", body)
-        self.assertIn("模拟服务", body)
+        self.assertIn("开发测试环境", body)
         self.assertIn("清除 API Key", body)
+        # 普通设置界面不出现内部状态码与本地服务字样（Issue #44 设置体验）
+        self.assertNotIn("WAITING_FOR_OWNER_API_KEY", body)
+        self.assertNotIn("（本地服务）", body)
+        self.assertNotIn("（模拟服务）", body)
+
+    def test_settings_deepseek_mode_needs_only_api_key(self):
+        """Issue #44 设置体验：默认 DeepSeek 下普通用户只需填写 API Key，
+        模型与官方 API 地址自动配置；其他服务商才展示模型/地址字段。"""
+        status, _, body = self.get("/settings")
+        self.assertEqual(status, 200)
+        # 自动配置说明行（DeepSeek 模式主展示）
+        self.assertIn('id="st-deepseek-auto"', body)
+        self.assertIn("官方 API 地址已自动配置", body)
+        self.assertIn("只需填写 API Key", body)
+        # 模型/地址字段存在但按服务商模式显隐
+        self.assertIn('id="st-model-field"', body)
+        self.assertIn('id="st-chat-field"', body)
+        self.assertIn("function syncManualFields(mode)", body)
+        # DeepSeek 选中时自动填入官方地址与模型（含首次访问预设）
+        self.assertIn("https://api.deepseek.com", body)
+        self.assertIn("deepseek-flash", body)
+        # 非默认服务商才需要手填模型：模式切换同步显隐
+        self.assertIn("autoNote.hidden = !deepseek", body)
+        self.assertIn("modelField.hidden = deepseek", body)
+        self.assertIn("chatField.hidden = !(mode === 'chat')", body)
 
     def test_index_exposes_explicit_deepseek_search_budget_controls(self):
         status, _, body = self.get("/")
@@ -906,7 +932,11 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
             self.assertEqual(status, 404)
             status, _, body = self.post("/api/workbench/settings/test", {})
             self.assertEqual(status, 400)
-            self.assertIn("设置尚未完成", json.loads(body)["error"])
+            # Issue #44 设置体验：HTTP 层同样只出现自然中文，无内部状态码。
+            error = json.loads(body)["error"]
+            self.assertIn("设置尚未完成", error)
+            self.assertIn("API Key", error)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", error)
 
     def test_full_creation_loop_over_http_local_user_path(self):
         import tempfile

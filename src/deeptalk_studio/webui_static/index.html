@@ -386,6 +386,11 @@
   .settings-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
   .settings-field.full { grid-column: 1 / -1; }
   .settings-field label { color: var(--ink-soft); }
+  .deepseek-auto {
+    grid-column: 1 / -1; margin: 4px 0 2px; padding: 10px 14px;
+    background: #f4f2ec; border-radius: 10px; font-size: 13px; color: var(--ink-soft);
+  }
+  .deepseek-auto strong { color: var(--text); }
   .key-field { display: flex; align-items: stretch; gap: 8px; }
   .key-field input { flex: 1; min-width: 0; }
   .key-toggle { min-width: 72px; padding: 6px 10px; color: var(--muted); background: #fbfaf8; }
@@ -396,8 +401,8 @@
   .settings-actions .spacer { flex: 1; }
   .settings-actions .danger-quiet { color: var(--muted); border-color: transparent; background: transparent; }
   .settings-actions .danger-quiet:hover { color: var(--bad); background: var(--bad-soft); }
-  #settings-status { flex: 1 1 180px; min-width: 150px; }
-  #settings-connection { margin: 16px 0 0; }
+  #settings-status { flex: 1 1 180px; min-width: 150px; padding-left: 10px; }
+  #settings-connection { margin: 20px 0 0; word-break: keep-all; }
   footer.site { margin-top: auto; padding: 12px 20px 28px; color: #aaa8a1; text-align: center; font-size: 11.5px; }
   /* The blank creator landing should read as one calm viewport; keep the
      workflow disclaimer available once the stage view is active. */
@@ -418,7 +423,7 @@
     .settings-status-block { align-items: flex-start; flex-direction: column; gap: 7px; }
     .settings-actions { align-items: stretch; flex-wrap: wrap; }
     .settings-actions .spacer { display: none; }
-    .settings-actions #settings-status { order: 3; flex-basis: 100%; }
+    .settings-actions #settings-status { order: 3; flex-basis: 100%; padding-left: 0; }
     .stage-card { padding: 26px 20px 23px; border-radius: 18px; }
     .script-box { padding: 23px 20px; font-size: 17px; }
   }
@@ -483,7 +488,8 @@
             <option value="chat">通用 Chat 兼容</option>
           </select>
         </div>
-        <div class="settings-field">
+        <p id="st-deepseek-auto" class="deepseek-auto" hidden>模型与官方 API 地址已自动配置（<span id="st-auto-model">deepseek-flash</span>），<strong>只需填写 API Key</strong>。</p>
+        <div class="settings-field" id="st-model-field" hidden>
           <label for="st-model">模型名称</label>
           <input id="st-model" type="text" maxlength="200" placeholder="deepseek-flash">
         </div>
@@ -494,7 +500,7 @@
             <button id="toggle-key" class="key-toggle" type="button" aria-pressed="false">显示</button>
           </div>
         </div>
-        <div class="settings-field">
+        <div class="settings-field" id="st-chat-field" hidden>
           <label for="st-chat">API 地址 <span id="st-chat-hint" class="hint">DeepSeek Chat Completions</span></label>
           <input id="st-chat" type="text" placeholder="https://api.deepseek.com">
         </div>
@@ -522,8 +528,8 @@
       <div class="settings-actions">
         <button id="settings-cancel" type="button">取消</button>
         <button id="settings-test" type="button">测试连接</button>
-        <span class="spacer"></span>
         <button id="settings-clear-key" class="danger-quiet" type="button">清除 API Key</button>
+        <span class="spacer"></span>
         <button id="settings-save" type="button" class="primary">保存设置</button>
         <span id="settings-status" class="muted" role="status"></span>
       </div>
@@ -1344,13 +1350,29 @@
 
   // ---- 大模型设置 ----
 
+  function isDevTestConnection(settings) {
+    // 开发/夹具连接的诚实判定：注入的测试夹具，或指向本机回环地址的端点。
+    // 这类连接绝不冒充真实成功，呈现为独立的「开发测试环境」状态；
+    // 普通用户界面不出现 mock / localhost 字样。
+    var sources = [settings.endpoint, settings.chat_base_url, settings.base_url];
+    for (var i = 0; i < sources.length; i++) {
+      if (/\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/)/i.test(String(sources[i] || ''))) {
+        return true;
+      }
+    }
+    return settings.connection_kind === 'fixture';
+  }
+
   function renderConnectionChip(settings) {
     var chip = document.getElementById('settings-chip');
     var hint = document.getElementById('settings-chip-hint');
     var label, cls, tip;
     if (!settings.configured) {
-      label = '未配置'; cls = 'state-neutral';
-      tip = '填写 API Key 和模型名称并保存，然后点「测试连接」验证服务。';
+      label = '未配置'; cls = 'state-warn';
+      tip = '粘贴你的 DeepSeek API Key 并保存，然后点「测试连接」验证服务。';
+    } else if (settings.connection_status === 'passed' && isDevTestConnection(settings)) {
+      label = '开发测试环境'; cls = 'state-warn';
+      tip = '当前连接指向本地测试服务，仅用于开发验证，不代表真实的 DeepSeek 连接；正式创作请在「高级设置」改回官方地址并使用你自己的 Key。';
     } else if (settings.connection_status === 'passed') {
       label = '已连接'; cls = 'state-ok';
       tip = '模型服务连接正常，可以回到创作页开始创作。';
@@ -1358,15 +1380,10 @@
       label = '连接失败'; cls = 'state-bad';
       tip = '上次测试没有成功' +
         (settings.connection_error ? '：' + String(settings.connection_error).slice(0, 160) : '') +
-        '。检查 API Key、模型名称与端点后重试。';
+        '。请核对 API Key 后重试。';
     } else {
       label = '已保存未验证'; cls = 'state-warn';
       tip = '设置已保存在本机，还没有验证。点「测试连接」确认服务可用。';
-    }
-    if (settings.connection_kind === 'fixture') {
-      label += '（模拟服务）';
-    } else if (/\/\/(127\.0\.0\.1|localhost)/.test(settings.endpoint || '')) {
-      label += '（本地服务）';
     }
     chip.textContent = label;
     chip.className = 'conn-chip ' + cls;
@@ -1381,37 +1398,74 @@
     document.getElementById('st-model').value = settings.model || (firstVisit ? 'deepseek-flash' : '');
     document.getElementById('st-base').value = settings.base_url || '';
     document.getElementById('st-chat').value = settings.chat_base_url || (firstVisit ? 'https://api.deepseek.com' : '');
+    syncManualFields(mode);
     syncChatHint(mode);
+    document.getElementById('st-auto-model').textContent = settings.model || 'deepseek-flash';
     document.getElementById('st-endpoint').value = settings.endpoint || '';
     document.getElementById('st-dir').value = settings.downloads_dir || '';
     document.getElementById('st-key').value = '';
     var hint = document.getElementById('st-key-hint');
     hint.textContent = settings.api_key_masked
-      ? '当前：' + settings.api_key_masked + '（留空保持不变）'
+      ? '当前：' + settings.api_key_masked + '（留空保持不变；粘贴新 Key 可替换）'
       : '未设置';
     renderConnectionChip(settings);
     var statusText = {
       not_tested: '尚未测试',
-      waiting_for_api_key: '等待填写 API Key',
+      waiting_for_api_key: '还没有填写 API Key',
       passed: '上次测试连接成功',
       failed: '上次测试连接失败'
     }[settings.connection_status] || settings.connection_status || '尚未测试';
     var firstUse = !settings.configured && !settings.model && !settings.api_key_masked;
     document.getElementById('settings-connection').textContent = firstUse
-      ? '连接状态：尚未测试 · 还没有保存过设置；保存后这里会显示当前服务、模型与端点。'
+      ? '连接状态：尚未测试 · 还没有保存过设置；保存后这里会显示当前服务与模型。'
       : ('连接状态：' + statusText + ' · 当前服务：' +
         (settings.provider_label || settings.provider_mode || '—') + ' · 模型：' +
-        (settings.model || '—') + ' · 端点：' + (settings.endpoint || '—'));
+        (settings.model || '—'));
+  }
+
+  function fitKeyPlaceholder() {
+    // 窄屏降级：完整占位符放不下时去掉「DeepSeek」修饰，避免占位符被截断。
+    var input = document.getElementById('st-key');
+    var longText = input.getAttribute('data-placeholder-long')
+      || (input.placeholder || '');
+    input.setAttribute('data-placeholder-long', longText);
+    var shortText = longText.replace(' DeepSeek', '');
+    var cs = getComputedStyle(input);
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d');
+    ctx.font = cs.fontSize + ' ' + cs.fontFamily;
+    var innerWidth = input.clientWidth
+      - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    input.placeholder = ctx.measureText(longText).width <= innerWidth
+      ? longText
+      : shortText;
+  }
+
+  function syncManualFields(mode) {
+    // DeepSeek：模型与官方地址自动配置，普通用户只需填写 API Key；
+    // 其他服务商才显示模型（与 Chat 地址）字段。
+    var autoNote = document.getElementById('st-deepseek-auto');
+    var modelField = document.getElementById('st-model-field');
+    var chatField = document.getElementById('st-chat-field');
+    var deepseek = mode === 'deepseek';
+    autoNote.hidden = !deepseek;
+    modelField.hidden = deepseek;
+    chatField.hidden = !(mode === 'chat');
+    document.getElementById('st-key').placeholder = deepseek
+      ? '粘贴你的 DeepSeek API Key'
+      : '粘贴你的 Key';
+    fitKeyPlaceholder();
   }
 
   function syncChatHint(mode) {
     var hint = document.getElementById('st-chat-hint');
     if (!hint) { return; }
     hint.textContent = mode === 'deepseek' ? 'DeepSeek Chat Completions'
-      : (mode === 'openai' ? 'Responses 端点由高级设置管理' : '兼容 Chat Completions');
+      : (mode === 'responses' ? 'Responses 端点由高级设置管理' : '兼容 Chat Completions');
   }
 
   document.getElementById('st-mode').addEventListener('change', function () {
+    syncManualFields(this.value);
     syncChatHint(this.value);
     if (this.value === 'deepseek') {
       if (!document.getElementById('st-chat').value) {
@@ -1422,6 +1476,8 @@
       }
     }
   });
+
+  window.addEventListener('resize', fitKeyPlaceholder);
 
   document.getElementById('settings-save').addEventListener('click', function () {
     var payload = {
@@ -1457,9 +1513,17 @@
       body: '{}'
     }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
       .then(function (result) {
-        statusEl.textContent = result.ok
-          ? '连接正常（' + (result.data.provider || '') + ' / ' + (result.data.model || '') + '）'
-          : (result.data.error || '连接失败');
+        if (result.ok) {
+          var providerNames = { deepseek: 'DeepSeek', responses: 'OpenAI Responses', chat: 'Chat 兼容服务' };
+          var devTest = result.data.connection_kind === 'fixture' ||
+            /\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/)/i.test(String(result.data.endpoint || ''));
+          statusEl.textContent = devTest
+            ? '开发测试连接通过：这是本地测试服务，不代表真实的 DeepSeek 连接。'
+            : '连接正常：' + (providerNames[result.data.provider] || result.data.provider || '') +
+              ' · ' + (result.data.model || '') + ' 已连通，可以开始创作。';
+        } else {
+          statusEl.textContent = result.data.error || '连接失败，请检查后重试。';
+        }
         return refresh();
       })
       .catch(function () { statusEl.textContent = '网络错误'; });

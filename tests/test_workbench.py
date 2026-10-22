@@ -656,7 +656,12 @@ class SettingsTests(unittest.TestCase):
             flow = WorkbenchFlow(root, provider_factory=lambda settings: None)
             with self.assertRaises(WorkbenchFlowError) as ctx:
                 flow.test_settings()
-            self.assertIn("WAITING_FOR_OWNER_API_KEY", str(ctx.exception))
+            # Issue #44 settings UX: the user-facing message must be natural
+            # Chinese naming what is missing — never the internal status code.
+            message = str(ctx.exception)
+            self.assertIn("设置尚未完成", message)
+            self.assertIn("API Key", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
             view = flow.get_settings()
             self.assertEqual(view["connection_status"], "waiting_for_api_key")
             self.assertEqual(view["connection_kind"], "fixture")
@@ -676,10 +681,64 @@ class SettingsTests(unittest.TestCase):
             }))
             result = flow.test_settings()
             self.assertEqual(result["status"], "passed")
+            # Issue #44 settings UX: a fixture connection must carry its kind
+            # so the UI can render a dev-test state instead of real success.
             self.assertEqual(result["connection_kind"], "fixture")
             view = flow.get_settings()
             self.assertEqual(view["connection_status"], "passed")
             self.assertNotIn("sk-private-fixture", json.dumps(view))
+
+    def test_test_settings_missing_field_message_names_each_gap_in_chinese(self):
+        """Issue #44 settings UX: the not-configured message lists the exact
+        missing pieces in natural Chinese (key / model / address) depending
+        on the provider mode, with no internal status codes."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow = WorkbenchFlow(root, provider_factory=lambda settings: None)
+            # DeepSeek preset after a keyless save: model + address are
+            # auto-configured, so only the API Key should be named.
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+            }))
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.test_settings()
+            message = str(ctx.exception)
+            self.assertIn("API Key", message)
+            self.assertNotIn("模型名称", message)
+            self.assertNotIn("API 地址", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
+            # A chat config missing only the model names the model in the
+            # message (an empty chat URL cannot be saved at all).
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "chat",
+                "api_key": "sk-test-half-configured",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "",
+            }))
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.test_settings()
+            message = str(ctx.exception)
+            self.assertIn("模型名称", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
+
+    def test_deepseek_tools_gate_message_is_friendly_without_codes(self):
+        """Issue #44 settings UX: the DeepSeek Search/Fetch gate reports the
+        missing fields in natural Chinese, not WAITING_FOR_OWNER_API_KEY."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow = WorkbenchFlow(root, provider_factory=lambda settings: None)
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+            }))
+            session = flow.store.create("本市图书馆夜间开放试点", [], None)
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.search_deepseek(
+                    session["session_id"], "预算", opt_in=True, max_requests=2
+                )
+            message = str(ctx.exception)
+            self.assertIn("设置尚未完成", message)
+            self.assertIn("API Key", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
 
 
 class AcquisitionTests(unittest.TestCase):
@@ -849,7 +908,12 @@ class DeepSeekWorkbenchTests(unittest.TestCase):
             sid = flow.start_session("本市图书馆夜间开放试点", [])["session_id"]
             with self.assertRaises(WorkbenchFlowError) as ctx:
                 flow.search_deepseek(sid, "证据", opt_in=True, max_requests=1)
-            self.assertIn("WAITING_FOR_OWNER_API_KEY", str(ctx.exception))
+            # Issue #44 settings UX: fail-closed behavior unchanged; the
+            # message is natural Chinese with no internal status code.
+            message = str(ctx.exception)
+            self.assertIn("设置尚未完成", message)
+            self.assertIn("API Key", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
             self.assertEqual(self_calls, [])
             self.assertEqual(flow.store.load(sid)["search_budget"]["used"], 0)
 

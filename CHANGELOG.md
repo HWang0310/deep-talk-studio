@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — 2026-10-23 — Issue #44 — DeepSeek 设置体验：只需填 API Key + 诚实开发夹具标注
+
+- DeepSeek 默认模式下普通用户只需填写 API Key：模型与官方 API 地址自动配置（说明行「模型与官方 API 地址已自动配置（deepseek-flash），只需填写 API Key」），模型名称与 API 地址字段仅在切换其他服务商时出现。
+- 测试连接文案自然语言化：未填 Key 提示「设置尚未完成：请填写API Key后保存，再点「测试连接」」，后端两处用户可见消息不再暴露 `WAITING_FOR_OWNER_API_KEY`（机器状态 `waiting_for_api_key` 等仍完整保留在 API payload，契约不变）。
+- 开发夹具诚实标注：指向本地测试服务的连接显示独立「开发测试环境」琥珀徽章与「开发测试连接通过：这是本地测试服务，不代表真实的 DeepSeek 连接。」文案，绝不冒充「已连接」；移除「（本地服务）」「（模拟服务）」后缀与底部端点显示；修复模式切换提示 `openai`→`responses` 的错误分支。
+- 设置页视觉打磨（评审反馈逐项落地）：未配置徽章改琥珀警示色；徽章提示与自动配置说明去重；说明行括号内只保留模型名；按钮行重排为「取消/测试连接/清除 API Key 靠左、保存设置靠右」；状态文字与保存按钮间距加大；连接状态行 `word-break: keep-all` 防止「模型」等中文标签被拆到两行（375px 实测修复）。
+- Key 占位符窄屏自适应：桌面为「粘贴你的 DeepSeek API Key」，窄屏 canvas 实测放不下（190px > 输入框内宽 168px）时自动降级为「粘贴你的 API Key」，resize 双向切换，避免占位符截断。
+- 配置隔离：真实 `config/workbench.local.json` 重置为 DeepSeek 官方默认（无 Key）；mock 配置仅存在于 8322 隔离演示环境独立根目录。
+- 证据：`evaluations/issue44_minimal_ux/` 新增/重拍截图 12–16（含 03/04 按新行为重拍），`tests.test_webui` + `tests.test_workbench` 112/112、全量 pytest 见对应轮记录；浏览器实测掩码替换、`launchctl` 重启恢复、清除回未配置；图像评审三次误报（按钮换行、deepseek-flash 断行、桌面占位符截断）均用 Range/canvas 确定性测量推翻并记录。真实 DeepSeek 连接质量仍为 `WAITING_FOR_OWNER_API_KEY`，零付费调用，不自行合并。
+
 ## Unreleased — 2026-10-22 — Issue #44 — 两页极简 UX：创作页 + 独立大模型设置页
 
 - 创作页收敛为极简两态：全新状态只有大选题输入 + `开始创作`；开集后是阶段条（本集主题 + `＋ 新一集`）与 `① 视频参考 / ② 观点与资料 / ③ 原创口播稿` 三个概念阶段，一次只渲染当前阶段，随时回看不丢会话；无侧边栏、无六步仪表盘。

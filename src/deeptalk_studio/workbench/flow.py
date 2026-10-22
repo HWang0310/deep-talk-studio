@@ -291,6 +291,33 @@ def _prune_dangling(content: Dict[str, Any]) -> Dict[str, Any]:
     return content
 
 
+def _missing_settings_items(settings: Mapping[str, Any]) -> List[str]:
+    """Issue #44 settings UX: name the exact missing pieces in natural
+    Chinese for the user-facing not-configured message. Machine-readable
+    statuses stay in the error payload; the message itself never carries
+    internal status codes."""
+
+    items: List[str] = []
+    if not str(settings.get("api_key", "") or "").strip():
+        items.append("API Key")
+    if not str(settings.get("model", "") or "").strip():
+        items.append("模型名称")
+    mode = settings.get("provider_mode", "")
+    if mode in {"chat", "deepseek"}:
+        if not str(settings.get("chat_base_url", "") or "").strip():
+            items.append("API 地址")
+    elif mode == "responses":
+        if not str(settings.get("base_url", "") or "").strip():
+            items.append("服务地址")
+    return items
+
+
+def _missing_settings_message(settings: Mapping[str, Any], *, action: str) -> str:
+    items = _missing_settings_items(settings)
+    joined = "、".join(items) if items else "API Key"
+    return f"设置尚未完成：请填写{joined}后保存，再{action}"
+
+
 class WorkbenchFlow:
     def __init__(
         self,
@@ -378,7 +405,7 @@ class WorkbenchFlow:
                 {**observation, "connection_status": "waiting_for_api_key", "connection_error": "未配置模型、API Key 或服务地址"}
             )
             raise WorkbenchFlowError(
-                "设置尚未完成（WAITING_FOR_OWNER_API_KEY）：请在设置中填写 API Key、模型和服务地址",
+                _missing_settings_message(settings, action="点「测试连接」"),
                 payload={
                     "status": "waiting_for_api_key",
                     "connection_kind": self.connection_kind,
@@ -1383,7 +1410,9 @@ class WorkbenchFlow:
             )
         if not is_configured(settings):
             raise WorkbenchFlowError(
-                "设置尚未完成（WAITING_FOR_OWNER_API_KEY）：请先在设置中填写 DeepSeek API Key、模型和服务地址",
+                _missing_settings_message(
+                    settings, action="使用 DeepSeek Search/Fetch（可能产生计费）"
+                ),
                 payload={"status": "waiting_for_api_key", "connection_kind": self.connection_kind},
             )
         return settings
