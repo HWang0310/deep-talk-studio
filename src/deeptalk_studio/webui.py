@@ -260,7 +260,7 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             _send_json(self, 403, {"error": rejection})
             return
         path = urllib.parse.urlparse(self.path).path
-        if path == "/":
+        if path in {"/", "/settings"}:
             try:
                 body = INDEX_HTML_PATH.read_bytes()
             except OSError:

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 2026-10-22 — Issue #44 — 两页极简 UX：创作页 + 独立大模型设置页
+
+- 创作页收敛为极简两态：全新状态只有大选题输入 + `开始创作`；开集后是阶段条（本集主题 + `＋ 新一集`）与 `① 视频参考 / ② 观点与资料 / ③ 原创口播稿` 三个概念阶段，一次只渲染当前阶段，随时回看不丢会话；无侧边栏、无六步仪表盘。
+- 参考视频改为一页短卡片（标题两行截断、已核验播放、状态徽章），BVID/时间戳/转写/叙事分析收进详情折叠；授权声明与部分分析理由保留在动作现场；音频与素材仅在口播稿审核通过后经 `继续做音频与素材` 成为可选阶段。
+- 新增独立 `大模型设置` 页（`/settings` 路由 + pushState 单文档切换）：服务商（DeepSeek 默认）、模型名称、掩码 API Key、保存与测试连接为主字段；连接状态徽章如实分级 `未配置/已保存未验证/已连接/连接失败/模拟服务` 并自动标注本地端点；服务端点藏进高级设置、下载位置独立折叠；`← 返回创作` 保留选题草稿（localStorage）与会话进度。
+- 修复两处浏览器 E2E 发现的缺陷：显式 `display` 覆盖 `hidden` 导致两视图同屏（全局 `[hidden]{display:none!important}`）；页面重载后已交付口播稿正文丢失（现按 session+revision 幂等拉取 `/api/workbench/script/final` 渲染定稿）。
+- 证据见 `evaluations/issue44_minimal_ux/`（README + 桌面/375px 手机截图，两轮视觉迭代）；`tests.test_webui` 61/61、`tests.test_workbench` 44/44、全量 pytest 1085 pass / 7 skipped；LLM 为本地诚实 mock，零付费调用，真实 DeepSeek 质量仍为 `WAITING_FOR_OWNER_API_KEY`。
+
 ## Unreleased — 2026-10-22 — Issue #38 — Creator Workbench 离线浏览器验收
 
 - 增加 `evaluations/issue38_workbench/fixture_server.py` 与可重复的 `smoke_playwright.py`：仅使用 loopback 离线夹具，验证设置掩码、五条参考候选、音频二进制导入/预览、`WAITING_FOR_OWNER_REVIEW`、刷新恢复、Tab 键可达、375px 无横向溢出与健康检查；fixture 状态不会冒充真实模型或真实 Bilibili 结果。

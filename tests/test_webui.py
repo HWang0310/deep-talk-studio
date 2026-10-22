@@ -208,6 +208,60 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertNotIn("innerHTML", body)
         self.assertIn("textContent", body)
 
+    def test_settings_route_is_a_distinct_minimal_page(self):
+        status, headers, body = self.get("/settings")
+        self.assertEqual(status, 200)
+        self.assertTrue(headers.get("Content-Type", "").startswith("text/html"))
+        self.assertIn('id="settings-view"', body)
+        self.assertIn('id="creator-view"', body)
+        self.assertIn('href="/"', body)
+        self.assertIn("大模型设置", body)
+        self.assertIn("settingsPage = window.location.pathname === '/settings'", body)
+        self.assertNotIn('id="settings-panel"', body)
+
+    def test_settings_page_navigation_preserves_creator_state_without_reload(self):
+        """Issue #44: ⚙ 设置入口走 pushState 单文档切换，不整页刷新；
+        选题草稿写入 localStorage，返回创作不丢已输入内容。"""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn("history.pushState", body)
+        self.assertIn("'popstate'", body)
+        self.assertIn("TOPIC_DRAFT_KEY", body)
+        self.assertIn("localStorage", body)
+        self.assertIn("返回创作", body)
+
+    def test_creator_home_has_one_primary_topic_action_and_no_inline_settings_form(self):
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn('class="card hero"', body)
+        self.assertIn('id="settings-link"', body)
+        self.assertIn("你想讲什么？", body)
+        self.assertIn("开始创作", body)
+        self.assertIn("stage-nav", body)
+        self.assertIn("高级设置", body)
+        self.assertIn("下载位置", body)
+        # 两个视图共享同一份文档，但同一时刻绝不垂直同时渲染：
+        # settingsPage 状态直接驱动互斥 hidden。
+        self.assertIn("creatorView.hidden = settingsPage", body)
+        self.assertIn("settingsView.hidden = !settingsPage", body)
+
+    def test_creator_stages_are_three_plus_optional_audio(self):
+        """Issue #44: 概念三阶段 ① 视频参考 → ② 观点与资料 → ③ 原创口播稿；
+        音频与素材仅在口播稿审核通过后成为可选入口，不常驻第六步。
+        一次只展示当前阶段，用户可随时回看上一阶段而不丢会话。"""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn("① 视频参考", body)
+        self.assertIn("② 观点与资料", body)
+        self.assertIn("③ 原创口播稿", body)
+        self.assertIn("音频与素材", body)
+        self.assertIn("继续做音频与素材", body)
+        # 音频 tab 只在口播稿已审核或音频已激活时出现
+        self.assertIn("function scriptReviewed(", body)
+        self.assertIn("audioActive(currentSession)", body)
+        # 阶段聚焦：同一时间只显示一个阶段内容
+        self.assertIn("node.hidden = id !== stageId", body)
+
     def test_index_ui_trial_progress_and_staleness_contract(self):
         """Issue #29 UI-trial invariants: slow-action feedback must keep an
         elapsed timer with a do-not-resubmit reassurance, previous sections
@@ -218,11 +272,11 @@ class StaticPageTests(LocalWebUITestCase):
         # live elapsed timer + expected-duration reassurance during operation
         self.assertIn("已用", body)
         self.assertIn("请勿重复提交", body)
-        # title switches to in-progress and is restored from a saved base title
+        # title switches to in-progress and is restored for the active view
         self.assertIn("处理中…", body)
-        self.assertIn("baseTitle", body)
-        # previous result card is dimmed while a new operation is in flight
-        self.assertIn("#result.stale", body)
+        self.assertIn("currentTitle", body)
+        # previous stage card is dimmed while a new operation is in flight
+        self.assertIn(".card.stale", body)
         self.assertIn("classList.add('stale')", body)
         self.assertIn("classList.remove('stale')", body)
         # the busy interval must be cleared on completion (no leaking timers)
@@ -252,7 +306,13 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn('value="deepseek"', body)
         self.assertIn("api.deepseek.com", body)
         self.assertIn("connection_kind", body)
-        self.assertIn("真实连接", body)
+        # 连接状态如实分级：未配置 / 已保存未验证 / 已连接 / 连接失败 /
+        # 模拟服务（fixture），并以自然语言给出下一步建议。
+        self.assertIn("未配置", body)
+        self.assertIn("已保存未验证", body)
+        self.assertIn("已连接", body)
+        self.assertIn("连接失败", body)
+        self.assertIn("模拟服务", body)
         self.assertIn("清除 API Key", body)
 
     def test_index_exposes_explicit_deepseek_search_budget_controls(self):
