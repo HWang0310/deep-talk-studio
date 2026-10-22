@@ -857,3 +857,67 @@ SCRIPT_REVIEW_JSON_SCHEMA = _object(
     },
     optional=("reviewed_content_digest", "review_consistency_version"),
 )
+
+
+# --- Creator Workbench (Issue #23 unified flow) model-answer schemas -------
+# These validate the free-form judgment surfaces a workbench LLM call returns
+# (thesis draft content, thesis review content, reference narrative summary).
+# All engine-side gates, digests and revision lineage stay authoritative.
+
+# The thesis draft content surface is exactly the canonical engine content
+# contract (CONTENT_THESIS_CONTENT_JSON_SCHEMA) — the workbench must not
+# invent a second dialect.
+THESIS_CONTENT_JSON_SCHEMA = CONTENT_THESIS_CONTENT_JSON_SCHEMA
+
+
+THESIS_REVIEW_CONTENT_JSON_SCHEMA = _object(
+    {
+        "checks": _array(
+            _object(
+                {
+                    "check_name": _string(),
+                    "outcome": _enum(["pass", "fail"]),
+                    "reason": _string(),
+                }
+            )
+        ),
+        "issues": _array(
+            _object(
+                {
+                    "issue_type": _enum(
+                        [
+                            "thesis_unclear",
+                            "unsupported_thesis",
+                            "counter_evidence_ignored",
+                            "audience_value_missing",
+                            "competitive_imitation_risk",
+                            "retention_promise_weak",
+                        ]
+                    ),
+                    "severity": _enum(["blocking", "advisory"]),
+                    "description": _string(),
+                }
+            )
+        ),
+        "overall_summary": _string(),
+    }
+)
+
+
+REFERENCE_NARRATIVE_JSON_SCHEMA = _object(
+    {
+        "narrative_summary": _string(),
+        "creator_viewpoint": _string(),
+        "hook_style": _string(),
+        "pacing": _string(),
+        "struct_patterns": _string_array(),
+        "takeaways": _string_array(),
+    }
+)
+# ``creator_viewpoint`` is optional for backward compatibility with studies
+# analyzed before Issue #23 B3 (they render as「未提取到观点立场」); new
+# analyses request it explicitly (attributable stance summary, never facts).
+REFERENCE_NARRATIVE_JSON_SCHEMA["required"] = [
+    key for key in REFERENCE_NARRATIVE_JSON_SCHEMA["required"]
+    if key != "creator_viewpoint"
+]

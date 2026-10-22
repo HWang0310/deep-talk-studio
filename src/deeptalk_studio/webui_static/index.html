@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,">
-<title>DeepTalk 参考视频工作台</title>
+<title>DeepTalk 创作工作台</title>
 <style>
   :root {
     --brand: #b3261e;
@@ -32,24 +32,31 @@
   header {
     background: var(--brand);
     color: #fff;
-    padding: 16px 20px;
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
   }
   header h1 { margin: 0; font-size: 20px; font-weight: 700; }
-  header .sub { font-size: 12px; opacity: .85; margin-top: 4px; }
-  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 64px; width: 100%; flex: 1 0 auto; display: flex; flex-direction: column; justify-content: safe center; }
+  header .sub { font-size: 12px; opacity: .85; margin-top: 2px; }
+  #settings-panel > summary { cursor: pointer; color: #fff; list-style: none; padding: 4px 12px; border: 1px solid rgba(255,255,255,.5); border-radius: 8px; }
+  main { max-width: 980px; margin: 0 auto; padding: 20px 16px 64px; width: 100%; flex: 1 0 auto; display: flex; flex-direction: column; gap: 16px; }
   .card {
     background: var(--card);
     border-radius: 12px;
     padding: 18px 18px 14px;
     box-shadow: 0 1px 5px rgba(0,0,0,.07);
-    margin-bottom: 16px;
     flex: 0 0 auto;
     width: 100%;
+    text-align: left;
   }
   h2 { font-size: 16px; margin: 0 0 8px; }
+  h3 { font-size: 14px; margin: 14px 0 6px; }
   label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
   label .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
-  input[type="text"] {
+  input[type="text"], input[type="password"], textarea, select {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--line);
@@ -57,8 +64,10 @@
     font-size: 15px;
     font-family: inherit;
     background: #fff;
+    color: var(--text);
   }
-  input:focus-visible, button:focus-visible, a:focus-visible {
+  textarea { min-height: 64px; resize: vertical; }
+  input:focus-visible, button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visible {
     outline: 2px solid var(--brand); outline-offset: 1px;
   }
   button {
@@ -73,11 +82,11 @@
   }
   button:hover { background: #f0efec; }
   button[disabled] { opacity: .5; cursor: not-allowed; }
-  #search-btn {
+  button.primary {
     background: var(--brand); border-color: var(--brand); color: #fff;
     font-size: 15px; padding: 10px 22px; font-weight: 600;
   }
-  #search-btn:hover { background: var(--brand-dark); }
+  button.primary:hover { background: var(--brand-dark); }
   .ref-row { display: flex; gap: 8px; margin-bottom: 8px; }
   .ref-row input { flex: 1; }
   .ref-row button { white-space: nowrap; }
@@ -97,6 +106,10 @@
   }
   .badge-user { background: #e8f0fe; color: #1a56db; }
   .badge-search { background: #e7f4ea; color: var(--ok); }
+  .badge-wait { background: #f2efe8; color: var(--muted); }
+  .badge-analyzed { background: #e7f4ea; color: var(--ok); }
+  .badge-failed { background: #fdecea; color: var(--bad); }
+  .badge-progress { background: #fdf3e0; color: var(--warn); }
   .title-link { color: var(--brand); text-decoration: none; font-weight: 600; font-size: 15px; }
   .title-link:hover { text-decoration: underline; }
   .meta-grid { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 4px; }
@@ -108,13 +121,39 @@
   details { margin-top: 12px; font-size: 13px; }
   details summary { cursor: pointer; color: var(--muted); }
   details ul { margin: 6px 0 0; padding-left: 20px; color: var(--muted); }
-  #result.stale { opacity: .55; }
   .error-box {
     background: #fdecea; border: 1px solid #f5c6c0; color: var(--bad);
     padding: 10px 12px; border-radius: 8px; margin-top: 12px; font-size: 14px;
   }
   .coverage { background: #f7f5f0; border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
   footer.site { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 30px; margin-top: auto; }
+  #result.stale { opacity: .55; }
+  .steps { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
+  .step {
+    font-size: 12.5px; padding: 3px 10px; border-radius: 999px;
+    background: #efece6; color: var(--muted); white-space: nowrap;
+  }
+  .step.current { background: #ffffff; color: var(--brand); font-weight: 700; }
+  .step.done { background: #e7f4ea; color: var(--ok); }
+  .rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px 14px; }
+  .kv { font-size: 13.5px; padding: 6px 10px; background: #f7f5f0; border-radius: 8px; }
+  .src-list { margin-top: 8px; }
+  .src-item { border-top: 1px dashed var(--line); padding: 8px 0 4px; font-size: 13.5px; }
+  .src-item:first-child { border-top: none; }
+  .checks-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  .checks-table td, .checks-table th { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  .checks-table th { color: var(--muted); font-weight: 600; }
+  .check-pass { color: var(--ok); font-weight: 600; }
+  .check-fail { color: var(--bad); font-weight: 600; }
+  .script-box {
+    background: #fbfaf7; border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; margin-top: 10px; font-size: 15px; line-height: 1.9;
+    max-height: 480px; overflow: auto; white-space: pre-wrap;
+  }
+  .issue { border-left: 3px solid var(--bad); background: #fdf7f6; padding: 6px 10px; margin-top: 8px; font-size: 13.5px; border-radius: 0 8px 8px 0; }
+  .gate-reasons { margin: 6px 0 0; padding-left: 18px; color: var(--warn); font-size: 13.5px; }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; color: var(--text); }
+  @media (max-width: 700px) { .field-grid { grid-template-columns: 1fr; } }
   @media (max-width: 600px) {
     main { padding: 14px 10px 40px; }
     .card { padding: 14px 12px 10px; }
@@ -127,13 +166,61 @@
 </head>
 <body>
 <header>
-  <h1>DeepTalk 参考视频工作台</h1>
-  <div class="sub">本机 127.0.0.1 · 匿名访问 · 只检索元数据，不下载视频</div>
+  <div>
+    <h1>DeepTalk 创作工作台</h1>
+    <div class="sub">本机 127.0.0.1 · 匿名访问 · 只分析公开元数据与你授权的材料</div>
+  </div>
+  <details id="settings-panel">
+    <summary>设置</summary>
+    <div class="card" style="margin-top:10px">
+      <div class="field-grid">
+        <div>
+          <label for="st-mode">提供方式</label>
+          <select id="st-mode">
+            <option value="responses">OpenAI Responses（支持联网研究）</option>
+            <option value="chat">通用 Chat 兼容（仅用你提供的来源）</option>
+          </select>
+        </div>
+        <div>
+          <label for="st-model">模型名 <span class="hint">如 gpt-5.6</span></label>
+          <input id="st-model" type="text" maxlength="200" placeholder="模型 ID">
+        </div>
+        <div>
+          <label for="st-base">Responses 端点</label>
+          <input id="st-base" type="text" placeholder="https://api.openai.com/v1/responses">
+        </div>
+        <div>
+          <label for="st-chat">Chat 兼容地址 <span class="hint">如 https://host/v1</span></label>
+          <input id="st-chat" type="text" placeholder="https://你的服务/v1">
+        </div>
+        <div>
+          <label for="st-key">API Key <span class="hint" id="st-key-hint">保存后仅显示掩码</span></label>
+          <input id="st-key" type="password" autocomplete="off" placeholder="仅保存在本机">
+        </div>
+        <div>
+          <label for="st-dir">参考视频下载文件夹 <span class="hint">绝对路径，须已存在</span></label>
+          <input id="st-dir" type="text" placeholder="/Users/你/Movies/DeepTalk参考视频">
+        </div>
+      </div>
+      <div class="actions">
+        <button id="settings-save" type="button">保存设置</button>
+        <button id="settings-test" type="button">测试连接</button>
+        <span id="settings-status" class="muted" role="status"></span>
+      </div>
+    </div>
+  </details>
 </header>
 
 <main>
   <section class="card" aria-labelledby="form-title">
-    <h2 id="form-title">新建检索</h2>
+    <div class="steps" id="flow-steps">
+      <span class="step current" data-step="references">① 选题与参考</span>
+      <span class="step" data-step="analysis">② 参考分析</span>
+      <span class="step" data-step="research">③ 独立研究</span>
+      <span class="step" data-step="thesis">④ 选题卡</span>
+      <span class="step" data-step="script">⑤ 口播稿</span>
+    </div>
+    <h2 id="form-title" style="margin-top:12px">① 输入选题，开启本集创作</h2>
     <label for="topic">视频主题 <span class="hint">必填，最多 200 字</span></label>
     <input id="topic" name="topic" type="text" maxlength="200" autocomplete="off"
            placeholder="例如：莫斯科大学留学生旭日旗事件">
@@ -141,14 +228,17 @@
     <div id="ref-list" aria-labelledby="refs-label"></div>
     <button id="add-ref" type="button" aria-controls="ref-list">+ 添加参考链接</button>
     <div class="actions">
-      <button id="search-btn" type="button">搜索参考视频</button>
+      <button id="search-btn" type="button" class="primary">开始本集创作</button>
       <span id="run-status" role="status"></span>
     </div>
     <div id="error-box" class="error-box" hidden></div>
+    <p class="muted" style="margin:10px 0 0">
+      点击后：自动检索最多 5 条相关高播放量 B 站参考 →（你授权后）本地下载分析 → 独立研究与事实核查 → 原创口播稿与独立审核。
+    </p>
   </section>
 
   <section id="result" class="card" hidden aria-live="polite" aria-labelledby="result-title">
-    <h2 id="result-title">检索结果</h2>
+    <h2 id="result-title">本集参考候选</h2>
     <p id="run-meta" class="muted meta-line"></p>
     <p id="run-note" class="status-line"></p>
     <div id="coverage" class="coverage muted" hidden></div>
@@ -158,6 +248,88 @@
       <summary>数据说明与限制</summary>
       <ul id="limitations"></ul>
     </details>
+  </section>
+
+  <section id="analysis" class="card" hidden aria-labelledby="analysis-title">
+    <h2 id="analysis-title">② 参考分析（合法授权范围内）</h2>
+    <p class="muted">
+      下载只在你明确授权后进行：文件保存到你设置的文件夹，仅供本地叙事分析（转写 + 手法提炼）。
+      参考视频永远不会被当作事实来源，也不会进入任何正式素材包。平台拒绝访问时会如实失败，不做绕过。
+    </p>
+    <div id="analysis-status" class="muted" role="status"></div>
+    <div id="analysis-list"></div>
+  </section>
+
+  <section id="research" class="card" hidden aria-labelledby="research-title">
+    <h2 id="research-title">③ 独立研究与事实核查</h2>
+    <p class="muted">
+      参考视频的叙事分析只用于启发结构。主张、证据与核查全部来自下面这些你提供的独立来源，
+      以及（responses 模式下）模型自己联网检索到的公开材料；事实核查会重新抓取来源原文并逐字核对引用。
+    </p>
+    <label for="research-question">研究问题 <span class="hint">可选，引导研究方向</span></label>
+    <input id="research-question" type="text" maxlength="300" placeholder="例如：这件事的证据层级是什么？公共讨论应该关注什么？">
+    <h3>研究来源（至少 1 条）</h3>
+    <div class="ref-row">
+      <input id="source-url" type="text" maxlength="500" placeholder="https://新闻/公告/原始材料链接">
+      <button id="source-add" type="button">抓取添加</button>
+    </div>
+    <details>
+      <summary>页面抓不到？粘贴正文代替</summary>
+      <div style="margin-top:8px">
+        <input id="source-title" type="text" maxlength="200" placeholder="来源标题（必填）">
+        <input id="source-orig-url" type="text" maxlength="500" placeholder="原链接（可选）" style="margin-top:8px">
+        <textarea id="source-text" maxlength="200000" placeholder="粘贴来源正文（至少 50 字）" style="margin-top:8px"></textarea>
+        <button id="source-add-text" type="button" style="margin-top:8px">保存粘贴来源</button>
+      </div>
+    </details>
+    <div id="source-list" class="src-list"></div>
+    <div id="research-readiness" class="muted" role="status"></div>
+    <div id="partial-override-box" hidden style="margin-top:10px;padding:10px;border:1px solid #d9d9d9;border-radius:8px">
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="partial-allow">
+        允许部分分析（将如实记录为部分分析，不等同完整五方对比）
+      </label>
+      <textarea id="partial-reason" maxlength="500" placeholder="说明理由（至少 10 字，将逐字存档），例如：本地转写耗时过长，先基于已完成的 3 条参考继续研究" style="margin-top:8px"></textarea>
+    </div>
+    <div class="actions">
+      <button id="research-generate" type="button" class="primary">生成研究草稿</button>
+      <button id="fact-check-run" type="button">执行独立核查</button>
+      <span id="research-status" class="muted" role="status"></span>
+    </div>
+    <div id="research-summary"></div>
+    <div id="research-approve-box" hidden>
+      <label for="research-confirmation">批准进入写稿（需你的明确说明）</label>
+      <textarea id="research-confirmation" maxlength="2000" placeholder="我确认已阅读本研究的质量摘要与事实核查结论，批准进入写稿。"></textarea>
+      <button id="research-approve" type="button" class="primary" style="margin-top:8px">批准研究</button>
+    </div>
+  </section>
+
+  <section id="thesis" class="card" hidden aria-labelledby="thesis-title">
+    <h2 id="thesis-title">④ 选题卡（本期内容方向）</h2>
+    <div class="actions" style="margin-top:4px">
+      <button id="thesis-generate" type="button" class="primary">生成选题卡</button>
+      <button id="thesis-review" type="button">独立审核选题卡</button>
+      <span id="thesis-status" class="muted" role="status"></span>
+    </div>
+    <div id="thesis-summary"></div>
+    <div id="thesis-approve-box" hidden>
+      <label for="thesis-confirmation">人工确认（需包含「确认」与「进入写稿」）</label>
+      <textarea id="thesis-confirmation" maxlength="2000" placeholder="我确认本期内容方向与选题卡一致，确认进入写稿。"></textarea>
+      <button id="thesis-approve" type="button" class="primary" style="margin-top:8px">确认进入写稿</button>
+    </div>
+  </section>
+
+  <section id="script" class="card" hidden aria-labelledby="script-title">
+    <h2 id="script-title">⑤ 原创口播稿（独立审核）</h2>
+    <div class="actions" style="margin-top:4px">
+      <button id="script-generate" type="button" class="primary">生成并审核口播稿</button>
+      <button id="script-copy" type="button" hidden>复制全文</button>
+      <span id="script-status" class="muted" role="status"></span>
+    </div>
+    <div id="script-summary"></div>
+    <div id="script-issues"></div>
+    <div id="script-body" class="script-box" hidden></div>
+    <p id="script-meta" class="muted"></p>
   </section>
 </main>
 
@@ -178,11 +350,7 @@
     video_unavailable: "视频已失效或不可见",
     video_restricted: "视频受限，无法访问"
   };
-  var STATUS_TEXT = {
-    ok: "检索完成",
-    degraded: "部分完成（有降级）",
-    blocked: "本次检索被平台限制"
-  };
+  var DEFAULT_AUTHORIZATION = "我授权仅在本地对你下载研究使用本集所选参考视频，文件仅保存在我指定的文件夹，不重新分发；我确认拥有这些视频的合法观看权限。";
 
   var topicEl = document.getElementById('topic');
   var addBtn = document.getElementById('add-ref');
@@ -190,8 +358,6 @@
   var searchBtn = document.getElementById('search-btn');
   var runStatus = document.getElementById('run-status');
   var errorBox = document.getElementById('error-box');
-  var baseTitle = document.title;
-  var busyTimer = null;
   var resultCard = document.getElementById('result');
   var runMeta = document.getElementById('run-meta');
   var runNote = document.getElementById('run-note');
@@ -199,6 +365,13 @@
   var rejectionsEl = document.getElementById('rejections');
   var candidatesEl = document.getElementById('candidates');
   var limitationsEl = document.getElementById('limitations');
+  var analysisCard = document.getElementById('analysis');
+  var researchCard = document.getElementById('research');
+  var thesisCard = document.getElementById('thesis');
+  var scriptCard = document.getElementById('script');
+  var baseTitle = document.title;
+  var busyTimer = null;
+  var currentSession = null;
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -239,16 +412,6 @@
     if (refCount() === 1) { input.focus(); }
   }
 
-  function formatViews(candidate) {
-    if (candidate.view_count_status === 'verified' && typeof candidate.view_count === 'number') {
-      return { text: candidate.view_count.toLocaleString('zh-CN') + ' 播放（已核验）', cls: 'views-verified' };
-    }
-    if (candidate.view_count_status === 'unavailable') {
-      return { text: '播放量不可用（元数据获取受限）', cls: 'views-unknown' };
-    }
-    return { text: '播放量未知（未核验，不采用搜索页数字）', cls: 'views-unknown' };
-  }
-
   function formatDateTime(iso) {
     if (!iso) { return '—'; }
     var d = new Date(iso);
@@ -266,96 +429,604 @@
     errorBox.textContent = '';
   }
 
-  function render(artifact) {
+  function isBusy() { return busyTimer !== null; }
+
+  function setBusy(busy, message) {
+    searchBtn.disabled = busy;
+    topicEl.disabled = busy;
+    var actionControls = document.querySelectorAll(
+      '#analysis button, #analysis textarea, #research button, #research input, #research textarea, ' +
+      '#thesis button, #thesis textarea, #script button'
+    );
+    actionControls.forEach(function (node) { node.disabled = busy; });
+    if (busy) {
+      // previous results stay visible but dim while a new operation runs
+      document.querySelectorAll('.card').forEach(function (card) {
+        if (!card.hidden) { card.classList.add('stale'); }
+      });
+      document.getElementById('settings-panel').setAttribute('inert', 'inert');
+      var startedAt = Date.now();
+      var renderProgress = function () {
+        var seconds = Math.floor((Date.now() - startedAt) / 1000);
+        runStatus.textContent = (message || '处理中…') +
+          ' 已用 ' + seconds + ' 秒（本机/模型服务逐条执行，可能需要 1–10 分钟，请勿重复提交）';
+      };
+      document.title = '处理中… · ' + baseTitle;
+      renderProgress();
+      busyTimer = window.setInterval(renderProgress, 1000);
+    } else {
+      if (busyTimer !== null) { window.clearInterval(busyTimer); busyTimer = null; }
+      document.querySelectorAll('.card').forEach(function (card) { card.classList.remove('stale'); });
+      document.getElementById('settings-panel').removeAttribute('inert');
+      document.title = baseTitle;
+      runStatus.textContent = message || '';
+    }
+  }
+
+  function api(path, body, options) {
+    options = options || {};
+    if (isBusy()) { return Promise.reject(new Error('上一项操作仍在进行，请等待完成')); }
+    clearRequestError();
+    setBusy(true, options.message || '处理中…');
+    return fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(function (resp) {
+      return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+    }).then(function (result) {
+      setBusy(false);
+      if (!result.ok) {
+        var message = result.data && result.data.error ? result.data.error : '请求失败，请重试。';
+        showRequestError(message);
+        throw new Error(message);
+      }
+      return result.data;
+    }).catch(function (error) {
+      setBusy(false);
+      if (String(error.message || '').indexOf('Failed to fetch') !== -1) {
+        showRequestError('网络错误：无法连接本机服务。');
+      }
+      throw error;
+    });
+  }
+
+  function getState() {
+    return fetch('/api/workbench/state').then(function (resp) { return resp.json(); });
+  }
+
+  function refresh() {
+    return getState().then(renderState);
+  }
+
+  // ---- state rendering ----
+
+  function renderState(state) {
+    renderSettings(state.settings || {});
+    currentSession = state.session || null;
+    renderSteps(currentSession ? currentSession.status : 'references');
+    if (!currentSession) { return; }
+    renderCandidates(currentSession);
+    renderAnalysis(currentSession);
+    renderResearch(currentSession);
+    renderThesis(currentSession);
+    renderScript(currentSession);
+  }
+
+  function renderSteps(status) {
+    var order = ['references', 'analysis', 'research', 'thesis', 'script'];
+    var index = order.indexOf(status);
+    if (index === -1) { index = 0; }
+    document.querySelectorAll('#flow-steps .step').forEach(function (step) {
+      var at = order.indexOf(step.getAttribute('data-step'));
+      step.className = 'step' + (at === index ? ' current' : (at < index ? ' done' : ''));
+    });
+  }
+
+  function renderCandidates(session) {
+    var first = !resultCard.hidden;
     resultCard.hidden = false;
     runMeta.textContent = '';
     runNote.textContent = '';
     rejectionsEl.textContent = '';
     candidatesEl.textContent = '';
-    limitationsEl.textContent = '';
     coverage.hidden = false;
-    coverage.textContent = '';
-
-    var statusText = STATUS_TEXT[artifact.status] || artifact.status;
-    runMeta.appendChild(el('span', 'status-' + artifact.status, statusText));
-    runMeta.appendChild(document.createTextNode(' · 生成时间 ' + formatDateTime(artifact.generated_at)));
-    var s = artifact.search || {};
-    runMeta.appendChild(document.createTextNode(
-      ' · 检索到 ' + (s.raw_result_count || 0) + ' 条，去重后 ' +
-      (s.deduplicated_count || 0) + ' 条，播放量核验 ' +
-      (s.verification_performed || 0) + ' 次'
-    ));
-
-    runNote.textContent = artifact.action_note || '';
-
-    coverage.textContent = (s.coverage_note || '') +
-      '（查询词：' + (artifact.query_plan || []).join('；') + '）';
-
-    (artifact.rejected_user_urls || []).forEach(function (r) {
-      var reason = REASON_TEXT[r.reason] || r.reason;
-      rejectionsEl.appendChild(el('p', 'rejection', '已跳过：' + r.input + '（' + reason + '）'));
-    });
-
-    (artifact.candidates || []).forEach(function (c) {
+    coverage.textContent = '本集主题：' + session.topic + ' · 参考 ' + session.references.length + ' 条';
+    session.references.forEach(function (c) {
       var item = el('div', 'candidate');
       var head = el('div');
       head.appendChild(el('span', 'badge ' + (c.user_supplied ? 'badge-user' : 'badge-search'),
-                          c.user_supplied ? '用户链接' : '搜索发现'));
+          c.user_supplied ? '用户链接' : '搜索发现'));
       var link = el('a', 'title-link', c.title || '（标题不可用）');
       link.href = c.url;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       head.appendChild(link);
       item.appendChild(head);
-
-      var views = formatViews(c);
       var grid = el('div', 'meta-grid');
-      grid.appendChild(el('span', 'item ' + views.cls, views.text));
+      if (c.view_count_status === 'verified' && typeof c.view_count === 'number') {
+        grid.appendChild(el('span', 'item views-verified', c.view_count.toLocaleString('zh-CN') + ' 播放（已核验）'));
+      } else if (c.view_count_status === 'unavailable') {
+        grid.appendChild(el('span', 'item views-unknown', '播放量不可用（元数据获取受限）'));
+      } else {
+        grid.appendChild(el('span', 'item views-unknown', '播放量未知（未核验，不采用搜索页数字）'));
+      }
       grid.appendChild(el('span', 'item', 'UP：' + (c.uploader || '—')));
       grid.appendChild(el('span', 'item', '发布：' + formatDateTime(c.published_at)));
       grid.appendChild(el('span', 'item', '抓取：' + formatDateTime(c.fetched_at)));
       item.appendChild(grid);
-
-      var via = c.found_via_queries || [];
-      var origin = c.user_supplied ? '用户提供' : '自动搜索';
-      if (c.user_supplied && via.length > 1) { origin += ' + 搜索命中合并'; }
-      item.appendChild(el('div', 'via', '来源：' + origin));
+      item.appendChild(el('div', 'via', '来源：' + (c.user_supplied ? '用户提供' : '自动搜索') + ' · ' + (c.bvid || '')));
       candidatesEl.appendChild(item);
     });
-
-    (artifact.limitations || []).forEach(function (text) {
-      limitationsEl.appendChild(el('li', null, text));
-    });
-    resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (!first) { resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
   }
 
-  function setBusy(busy, message) {
-    searchBtn.disabled = busy;
-    addBtn.disabled = busy || refCount() >= MAX_REFS;
-    topicEl.disabled = busy;
-    if (busy) {
-      // previous results still visible during a new search: dim them so the
-      // in-flight status and the old "检索完成" result card cannot be mistaken
-      // for one consistent state
-      if (!resultCard.hidden) { resultCard.classList.add('stale'); }
-      var startedAt = Date.now();
-      var renderProgress = function () {
-        var seconds = Math.floor((Date.now() - startedAt) / 1000);
-        runStatus.textContent = (message || '正在检索…') +
-          ' 已用 ' + seconds + ' 秒（含播放量逐条核验，通常需 10–60 秒，请勿重复提交）';
-      };
-      document.title = '检索中… · ' + baseTitle;
-      renderProgress();
-      busyTimer = window.setInterval(renderProgress, 1000);
+  function renderAnalysis(session) {
+    var list = document.getElementById('analysis-list');
+    list.textContent = '';
+    var anyReference = session.references.length > 0;
+    analysisCard.hidden = !anyReference;
+    if (!anyReference) { return; }
+    // Issue #23 B3: visible analyzed-N / eligible-M readiness.
+    var readiness = session.references_readiness || {};
+    var statusEl = document.getElementById('analysis-status');
+    var total = session.references.length;
+    var downloadPending = readiness.download_pending !== undefined
+      ? readiness.download_pending
+      : Math.max(0, (readiness.eligible || 0) - (readiness.analyzed || 0));
+    var failedCount = readiness.failed || 0;
+    statusEl.textContent = '就绪度：已分析 ' + (readiness.analyzed || 0)
+      + ' · 已下载待分析 ' + downloadPending + ' · 失败待重试 ' + failedCount
+      + ' · 本集候选 ' + total
+      + '（研究要求：所有已授权参考完成分析，或明确选择部分分析）';
+    var targets = session.references.filter(function (c) {
+      return (c.study_status || 'not_analyzed') !== 'analyzed';
+    });
+    var control = el('div');
+    var label = el('label', null, '授权声明（必填，下载前逐字存档）');
+    var authArea = el('textarea');
+    authArea.id = 'authorization-text';
+    authArea.maxLength = 2000;
+    authArea.value = DEFAULT_AUTHORIZATION;
+    control.appendChild(label);
+    control.appendChild(authArea);
+    var buttonRow = el('div', 'actions');
+    var acquireAll = el('button', 'primary');
+    acquireAll.type = 'button';
+    acquireAll.textContent = (readiness.failed || 0) > 0
+      ? '授权重试并分析未完成的参考（' + targets.length + ' 条）'
+      : '授权获取并分析未完成的参考（' + targets.length + ' 条）';
+    acquireAll.addEventListener('click', function () { runAcquisition(targets, authArea.value); });
+    buttonRow.appendChild(acquireAll);
+    if (targets.length === 0) {
+      acquireAll.disabled = true;
+      acquireAll.textContent = '全部参考已完成分析';
+    }
+    control.appendChild(buttonRow);
+
+    session.references.forEach(function (c) {
+      var item = el('div', 'candidate');
+      var head = el('div');
+      var status = c.study_status || 'not_analyzed';
+      var badge = {
+        not_analyzed: ['badge-wait', '未分析'],
+        downloaded: ['badge-progress', '已下载待分析'],
+        analyzed: ['badge-analyzed', '已分析'],
+        failed: ['badge-failed', '失败']
+      }[status] || ['badge-wait', '未分析'];
+      head.appendChild(el('span', 'badge ' + badge[0], badge[1]));
+      var link = el('a', 'title-link', c.title || c.bvid);
+      link.href = c.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      head.appendChild(link);
+      item.appendChild(head);
+      if (c.study) {
+        var rows = el('div', 'rows');
+        rows.appendChild(el('div', 'kv', '时长 ' + (c.study.duration_seconds || '—') + ' 秒 · 语速 ' + (c.study.cps || '—') + ' 字/秒'));
+        rows.appendChild(el('div', 'kv', '问题句 ' + (c.study.question_count || 0) + ' · 分段 ' + (c.study.segment_count || 0)));
+        item.appendChild(rows);
+        if (c.study.hook_text) {
+          item.appendChild(el('p', 'muted', '开场（前两段）：' + String(c.study.hook_text).slice(0, 120) + '…'));
+        }
+        if (c.study.creator_viewpoint) {
+          item.appendChild(el('p', null, '可归因观点：' + String(c.study.creator_viewpoint)));
+        }
+        if (c.study.narrative_summary) {
+          item.appendChild(el('p', null, '叙事手法：' + c.study.narrative_summary));
+        }
+        if (c.study.takeaways && c.study.takeaways.length) {
+          var ul = el('ul', 'muted');
+          c.study.takeaways.slice(0, 3).forEach(function (t) { ul.appendChild(el('li', null, t)); });
+          item.appendChild(ul);
+        }
+        if (c.study.media_path) {
+          item.appendChild(el('p', 'muted', '文件：' + c.study.media_path));
+        }
+      }
+      if (status === 'failed' && c.study_error) {
+        item.appendChild(el('p', 'status-blocked', '下载失败（可重试）：' + String(c.study_error)));
+      }
+      list.appendChild(item);
+    });
+    list.insertBefore(control, list.firstChild);
+  }
+
+  function runAcquisition(targets, authorizationText) {
+    if (!currentSession) { return; }
+    // Only not-yet-downloaded references go to the acquire API; references
+    // already downloaded locally skip straight to local analysis (no
+    // duplicate download / duplicate authorization archive).
+    var acquireBvids = targets.filter(function (c) {
+      return (c.study_status || 'not_analyzed') !== 'downloaded';
+    }).map(function (c) { return c.bvid; }).filter(Boolean);
+    var analyzeBvids = targets.filter(function (c) {
+      return (c.study_status || 'not_analyzed') === 'downloaded';
+    }).map(function (c) { return c.bvid; }).filter(Boolean);
+    var finish = function (acquired) {
+      var okBvids = (acquired.results || []).filter(function (r) { return r.ok; }).map(function (r) { return r.bvid; });
+      var failures = (acquired.results || []).filter(function (r) { return !r.ok; });
+      var chain = Promise.resolve();
+      okBvids.concat(analyzeBvids).forEach(function (bvid) {
+        chain = chain.then(function () {
+          return api('/api/workbench/references/analyze', {
+            session_id: currentSession.session_id, bvid: bvid
+          }, { message: '本地转写与叙事分析（whisper.cpp large-v3）…' });
+        });
+      });
+      return chain.then(function () {
+        if (failures.length) {
+          showRequestError('以下参考未获取成功（已如实停止，不绕过平台限制）：' +
+            failures.map(function (f) { return f.bvid + '：' + f.error; }).join('；'));
+        }
+        return refresh();
+      });
+    };
+    if (!acquireBvids.length) {
+      return finish({ results: [] }).catch(function () { refresh(); });
+    }
+    api('/api/workbench/references/acquire', {
+      session_id: currentSession.session_id,
+      bvids: acquireBvids,
+      authorization_text: authorizationText
+    }, { message: '授权下载参考视频…' }).then(finish).catch(function () { refresh(); });
+  }
+
+  // ---- settings ----
+
+  function renderSettings(settings) {
+    document.getElementById('st-mode').value = settings.provider_mode || 'responses';
+    document.getElementById('st-model').value = settings.model || '';
+    document.getElementById('st-base').value = settings.base_url || '';
+    document.getElementById('st-chat').value = settings.chat_base_url || '';
+    document.getElementById('st-dir').value = settings.downloads_dir || '';
+    document.getElementById('st-key').value = '';
+    var hint = document.getElementById('st-key-hint');
+    hint.textContent = settings.api_key_masked
+      ? '当前：' + settings.api_key_masked + '（留空保持不变）'
+      : '未设置';
+  }
+
+  document.getElementById('settings-save').addEventListener('click', function () {
+    var payload = {
+      provider_mode: document.getElementById('st-mode').value,
+      base_url: document.getElementById('st-base').value,
+      chat_base_url: document.getElementById('st-chat').value,
+      model: document.getElementById('st-model').value,
+      downloads_dir: document.getElementById('st-dir').value
+    };
+    var key = document.getElementById('st-key').value;
+    if (key) { payload.api_key = key; }
+    var statusEl = document.getElementById('settings-status');
+    statusEl.textContent = '保存中…';
+    fetch('/api/workbench/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
+      .then(function (result) {
+        if (!result.ok) { statusEl.textContent = result.data.error || '保存失败'; return; }
+        renderSettings(result.data);
+        statusEl.textContent = '已保存（Key 仅存本机）';
+      })
+      .catch(function () { statusEl.textContent = '网络错误'; });
+  });
+
+  document.getElementById('settings-test').addEventListener('click', function () {
+    var statusEl = document.getElementById('settings-status');
+    statusEl.textContent = '测试中…';
+    fetch('/api/workbench/settings/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
+      .then(function (result) {
+        statusEl.textContent = result.ok ? '连接正常' : (result.data.error || '连接失败');
+      })
+      .catch(function () { statusEl.textContent = '网络错误'; });
+  });
+
+  // ---- research ----
+
+  function renderResearch(session) {
+    researchCard.hidden = !currentSession;
+    if (!currentSession) { return; }
+    var list = document.getElementById('source-list');
+    list.textContent = '';
+    (session.sources || []).forEach(function (s) {
+      var item = el('div', 'src-item');
+      item.appendChild(el('div', null, s.sid + ' · ' + s.title));
+      item.appendChild(el('div', 'muted', s.kind === 'pasted' ? '（用户粘贴正文）' : s.url));
+      list.appendChild(item);
+    });
+    // Issue #23 B3: visible analyzed-N / eligible-M readiness + explicit
+    // partial-analysis override control (never silently label partial as full).
+    var readiness = session.references_readiness || { analyzed: 0, eligible: 0 };
+    var readinessEl = document.getElementById('research-readiness');
+    var pending = Math.max(0, (readiness.eligible || 0) - (readiness.analyzed || 0));
+    var failed = readiness.failed || 0;
+    readinessEl.textContent = '参考分析就绪度：已分析 ' + (readiness.analyzed || 0) + ' / 已授权 '
+      + (readiness.eligible || 0) + (pending > 0
+        ? ' 条（还有 ' + pending + ' 条未完成，其中失败待重试 ' + failed + ' 条）'
+        : ' 条（完整分析）');
+    document.getElementById('partial-override-box').hidden = pending <= 0;
+    var research = session.research || {};
+    var comparison = research.reference_comparison;
+    if (comparison && (comparison.analyzed !== undefined)) {
+      readinessEl.textContent += ' · 上次研究注入对比：' + comparison.analyzed + '/' + comparison.eligible
+        + ' 条（观点 ' + (comparison.viewpoint_count || 0) + ' 条' + (comparison.partial ? '，部分分析' : '') + '）';
+    }
+    document.getElementById('research-approve-box').hidden = !(research.status === 'reviewed' || research.status === 'ready_for_script');
+    var statusEl = document.getElementById('research-status');
+    var states = {
+      not_started: '尚未生成研究草稿',
+      fact_check_pending: '草稿已生成，待独立核查',
+      reviewed: '已核查通过，等待你的批准',
+      ready_for_script: '已批准进入写稿',
+      draft: '质量 Gate 未通过，请补充来源或重新生成'
+    };
+    if (research.status && research.status !== 'not_started') {
+      statusEl.textContent = '状态：' + (states[research.status] || research.status);
     } else {
-      if (busyTimer !== null) { window.clearInterval(busyTimer); busyTimer = null; }
-      resultCard.classList.remove('stale');
-      document.title = baseTitle;
-      runStatus.textContent = message || '';
+      statusEl.textContent = '';
     }
   }
 
-  function runSearch() {
+  document.getElementById('source-add').addEventListener('click', function () {
+    if (!currentSession) { showRequestError('请先用上方入口开启本集创作会话'); return; }
+    var input = document.getElementById('source-url');
+    api('/api/workbench/sources/url', {
+      session_id: currentSession.session_id, url: input.value
+    }, { message: '抓取来源页面…' }).then(function () {
+      input.value = '';
+      return refresh();
+    }).catch(function () {});
+  });
+
+  document.getElementById('source-add-text').addEventListener('click', function () {
+    if (!currentSession) { showRequestError('请先用上方入口开启本集创作会话'); return; }
+    api('/api/workbench/sources/text', {
+      session_id: currentSession.session_id,
+      title: document.getElementById('source-title').value,
+      text: document.getElementById('source-text').value,
+      url: document.getElementById('source-orig-url').value
+    }, { message: '保存粘贴来源…' }).then(function () {
+      document.getElementById('source-title').value = '';
+      document.getElementById('source-text').value = '';
+      document.getElementById('source-orig-url').value = '';
+      return refresh();
+    }).catch(function () {});
+  });
+
+  document.getElementById('research-generate').addEventListener('click', function () {
+    if (!currentSession) { return; }
+    var payload = {
+      session_id: currentSession.session_id,
+      research_question: document.getElementById('research-question').value
+    };
+    if (document.getElementById('partial-allow').checked) {
+      payload.partial_override = true;
+      payload.partial_reason = document.getElementById('partial-reason').value;
+    }
+    api('/api/workbench/research/generate', payload, { message: '生成研究草稿（调用你的模型服务）…' }).then(function (result) {
+      var summary = document.getElementById('research-summary');
+      summary.appendChild(el('p', 'status-line', '研究草稿 r' + result.revision + '：' + result.claim_count + ' 条主张 · ' + result.source_count + ' 个来源 · 质量 Gate：' + result.gate_status));
+      if (result.reference_comparison) {
+        var cmp = result.reference_comparison;
+        summary.appendChild(el('p', 'muted', '参考观点对比：已注入 ' + cmp.analyzed + '/' + cmp.eligible
+          + ' 条已分析参考（可归因观点 ' + (cmp.viewpoint_count || 0) + ' 条'
+          + (cmp.partial ? '，部分分析——已如实记录，不等同完整五方对比' : '') + '）'));
+      }
+      if (result.gate_reasons && result.gate_reasons.length) {
+        var ul = el('ul', 'gate-reasons');
+        result.gate_reasons.forEach(function (reason) { ul.appendChild(el('li', null, reason)); });
+        summary.appendChild(ul);
+      }
+      return refresh();
+    }).catch(function () { refresh(); });
+  });
+
+  document.getElementById('fact-check-run').addEventListener('click', function () {
+    if (!currentSession) { return; }
+    api('/api/workbench/fact-check/run', {
+      session_id: currentSession.session_id
+    }, { message: '独立事实核查（重抓来源原文 + 逐字引用核对）…' }).then(function (result) {
+      var summary = document.getElementById('research-summary');
+      summary.appendChild(el('p', 'status-line', '核查完成：' + result.checked_claims + ' 条主张已核查 · 高风险未解决 ' + result.unresolved_high_risk + ' · 质量 Gate：' + result.gate_status));
+      if (result.gate_reasons && result.gate_reasons.length) {
+        var ul = el('ul', 'gate-reasons');
+        result.gate_reasons.forEach(function (reason) { ul.appendChild(el('li', null, reason)); });
+        summary.appendChild(ul);
+      }
+      return refresh();
+    }).catch(function () { refresh(); });
+  });
+
+  document.getElementById('research-approve').addEventListener('click', function () {
+    if (!currentSession) { return; }
+    api('/api/workbench/research/approve', {
+      session_id: currentSession.session_id,
+      confirmation: document.getElementById('research-confirmation').value
+    }, { message: '记录研究批准…' }).then(refresh).catch(function () {});
+  });
+
+  // ---- thesis ----
+
+  function renderThesis(session) {
+    var thesis = session.thesis || {};
+    // The thesis card area becomes reachable as soon as the research is
+    // approved (ready_for_script) — otherwise a fresh user would have no way
+    // to start the thesis step. Any explicit thesis status also implies it.
+    var researchReady = ((session.research || {}).status === 'ready_for_script');
+    var thesisActive = (thesis.status && thesis.status !== 'not_started');
+    thesisCard.hidden = !(researchReady || thesisActive);
+    if (thesisCard.hidden) { return; }
+    if (thesis.status && thesis.status !== 'not_started') {
+      var text = {
+        draft: '选题卡草稿已生成，待独立审核',
+        reviewed: '审核完成，等待人工确认',
+        approved_for_script: '已确认，可进入写稿'
+      }[thesis.status] || thesis.status;
+      document.getElementById('thesis-status').textContent = '状态：' + text;
+    }
+    document.getElementById('thesis-approve-box').hidden = thesis.status !== 'reviewed';
+  }
+
+  document.getElementById('thesis-generate').addEventListener('click', function () {
+    if (!currentSession) { return; }
+    api('/api/workbench/thesis/generate', {
+      session_id: currentSession.session_id
+    }, { message: '生成选题卡…' }).then(function (t) {
+      var summary = document.getElementById('thesis-summary');
+      summary.appendChild(el('h3', null, '本期方向（' + t.card_id + ' r' + t.revision + '）'));
+      summary.appendChild(el('p', null, '核心问题：' + t.core_question));
+      summary.appendChild(el('p', null, '核心论点：' + t.core_thesis));
+      summary.appendChild(el('p', null, '差异化角度：' + t.differentiated_angle));
+      summary.appendChild(el('p', 'muted', '钩子承诺：' + t.hook_promise));
+      return refresh();
+    }).catch(function () { refresh(); });
+  });
+
+  document.getElementById('thesis-review').addEventListener('click', function () {
+    if (!currentSession) { return; }
+    api('/api/workbench/thesis/review', {
+      session_id: currentSession.session_id
+    }, { message: '独立审核选题卡…' }).then(function (result) {
+      var summary = document.getElementById('thesis-summary');
+      var table = el('table', 'checks-table');
+      var head = el('tr');
+      ['检查项', '结果', '理由'].forEach(function (name) { head.appendChild(el('th', null, name)); });
+      table.appendChild(head);
+      (result.checks || []).forEach(function (check) {
+        var row = el('tr');
+        row.appendChild(el('td', null, check.check_name));
+        row.appendChild(el('td', check.outcome === 'pass' ? 'check-pass' : 'check-fail', check.outcome === 'pass' ? '通过' : '未通过'));
+        row.appendChild(el('td', null, String(check.reason).slice(0, 200)));
+        table.appendChild(row);
+      });
+      summary.appendChild(table);
+      summary.appendChild(el('p', 'status-line', 'Thesis Gate：' + result.gate_decision));
+      return refresh();
+    }).catch(function () { refresh(); });
+  });
+
+  document.getElementById('thesis-approve').addEventListener('click', function () {
+    if (!currentSession) { return; }
+    api('/api/workbench/thesis/approve', {
+      session_id: currentSession.session_id,
+      confirmation: document.getElementById('thesis-confirmation').value
+    }, { message: '记录选题确认…' }).then(refresh).catch(function () {});
+  });
+
+  // ---- script ----
+
+  function renderScript(session) {
+    var script = session.script || {};
+    // The script area becomes reachable as soon as the thesis card is
+    // confirmed for writing (approved_for_script) — not only after a script
+    // already exists.
+    var thesisApproved = ((session.thesis || {}).status === 'approved_for_script');
+    var scriptActive = (script.status && script.status !== 'not_started');
+    scriptCard.hidden = !(thesisApproved || scriptActive);
+    if (scriptCard.hidden) { return; }
+    if (script.status && script.status !== 'not_started') {
+      var text = {
+        draft: '初稿已生成，待审核',
+        needs_revision: '审核未通过；可调整后重新生成',
+        reviewed: '审核通过：原创口播稿已交付'
+      }[script.status] || script.status;
+      document.getElementById('script-status').textContent = '状态：' + text;
+    }
+    // Issue #23 B3: synthesis honesty on the delivery view — how many
+    // analyzed references actually informed this session's comparison.
+    var synthesis = (session.research || {}).reference_comparison;
+    if (synthesis && synthesis.analyzed !== undefined && script.status === 'reviewed') {
+      var failedSynthesis = (synthesis.failed_bvids || []).length;
+      document.getElementById('script-status').textContent += 
+        ' · 参考综合：' + synthesis.analyzed + '/' + synthesis.eligible + ' 条已分析参考进入对比'
+        + (synthesis.partial ? '（部分分析，不等同完整五方对比'
+          + (failedSynthesis ? '，失败待重试 ' + failedSynthesis + ' 条' : '') + '）' : '');
+    }
+  }
+
+  document.getElementById('script-generate').addEventListener('click', function () {
+    if (!currentSession) { return; }
+    api('/api/workbench/script/generate', {
+      session_id: currentSession.session_id
+    }, { message: '写稿 + 独立审核（模型生成，引擎门禁校验）…' }).then(function (result) {
+      renderScriptResult(result);
+      return refresh();
+    }).catch(function () { refresh(); });
+  });
+
+  function renderScriptResult(result) {
+    var summary = document.getElementById('script-summary');
+    var issuesEl = document.getElementById('script-issues');
+    var bodyEl = document.getElementById('script-body');
+    var metaEl = document.getElementById('script-meta');
+    var copyBtn = document.getElementById('script-copy');
+    summary.textContent = ''; issuesEl.textContent = ''; metaEl.textContent = '';
+    summary.appendChild(el('p', 'status-line', '《' + (result.working_title || '未命名') + '》· ' +
+      (result.character_count || 0) + ' 字 · 预计 ' + (result.estimated_duration_minutes || '—') + ' 分钟 · ' +
+      (result.beat_count || 0) + ' 段 · 审核 Gate：' + (result.gate_status || '—')));
+    if (result.reference_synthesis && result.reference_synthesis.analyzed !== undefined) {
+      var failedSynthesis = (result.reference_synthesis.failed_bvids || []).length;
+      summary.appendChild(el('p', 'muted', '参考综合：' + result.reference_synthesis.analyzed + '/' +
+        result.reference_synthesis.eligible + ' 条已分析参考进入对比（可归因观点 '
+        + (result.reference_synthesis.viewpoint_count || 0) + ' 条'
+        + (result.reference_synthesis.partial ? '，部分分析——不等同完整五方对比'
+          + (failedSynthesis ? '，失败待重试 ' + failedSynthesis + ' 条' : '') : '') + '）'));
+    }
+    (result.blocking_issues || []).forEach(function (issue) {
+      issuesEl.appendChild(el('div', 'issue', '[' + issue.issue_type + '] ' + issue.explanation +
+        (issue.suggested_fix ? ' → ' + issue.suggested_fix : '')));
+    });
+    if (result.status === 'reviewed' && result.teleprompter_text) {
+      bodyEl.hidden = false;
+      bodyEl.textContent = result.teleprompter_text;
+      copyBtn.hidden = false;
+      metaEl.textContent = '口播稿文件：' + result.teleprompter_path + ' · 选题：' + (result.topic || '');
+    } else {
+      bodyEl.hidden = true;
+      copyBtn.hidden = true;
+      metaEl.textContent = '审核未通过时不会交付口播稿；可调整研究/选题后重新生成。';
+    }
+  }
+
+  document.getElementById('script-copy').addEventListener('click', function () {
+    var text = document.getElementById('script-body').textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        document.getElementById('script-status').textContent = '已复制全文到剪贴板';
+      }, function () {
+        document.getElementById('script-status').textContent = '复制失败，请手动全选复制';
+      });
+    } else {
+      document.getElementById('script-status').textContent = '浏览器不支持自动复制，请手动全选复制';
+    }
+  });
+
+  // ---- session start -------------------------------------------------------
+
+  function startCreation() {
     if (searchBtn.disabled) { return; }
     clearRequestError();
     var topic = topicEl.value.trim();
@@ -369,32 +1040,24 @@
       topicEl.focus();
       return;
     }
-    setBusy(true, '正在检索（匿名访问，有界请求）…');
-    fetch('/api/discover', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic: topic, urls: urls })
-    }).then(function (resp) {
-      return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
-    }).then(function (result) {
-      setBusy(false);
-      if (!result.ok) {
-        showRequestError(result.data && result.data.error ? result.data.error : '请求失败，请重试。');
-        return;
-      }
-      render(result.data);
-    }).catch(function () {
-      setBusy(false);
-      showRequestError('网络错误：无法连接本机服务。');
-    });
+    api('/api/workbench/session/start', { topic: topic, urls: urls },
+      { message: '正在检索本集参考视频（匿名访问，有界请求）…' })
+      .then(function (state) {
+        renderState(state);
+        return state;
+      })
+      .catch(function () {});
   }
 
   addBtn.addEventListener('click', addRefInput);
-  searchBtn.addEventListener('click', runSearch);
+  searchBtn.addEventListener('click', startCreation);
   topicEl.addEventListener('keydown', function (event) {
-    if (event.key === 'Enter') { event.preventDefault(); runSearch(); }
+    if (event.key === 'Enter') { event.preventDefault(); startCreation(); }
   });
   syncAddButton();
+
+  renderSteps('references');
+  refresh().catch(function () {});
 })();
 </script>
 </body>

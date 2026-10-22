@@ -40,4 +40,9 @@ edit_bridge_projects/**
 .cache/
 config/visual-asset-plugins.local.json
 config/artifact-runtime.local.json
+config/workbench.local.json
+workbench/**
+!workbench/.gitkeep
+content_theses/**
+!content_theses/.gitkeep
 candidate_plugin_runs/**

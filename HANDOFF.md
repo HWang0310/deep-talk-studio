@@ -13,6 +13,13 @@ AIGC:
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-10-22：Issue #23 / PR #33 — Nexus round-2 修复（待独立复审）
+
+- **B3 授权下载失败持久化：** 原分支继续实现。有效授权后的 `WorkbenchAcquisitionError` 现在写入会话与最新 `acquisition.json`（状态、阶段、原因、时间与尝试次数）；失败条目保留在 `eligible/pending`，UI 展示失败原因并提供授权重试。研究只有在重试成功或提交不少于 10 字的明确 partial override 理由后才继续，成功重试会清掉当前失败字段。
+- **B1 选题一致性：** 保留覆盖率门槛并增加去泛化词后的主题锚点；`topic` 元数据不再作为报告正文证据。新增“莫斯科大学留学生旭日旗事件”对“大学留学生考试事件”及元数据伪装负例，既有语义改写正例和完整工作台链路通过。
+- **B2 网络测试：** 删除真实公网拨号依赖，改为 fake socket/response/resolver；离线覆盖 HTTP(S) 重定向到回环/内网的拒绝（私网地址未拨号）与合法公有 HTTPS 重定向。
+- **验证：** `tests.test_workbench` 28/28、聚焦工作台/WebUI 68/68、全量 1062 项通过（7 项既有 skip）。mock LLM 只证明编排与门禁，真实模型创作质量仍为 **UNVERIFIED**；PR #33 保持 OPEN，不合并，等待 Nexus exact-head 复审。
+
 ## 2026-10-21：Issue #30 / PR #31 — Nexus round-2 CHANGES_REQUIRED 修复（两处交付真实性小修，Forge 续作）
 
 - **接手背景：** Nexus 第二轮复审（@ `565b0b2`）认可四项 round-1 BLOCKING 修复并要求不返工，仅指出两处交付真实性问题：①audio-only 剪辑表前言固定写「其余无素材段落保持人物画面」，对无视频轨的纯音频交付暗示真人画面；②合成测试 fixture 的模拟权利证据（example.com 占位、`codex_web_open` stub）在 README/剪辑表/汇报中被表述为已实际核验的公共领域权利页。
