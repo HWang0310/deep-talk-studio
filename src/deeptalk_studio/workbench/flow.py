@@ -80,13 +80,51 @@ from .netfetch import fetch_public_source as default_fetcher  # noqa: E402
 # schema-valid but *off-topic* research/thesis/script payload (Moscow topic
 # in, library script out) and the flow used to overwrite ``payload["topic"]``
 # with the session topic, masking the mismatch.  ``ensure_topic_consistency``
-# fails closed on that: it compares the session topic's signal tokens
-# (CJK character bigrams + ASCII words) against the model/stage content and
-# rejects obvious foreign-topic output *before* it can be saved, approved or
-# delivered as Gate-passed.  Semantic paraphrases stay allowed — matching
-# key entities (e.g. 莫斯科大学 / 留学生 / 旭日旗) is enough.
+# fails closed on that: it compares the session topic's signal tokens and
+# distinctive anchors against the model/stage content and rejects obvious
+# foreign-topic output *before* it can be saved, approved or delivered as
+# Gate-passed.  Generic bridge words (for example 大学/留学生/事件) are not
+# anchors, so an adjacent topic cannot pass merely by sharing those words.
+# Semantic paraphrases stay allowed when they retain a distinctive entity
+# (e.g. 莫斯科 or 旭日旗).
 
 MIN_TOPIC_COVERAGE = 0.2
+
+# These terms describe a topic's framing rather than its subject.  They are
+# removed only while deriving anchors; they still contribute to the legacy
+# coverage score so short or otherwise generic topics retain a useful fallback
+# check.  Longest terms are consumed first to avoid ``留学生`` becoming
+# ``留`` + ``学生``.
+_TOPIC_GENERIC_TERMS = (
+    "留学生",
+    "本市",
+    "当地",
+    "相关",
+    "大学",
+    "学校",
+    "学生",
+    "留学",
+    "事件",
+    "问题",
+    "现象",
+    "话题",
+    "情况",
+    "报道",
+    "新闻",
+    "调查",
+    "分析",
+    "影响",
+    "原因",
+    "政策",
+    "讨论",
+    "争议",
+    "试点",
+    "措施",
+    "方案",
+    "通知",
+    "安排",
+    "机制",
+)
 
 
 def _topic_signal_tokens(topic: str) -> List[str]:
@@ -103,10 +141,42 @@ def _topic_signal_tokens(topic: str) -> List[str]:
     return tokens
 
 
+def _topic_anchor_tokens(topic: str) -> List[str]:
+    """Return distinctive subject phrases from a topic.
+
+    The old bigram score is intentionally retained as a broad recall signal,
+    but adjacent Chinese topics often share several generic bigrams.  Removing
+    framing terms and keeping the remaining contiguous runs gives us a small,
+    explainable precision check without pretending to perform semantic model
+    inference in the server-side gate.
+    """
+
+    anchors: List[str] = []
+    for run in re.findall(r"[\u4e00-\u9fff]+", str(topic or "")):
+        residual = run
+        for term in sorted(_TOPIC_GENERIC_TERMS, key=len, reverse=True):
+            residual = residual.replace(term, " ")
+        for chunk in re.findall(r"[\u4e00-\u9fff]{2,}", residual):
+            # Keep the whole phrase and three-character windows.  A stage may
+            # reasonably paraphrase “图书馆夜间开放” as just “夜间开放”,
+            # while a three-character window still remains distinctive enough
+            # to distinguish it from “大学留学生考试”.
+            anchors.append(chunk)
+            if len(chunk) > 3:
+                anchors.extend(chunk[index : index + 3] for index in range(len(chunk) - 2))
+    anchors.extend(
+        word.lower()
+        for word in re.findall(r"[A-Za-z0-9][A-Za-z0-9\-_.]{2,}", str(topic or ""))
+        if word.lower() not in {"the", "and", "for", "with", "from"}
+    )
+    # Preserve deterministic order while removing repeated fragments.
+    return list(dict.fromkeys(anchor for anchor in anchors if anchor))
+
+
 def ensure_topic_consistency(
     topic: str, texts: Sequence[Any], *, what: str
 ) -> float:
-    """Fail closed unless ``texts`` mention enough of the session topic."""
+    """Fail closed unless ``texts`` cover the topic and a subject anchor."""
 
     subject = " ".join(str(text or "") for text in texts)
     tokens = _topic_signal_tokens(str(topic or ""))
@@ -114,10 +184,13 @@ def ensure_topic_consistency(
         return 0.0  # degenerate topic: nothing comparable (session topics are 1–200 chars)
     covered = sum(1 for token in tokens if token and token in subject)
     coverage = covered / len(tokens)
-    if coverage < MIN_TOPIC_COVERAGE:
+    normalized_subject = re.sub(r"\s+", "", subject).lower()
+    anchors = _topic_anchor_tokens(str(topic or ""))
+    anchor_hits = [anchor for anchor in anchors if anchor.lower() in normalized_subject]
+    if coverage < MIN_TOPIC_COVERAGE or (anchors and not anchor_hits):
         raise WorkbenchFlowError(
             f"{what}与选题主题明显不符（关键内容一致度约 {coverage:.0%}），已拒绝写入："
-            "模型输出疑似偏离本集选题或引用了无关材料；请检查模型输出或更换更贴合选题的来源后重试。"
+            "模型输出疑似偏离本集选题或缺少主题锚点；请检查模型输出或更换更贴合选题的来源后重试。"
         )
     return coverage
 
@@ -127,7 +200,6 @@ def _report_topic_texts(report: Mapping[str, Any]) -> List[str]:
     claims = data.get("claims", []) or []
     sources = data.get("sources", []) or []
     return [
-        str(data.get("topic", "")),
         str(data.get("research_question", "")),
         str(data.get("scope_summary", "")),
         str(data.get("executive_summary", "")),
@@ -285,6 +357,9 @@ class WorkbenchFlow:
                 {
                     **reference,
                     "study_status": state.get("status", "not_analyzed"),
+                    "study_error": state.get("failure_reason", ""),
+                    "failure_stage": state.get("failure_stage", ""),
+                    "attempt_count": state.get("attempt_count", 0),
                     "study": self._study_summary(study),
                 }
             )
@@ -362,6 +437,13 @@ class WorkbenchFlow:
             if not reference:
                 results.append({"bvid": bvid, "ok": False, "error": "候选中不存在该参考"})
                 continue
+            # Do not turn a malformed authorization attempt into an eligible
+            # reference.  Once this validation succeeds, however, every
+            # acquisition outcome is durable (including failure).
+            try:
+                attestation = acquisition.authorize(authorization_text)
+            except acquisition.WorkbenchAcquisitionError:
+                attestation = ""
             # Idempotent skip: references already downloaded locally (with the
             # media file still on disk) are not downloaded again — the caller's
             # fresh authorization never silently re-archives a duplicate.
@@ -383,12 +465,78 @@ class WorkbenchFlow:
                     runner=self.acquire_runner or acquisition.subprocess.run,
                 )
             except acquisition.WorkbenchAcquisitionError as exc:
-                results.append({"bvid": bvid, "ok": False, "error": str(exc)})
+                reason = str(exc)
+                if attestation:
+                    prior_state = session.get("references", {}).get(bvid) or {}
+                    attempt_count = int(prior_state.get("attempt_count", 0) or 0) + 1
+                    attempted_at = _now()
+                    ref_dir = self.store.references_dir(session_id) / bvid
+                    ref_dir.mkdir(parents=True, exist_ok=True)
+                    failure_record = {
+                        "bvid": bvid,
+                        "url": reference.get("url", ""),
+                        "title": reference.get("title", bvid),
+                        "authorization_text": attestation,
+                        "authorized_at": prior_state.get("authorized_at", attempted_at),
+                        "attempted_at": attempted_at,
+                        "attempt_count": attempt_count,
+                        "status": "failed",
+                        "failure_stage": "acquisition",
+                        "failure_reason": reason,
+                        "tool": "yt-dlp",
+                    }
+                    (ref_dir / "acquisition.json").write_text(
+                        json.dumps(failure_record, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+
+                    def _mark_failed(
+                        session_state,
+                        ref_bvid=bvid,
+                        ref=reference,
+                        auth=attestation,
+                        attempted=attempted_at,
+                        attempts=attempt_count,
+                        failure=reason,
+                    ):
+                        state = session_state["references"].setdefault(ref_bvid, {})
+                        state.update({
+                            "status": "failed",
+                            "failure_stage": "acquisition",
+                            "failure_reason": failure,
+                            "authorization_text": auth,
+                            "authorized_at": state.get("authorized_at", attempted),
+                            "last_attempt_at": attempted,
+                            "attempt_count": attempts,
+                            "title": ref.get("title", ref_bvid),
+                            "url": ref.get("url", ""),
+                            "view_count": ref.get("view_count"),
+                            "view_count_status": ref.get("view_count_status", ""),
+                            "duration_sec": ref.get("duration_sec"),
+                        })
+                        state.pop("media_path", None)
+                        state.pop("study_path", None)
+
+                    session = self.store.update(session_id, _mark_failed)
+                results.append({
+                    "bvid": bvid,
+                    "ok": False,
+                    "error": reason,
+                    "status": "failed" if attestation else "not_authorized",
+                })
                 continue
             ref_dir = self.store.references_dir(session_id) / bvid
             ref_dir.mkdir(parents=True, exist_ok=True)
+            prior_state = session.get("references", {}).get(bvid) or {}
+            attempt_count = int(prior_state.get("attempt_count", 0) or 0) + 1
+            attempted_at = _now()
             (ref_dir / "acquisition.json").write_text(
-                json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+                json.dumps(
+                    {**record, "attempt_count": attempt_count, "attempted_at": attempted_at},
+                    ensure_ascii=False,
+                    indent=2,
+                ) + "\n",
+                encoding="utf-8",
             )
 
             def _mark(
@@ -403,13 +551,19 @@ class WorkbenchFlow:
                 state = session_state["references"].setdefault(ref_bvid, {})
                 state["status"] = status
                 state["media_path"] = media
+                state["authorization_text"] = record.get("authorization_text", attestation)
+                state["authorized_at"] = record.get("authorized_at", attempted_at)
+                state["last_attempt_at"] = attempted_at
+                state["attempt_count"] = attempt_count
                 state["title"] = ref.get("title", ref_bvid)
                 state["url"] = ref.get("url", "")
                 state["view_count"] = ref.get("view_count")
                 state["view_count_status"] = ref.get("view_count_status", "")
                 state["duration_sec"] = ref.get("duration_sec")
+                state.pop("failure_stage", None)
+                state.pop("failure_reason", None)
 
-            self.store.update(session_id, _mark)
+            session = self.store.update(session_id, _mark)
             results.append({"bvid": bvid, "ok": True, "media_path": record["media_path"]})
         return {"results": results}
 
@@ -622,9 +776,15 @@ class WorkbenchFlow:
         readiness = self._reference_readiness(session)
         pending = readiness["pending_bvids"]
         if pending and not allow_partial:
+            failure_note = (
+                f"其中 {len(readiness['failed_bvids'])} 条下载失败，请先重试；"
+                if readiness["failed_bvids"]
+                else ""
+            )
             raise WorkbenchFlowError(
                 f"参考分析尚未完成：已分析 {readiness['analyzed']}/{readiness['eligible']} 条已授权参考，"
-                f"还有 {len(pending)} 条未做本地转写分析。请先完成剩余参考的分析；"
+                f"还有 {len(pending)} 条未完成（下载待分析或失败）。{failure_note}"
+                "请先完成剩余参考的分析；"
                 "若确认要基于部分参考继续（将如实记录为部分分析，不等同完整五方对比），"
                 "请勾选「允许部分分析」并填写理由。"
             )
@@ -683,12 +843,7 @@ class WorkbenchFlow:
         # Issue #23 B1: fail closed on off-topic research before anything is
         # saved (the observed E2E mismatch: Moscow session, library payload).
         ensure_topic_consistency(
-            session["topic"],
-            [content.get("topic", ""), content.get("scope_summary", ""),
-             content.get("executive_summary", "")]
-            + [claim.get("claim", "") for claim in content.get("claims", [])]
-            + [source.get("title", "") + str(source.get("stance_summary", ""))
-               for source in content.get("sources", [])],
+            session["topic"], _report_topic_texts(content),
             what="研究草稿",
         )
         report_id = f"RPT-{uuid.uuid4().hex}"
@@ -766,24 +921,37 @@ class WorkbenchFlow:
     def _reference_readiness(self, session: Mapping[str, Any]) -> Dict[str, Any]:
         """Issue #23 B3: analyzed-N / eligible-M readiness of authorized refs.
 
-        Eligible = references the owner actually authorized (downloaded or
-        analyzed).  Never-downloaded discovery candidates are not "pending"
-        — they were never authorized — so choosing not to acquire a reference
-        never blocks research.
+        Eligible = references the owner actually authorized (downloaded,
+        analyzed, or a persisted failed attempt after valid authorization).
+        Never-downloaded discovery candidates are not "pending" — they were
+        never authorized — so choosing not to acquire a reference never blocks
+        research.  A failed authorized attempt is unresolved and therefore
+        blocks research until retry or an explicit partial-analysis override.
+        Any persisted ``failed`` state remains fail-closed even if an older
+        session lacks a failure-stage field.
         """
         references = session.get("references", {})
         analyzed: List[str] = []
-        pending: List[str] = []
+        download_pending: List[str] = []
+        failed: List[str] = []
         for bvid, state in references.items():
             status = (state or {}).get("status")
             if status == "analyzed":
                 analyzed.append(bvid)
             elif status == "downloaded":
-                pending.append(bvid)
+                download_pending.append(bvid)
+            elif status == "failed":
+                failed.append(bvid)
+        pending = download_pending + failed
         return {
             "analyzed": len(analyzed),
-            "eligible": len(analyzed) + len(pending),
+            "eligible": len(analyzed) + len(download_pending) + len(failed),
+            "download_pending": len(download_pending),
+            "failed": len(failed),
+            "unresolved": len(pending),
             "pending_bvids": pending,
+            "download_pending_bvids": download_pending,
+            "failed_bvids": failed,
         }
 
     def _comparison_snapshot(
@@ -803,6 +971,13 @@ class WorkbenchFlow:
             "partial_reason": (
                 str(partial_reason or "").strip() if readiness["pending_bvids"] else ""
             ),
+            "pending_bvids": list(readiness["pending_bvids"]),
+            "download_pending_bvids": list(readiness["download_pending_bvids"]),
+            "failed_bvids": list(readiness["failed_bvids"]),
+            "failure_reasons": {
+                str(bvid): str((session.get("references", {}).get(bvid) or {}).get("failure_reason", ""))
+                for bvid in readiness["failed_bvids"]
+            },
             "recorded_at": _now(),
         }
 
@@ -1246,7 +1421,8 @@ class WorkbenchFlow:
     @staticmethod
     def _synthesis_view(research: Mapping[str, Any]) -> Dict[str, Any]:
         """Honest reference-synthesis summary shown with every script view
-        (Issue #23 B3): analyzed N / eligible M, partial or not."""
+        (Issue #23 B3): analyzed N / eligible M, partial or not, including
+        unresolved acquisition identifiers when a partial override was used."""
         comparison = research.get("reference_comparison") or {}
         if not comparison:
             return {}
@@ -1256,6 +1432,9 @@ class WorkbenchFlow:
             "viewpoint_count": comparison.get("viewpoint_count", 0),
             "partial": bool(comparison.get("partial")),
             "partial_reason": str(comparison.get("partial_reason", "")),
+            "pending_bvids": list(comparison.get("pending_bvids", [])),
+            "failed_bvids": list(comparison.get("failed_bvids", [])),
+            "failure_reasons": dict(comparison.get("failure_reasons", {})),
         }
 
     def final_script(self, session_id: str) -> Dict[str, Any]:

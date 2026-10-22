@@ -571,8 +571,13 @@
     var readiness = session.references_readiness || {};
     var statusEl = document.getElementById('analysis-status');
     var total = session.references.length;
-    statusEl.textContent = '就绪度：已分析 ' + (readiness.analyzed || 0) + ' · 已下载待分析 '
-      + Math.max(0, (readiness.eligible || 0) - (readiness.analyzed || 0)) + ' · 本集候选 ' + total
+    var downloadPending = readiness.download_pending !== undefined
+      ? readiness.download_pending
+      : Math.max(0, (readiness.eligible || 0) - (readiness.analyzed || 0));
+    var failedCount = readiness.failed || 0;
+    statusEl.textContent = '就绪度：已分析 ' + (readiness.analyzed || 0)
+      + ' · 已下载待分析 ' + downloadPending + ' · 失败待重试 ' + failedCount
+      + ' · 本集候选 ' + total
       + '（研究要求：所有已授权参考完成分析，或明确选择部分分析）';
     var targets = session.references.filter(function (c) {
       return (c.study_status || 'not_analyzed') !== 'analyzed';
@@ -588,7 +593,9 @@
     var buttonRow = el('div', 'actions');
     var acquireAll = el('button', 'primary');
     acquireAll.type = 'button';
-    acquireAll.textContent = '授权获取并分析未完成的参考（' + targets.length + ' 条）';
+    acquireAll.textContent = (readiness.failed || 0) > 0
+      ? '授权重试并分析未完成的参考（' + targets.length + ' 条）'
+      : '授权获取并分析未完成的参考（' + targets.length + ' 条）';
     acquireAll.addEventListener('click', function () { runAcquisition(targets, authArea.value); });
     buttonRow.appendChild(acquireAll);
     if (targets.length === 0) {
@@ -634,6 +641,9 @@
         if (c.study.media_path) {
           item.appendChild(el('p', 'muted', '文件：' + c.study.media_path));
         }
+      }
+      if (status === 'failed' && c.study_error) {
+        item.appendChild(el('p', 'status-blocked', '下载失败（可重试）：' + String(c.study_error)));
       }
       list.appendChild(item);
     });
@@ -752,8 +762,11 @@
     var readiness = session.references_readiness || { analyzed: 0, eligible: 0 };
     var readinessEl = document.getElementById('research-readiness');
     var pending = Math.max(0, (readiness.eligible || 0) - (readiness.analyzed || 0));
+    var failed = readiness.failed || 0;
     readinessEl.textContent = '参考分析就绪度：已分析 ' + (readiness.analyzed || 0) + ' / 已授权 '
-      + (readiness.eligible || 0) + (pending > 0 ? ' 条（还有 ' + pending + ' 条待本地转写分析）' : ' 条（完整分析）');
+      + (readiness.eligible || 0) + (pending > 0
+        ? ' 条（还有 ' + pending + ' 条未完成，其中失败待重试 ' + failed + ' 条）'
+        : ' 条（完整分析）');
     document.getElementById('partial-override-box').hidden = pending <= 0;
     var research = session.research || {};
     var comparison = research.reference_comparison;
@@ -946,9 +959,11 @@
     // analyzed references actually informed this session's comparison.
     var synthesis = (session.research || {}).reference_comparison;
     if (synthesis && synthesis.analyzed !== undefined && script.status === 'reviewed') {
+      var failedSynthesis = (synthesis.failed_bvids || []).length;
       document.getElementById('script-status').textContent += 
         ' · 参考综合：' + synthesis.analyzed + '/' + synthesis.eligible + ' 条已分析参考进入对比'
-        + (synthesis.partial ? '（部分分析，不等同完整五方对比）' : '');
+        + (synthesis.partial ? '（部分分析，不等同完整五方对比'
+          + (failedSynthesis ? '，失败待重试 ' + failedSynthesis + ' 条' : '') + '）' : '');
     }
   }
 
@@ -973,10 +988,12 @@
       (result.character_count || 0) + ' 字 · 预计 ' + (result.estimated_duration_minutes || '—') + ' 分钟 · ' +
       (result.beat_count || 0) + ' 段 · 审核 Gate：' + (result.gate_status || '—')));
     if (result.reference_synthesis && result.reference_synthesis.analyzed !== undefined) {
+      var failedSynthesis = (result.reference_synthesis.failed_bvids || []).length;
       summary.appendChild(el('p', 'muted', '参考综合：' + result.reference_synthesis.analyzed + '/' +
         result.reference_synthesis.eligible + ' 条已分析参考进入对比（可归因观点 '
         + (result.reference_synthesis.viewpoint_count || 0) + ' 条'
-        + (result.reference_synthesis.partial ? '，部分分析——不等同完整五方对比' : '') + '）'));
+        + (result.reference_synthesis.partial ? '，部分分析——不等同完整五方对比'
+          + (failedSynthesis ? '，失败待重试 ' + failedSynthesis + ' 条' : '') : '') + '）'));
     }
     (result.blocking_issues || []).forEach(function (issue) {
       issuesEl.appendChild(el('div', 'issue', '[' + issue.issue_type + '] ' + issue.explanation +

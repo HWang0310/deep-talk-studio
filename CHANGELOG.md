@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 2026-10-22 — Issue #23 — Nexus round-2 hardening (PR #33)
+
+- **B3 — Authorized acquisition failures remain unresolved.** A valid authorization followed by a failed `yt-dlp` attempt is now persisted in both the session and the latest acquisition record with status, reason, timestamps and retry count. Failed authorized references remain visible in `eligible`/`pending`, show their reason in the UI, block research until a retry succeeds, or require the existing explicit reason-bearing partial-analysis override; a successful retry clears the active failure.
+- **B1 — Adjacent topics no longer pass on generic overlap.** The deterministic topic guard keeps the coverage floor but also requires a distinctive subject anchor, excludes the server-controlled report `topic` field from evidence scoring, rejects the concrete Moscow/flag versus university-exam mismatch, and retains the semantic-paraphrase positive case.
+- **B2 — Network regressions are fully offline.** The pinned-public-IP test now uses a fake socket, and deterministic HTTP(S) redirect fixtures cover rejection of loopback/private destinations before any private dial plus a valid public redirect path.
+- Mock providers and fixtures verify orchestration and gates only; real-model creative quality remains **UNVERIFIED** pending a configured-model review.
+- Verification: focused workbench/WebUI regressions 68/68, `tests.test_workbench` 28/28, full suite 1062 tests OK (7 skipped).
+
 ## Unreleased — 2026-10-21 — Issue #23 — Nexus round-1 CHANGES_REQUIRED fixes: topic guard (B1), SSRF-guarded fetch (B2), enforced five-way synthesis (B3)
 
 - **B1 — Off-topic output can never pass gates (fail-closed topic consistency).** The first browser E2E proved the real failure: a Moscow-University topic produced a library-themed "Gate pass" script because the flow overwrote the payload topic with the session topic. New `ensure_topic_consistency` compares the session topic's signal tokens (CJK bigrams + ASCII words) against research/thesis content and rejects obvious foreign-topic output **before saving** (research and thesis generation), at **approval boundaries** (research approval, thesis confirmation) and at **script delivery** (report, card and final teleprompter all re-checked) — semantic paraphrases stay allowed (≥20% topic-token coverage). The exact observed mismatch is a locked regression: a Moscow session + library fixtures cannot generate, approve or deliver (`test_off_topic_research_is_rejected_not_relabelled` etc., plus an HTTP-level 400 regression in `tests/test_webui.py`); no silent relabelling happens anymore.

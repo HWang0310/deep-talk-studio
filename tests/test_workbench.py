@@ -898,6 +898,126 @@ class FullLoopTests(unittest.TestCase):
             self.assertGreater(bad_result["quote_downgraded_checks"], 0)
 
 
+class AcquisitionFailureFlowTests(unittest.TestCase):
+    """Round-2 Nexus regression: validly authorized download failures are
+    durable unresolved references, not transient response-only errors."""
+
+    def _configure(self, root: Path):
+        save_settings(root, apply_settings_update(load_settings(root), {
+            "provider_mode": "chat",
+            "chat_base_url": "https://llm.example.com/v1",
+            "model": "test-model",
+            "api_key": "sk-test-key",
+            "downloads_dir": str(root.resolve()),
+        }))
+
+    def _flow(self, root: Path):
+        return WorkbenchFlow(
+            root,
+            discovery_runner=_fake_discovery_five,
+            provider_factory=lambda settings: FakeWorkbenchLLM(settings),
+            fetcher=_fake_fetcher,
+        )
+
+    def test_four_authorized_download_failures_remain_pending_and_retry_clears(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._configure(root)
+            flow = self._flow(root)
+            view = flow.start_session("本市图书馆夜间开放试点", [])
+            sid = view["session_id"]
+            bvids = [item["bvid"] for item in view["references"]]
+            media = root / "reference-one.mp4"
+            media.write_bytes(b"fixture-media")
+
+            def acquire(reference, downloads_dir, authorization_text, **kwargs):
+                if reference["bvid"] != bvids[0]:
+                    raise acquisition.WorkbenchAcquisitionError(
+                        "下载失败：模拟平台拒绝（不绕过平台限制）"
+                    )
+                record = _fake_acquirer(reference, downloads_dir, authorization_text)
+                record["media_path"] = str(media)
+                return record
+
+            authorization = "我授权在本地研究使用这些参考视频。"
+            with mock.patch.object(acquisition, "acquire_reference", acquire):
+                result = flow.acquire_references(sid, bvids, authorization)
+            self.assertEqual(sum(1 for item in result["results"] if item["ok"]), 1)
+            self.assertEqual(sum(1 for item in result["results"] if not item["ok"]), 4)
+
+            # The successful reference is treated as analyzed for this gate
+            # regression; the four failures must still remain eligible/pending.
+            flow.store.update(sid, lambda session: session["references"][bvids[0]].update({
+                "status": "analyzed",
+                "study_path": "",
+            }))
+            state = flow.view(sid)
+            readiness = state["references_readiness"]
+            self.assertEqual((readiness["analyzed"], readiness["eligible"]), (1, 5))
+            self.assertEqual(readiness["failed"], 4)
+            self.assertEqual(set(readiness["failed_bvids"]), set(bvids[1:]))
+            self.assertEqual(set(readiness["pending_bvids"]), set(bvids[1:]))
+            for bvid in bvids[1:]:
+                persisted = flow.store.load(sid)["references"][bvid]
+                self.assertEqual(persisted["status"], "failed")
+                self.assertEqual(persisted["failure_stage"], "acquisition")
+                self.assertIn("模拟平台拒绝", persisted["failure_reason"])
+                self.assertEqual(persisted["authorization_text"], authorization)
+                self.assertGreaterEqual(persisted["attempt_count"], 1)
+                acquisition_record = json.loads(
+                    (
+                        flow.store.references_dir(sid) / bvid / "acquisition.json"
+                    ).read_text(encoding="utf-8")
+                )
+                self.assertEqual(acquisition_record["status"], "failed")
+                self.assertEqual(acquisition_record["failure_stage"], "acquisition")
+                self.assertIn("模拟平台拒绝", acquisition_record["failure_reason"])
+                visible = next(item for item in state["references"] if item["bvid"] == bvid)
+                self.assertEqual(visible["study_status"], "failed")
+                self.assertIn("模拟平台拒绝", visible["study_error"])
+
+            flow.add_source_text(sid, "示例新闻社", SOURCE_A_TEXT, "https://example.com/news/night-library")
+            flow.add_source_text(sid, "市财政局预算说明", SOURCE_B_TEXT, "https://example.gov.cn/budget/2027-culture")
+            with self.assertRaises(WorkbenchFlowError) as blocked:
+                flow.generate_research(sid, "")
+            self.assertIn("1/5", str(blocked.exception))
+            self.assertIn("失败", str(blocked.exception))
+
+            partial = flow.generate_research(
+                sid,
+                "",
+                allow_partial=True,
+                partial_reason="四条参考下载失败，先基于已完成的一条继续研究",
+            )
+            self.assertTrue(partial["reference_comparison"]["partial"])
+            stored = flow.store.load(sid)["research"]["reference_comparison"]
+            self.assertEqual(set(stored["failed_bvids"]), set(bvids[1:]))
+            self.assertIn("四条参考下载失败", stored["partial_reason"])
+
+            # A later retry updates the same durable reference and removes the
+            # current failure, so it is no longer an unresolved download.
+            retry_bvid = bvids[1]
+
+            def retry(reference, downloads_dir, authorization_text, **kwargs):
+                if reference["bvid"] != retry_bvid:
+                    raise acquisition.WorkbenchAcquisitionError("仍失败")
+                record = _fake_acquirer(reference, downloads_dir, authorization_text)
+                record["media_path"] = str(media)
+                return record
+
+            with mock.patch.object(acquisition, "acquire_reference", retry):
+                flow.acquire_references(sid, [retry_bvid], authorization)
+            retried = flow.store.load(sid)["references"][retry_bvid]
+            self.assertEqual(retried["status"], "downloaded")
+            self.assertNotIn("failure_reason", retried)
+
+    def test_ui_shows_persisted_failure_reason_and_unresolved_count(self):
+        html = (REPO / "src/deeptalk_studio/webui_static/index.html").read_text(encoding="utf-8")
+        self.assertIn("study_error", html)
+        self.assertIn("失败待重试", html)
+        self.assertIn("readiness.failed", html)
+
+
 class ThesisPromptTests(unittest.TestCase):
     """Real prompt builders must work end to end (fakes bypass them, so a
     broken import or rendering would otherwise only surface at runtime)."""
@@ -1022,15 +1142,36 @@ class NetFetchTests(unittest.TestCase):
             for fragment in expectations[name]:
                 self.assertIn(fragment, result["error"], name)
 
-    def test_public_resolution_is_pinned_and_dials_only_validated_ips(self):
+    def test_public_resolution_is_pinned_and_dials_only_validated_ips_offline(self):
         import socket
 
         from deeptalk_studio.workbench import netfetch
 
-        # A public answer passes validation; the dial then fails fast (no
-        # such listener) without any security rejection — and any *second*
-        # answer that flips private never reaches the socket because the
-        # connection is pinned to the validated list.
+        class OfflineSocket:
+            attempts = []
+
+            def __init__(self, *args):
+                self.closed = False
+
+            def settimeout(self, _timeout):
+                return None
+
+            def setsockopt(self, *_args):
+                return None
+
+            def bind(self, _source_address):
+                return None
+
+            def connect(self, sockaddr):
+                self.attempts.append(sockaddr)
+                raise OSError("offline socket fixture")
+
+            def close(self):
+                self.closed = True
+
+        # A public answer passes validation; the fake dial then fails fast.
+        # Any *second* resolver answer that flips private never reaches the
+        # socket because the connection is pinned to the first validated list.
         calls = []
 
         def rebind_after_first(host, port, *args):
@@ -1043,11 +1184,152 @@ class NetFetchTests(unittest.TestCase):
 
         connection = netfetch._PinnedHTTPConnection("rebind.example", 80, timeout=0.2)
         connection.resolver = rebind_after_first
-        with self.assertRaises(netfetch.WorkbenchSourceFetchError) as ctx:
-            connection.connect()
+        with mock.patch.object(netfetch.socket, "socket", OfflineSocket):
+            with self.assertRaises(netfetch.WorkbenchSourceFetchError) as ctx:
+                connection.connect()
         # 证词：连接只拨向第一个（也是唯一的）已验证公网地址，从未重解析。
         self.assertEqual(len(calls), 1)
+        self.assertEqual(OfflineSocket.attempts, [("93.184.216.34", 80)])
         self.assertIn("无法连接任何已验证的公网地址", str(ctx.exception))
+
+    def test_redirect_to_loopback_or_private_is_rejected_offline(self):
+        """Every HTTP(S) redirect target is resolved before any socket dial."""
+        from email.message import Message
+        import socket
+
+        from deeptalk_studio.workbench import netfetch
+
+        class OfflineSocket:
+            attempts = []
+
+            def __init__(self, *args):
+                self.closed = False
+
+            def settimeout(self, _timeout):
+                return None
+
+            def setsockopt(self, *_args):
+                return None
+
+            def bind(self, _source_address):
+                return None
+
+            def connect(self, sockaddr):
+                self.attempts.append(sockaddr)
+
+            def close(self):
+                self.closed = True
+
+        class FakeResponse:
+            def __init__(self, status, url, headers=None, body=b"fixture"):
+                self.status = status
+                self.code = status
+                self.reason = "Found" if status in (301, 302, 303, 307, 308) else "OK"
+                self.msg = self.reason
+                self.headers = Message()
+                for key, value in (headers or {}).items():
+                    self.headers[key] = value
+                self._url = url
+                self._body = body
+
+            def read(self, amount=-1):
+                return self._body if amount < 0 else self._body[:amount]
+
+            def geturl(self):
+                return self._url
+
+            def info(self):
+                return self.headers
+
+            def getcode(self):
+                return self.code
+
+            def close(self):
+                return None
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.close()
+
+        addresses = {
+            "public.example": "93.184.216.34",
+            "public-redirect.example": "93.184.216.35",
+            "loopback.example": "127.0.0.1",
+            "private.example": "10.1.2.3",
+        }
+
+        for target_url, target_host, rejected_ip in (
+            ("https://public-redirect.example/final", "public-redirect.example", ""),
+            ("http://loopback.example/private", "loopback.example", "127.0.0.1"),
+            ("https://private.example/internal", "private.example", "10.1.2.3"),
+        ):
+            with self.subTest(target_url=target_url):
+                resolver_calls = []
+                OfflineSocket.attempts = []
+
+                def resolver(host, port, *args):
+                    resolver_calls.append(host)
+                    return [(
+                        socket.AF_INET,
+                        socket.SOCK_STREAM,
+                        socket.IPPROTO_TCP,
+                        "",
+                        (addresses[host], port),
+                    )]
+
+                def fake_request(
+                    connection,
+                    method,
+                    selector,
+                    body=None,
+                    headers=None,
+                    *,
+                    encode_chunked=False,
+                ):
+                    connection.sock = connection._pinned_create_connection(
+                        (connection.host, connection.port),
+                        connection.timeout,
+                        connection.source_address,
+                    )
+                    if connection.host == "public.example":
+                        connection._fixture_response = FakeResponse(
+                            302,
+                            "http://public.example/start",
+                            {"Location": target_url},
+                        )
+                    else:
+                        connection._fixture_response = FakeResponse(
+                            200,
+                            target_url,
+                            {"Content-Type": "text/plain"},
+                            b"public redirect fixture body " * 3,
+                        )
+
+                def fake_getresponse(connection):
+                    return connection._fixture_response
+
+                with (
+                    mock.patch.object(netfetch._PinnedHTTPConnection, "request", fake_request),
+                    mock.patch.object(netfetch._PinnedHTTPConnection, "getresponse", fake_getresponse),
+                    mock.patch.object(netfetch.socket, "socket", OfflineSocket),
+                ):
+                    result = netfetch.fetch_public_source(
+                        "http://public.example/start", resolver=resolver
+                    )
+
+                if rejected_ip:
+                    self.assertFalse(result["ok"])
+                    self.assertIn(rejected_ip, result["error"])
+                else:
+                    self.assertTrue(result["ok"], result)
+                    self.assertEqual(result["final_url"], target_url)
+                self.assertEqual(resolver_calls, ["public.example", target_host])
+                expected_attempts = [("93.184.216.34", 80)]
+                if not rejected_ip:
+                    expected_attempts.append(("93.184.216.35", 443))
+                self.assertEqual(OfflineSocket.attempts, expected_attempts)
 
     def test_redirect_guard_rejects_non_http_targets(self):
         import urllib.request
@@ -1249,6 +1531,39 @@ class TopicConsistencyTests(unittest.TestCase):
             what="测试",
         )
         self.assertGreaterEqual(coverage, MIN_TOPIC_COVERAGE)
+
+    def test_adjacent_keyword_topic_is_rejected(self):
+        """Shared generic bigrams must not make a neighboring topic pass."""
+        from deeptalk_studio.workbench.flow import ensure_topic_consistency
+
+        with self.assertRaises(WorkbenchFlowError):
+            ensure_topic_consistency(
+                "莫斯科大学留学生旭日旗事件",
+                ["大学留学生考试事件：校方公布考场纪律与成绩复核安排。"],
+                what="测试",
+            )
+
+    def test_report_topic_metadata_cannot_mask_off_topic_body(self):
+        """A model-controlled ``topic`` field is not evidence of alignment."""
+        from deeptalk_studio.workbench.flow import (
+            _report_topic_texts,
+            ensure_topic_consistency,
+        )
+
+        report = {
+            "topic": "莫斯科大学留学生旭日旗事件",
+            "research_question": "大学留学生考试事件该如何处理？",
+            "scope_summary": "讨论考试纪律、成绩复核与校方程序。",
+            "executive_summary": "校方公布考试安排并接受复核申请。",
+            "claims": [{"claim": "考试违规由学校依规处理。"}],
+            "sources": [{"title": "大学考试通知", "stance_summary": "说明考试流程。"}],
+        }
+        with self.assertRaises(WorkbenchFlowError):
+            ensure_topic_consistency(
+                "莫斯科大学留学生旭日旗事件",
+                _report_topic_texts(report),
+                what="测试报告",
+            )
 
 
 class ReferenceSynthesisTests(unittest.TestCase):
