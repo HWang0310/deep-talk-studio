@@ -82,6 +82,18 @@ class LocalWebUITestCase(unittest.TestCase):
             text = exc.read().decode("utf-8")
             return exc.code, dict(exc.headers), text
 
+    def post_binary(self, path, data, *, headers=None):
+        request_headers = {"Content-Type": "application/octet-stream"}
+        request_headers.update(headers or {})
+        request = urllib.request.Request(
+            self.base + path, data=data, method="POST", headers=request_headers
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                return response.status, dict(response.headers), response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            return exc.code, dict(exc.headers), exc.read().decode("utf-8")
+
     def raw(self, payload: bytes, *, timeout: float = 6.0) -> bytes:
         """Send a raw HTTP request over a fresh socket with a hard deadline.
 
@@ -243,6 +255,15 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("/api/workbench/research/fetch", body)
         self.assertIn("可能产生计费", body)
         self.assertIn("搜索结果不是事实证据", body)
+
+    def test_index_exposes_audio_import_delivery_and_gap_status_controls(self):
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn("/api/workbench/audio/import", body)
+        self.assertIn("/api/workbench/audio/deliver", body)
+        self.assertIn("/api/workbench/audio/source", body)
+        self.assertIn("WAITING_FOR_OWNER_REVIEW", body)
+        self.assertIn("Edit Map", body)
 
     def test_healthz(self):
         status, headers, body = self.get("/healthz")
@@ -594,7 +615,7 @@ if __name__ == "__main__":
 class WorkbenchRoutesTests(LocalWebUITestCase):
     """Issue #23 unified workbench HTTP surface (fake LLM + fake fetch)."""
 
-    def _flow(self, root: Path, deepseek_client=None):
+    def _flow(self, root: Path, deepseek_client=None, audio_delivery_runner=None):
         from tests.test_workbench import (
             FakeWorkbenchLLM,
             _fake_discovery,
@@ -606,6 +627,8 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
         kwargs = {}
         if deepseek_client is not None:
             kwargs["deepseek_client_factory"] = lambda settings: deepseek_client
+        if audio_delivery_runner is not None:
+            kwargs["audio_delivery_runner"] = audio_delivery_runner
         return WorkbenchFlow(
             root,
             discovery_runner=_fake_discovery,
@@ -613,6 +636,67 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
             fetcher=_fake_fetcher,
             **kwargs,
         )
+
+    def test_audio_binary_import_and_delivery_status_routes(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            def runner(session_root, repo_root):
+                output = Path(session_root) / "DeepTalk-Aligned-Edit"
+                output.mkdir(parents=True, exist_ok=True)
+                (output / "edit-map.md").write_text("# Edit Map\nAUDIO_ONLY\n", encoding="utf-8")
+                return {
+                    "delivery": {
+                        "timeline": {"spans": [{"span_id": "ST001", "start_seconds": "0", "end_seconds": "1"}]},
+                        "gaps": [{"span_id": "ST001", "reason": "AUDIO_ONLY", "detail": "需要人工补画面"}],
+                    },
+                    "asset_pack": {"machine_map": {"rows": [{"decision": "AUDIO_ONLY"}]}},
+                    "qa": {"package_gate_status": "warnings"},
+                    "paths": {"markdown": Path(session_root) / "DeepTalk-Aligned-Edit" / "edit-map.md"},
+                    "preview_path": None,
+                }
+
+            self.start_server(flow=self._flow(root, audio_delivery_runner=runner))
+            status, _, body = self.post("/api/workbench/session/start", {
+                "topic": "本市图书馆夜间开放试点", "urls": [],
+            })
+            self.assertEqual(status, 200, body)
+            sid = json.loads(body)["session"]["session_id"]
+            common = {
+                "X-Workbench-Session": sid,
+                "X-Workbench-Filename": "take.wav",
+                "X-Workbench-Origin": "owner_made",
+            }
+            status, _, body = self.post_binary("/api/workbench/audio/import", b"audio", headers=common)
+            self.assertEqual(status, 200, body)
+            imported = json.loads(body)
+            self.assertEqual(imported["origin"], "owner_made")
+            status, headers, body = self.get(
+                "/api/workbench/audio/source?session_id=" + sid
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(body, "audio")
+            self.assertEqual(headers.get("Cache-Control"), "no-store")
+            status, _, body = self.post_binary("/api/workbench/audio/import", b"x", headers={**common, "X-Workbench-Filename": "../escape.wav"})
+            self.assertEqual(status, 400)
+            status, _, body = self.post("/api/workbench/audio/deliver", {"session_id": sid})
+            self.assertEqual(status, 200, body)
+            delivered = json.loads(body)
+            self.assertEqual(delivered["status"], "delivered")
+            self.assertEqual(delivered["gap_count"], 1)
+            status, _, body = self._get_state()
+            self.assertEqual(status, 200)
+            state = json.loads(body)["session"]
+            self.assertEqual(state["audio_delivery"]["status"], "delivered")
+            self.assertEqual(state["audio_delivery"]["gaps"][0]["reason"], "AUDIO_ONLY")
+            status, headers, body = self.get(
+                "/api/workbench/audio/artifact?session_id=" + sid + "&kind=markdown"
+            )
+            self.assertEqual(status, 200)
+            self.assertIn("AUDIO_ONLY", body)
+            self.assertEqual(headers.get("X-Content-Type-Options"), "nosniff")
 
     def test_deepseek_search_and_fetch_routes_require_opt_in_and_persist_budget(self):
         import tempfile

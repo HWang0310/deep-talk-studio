@@ -115,6 +115,27 @@ class SessionStore:
                     "reviewed_path": "",
                     "gate_status": "",
                 },
+                "audio": {
+                    "status": "not_imported",
+                    "path": "",
+                    "filename": "",
+                    "origin": "",
+                    "byte_size": 0,
+                    "sha256": "",
+                    "imported_at": "",
+                },
+                "audio_delivery": {
+                    "status": "not_started",
+                    "error": "",
+                    "runner_kind": "real",
+                    "started_at": "",
+                    "completed_at": "",
+                    "timeline": [],
+                    "gaps": [],
+                    "qa_status": "",
+                    "paths": {},
+                    "preview_path": "",
+                },
             }
             self._write(session)
             return session

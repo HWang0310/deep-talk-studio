@@ -9,15 +9,15 @@ AIGC:
   ReservedCode2: '3a4dbc85-e553-4e33-9baa-62c929ff47cd'
 ---
 
-# Creater Workbench Contract（创作工作台：选题 → 参考分析 → 研究 → 选题卡 → 口播稿）v1
+# Creator Workbench Contract（创作工作台：选题 → 参考分析 → 研究 → 选题卡 → 口播稿 → 音频交付）v1
 
-> **状态：IMPLEMENTED_UNRELEASED（Issue #23，PR 待审）。** 本合同描述统一创作工作台（Web UI 五步流程）的最小可用能力：用户仅通过产品界面，从输入选题一路走到获得**经独立审核通过**的原创口播文稿。它复用既有 canonical 引擎（Research、Fact-Check、Content Thesis、Script 写稿与审核）与发现合同（`REFERENCE_DISCOVERY_CONTRACT.md`），只做接入编排，不改任何既有合同语义。
+> **状态：IMPLEMENTED_UNRELEASED（Issue #23，PR 待审）。** 本合同描述统一创作工作台（Web UI 六步流程）的最小可用能力：用户仅通过产品界面，从输入选题一路走到获得**经独立审核通过**的原创口播文稿，并可继续导入自己的口播音频、运行真实本地对齐和领取 Asset Pack / Edit Map。它复用既有 canonical 引擎（Research、Fact-Check、Content Thesis、Script 写稿与审核、Audio-only delivery）与发现合同（`REFERENCE_DISCOVERY_CONTRACT.md`），只做接入编排，不改任何既有合同语义。
 
 ## 范围
 
 输入：视频主题（1–200 字、0–5 条可选用户 B 站链接）→ 本机会话。
 
-输出：一个 Web UI 内完成的五步链路 —— ① 主题检索最多 5 条 B 站参考候选（发现合同 v1）→ ②（用户明确授权后）本地下载 + whisper.cpp 转写 + 叙事手法分析 → ③ 用户提供的独立来源（抓取或粘贴）驱动的研究草稿 + 独立事实核查 → ④ 选题卡（写作纲领）经独立审核与用户确认 → ⑤ 原创口播文稿经独立 Schema 审核后全文交付。
+输出：一个 Web UI 内完成的六步链路 —— ① 主题检索最多 5 条 B 站参考候选（发现合同 v1）→ ②（用户明确授权后）本地下载 + whisper.cpp 转写 + 叙事手法分析 → ③ 用户提供的独立来源（抓取或粘贴）驱动的研究草稿 + 独立事实核查 → ④ 选题卡（写作纲领）经独立审核与用户确认 → ⑤ 原创口播文稿经独立 Schema 审核后全文交付 → ⑥ 用户导入有来源声明的本地口播音频/视频，运行真实本地 ASR/对齐，查看时间轴与 `AUDIO_ONLY` / `VISUAL_GAP`，下载 QA-ready Asset Pack / Edit Map。
 
 不做的事：不发布、不自动剪辑、不生成/代录配音、不读取 Cookie 或登录凭据、不绕过平台风控（HTTP 403/412/429 与验证墙一律如实失败）、不把参考视频当作事实来源或素材、不在用户授权前下载任何媒体、不做多账号并发绕限。
 
@@ -48,6 +48,10 @@ AIGC:
 | `/thesis/approve` | POST | 用户确认选题卡（确认词必须同时含「确认」与「进入写稿」） |
 | `/script/generate` | POST | 写稿 + 独立 Script Review（一体，落盘 canonical `script_drafts/`） |
 | `/script/final` | GET | 完整口播稿全文 + 提词器文本交付视图 |
+| `/audio/import` | POST（二进制） | 会话内 bounded atomic 导入 WAV/MP3/M4A/AAC/FLAC/MP4/MOV/M4V；记录来源、大小与 SHA-256，不覆盖既有文件 |
+| `/audio/deliver` | POST | 调用既有真实本地 ASR/对齐/Audio Asset Pack + Edit Map 链；缺少审核工件时返回 `WAITING_FOR_OWNER_REVIEW` |
+| `/audio/artifact` | GET | 仅下载当前会话内 allow-listed 的 Markdown/CSV/JSON/manifest/QA/对齐工件 |
+| `/audio/source` | GET | 仅以内联方式播放当前会话导入的本地口播文件；不上传外部服务 |
 
 ## 关键边界（fail-closed）
 
@@ -60,6 +64,7 @@ AIGC:
 7. **LLM 提供方式**：两种模式——OpenAI Responses（支持模型联网研究 `web_search`）与通用 Chat 兼容（**仅用用户提供的来源**；研究输出中出现未被用户提供的来源 URL 即 fail-closed 拒绝，绝不静默接受）；连通性测试要求模型对固定 prompt 回复「正常」。
 8. **核查引文重核**：事实核查返回的 `verified` 检查必须附「」引文（≥12 字）且服务器在来源正文中逐字找到该引文；找不到即降级 `unverified` 并在 UI/报告中如实说明，绝不静默放行。
 9. **既有引擎门禁全部保留**：approved research 的 confirmed_fact 需 2 个独立来源组、高风险主张 100% 核查覆盖、证据覆盖 ≥80%、Script Review 33 项全过 —— 工作台无任何降低。
+10. **音频交付边界**：只接受普通文件名和受支持后缀，上传有 512 MiB 上限、禁止 Transfer-Encoding、路径穿越、符号链接和覆盖。交付只生成真实时间轴、QA-ready 候选素材与 Edit Map；缺少审核通过的 Production/Material 工件时 fail-closed 为 `WAITING_FOR_OWNER_REVIEW`。纯音频的 `AUDIO_ONLY` / `VISUAL_GAP` 行必须由创作者人工补画面，系统不生成真人画面、成片或 NLE 工程。
 
 ## 工件落盘
 

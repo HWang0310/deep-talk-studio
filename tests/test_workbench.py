@@ -8,6 +8,8 @@ actually block bad LLM output (invented chat-mode sources, ungrounded
 fact-check quotes).
 """
 
+import io
+import hashlib
 import json
 import subprocess
 import tempfile
@@ -851,6 +853,93 @@ class DeepSeekWorkbenchTests(unittest.TestCase):
             self.assertEqual(self_calls, [])
             self.assertEqual(flow.store.load(sid)["search_budget"]["used"], 0)
 
+
+class AudioWorkbenchTests(unittest.TestCase):
+    """Issue #37: safe import/status around the canonical audio delivery core."""
+
+    @staticmethod
+    def _flow(root, runner=None, limit=None):
+        kwargs = {}
+        if runner is not None:
+            kwargs["audio_delivery_runner"] = runner
+        if limit is not None:
+            kwargs["audio_upload_limit_bytes"] = limit
+        return WorkbenchFlow(
+            root,
+            discovery_runner=_fake_discovery,
+            provider_factory=lambda settings: FakeWorkbenchLLM(settings),
+            **kwargs,
+        )
+
+    def test_import_audio_is_bounded_atomic_and_origin_persisted(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow = self._flow(root, limit=4)
+            sid = flow.start_session("本市图书馆夜间开放试点", [])["session_id"]
+            imported = flow.import_audio(sid, "take.wav", io.BytesIO(b"abcd"), "owner_made")
+            self.assertEqual(imported["origin"], "owner_made")
+            self.assertEqual(imported["byte_size"], 4)
+            self.assertEqual(imported["sha256"], hashlib.sha256(b"abcd").hexdigest())
+            self.assertTrue(Path(imported["path"]).is_file())
+            view = flow.view(sid)
+            self.assertEqual(view["audio"]["filename"], "take.wav")
+            self.assertEqual(view["audio"]["origin"], "owner_made")
+            with self.assertRaises(WorkbenchFlowError):
+                flow.import_audio(sid, "../escape.wav", io.BytesIO(b"x"), "owner_made")
+            with self.assertRaises(WorkbenchFlowError):
+                flow.import_audio(sid, "take.exe", io.BytesIO(b"x"), "owner_made")
+            with self.assertRaises(WorkbenchFlowError):
+                flow.import_audio(sid, "too-big.wav", io.BytesIO(b"12345"), "owner_made")
+            with self.assertRaises(WorkbenchFlowError):
+                flow.import_audio(sid, "empty.wav", io.BytesIO(b""), "owner_made")
+            with self.assertRaises(WorkbenchFlowError):
+                flow.import_audio(sid, "other.wav", io.BytesIO(b"x"), "unverified")
+            self.assertFalse((flow.store.session_dir(sid) / "too-big.wav").exists())
+
+    def test_delivery_without_reviewed_material_is_typed_waiting_for_owner_review(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow = self._flow(root)
+            sid = flow.start_session("本市图书馆夜间开放试点", [])["session_id"]
+            flow.import_audio(sid, "take.wav", io.BytesIO(b"audio"), "external_voice_authorized")
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.run_audio_delivery(sid)
+            self.assertIn("WAITING_FOR_OWNER_REVIEW", str(ctx.exception))
+            state = flow.view(sid)
+            self.assertEqual(state["audio_delivery"]["status"], "waiting_for_owner_review")
+            self.assertNotIn("finished_cut_path", state["audio_delivery"])
+
+    def test_injected_delivery_exposes_timeline_gaps_and_edit_map_without_fake_preview(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            def runner(session_root, repo_root):
+                return {
+                    "delivery": {
+                        "timeline": {"spans": [{"span_id": "ST001", "start_seconds": "0", "end_seconds": "1"}]},
+                        "gaps": [{"span_id": "ST001", "reason": "AUDIO_ONLY", "detail": "需要人工补画面"}],
+                    },
+                    "asset_pack": {"machine_map": {"rows": [{"decision": "AUDIO_ONLY"}]}},
+                    "qa": {"package_gate_status": "warnings"},
+                    "paths": {"markdown": Path(session_root) / "DeepTalk-Aligned-Edit" / "edit-map.md",
+                              "json": Path(session_root) / "DeepTalk-Aligned-Edit" / "edit-map.json",
+                              "manifest": Path(session_root) / "DeepTalk-Aligned-Edit" / "manifest.json",
+                              "qa": Path(session_root) / "DeepTalk-Aligned-Edit" / "qa.json"},
+                    "preview_path": None,
+                }
+
+            flow = self._flow(root, runner=runner)
+            sid = flow.start_session("本市图书馆夜间开放试点", [])["session_id"]
+            flow.import_audio(sid, "take.wav", io.BytesIO(b"audio"), "owner_made")
+            result = flow.run_audio_delivery(sid)
+            self.assertEqual(result["status"], "delivered")
+            self.assertEqual(result["timeline_count"], 1)
+            self.assertEqual(result["gap_count"], 1)
+            state = flow.view(sid)
+            self.assertEqual(state["audio_delivery"]["status"], "delivered")
+            self.assertEqual(state["audio_delivery"]["timeline"][0]["span_id"], "ST001")
+            self.assertEqual(state["audio_delivery"]["gaps"][0]["reason"], "AUDIO_ONLY")
+            self.assertFalse(state["audio_delivery"].get("preview_path"))
 
 class FullLoopTests(unittest.TestCase):
     """Ordinary-user acceptance path, engine-real, LLM scripted."""

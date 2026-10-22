@@ -40,6 +40,8 @@ Security posture (matches Issue #26 hard boundaries and the Nexus review):
 """
 
 import json
+import mimetypes
+import re
 import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -64,6 +66,7 @@ MAX_TOPIC_CHARS = 200
 MAX_URL_COUNT = 5
 MAX_URL_CHARS = 300
 SOCKET_TIMEOUT_SECONDS = 10
+MAX_AUDIO_UPLOAD_BYTES = 512 * 1024 * 1024
 # Workbench route body caps (bytes): settings may carry a long key; pasted
 # source text is intentionally generous; long-running operations stay small.
 WORKBENCH_ROUTE_CAPS = {
@@ -84,6 +87,8 @@ WORKBENCH_ROUTE_CAPS = {
     "/api/workbench/thesis/review": 2048,
     "/api/workbench/thesis/approve": 16 * 1024,
     "/api/workbench/script/generate": 2048,
+    "/api/workbench/audio/import": MAX_AUDIO_UPLOAD_BYTES,
+    "/api/workbench/audio/deliver": 4096,
 }
 
 _STATIC_DIR = Path(__file__).resolve().parent / "webui_static"
@@ -272,6 +277,12 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         if path == "/api/workbench/script/final":
             self._handle_workbench_final_script()
             return
+        if path == "/api/workbench/audio/artifact":
+            self._handle_workbench_audio_artifact()
+            return
+        if path == "/api/workbench/audio/source":
+            self._handle_workbench_audio_source()
+            return
         _send_json(self, 404, {"error": "路径不存在"})
 
     def do_POST(self) -> None:
@@ -283,6 +294,9 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/discover":
             self._handle_discover_post()
+            return
+        if parsed.path == "/api/workbench/audio/import":
+            self._handle_workbench_audio_import()
             return
         if parsed.path.startswith("/api/workbench/"):
             self._handle_workbench_post(parsed.path)
@@ -374,6 +388,8 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             payload = {"error": str(exc)}
             payload.update(getattr(exc, "payload", {}) or {})
             return None, (400, payload)
+        except WebUIRequestError as exc:
+            return None, (400, {"error": str(exc)})
         except WorkbenchLLMError as exc:
             return None, (400, {"error": str(exc)})
         except (ReportValidationError, ScriptValidationError, ContentDirectorValidationError) as exc:
@@ -410,6 +426,174 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             _send_json(self, error[0], error[1])
             return
         _send_json(self, 200, result)
+
+    def _handle_workbench_audio_artifact(self) -> None:
+        """Serve only allow-listed, session-local delivery artifacts."""
+
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True)
+        session_values = query.get("session_id", [])
+        kind_values = query.get("kind", [])
+        allowed = {"markdown", "csv", "json", "manifest", "qa", "alignment", "subtitle"}
+        if len(session_values) != 1 or len(kind_values) != 1 or kind_values[0] not in allowed:
+            _send_json(self, 400, {"error": "工件请求参数无效"})
+            return
+        flow = self._workbench_flow()
+        try:
+            session_dir = flow.store.session_dir(session_values[0]).resolve()
+            session = flow.store.load(session_values[0])
+        except Exception:
+            _send_json(self, 404, {"error": "会话或工件不存在"})
+            return
+        delivery = session.get("audio_delivery") or {}
+        if delivery.get("status") != "delivered":
+            _send_json(self, 404, {"error": "交付尚未通过 QA"})
+            return
+        raw_path = (delivery.get("paths") or {}).get(kind_values[0])
+        if not raw_path:
+            _send_json(self, 404, {"error": "工件尚未生成"})
+            return
+        try:
+            candidate = Path(str(raw_path))
+            if candidate.is_symlink():
+                raise ValueError
+            artifact = candidate.resolve(strict=True)
+            artifact.relative_to(session_dir)
+            if not artifact.is_file():
+                raise ValueError
+            size = artifact.stat().st_size
+            if size > 64 * 1024 * 1024:
+                raise ValueError
+            body = artifact.read_bytes()
+        except (OSError, ValueError):
+            _send_json(self, 404, {"error": "工件不存在或不在本集交付目录内"})
+            return
+        content_type = mimetypes.guess_type(artifact.name)[0] or "application/octet-stream"
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Disposition", "attachment; filename=artifact")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _handle_workbench_audio_source(self) -> None:
+        """Stream the imported owner-local file for an optional local preview."""
+
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query, keep_blank_values=True)
+        values = query.get("session_id", [])
+        if len(values) != 1 or not re.fullmatch(r"WBX-[0-9a-fA-F]{16}", values[0]):
+            _send_json(self, 400, {"error": "音频预览参数无效"})
+            return
+        flow = self._workbench_flow()
+        try:
+            session_dir = flow.store.session_dir(values[0]).resolve()
+            session = flow.store.load(values[0])
+            raw_path = ((session.get("audio") or {}).get("path") or "")
+            candidate = Path(str(raw_path))
+            if candidate.is_symlink():
+                raise ValueError
+            media = candidate.resolve(strict=True)
+            media.relative_to(session_dir)
+            if not media.is_file() or len(media.relative_to(session_dir).parts) != 1:
+                raise ValueError
+            size = media.stat().st_size
+            if size <= 0 or size > MAX_AUDIO_UPLOAD_BYTES:
+                raise ValueError
+        except (OSError, ValueError):
+            _send_json(self, 404, {"error": "本集口播文件不存在"})
+            return
+        content_type = mimetypes.guess_type(media.name)[0] or "application/octet-stream"
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(size))
+        self.send_header("Content-Disposition", "inline")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        try:
+            with media.open("rb") as handle:
+                while True:
+                    chunk = handle.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+
+    class _ExactBodyReader:
+        """Bounded reader that rejects a short Content-Length body."""
+
+        def __init__(self, raw, length: int):
+            self.raw = raw
+            self.remaining = length
+
+        def read(self, size: int = -1) -> bytes:
+            if self.remaining <= 0:
+                return b""
+            requested = self.remaining if size is None or size < 0 else min(size, self.remaining)
+            chunk = self.raw.read(requested)
+            if not chunk:
+                raise WebUIRequestError("上传内容不完整")
+            self.remaining -= len(chunk)
+            return chunk
+
+    def _handle_workbench_audio_import(self) -> None:
+        """Accept one bounded binary upload without reflecting header values."""
+
+        content_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+        if content_type != "application/octet-stream" and not (
+            content_type.startswith("audio/") or content_type.startswith("video/")
+        ):
+            self.close_connection = True
+            _send_json(self, 415, {"error": "音频导入必须使用二进制音频或视频 Content-Type"})
+            return
+        state = self._content_length_state(MAX_AUDIO_UPLOAD_BYTES)
+        if state == "transfer_encoding":
+            self.close_connection = True
+            _send_json(self, 411, {"error": "不支持 Transfer-Encoding 上传"})
+            return
+        if state == "length_invalid":
+            self.close_connection = True
+            _send_json(self, 411, {"error": "上传必须提供单一有效 Content-Length"})
+            return
+        if state == "length_negative":
+            self.close_connection = True
+            _send_json(self, 400, {"error": "Content-Length 不能为负数"})
+            return
+        if state == "length_too_large":
+            self.close_connection = True
+            _send_json(self, 413, {"error": "音频上传超过本地上限"})
+            return
+        length = int((self.headers.get_all("Content-Length") or ["0"])[0].strip())
+        session_id = (self.headers.get("X-Workbench-Session") or "").strip()
+        filename = (self.headers.get("X-Workbench-Filename") or "").strip()
+        origin = (self.headers.get("X-Workbench-Origin") or "").strip()
+        if (
+            not session_id
+            or not re.fullmatch(r"WBX-[0-9a-fA-F]{16}", session_id)
+            or not filename
+            or not origin
+        ):
+            self.close_connection = True
+            _send_json(self, 400, {"error": "音频导入缺少必要的会话、文件名或来源标记"})
+            return
+        flow = self._workbench_flow()
+        reader = self._ExactBodyReader(self.rfile, length)
+        server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment]
+        result, error = self._workbench_call(
+            lambda: self._import_audio_with_lock(
+                flow, server, session_id, filename, reader, origin
+            )
+        )
+        if error:
+            _send_json(self, error[0], error[1])
+            return
+        _send_json(self, 200, result)
+
+    @staticmethod
+    def _import_audio_with_lock(flow, server, session_id, filename, reader, origin):
+        with server.workbench_lock:
+            return flow.import_audio(session_id, filename, reader, origin)
 
     def _handle_workbench_post(self, path: str) -> None:
         flow = self._workbench_flow()
@@ -557,6 +741,12 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                     return flow.generate_script(session_id)
 
             result, error = self._workbench_call(_script)
+        elif path == "/api/workbench/audio/deliver":
+            def _audio_deliver():
+                with server.workbench_lock:
+                    return flow.run_audio_delivery(session_id)
+
+            result, error = self._workbench_call(_audio_deliver)
         else:
             _send_json(self, 404, {"error": "路径不存在"})
             return
