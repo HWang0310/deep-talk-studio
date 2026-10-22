@@ -72,6 +72,7 @@ WORKBENCH_ROUTE_CAPS = {
     "/api/workbench/session/start": 32 * 1024,
     "/api/workbench/references/acquire": 64 * 1024,
     "/api/workbench/references/analyze": 2048,
+    "/api/workbench/references/reanalyze": 2048,
     "/api/workbench/sources/url": 4096,
     "/api/workbench/sources/text": 420 * 1024,
     "/api/workbench/research/generate": 16 * 1024,
@@ -456,6 +457,12 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                     return flow.analyze_reference(session_id, str(payload.get("bvid", "")))
 
             result, error = self._workbench_call(_analyze)
+        elif path == "/api/workbench/references/reanalyze":
+            def _reanalyze():
+                with server.workbench_lock:
+                    return flow.reanalyze_reference(session_id, str(payload.get("bvid", "")))
+
+            result, error = self._workbench_call(_reanalyze)
         elif path == "/api/workbench/sources/url":
             def _source_url():
                 with server.workbench_lock:

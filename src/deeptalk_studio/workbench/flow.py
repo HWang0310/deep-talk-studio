@@ -351,7 +351,7 @@ class WorkbenchFlow:
         try:
             LLM = self.provider_factory(settings)
             LLM.ping()
-        except WorkbenchLLMError as exc:
+        except (WorkbenchLLMError, WorkbenchFlowError) as exc:
             self._record_connection_observation(
                 {
                     **observation,
@@ -429,7 +429,7 @@ class WorkbenchFlow:
                 {
                     **reference,
                     "study_status": state.get("status", "not_analyzed"),
-                    "study_error": state.get("failure_reason", ""),
+                    "study_error": state.get("failure_reason", "") or state.get("analysis_error", ""),
                     "failure_stage": state.get("failure_stage", ""),
                     "attempt_count": state.get("attempt_count", 0),
                     "study": self._study_summary(study),
@@ -485,6 +485,12 @@ class WorkbenchFlow:
                 "struct_patterns",
                 "takeaways",
                 "media_path",
+                "transcript_status",
+                "transcript_provenance",
+                "analysis_status",
+                "analysis_error",
+                "analysis_provenance",
+                "transcript_segments",
             )
             if key in study
         }
@@ -647,20 +653,66 @@ class WorkbenchFlow:
             raise WorkbenchFlowError("请先完成该参考的授权下载，再执行分析")
         ref_dir = self.store.references_dir(session_id) / bvid
         ref_dir.mkdir(parents=True, exist_ok=True)
-        wav = acquisition.extract_audio(
-            Path(media_path), runner=self.audio_runner or acquisition.subprocess.run
-        )
-        try:
-            transcript = acquisition.transcribe_audio(
-                wav,
-                runner=self.whisper_runner or acquisition.subprocess.run,
-                bootstrap=self.whisper_bootstrap,
+        transcript_path = ref_dir / "transcript.json"
+
+        def _mark_transcribing(session_state):
+            refs_state = session_state["references"].setdefault(bvid, {})
+            refs_state["status"] = "transcribing"
+            refs_state["analysis_status"] = "transcribing"
+            refs_state["analysis_error"] = ""
+
+        self.store.update(session_id, _mark_transcribing)
+        if transcript_path.is_file():
+            try:
+                transcript = self.store.load_json(transcript_path)
+            except (OSError, ValueError):
+                transcript = None
+        else:
+            transcript = None
+        if not transcript:
+            try:
+                wav = acquisition.extract_audio(
+                    Path(media_path), runner=self.audio_runner or acquisition.subprocess.run
+                )
+                try:
+                    transcript = acquisition.transcribe_audio(
+                        wav,
+                        runner=self.whisper_runner or acquisition.subprocess.run,
+                        bootstrap=self.whisper_bootstrap,
+                    )
+                finally:
+                    wav.unlink(missing_ok=True)
+            except acquisition.WorkbenchAcquisitionError as exc:
+                self._mark_analysis_failure(session_id, bvid, str(exc), stage="transcription")
+                raise WorkbenchFlowError(str(exc)) from None
+            media_digest = self._file_sha256(Path(media_path))
+            transcript = dict(transcript)
+            transcript["transcript_status"] = "complete"
+            transcript["transcript_provenance"] = {
+                "source_media_path": str(media_path),
+                "source_media_sha256": media_digest,
+                "model": transcript.get("model", "large-v3"),
+                "runtime_version": transcript.get("runtime_version", ""),
+                "transcribed_at": transcript.get("transcribed_at", _now()),
+                "provider": "local_whisper_cpp",
+            }
+            transcript_path.write_text(
+                json.dumps(transcript, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
-        finally:
-            wav.unlink(missing_ok=True)
-        (ref_dir / "transcript.json").write_text(
-            json.dumps(transcript, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
+        else:
+            transcript = dict(transcript)
+            transcript.setdefault("transcript_status", "complete")
+            transcript.setdefault("transcript_provenance", {
+                "source_media_path": str(media_path),
+                "source_media_sha256": self._file_sha256(Path(media_path)),
+                "model": transcript.get("model", "large-v3"),
+                "runtime_version": transcript.get("runtime_version", ""),
+                "transcribed_at": transcript.get("transcribed_at", ""),
+                "provider": "local_whisper_cpp",
+            })
+            transcript_path.write_text(
+                json.dumps(transcript, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
         metadata = {
             "title": state.get("title", ""),
             "bvid": bvid,
@@ -671,33 +723,128 @@ class WorkbenchFlow:
         }
         metrics = acquisition.analyze_transcript(transcript, metadata)
         study = dict(metrics)
+        study["transcript_status"] = transcript.get("transcript_status", "complete")
+        study["transcript_provenance"] = transcript.get("transcript_provenance", {})
+        study["transcript_segments"] = list(transcript.get("segments") or [])[:200]
+        study["analysis_status"] = "unverified"
+        study["analysis_error"] = ""
+        study["analysis_provenance"] = {}
         try:
             llm = self._llm()
             result = llm.summarize_reference(
                 transcript["text"], metrics, metadata
             )
             study.update(result.data)
-        except WorkbenchLLMError as exc:
+            study["analysis_status"] = "analyzed"
+            settings = load_settings(self.repo_root)
+            study["analysis_provenance"] = {
+                "provider": settings.get("provider_mode", ""),
+                "model": settings.get("model", ""),
+                "endpoint": settings.get("base_url", "")
+                if settings.get("provider_mode") == "responses"
+                else effective_chat_endpoint(settings),
+                "analyzed_at": _now(),
+            }
+        except (WorkbenchLLMError, WorkbenchFlowError) as exc:
             study["narrative_summary"] = ""
-            study["analysis_note"] = (
-                f"LLM 手法摘要不可用（{exc}）；已保留确定性指标与全文要点。"
-            )
+            study["analysis_status"] = "unverified"
+            study["analysis_error"] = str(exc)
+            study["analysis_note"] = f"LLM 手法摘要不可用（{exc}）；仅保留本地转写与确定性指标，不能计入已分析。"
         study_path = ref_dir / "study.json"
         study_path.write_text(
             json.dumps(study, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
 
-        def _mark(session_state, ref_bvid=bvid, status="analyzed", path=str(study_path)):
+        final_status = "analyzed" if study["analysis_status"] == "analyzed" else "unverified"
+
+        def _mark(session_state, ref_bvid=bvid, status=final_status, path=str(study_path)):
             # SessionStore.update calls ``mutate(session)`` — the session dict
             # is passed as the first positional argument.
             refs_state = session_state["references"].setdefault(ref_bvid, {})
             refs_state["status"] = status
             refs_state["study_path"] = path
             refs_state["media_path"] = media_path
+            refs_state["analysis_status"] = study["analysis_status"]
+            refs_state["analysis_error"] = study.get("analysis_error", "")
             refs_state.setdefault("title", state.get("title", ref_bvid))
 
         self.store.update(session_id, _mark)
         return {"bvid": bvid, "study": self._study_summary(study)}
+
+    def reanalyze_reference(self, session_id: str, bvid: str) -> Dict[str, Any]:
+        """Retry only the LLM viewpoint stage using the saved transcript."""
+
+        session = self.store.load(session_id)
+        state = session["references"].get(bvid, {})
+        study = self._load_study(session, bvid)
+        transcript_path = self.store.references_dir(session_id) / bvid / "transcript.json"
+        if not study or not transcript_path.is_file():
+            raise WorkbenchFlowError("尚无可重试的本地转写，请先完成参考视频转写")
+        transcript = self.store.load_json(transcript_path)
+        metadata = {
+            "title": state.get("title", study.get("title", "")),
+            "bvid": bvid,
+            "url": state.get("url", study.get("url", "")),
+            "view_count": state.get("view_count", study.get("view_count")),
+            "view_count_status": state.get("view_count_status", study.get("view_count_status", "")),
+            "duration_sec": state.get("duration_sec", study.get("duration_seconds", 0)),
+        }
+        try:
+            result = self._llm().summarize_reference(
+                transcript.get("text", ""), study, metadata
+            )
+        except (WorkbenchLLMError, WorkbenchFlowError) as exc:
+            study["analysis_status"] = "unverified"
+            study["analysis_error"] = str(exc)
+            study["analysis_note"] = f"重试仍不可用（{exc}）；请配置模型后再次重试。"
+            self._write_study(study, self.store.references_dir(session_id) / bvid / "study.json")
+            self._mark_analysis_state(session_id, bvid, "unverified", str(exc))
+            return {"bvid": bvid, "study": self._study_summary(study)}
+        study.update(result.data)
+        study["analysis_status"] = "analyzed"
+        study["analysis_error"] = ""
+        settings = load_settings(self.repo_root)
+        study["analysis_provenance"] = {
+            "provider": settings.get("provider_mode", ""),
+            "model": settings.get("model", ""),
+            "endpoint": settings.get("base_url", "")
+            if settings.get("provider_mode") == "responses"
+            else effective_chat_endpoint(settings),
+            "analyzed_at": _now(),
+        }
+        self._write_study(study, self.store.references_dir(session_id) / bvid / "study.json")
+        self._mark_analysis_state(session_id, bvid, "analyzed", "")
+        return {"bvid": bvid, "study": self._study_summary(study)}
+
+    @staticmethod
+    def _file_sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+        return digest.hexdigest()
+
+    @staticmethod
+    def _write_study(study: Mapping[str, Any], path: Path) -> None:
+        path.write_text(json.dumps(dict(study), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    def _mark_analysis_state(self, session_id: str, bvid: str, status: str, error: str) -> None:
+        def _mutate(session_state):
+            state = session_state["references"].setdefault(bvid, {})
+            state["status"] = status
+            state["analysis_status"] = status
+            state["analysis_error"] = error
+        self.store.update(session_id, _mutate)
+
+    def _mark_analysis_failure(self, session_id: str, bvid: str, error: str, *, stage: str) -> None:
+        def _mutate(session_state):
+            state = session_state["references"].setdefault(bvid, {})
+            state["status"] = "analysis_failed"
+            state["analysis_status"] = "failed"
+            state["analysis_error"] = error
+            state["failure_stage"] = stage
+            state["failure_reason"] = error
+        self.store.update(session_id, _mutate)
 
     def _narrative_insights(self, session: Mapping[str, Any]) -> List[Dict[str, Any]]:
         studies = []
@@ -853,6 +1000,10 @@ class WorkbenchFlow:
                 if readiness["failed_bvids"]
                 else ""
             )
+            if readiness.get("unverified_bvids"):
+                failure_note += (
+                    f"其中 {len(readiness['unverified_bvids'])} 条只有本地转写、尚未通过模型分析，请先重试；"
+                )
             raise WorkbenchFlowError(
                 f"参考分析尚未完成：已分析 {readiness['analyzed']}/{readiness['eligible']} 条已授权参考，"
                 f"还有 {len(pending)} 条未完成（下载待分析或失败）。{failure_note}"
@@ -1006,6 +1157,7 @@ class WorkbenchFlow:
         analyzed: List[str] = []
         download_pending: List[str] = []
         failed: List[str] = []
+        unverified: List[str] = []
         for bvid, state in references.items():
             status = (state or {}).get("status")
             if status == "analyzed":
@@ -1014,16 +1166,20 @@ class WorkbenchFlow:
                 download_pending.append(bvid)
             elif status == "failed":
                 failed.append(bvid)
-        pending = download_pending + failed
+            elif status in {"unverified", "analysis_failed", "transcribing"}:
+                unverified.append(bvid)
+        pending = download_pending + failed + unverified
         return {
             "analyzed": len(analyzed),
             "eligible": len(analyzed) + len(download_pending) + len(failed),
             "download_pending": len(download_pending),
             "failed": len(failed),
+            "unverified": len(unverified),
             "unresolved": len(pending),
             "pending_bvids": pending,
             "download_pending_bvids": download_pending,
             "failed_bvids": failed,
+            "unverified_bvids": unverified,
         }
 
     def _comparison_snapshot(
