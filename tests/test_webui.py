@@ -1563,9 +1563,62 @@ class ChatStreamHttpTests(LocalWebUITestCase):
             self.assertEqual([t["content"] for t in chat["turns"]][0], "legacy 首发送的消息")
             self.assertNotIn("显式指向 X 的重叠消息", json.dumps(chat, ensure_ascii=False))
 
+    def test_topic_task_streams_search_event_and_persists_discovery(self):
+        """Issue #29：任务消息先触发有界检索，SSE 透明播报 search 事件
+        （先于任何 delta），证据随会话持久化并可精确恢复；检索回调由
+        测试注入的离线夹具提供，零真实网络、零额外模型调用。"""
 
-if __name__ == "__main__":
-    unittest.main()
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            from deeptalk_studio.workbench.flow import WorkbenchFlow
+
+            def topic_search(topic):
+                return {
+                    "status": "ok",
+                    "query": topic,
+                    "sources": [{
+                        "title": "王扁被打事件梳理",
+                        "uploader": "时事观察",
+                        "published_at": "2026-10-19",
+                        "url": "https://www.bilibili.com/video/BV1fixture01",
+                        "description": "来源描述",
+                    }],
+                }
+
+            calls = []
+            llm = self.StreamLLM(["起步", "产出"], calls)
+            flow = WorkbenchFlow(
+                root,
+                provider_factory=lambda settings: llm,
+                topic_search=topic_search,
+            )
+            self.start_server(flow=flow)
+            self._configure_deepseek(root)
+            status, ctype, events = self._sse_post("/api/workbench/chat/stream", {
+                "message": "我想就王扁被打做个视频",
+            })
+            self.assertEqual(status, 200)
+            self.assertIn("text/event-stream", ctype)
+            kinds = [e["type"] for e in events]
+            self.assertEqual(kinds[0], "start")
+            self.assertEqual(kinds[1], "search")  # 检索播报先于任何 delta
+            self.assertEqual(kinds[-1], "done")
+            self.assertEqual(events[1]["query"], "王扁被打")
+            self.assertEqual(events[1]["status"], "ok")
+            self.assertEqual(events[1]["count"], 1)
+            # 刷新恢复：证据随会话回来（UI 透明小字行不丢）
+            status, _, body = self._get_state()
+            self.assertEqual(status, 200)
+            chat = json.loads(body)["chat"]
+            discovery = chat["topic_discovery"]
+            self.assertEqual(discovery["status"], "ok")
+            self.assertEqual(discovery["turn_id"], events[0]["user_turn"]["turn_id"])
+            self.assertEqual(discovery["sources"][0]["url"],
+                             "https://www.bilibili.com/video/BV1fixture01")
+            # 恰好一次模型调用（检索是夹具回调，不产生任何模型调用）
+            self.assertEqual(len(calls), 1)
 
 
 class WorkbenchRoutesTests(LocalWebUITestCase):
@@ -2031,3 +2084,64 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
         request = urllib.request.Request(self.base + path)
         with urllib.request.urlopen(request, timeout=10) as response:
             return response.status, dict(response.headers), response.read().decode("utf-8")
+
+
+class TopicSearchAdapterTests(unittest.TestCase):
+    """Issue #29：_default_topic_search 把 server 层 B 站匿名检索适配为
+    flow 的 topic_search 回调 —— 免费公开通道映射为透明来源，不可用/
+    空结果如实返回 unavailable，绝不冒充有证据。"""
+
+    def test_maps_ok_outcome_items_to_sources(self):
+        from deeptalk_studio.webui import _default_topic_search
+
+        provider = FakeProvider(default_search=ok_search(
+            search_item("BV1fixture01", "王扁被打事件梳理", views=100),
+            search_item("BV1fixture02", "另一条来源", views=200),
+        ))
+        search = _default_topic_search(lambda: provider)
+        outcome = search("王扁被打")
+        self.assertEqual(outcome["status"], "ok")
+        self.assertEqual(outcome["query"], "王扁被打")
+        self.assertEqual([s["url"] for s in outcome["sources"]], [
+            "https://www.bilibili.com/video/BV1fixture01",
+            "https://www.bilibili.com/video/BV1fixture02",
+        ])
+        self.assertEqual(outcome["sources"][0]["title"], "王扁被打事件梳理")
+        self.assertEqual(outcome["sources"][0]["uploader"], "UP")
+        self.assertEqual(provider.search_calls, [("王扁被打", 1)])
+
+    def test_blocked_or_empty_outcomes_map_to_unavailable(self):
+        from deeptalk_studio.webui import _default_topic_search
+
+        blocked = FakeProvider(default_search=ok_search(status="blocked"))
+        outcome = _default_topic_search(lambda: blocked)("王扁被打")
+        self.assertEqual(outcome["status"], "unavailable")
+        self.assertIn("不可用", outcome["note"])
+
+        empty = FakeProvider(default_search=ok_search())
+        outcome2 = _default_topic_search(lambda: empty)("王扁被打")
+        self.assertEqual(outcome2["status"], "unavailable")
+        self.assertIn("没有返回", outcome2["note"])
+
+
+class TopicFirstUiStaticTests(LocalWebUITestCase):
+    """Issue #29 静态契约：检索播报事件分支、透明小字行样式、刷新
+    恢复渲染与「未联网核实」诚实文案都在前端就位。"""
+
+    def setUp(self):
+        self.start_server()
+
+    def test_search_event_handling_and_note_ui(self):
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn("event.type === 'search'", body)
+        self.assertIn("chat-search-note", body)
+        self.assertIn("function appendSearchNoteEl", body)
+        self.assertIn("非权威事实核查", body)
+        self.assertIn("未联网核实", body)
+        # 刷新恢复：renderChat 用会话证据重渲染检索小字行
+        self.assertIn("topic_discovery", body)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -328,6 +328,7 @@ class WorkbenchFlow:
         provider_factory: Optional[Callable[[Mapping[str, Any]], WorkbenchLLM]] = None,
         deepseek_client_factory: Optional[Callable[[Mapping[str, Any]], Any]] = None,
         fetcher: Optional[Callable[[str], Dict[str, Any]]] = None,
+        topic_search: Optional[Callable[[str], Dict[str, Any]]] = None,
         acquire_runner=None,
         audio_runner=None,
         audio_delivery_runner=None,
@@ -340,6 +341,10 @@ class WorkbenchFlow:
         self.store = SessionStore(self.repo_root / "workbench")
         self.creative = CreativeChatStore(self.repo_root)
         self.provider_factory = provider_factory or (lambda settings: build_llm(settings))
+        # 选题驱动创作（Issue #29 / issuecomment-6369945828）：可用的公开来源
+        # 检索回调（如 B 站匿名视频检索）。None = 无可用检索能力，聊天时
+        # 必须诚实声明「未联网核实」，绝不默默假装做过研究。
+        self.topic_search = topic_search
         self.deepseek_client_factory = deepseek_client_factory or self._default_deepseek_client
         self.connection_kind = connection_kind or ("fixture" if provider_factory is not None else "real")
         self.fetcher = fetcher or default_fetcher
@@ -477,6 +482,18 @@ class WorkbenchFlow:
         "梳理选题角度、表达观点、讨论结构。回复使用简体中文，语气自然直接。"
         "你可以基于对话提出观点与建议，但不要把未经核实的信息说成已核实的事实；"
         "不确定就明确说不确定。"
+        "选题驱动创作（issuecomment-6369945828）：当用户表达明确的创作任务意图"
+        "（如「就 X 做个视频／做一期」），不要用一组泛泛的基础问题反向盘问用户，"
+        "而是直接给出可用的起步产出：①事件速览（时间线与关键事实；明确区分"
+        "已证实与未证实——来源里没有的细节不要编造，涉事者身份、动机、伤情、"
+        "警方结论等未证实内容必须标注为未证实／待核实，绝不写成事实）；"
+        "②2-3 个可辩护的评论或叙事角度；③一个工作标题和简短口播大纲。"
+        "若上下文标注了「主动检索来源」，引用时给出来源标题与链接并注明来源"
+        "谱系（这些是公开平台检索到的视频条目，不是权威事实核查）；"
+        "若上下文标注了「未联网核实」，必须明确说明没有联网核实、内容只是"
+        "明确标注未核实的构思。结尾用一句话提示可用「整理为草稿」生成可自由"
+        "编辑的未审核草稿，正式审核门禁不受影响。聊聊模式的自由讨论不受"
+        "上述流程限制。"
     )
 
     DRAFT_SYSTEM_PROMPT = (
@@ -484,7 +501,32 @@ class WorkbenchFlow:
         "不要寒暄、不要列表编号）。内容只能使用对话中明确讨论过的观点与信息；"
         "对话中没有的信息不要编造，无法确定的事实不要写成确定语气。"
         "这篇草稿未经研究与事实核查，仅用于创作者自由修改。"
+        "若上下文标注了「主动检索来源」，草稿可以引用对话中实际用到的来源，"
+        "并在末尾附一行「参考来源：」列出对应链接；没有用到的来源不要罗列。"
     )
+
+    # -- Issue #29 选题驱动创作（issuecomment-6369945828）----------------
+    # 任务意图标记：命中任意一个即按「创作任务」处理。纯确定性关键词匹配，
+    # 零模型调用——识别发生在检索之前，检索只花在明确的任务意图上。
+    _VIDEO_TASK_MARKERS = (
+        "做一期视频", "做个视频", "拍个视频", "拍一期", "剪个视频",
+        "出个视频", "来一期视频", "来个视频", "来一期", "做一期",
+    )
+    _TOPIC_QUOTES = (("《", "》"), ("「", "」"), ("『", "』"), ("“", "”"), ("‘", "’"))
+    # 套话剥除表按长度降序（先剥长的，避免「就是」被「就」抢先吃掉一半）。
+    _TOPIC_FILLER_PREFIXES = tuple(sorted((
+        "我想就", "我想做", "我想拍", "我想出", "我想聊聊", "我想",
+        "麻烦你帮我", "麻烦你", "能不能帮我", "能不能", "可以帮我", "可以",
+        "请你帮我", "请你", "请帮我", "请", "帮我", "给我", "就是", "就",
+        "来一个", "来一期", "来个", "关于", "有关", "说一下", "讲一下",
+        "聊聊", "讲讲", "说说", "谈", "讲", "是",
+    ), key=len, reverse=True))
+    _TOPIC_FILLER_SUFFIXES = tuple(sorted((
+        "的视频吧", "的视频", "视频吧", "视频", "这个事件", "这个事",
+        "这件事", "这个新闻", "的事件", "的事", "事件", "新闻",
+        "行吗", "好吗", "可以吗", "谢谢", "吧", "呗", "了",
+        "。", "！", "？", "，",
+    ), key=len, reverse=True))
 
     def chat_state(self, session_id: str = "") -> Dict[str, Any]:
         """Selected (or latest, for backward compatibility) chat session view."""
@@ -561,6 +603,24 @@ class WorkbenchFlow:
                 )
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
+        # Issue #29 选题驱动：识别到「就 X 做个视频」类任务时，流式开始前
+        # 主动做一次有界公开来源检索（幂等、会话内只检一次），证据持久化
+        # 进会话并随返回值带最新快照；检索永不阻断消息发送。
+        if not retry_turn_id:
+            topic = self._video_task_topic(str(message or ""))
+            if topic:
+                resolved_id = str(opened["session"].get("session_id", ""))
+                self._run_topic_discovery(
+                    resolved_id,
+                    topic,
+                    str(opened["turn"].get("turn_id", "")),
+                )
+                try:
+                    fresh = self.creative.load(resolved_id)
+                except CreativeChatError:
+                    fresh = None
+                if fresh:
+                    opened["session"] = fresh
         return {
             "session": opened["session"],
             "user_turn": opened["turn"],
@@ -582,6 +642,171 @@ class WorkbenchFlow:
             return "fixture"
         return "real"
 
+    @classmethod
+    def _video_task_topic(cls, message: str) -> str:
+        """确定性识别「就 X 做个视频」类创作任务并提取主题 X。
+
+        返回空串 = 非任务意图（聊聊模式，模型自由对话）或任务明确但
+        无可提取的主题（此时反问主题是正确行为，不是敷衍式盘问）。
+        """
+
+        text = str(message or "").strip()
+        if not text:
+            return ""
+        best: Optional[Tuple[int, int]] = None
+        for marker in cls._VIDEO_TASK_MARKERS:
+            pos = text.find(marker)
+            if pos < 0:
+                continue
+            if best is None or pos < best[0] or (pos == best[0] and len(marker) > best[1]):
+                best = (pos, len(marker))
+        if best is None:
+            return ""
+        pos, length = best
+        topic = cls._clean_topic_fragment(text[:pos])
+        if not topic:
+            topic = cls._clean_topic_fragment(text[pos + length:])
+        return topic[:40]
+
+    @classmethod
+    def _clean_topic_fragment(cls, fragment: str) -> str:
+        """从任务句片段里剥掉套话前缀、「的视频／这个事」类尾巴与外层引号。
+
+        剥到只剩套话（或本就没有主题）返回空串——「做个视频」这类
+        无主题任务交回给模型按真实模糊处反问。
+        """
+
+        text = str(fragment or "").strip()
+        if not text:
+            return ""
+        while True:
+            for closer in cls._TOPIC_FILLER_SUFFIXES:
+                if text.endswith(closer):
+                    text = text[: -len(closer)].strip()
+                    break
+            else:
+                break
+            if not text:
+                return ""
+        # 前缀与外层引号交替剥除（「我想就《X》」要先剥套话再剥引号，
+        # 「《我想就X》」要先剥引号再剥套话），剥到不动为止。
+        for _ in range(6):
+            changed = False
+            for opener in cls._TOPIC_FILLER_PREFIXES:
+                if text.startswith(opener):
+                    text = text[len(opener):].strip()
+                    changed = True
+                    break
+            for opener, closer in cls._TOPIC_QUOTES:
+                if len(text) > 2 and text.startswith(opener) and text.endswith(closer):
+                    text = text[1:-1].strip()
+                    changed = True
+                    break
+            if not text:
+                return ""
+            if not changed:
+                break
+        return text.strip("，。！？、；：…—~ \t\r\n").strip()
+
+    def _run_topic_discovery(self, session_id: str, topic: str, turn_id: str) -> None:
+        """为识别到的视频任务做一次有界公开来源检索并持久化证据。
+
+        检索是增值能力、不是关键路径：回调抛任何异常、检索不可用、
+        无结果、存储失败都只丢失检索证据，**绝不阻断用户消息发送**；
+        此时模型按 system prompt 的「未联网核实」诚实规则作答。
+        幂等防重：先查会话——已有 discovery（哪怕 unavailable）绝不
+        再次发起检索回调、绝不覆盖既有证据；同会话后续任务 turn 复用
+        首次结果。topic_search=None（未接线检索）同样记录 unavailable
+        声明，让「未联网核实」在 UI 与模型两侧都透明可见。
+        """
+
+        try:
+            existing = self.creative.load(session_id)
+        except CreativeChatError:
+            return  # 读不到会话：检索证据无处可写，直接跳过
+        if existing and existing.get("topic_discovery"):
+            return  # 会话内只检一次：重复任务 turn 复用首次证据
+
+        discovery: Dict[str, Any] = {
+            "query": topic,
+            "status": "unavailable",
+            "sources": [],
+            "note": "本环境未接入公开来源检索服务",
+            "turn_id": turn_id,
+        }
+        if self.topic_search is not None:
+            try:
+                outcome = self.topic_search(topic)
+            except Exception:
+                outcome = None
+            if isinstance(outcome, Mapping):
+                sources = [dict(item) for item in (outcome.get("sources") or [])][:6]
+                if str(outcome.get("status", "")) == "ok" and sources:
+                    discovery = {
+                        "query": str(outcome.get("query", topic)),
+                        "status": "ok",
+                        "sources": sources,
+                        "note": "",
+                        "turn_id": turn_id,
+                    }
+                else:
+                    discovery = {
+                        "query": topic,
+                        "status": "unavailable",
+                        "sources": [],
+                        "note": (
+                            str(outcome.get("note", "")).strip()
+                            or "公开来源检索没有返回可用结果"
+                        ),
+                        "turn_id": turn_id,
+                    }
+        try:
+            self.creative.set_discovery(session_id, discovery)
+        except CreativeChatError:
+            return  # 证据写不进去：不阻断发送，stream 上下文自然 miss
+
+    @staticmethod
+    def _discovery_context_message(
+        discovery: Mapping[str, Any],
+    ) -> Optional[Dict[str, str]]:
+        """把持久化的检索证据变成注入模型的透明 system 上下文。"""
+
+        if not isinstance(discovery, Mapping):
+            return None
+        status = str(discovery.get("status", ""))
+        sources = list(discovery.get("sources") or [])
+        if status == "ok" and sources:
+            lines = [
+                "【主动检索来源】以下是为本次选题检索到的公开平台视频条目"
+                "（B 站匿名检索，属于公开发声的社区内容，不是权威事实核查）：",
+            ]
+            for index, source in enumerate(sources[:6], 1):
+                title = str(source.get("title", "")).strip()
+                uploader = str(source.get("uploader", "")).strip()
+                published = str(source.get("published_at", "")).strip()
+                url = str(source.get("url", "")).strip()
+                snippet = str(source.get("description", "")).strip()
+                entry = f"{index}. 《{title}》UP主：{uploader} 发布：{published} 链接：{url}"
+                if snippet:
+                    entry += f"\n   简介：{snippet[:200]}"
+                lines.append(entry)
+            lines.append(
+                "使用规则：引用必须给出来源标题与链接；条目是社区内容、可能失真，"
+                "与常识冲突处标注待核实；没有任何来源支持的细节（当事人身份、"
+                "动机、伤情、警方结论等）绝不能写成事实。"
+            )
+            return {"role": "system", "content": "\n".join(lines)}
+        note = str(discovery.get("note", "")).strip() or "检索服务暂不可用"
+        return {
+            "role": "system",
+            "content": (
+                f"【未联网核实】本次回复没有可用的联网检索结果（{note}）。"
+                "凡涉及现实事件与人物的事实性内容，必须明确说明没有联网核实、"
+                "属于未核实信息，只给出明确标注未核实的构思，绝不把未核实"
+                "内容写成已证实事实。"
+            ),
+        }
+
     def chat_stream_reply(self, context: Mapping[str, Any]):
         """Stream the assistant reply for a persisted user turn.
 
@@ -601,7 +826,26 @@ class WorkbenchFlow:
         session_id = str(session.get("session_id", ""))
         settings = context["settings"]
         messages = [{"role": "system", "content": self.CHAT_SYSTEM_PROMPT}]
-        for turn in session.get("turns", []):
+        # Issue #29：本条 user turn 触发过选题检索时，先透明播报检索状态
+        # （UI 小字进度行），再把证据作为 system 上下文注入——模型据此
+        # 引用来源并区分已证实/未证实，而不是用一组泛泛问题反问用户。
+        turns = list(session.get("turns", []))
+        last_turn = turns[-1] if turns else {}
+        discovery = session.get("topic_discovery")
+        if (
+            isinstance(discovery, Mapping)
+            and str(discovery.get("turn_id", "")) == str(last_turn.get("turn_id", ""))
+        ):
+            yield {
+                "type": "search",
+                "query": str(discovery.get("query", "")),
+                "status": str(discovery.get("status", "")),
+                "count": len(discovery.get("sources") or []),
+            }
+            discovery_message = self._discovery_context_message(discovery)
+            if discovery_message:
+                messages.append(discovery_message)
+        for turn in turns:
             if turn.get("role") in {"user", "assistant"}:
                 messages.append({"role": turn["role"], "content": turn.get("content", "")})
         try:
@@ -665,6 +909,13 @@ class WorkbenchFlow:
         ):
             raise WorkbenchFlowError("还没有可整理的对话，请先发送消息")
         messages = [{"role": "system", "content": self.DRAFT_SYSTEM_PROMPT}]
+        # Issue #29：会话有检索证据时注入（与聊天同源），草稿可引用实际
+        # 用到的来源；没有证据时 DRAFT_SYSTEM_PROMPT 的未核实规则照常生效。
+        discovery = session.get("topic_discovery")
+        if isinstance(discovery, Mapping):
+            discovery_message = self._discovery_context_message(discovery)
+            if discovery_message:
+                messages.append(discovery_message)
         for turn in session.get("turns", []):
             if turn.get("role") in {"user", "assistant"}:
                 messages.append({"role": turn["role"], "content": turn.get("content", "")})

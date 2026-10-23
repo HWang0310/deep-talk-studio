@@ -46,7 +46,7 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from .bilibili_reference_provider import BilibiliReferenceProvider
 from .content_director import ContentDirectorValidationError
@@ -967,6 +967,46 @@ def _default_repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _default_topic_search(
+    provider_factory: Callable[[], object],
+) -> Callable[[str], Dict[str, Any]]:
+    """适配 server 层的 B 站匿名检索为 flow 的 topic_search 回调。
+
+    Issue #29 选题驱动创作（issuecomment-6369945828）：公开平台检索
+    是免费匿名能力（与 stage-1 参考视频同通道），不引入任何隐藏付费
+    调用；检索异常统一由 flow 防御层兜成 unavailable——检索永远
+    不阻断消息发送，也绝不冒充权威事实核查。
+    """
+
+    def search(topic: str) -> Dict[str, Any]:
+        query = str(topic or "").strip()
+        provider = provider_factory()
+        outcome = provider.search_videos(query, page=1)
+        if str(getattr(outcome, "status", "")) != "ok":
+            reason = str(getattr(outcome, "status", "failed"))
+            return {
+                "status": "unavailable",
+                "note": f"公开来源检索通道暂不可用（{reason}）",
+            }
+        sources = []
+        for item in tuple(getattr(outcome, "items", ()) or ())[:6]:
+            bvid = str(getattr(item, "bvid", "") or "").strip()
+            if not bvid:
+                continue
+            sources.append({
+                "title": str(getattr(item, "title", "") or ""),
+                "uploader": str(getattr(item, "uploader", "") or ""),
+                "published_at": str(getattr(item, "published_at", "") or ""),
+                "url": f"https://www.bilibili.com/video/{bvid}",
+                "description": str(getattr(item, "description", "") or "")[:200],
+            })
+        if not sources:
+            return {"status": "unavailable", "note": "公开来源检索没有返回结果"}
+        return {"status": "ok", "query": query, "sources": sources}
+
+    return search
+
+
 def make_server(
     port: int = 0,
     *,
@@ -1000,7 +1040,21 @@ def run_webui(
     def factory():
         return BilibiliReferenceProvider(use_visitor_identity=use_visitor_identity)
 
-    server = make_server(port, output_dir=output_dir, provider_factory=factory)
+    # Issue #29：真实 UI 默认接线公开来源检索（免费匿名 B 站通道）；
+    # make_server(flow=None) 不接线——测试/演示环境自行注入确定性
+    # 夹具，绝不隐式发起网络请求。
+    from .workbench.flow import WorkbenchFlow
+
+    flow = WorkbenchFlow(
+        _default_repo_root(),
+        topic_search=_default_topic_search(factory),
+    )
+    server = make_server(
+        port,
+        output_dir=output_dir,
+        provider_factory=factory,
+        flow=flow,
+    )
     actual_port = server.server_address[1]
     mode = "匿名访客模式" if use_visitor_identity else "已禁用访客标识（--no-visitor-identity）"
     print(f"DeepTalk 参考视频工作台：http://{DEFAULT_HOST}:{actual_port}/")

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — 2026-10-24 — Issue #29 — 选题驱动创作：一句话任务 → 有界检索 → 起步产出（issuecomment-6369945828）
+
+- **确定性任务意图识别（零模型调用）**：`WorkbenchFlow._video_task_topic` 纯关键词匹配任务标记（「做个视频／做一期／拍个视频」等）并剥除套话前缀/「的视频」类尾巴/外层引号提取主题（书名号/引号交替剥除，40 字截断，14 个提取用例）——命中任务且能提取主题才进入任务流程；聊聊模式（无标记）与无主题任务（「做个视频」）绝不硬造主题，真实模糊处才反问。识别发生在检索之前，检索预算只花在明确的任务意图上。
+- **有界公开来源检索（免费 B 站匿名通道，检索永不阻断发送）**：`chat_send_start` 持久化 user turn 后、流式开始前，任务主题触发一次 `topic_search(topic)` 检索——真实 UI 由 `run_webui` 接线 `_default_topic_search`（复用产品既有 stage-1 免费 B 站匿名检索 provider，映射前 6 条为来源：标题/UP主/发布/B 站 URL/简介，status 非 ok 或空结果如实返回 unavailable）；`make_server(flow=None)` 不接线——测试/演示环境自行注入确定性夹具，绝不隐式发起网络请求。检索回调任何异常/无结果/未接线都只记录证据缺失，**绝不阻断用户消息发送**。
+- **会话级证据幂等持久化**：`CreativeChatStore.set_discovery` 锁内 re-load + check-and-set（B2 同模式）——会话内首个任务 turn 的检索证据一次性持久化（首写胜出、绝不覆盖、绝不重检，重复任务 turn 复用首次证据零重复网络请求），刷新/重启精确恢复；`view()` 暴露 `topic_discovery`。
+- **透明检索播报 + 证据注入**：`chat_stream_reply` 在任何 delta 之前 yield `{"type": "search", query, status, count}`（仅当证据 turn_id 匹配本条 user turn）；`_discovery_context_message` 把证据变成注入模型的 system 上下文——「【主动检索来源】」逐条标题/UP主/发布/链接/简介 + 「公开平台社区内容，不是权威事实核查」谱系声明 + 「无来源支持的细节（身份、动机、伤情、警方结论等）绝不能写成事实」规则；unavailable 时注入「【未联网核实】」诚实声明。`chat_draft_generate` 同源注入会话级证据，`DRAFT_SYSTEM_PROMPT` 补「末尾附参考来源行（只列实际用到的）」规则。
+- **System prompt 选题驱动指令**：任务意图时不用泛泛问题反问，直接给起步产出：①事件速览（时间线+关键事实，已证实/未证实严格区分，未证实细节绝不写成事实）②2-3 个可辩护角度 ③工作标题+简短口播大纲；有来源给来源标题与链接并注明谱系；无检索明确声明未联网核实；结尾提示「整理为草稿」且正式审核门禁不受影响；聊聊模式不受流程限制。草稿仍是 `creative-draft/1` / `unreviewed`，不写任何 canonical approved/reviewed/quality-Gate 字段，全部 Gates 保持 fail-closed。
+- **前端透明小字行**：SSE `search` 事件渲染 `.chat-search-note`（「🔎 已主动检索公开来源「query」：N 条（B 站匿名检索，非权威事实核查）」；不可用时如实声明未联网核实）；`renderChat` 刷新后按 `topic_discovery.turn_id` 在对应 user turn 后精确重渲染。
+- **新增 14 项确定性测试（全部离线零网络零付费）**：意图/主题提取 10 用例；任务触发有界检索（恰一次、主题正确、search 事件先于 delta、证据注入 CHAT prompt 后 user 前、来源 URL 精确）；会话内幂等（不重检不重播报不重复注入）；聊聊模式零检索零注入；未接线 unavailable 诚实声明（消息照发、播报 unavailable、上下文含未联网核实）；回调异常不阻断发送；空结果 unavailable+note；草稿生成注入证据（DRAFT prompt+证据+完整历史）；discovery 刷新精确恢复；store 层 set_discovery 首写胜出幂等+未知会话报错；HTTP SSE search 事件透传+state 恢复+检索零模型调用；webui 适配器映射（ok 条目→URL/标题/UP主/分页调用、blocked/空结果→unavailable）；前端静态契约（search 分支/小字行样式/topic_discovery 恢复/未联网核实文案）。测试：focused **159 passed**（145 既有零回归）；全量 **1139 passed, 7 skipped**。
+- **Post-merge main 集成 QA（先行完成）**：全量 **1125 passed, 7 skipped**；8321 重启加载 main 后 masked Key `sk-f…8d17`、3 个 Owner 会话（4/2/12 turns + 3 drafts）完好；真实 `~/.deeptalk` 快照 sha256 前后一致。
+- **浏览器验收两级（详见 `evaluations/issue29_topic_first/`）**：8323 隔离夹具（离线 fixture 检索 + 8932 mock LLM，零真实调用）——任务消息→检索小字行 2 条→起步产出（速览/未证实标注/角度/标题/大纲/来源）→草稿 v1（口播稿+参考来源行+未审核标注+可编辑）→刷新精确恢复（检索行位置正确、草稿入口 DOM 确认可见）→聊聊模式零新增检索行（UAUA 四气泡、searchNoteCount 恒 1）；8321 真实环境（真实 B 站匿名检索免费 + Owner Key 真实 DeepSeek 调用恰 2 次：1 聊天 + 1 草稿，单轮 ≤8 次授权先例内）——「我想就王扁被打做个视频」→ 真实检索 6 条 → DeepSeek flash 直接产出事件速览时间线（逐条来源 URL + 「前经纪人/爆头/反转/出院」全部标注未证实/待核实）、「已知与未知界线」声明（无来源支撑的一条都不断言）、3 个可辩护角度、2 个工作标题、90 秒大纲、口播纪律提醒、结尾门禁提示，**无四问泛问**；真实草稿 1404 字 + 末尾参考来源 5 个 URL + 未审核标注；刷新后检索行/会话/草稿全部精确恢复。Owner Key 与既有 3 会话全程零触碰（state 前后确认）。截图 issue29-01…05。
+
 ## Unreleased — 2026-10-24 — Issue #44 — 收尾三修复：桌面侧栏可重新展开 + 损坏会话 JSON 不拖垮其他会话 + 草稿收起单入口（review #5630859051）
 
 - **B5/P0 桌面侧栏收起后可重新展开**：`.sidebar-open-btn` 此前仅移动端媒体查询显示——桌面点「‹」收起后 ☰ 按钮仍 `display:none`，历史侧栏永久不可达（直到刷新）。新增桌面规则 `.sidebar-open-btn.sidebar-shown { display: inline-flex; }`：JS 收起时挂的 `sidebar-shown` 类现在真正让 ☰ 入口出现，点击重新展开并移除类。1280px 浏览器回归：收起 → ☰ 可见 → 重新展开 → 选择旧会话正常；375px 抽屉行为不受影响（媒体查询规则优先级不变）。

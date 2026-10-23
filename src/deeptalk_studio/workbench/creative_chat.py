@@ -348,6 +348,44 @@ class CreativeChatStore:
             session = self.load_latest()
             return str(session.get("session_id", "")) if session else None
 
+    def set_discovery(
+        self, session_id: str, discovery: Dict[str, Any]
+    ) -> bool:
+        """Atomically attach the session's first topic-discovery record.
+
+        Issue #29 选题驱动创作：会话内**首个**视频任务 turn 的检索证据
+        一次性持久化（幂等——已有 discovery 绝不覆盖、绝不重检），之后
+        同会话的任务 turn 复用同一份证据；与 turns/drafts 一样可精确
+        恢复，浏览器重载后检索来源与未核实声明不丢。检索证据只含公开
+        平台条目，永不包含 API Key 或凭据。
+        """
+
+        with self._lock:
+            session = self.load(session_id)
+            if session is None:
+                raise CreativeChatError("聊天会话不存在，无法保存检索证据")
+            if session.get("topic_discovery"):
+                return False
+            session["topic_discovery"] = {
+                "query": str(discovery.get("query", ""))[:200],
+                "status": str(discovery.get("status", "unavailable")),
+                "sources": [
+                    {
+                        "title": str(item.get("title", ""))[:500],
+                        "uploader": str(item.get("uploader", ""))[:200],
+                        "published_at": str(item.get("published_at", ""))[:100],
+                        "url": str(item.get("url", ""))[:500],
+                        "description": str(item.get("description", ""))[:500],
+                    }
+                    for item in (discovery.get("sources") or [])[:6]
+                ],
+                "note": str(discovery.get("note", ""))[:300],
+                "turn_id": str(discovery.get("turn_id", ""))[:40],
+                "created_at": _now(),
+            }
+            self._touch(session)
+            return True
+
     def append_turn(
         self,
         session: Dict[str, Any],
@@ -477,4 +515,7 @@ class CreativeChatStore:
             "updated_at": session.get("updated_at", ""),
             "turns": list(session.get("turns", [])),
             "drafts": list(session.get("drafts", [])),
+            # Issue #29：检索证据（或「未联网核实」声明）随会话恢复，
+            # 浏览器刷新后来源小字不丢。
+            "topic_discovery": dict(session.get("topic_discovery") or {}),
         }

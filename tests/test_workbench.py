@@ -2897,5 +2897,286 @@ class CreativeChatTests(_UserSettingsIsolatedTestCase):
                              ["fixture", ""])
 
 
+class TopicFirstChatTests(_UserSettingsIsolatedTestCase):
+    """Issue #29 选题驱动创作（issuecomment-6369945828）：任务意图识别 →
+    有界公开来源检索 → 透明检索播报 + 证据注入；聊聊模式零检索；
+    检索失败/未接线时诚实记录「未联网核实」，绝不阻断消息发送。"""
+
+    class CapturingLLM:
+        """捕获完整 messages（含注入的检索上下文）的离线流式夹具。"""
+
+        def __init__(self, chunks):
+            self.chunks = list(chunks)
+            self.seen = []
+
+        def chat_stream(self, messages):
+            self.seen.append([dict(m) for m in messages])
+            for chunk in self.chunks:
+                yield chunk
+
+    def _flow(self, root, llm, topic_search=None):
+        return WorkbenchFlow(
+            root,
+            provider_factory=lambda settings: llm,
+            topic_search=topic_search,
+        )
+
+    def _configure(self, root):
+        save_settings(root, apply_settings_update(load_settings(root), {
+            "provider_mode": "deepseek",
+            "api_key": "sk-chat-fixture",
+        }))
+
+    def test_video_task_topic_extraction(self):
+        """确定性意图识别与主题提取：命中任务标记才提取，零模型调用；
+        聊聊模式与无主题任务绝不硬造主题（真实模糊处才反问）。"""
+
+        cases = [
+            ("我想就王扁被打做个视频", "王扁被打"),
+            ("我想就《王扁被打》做个视频", "王扁被打"),
+            ("帮我做一期关于AI取代程序员的视频", "AI取代程序员"),
+            ("给我做个视频讲王扁被打", "王扁被打"),
+            ("「王扁被打」这个事，出个视频吧", "王扁被打"),
+            ("请帮我拍个视频：深夜自习室", "深夜自习室"),
+            ("做个视频", ""),
+            ("就是做个视频", ""),
+            ("王扁被打最近很火，我想聊聊", ""),
+            ("你好，想聊聊夜间城市选题", ""),
+        ]
+        for text, expected in cases:
+            self.assertEqual(WorkbenchFlow._video_task_topic(text), expected, text)
+
+    def test_task_message_triggers_bounded_search_and_injects_sources(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            searches = []
+
+            def topic_search(topic):
+                searches.append(topic)
+                return {
+                    "status": "ok",
+                    "query": topic,
+                    "sources": [{
+                        "title": "王扁被打事件梳理",
+                        "uploader": "时事观察",
+                        "published_at": "2026-10-19",
+                        "url": "https://www.bilibili.com/video/BV1fixture01",
+                        "description": "封面新闻报道梳理",
+                    }],
+                }
+
+            llm = self.CapturingLLM(["好的", "，这是起步产出。"])
+            flow = self._flow(root, llm, topic_search=topic_search)
+            self._configure(root)
+            context = flow.chat_send_start("我想就王扁被打做个视频")
+            # 有界检索恰好一次、主题正确；返回快照带证据
+            self.assertEqual(searches, ["王扁被打"])
+            discovery = context["session"].get("topic_discovery")
+            self.assertEqual(discovery["status"], "ok")
+            self.assertEqual(discovery["turn_id"], context["user_turn"]["turn_id"])
+            self.assertEqual(discovery["sources"][0]["url"],
+                             "https://www.bilibili.com/video/BV1fixture01")
+            events = list(flow.chat_stream_reply(context))
+            # 透明检索播报在任何 delta 之前
+            self.assertEqual(events[0]["type"], "search")
+            self.assertEqual(events[0]["query"], "王扁被打")
+            self.assertEqual(events[0]["status"], "ok")
+            self.assertEqual(events[0]["count"], 1)
+            self.assertEqual([e["type"] for e in events[1:3]], ["delta", "delta"])
+            # 模型上下文注入证据（CHAT prompt 之后、user 之前）
+            messages = llm.seen[0]
+            self.assertEqual(messages[0]["role"], "system")
+            self.assertIn("选题驱动创作", messages[0]["content"])
+            self.assertEqual(messages[1]["role"], "system")
+            self.assertIn("【主动检索来源】", messages[1]["content"])
+            self.assertIn("BV1fixture01", messages[1]["content"])
+            self.assertIn("不是权威事实核查", messages[1]["content"])
+            self.assertEqual([m["role"] for m in messages[2:]], ["user"])
+
+    def test_search_is_idempotent_within_session(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            searches = []
+
+            def topic_search(topic):
+                searches.append(topic)
+                return {
+                    "status": "ok",
+                    "query": topic,
+                    "sources": [{
+                        "title": "来源A", "uploader": "u", "published_at": "2026",
+                        "url": "https://www.bilibili.com/video/BV1fixture01",
+                        "description": "d",
+                    }],
+                }
+
+            llm = self.CapturingLLM(["第一轮", "回复", "第二轮", "回复"])
+            flow = self._flow(root, llm, topic_search=topic_search)
+            self._configure(root)
+            context = flow.chat_send_start("我想就王扁被打做个视频")
+            session_id = context["session"]["session_id"]
+            list(flow.chat_stream_reply(context))
+            # 同会话第二条任务消息：不再检索（幂等）、不再播报、不重复注入
+            context2 = flow.chat_send_start("再就王扁被打做个视频", session_id=session_id)
+            self.assertEqual(searches, ["王扁被打"])
+            events2 = list(flow.chat_stream_reply(context2))
+            self.assertEqual([e for e in events2 if e["type"] == "search"], [])
+            roles2 = [m["role"] for m in llm.seen[1]]
+            # 第二轮上下文 = system + 完整历史（证据仅跟随触发 turn，首轮
+            # assistant 回复已含来源引用，模型可从对话延续）
+            self.assertEqual(roles2, ["system", "user", "assistant", "user"])
+
+    def test_chat_mode_never_triggers_search(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            searches = []
+
+            def topic_search(topic):
+                searches.append(topic)
+                return {"status": "ok", "query": topic, "sources": []}
+
+            llm = self.CapturingLLM(["聊聊吧"])
+            flow = self._flow(root, llm, topic_search=topic_search)
+            self._configure(root)
+            context = flow.chat_send_start("王扁被打最近很火，我想聊聊")
+            self.assertEqual(searches, [])
+            self.assertIsNone(context["session"].get("topic_discovery"))
+            events = list(flow.chat_stream_reply(context))
+            self.assertEqual([e for e in events if e["type"] == "search"], [])
+            self.assertEqual(len(llm.seen[0]), 2)  # system + user，无注入
+
+    def test_unwired_search_records_unavailable_and_stays_honest(self):
+        """topic_search=None：消息照常发送，证据记录 unavailable，
+        stream 播报「未联网核实」，模型上下文拿到诚实声明 ——
+        无检索能力绝不假装做过研究。"""
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            llm = self.CapturingLLM(["基于未核实信息的构思"])
+            flow = self._flow(root, llm, topic_search=None)
+            self._configure(root)
+            context = flow.chat_send_start("我想就王扁被打做个视频")
+            discovery = context["session"].get("topic_discovery")
+            self.assertEqual(discovery["status"], "unavailable")
+            self.assertEqual(discovery["turn_id"], context["user_turn"]["turn_id"])
+            events = list(flow.chat_stream_reply(context))
+            search_events = [e for e in events if e["type"] == "search"]
+            self.assertEqual(len(search_events), 1)
+            self.assertEqual(search_events[0]["status"], "unavailable")
+            self.assertIn("未联网核实", llm.seen[0][1]["content"])
+
+    def test_search_callback_failure_never_blocks_send(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            def broken(topic):
+                raise RuntimeError("网络故障")
+
+            llm = self.CapturingLLM(["回复"])
+            flow = self._flow(root, llm, topic_search=broken)
+            self._configure(root)
+            context = flow.chat_send_start("我想就王扁被打做个视频")
+            self.assertEqual(
+                context["session"]["topic_discovery"]["status"], "unavailable"
+            )
+
+    def test_empty_search_result_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            def empty(topic):
+                return {"status": "ok", "query": topic, "sources": []}
+
+            llm = self.CapturingLLM(["回复"])
+            flow = self._flow(root, llm, topic_search=empty)
+            self._configure(root)
+            context = flow.chat_send_start("我想就王扁被打做个视频")
+            discovery = context["session"]["topic_discovery"]
+            self.assertEqual(discovery["status"], "unavailable")
+            self.assertIn("没有返回", discovery["note"])
+
+    def test_draft_generate_injects_discovery_context(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            def topic_search(topic):
+                return {
+                    "status": "ok",
+                    "query": topic,
+                    "sources": [{
+                        "title": "来源A", "uploader": "u", "published_at": "2026",
+                        "url": "https://www.bilibili.com/video/BV1fixture01",
+                        "description": "d",
+                    }],
+                }
+
+            llm = self.CapturingLLM(["聊天回复", "草稿正文"])
+            flow = self._flow(root, llm, topic_search=topic_search)
+            self._configure(root)
+            context = flow.chat_send_start("我想就王扁被打做个视频")
+            list(flow.chat_stream_reply(context))
+            result = flow.chat_draft_generate()
+            self.assertEqual(result["draft"]["revision"], 1)
+            # 草稿上下文：DRAFT prompt + 会话证据 + 完整历史
+            draft_messages = llm.seen[-1]
+            self.assertEqual(draft_messages[0]["role"], "system")
+            self.assertIn("参考来源", draft_messages[0]["content"])
+            self.assertEqual(draft_messages[1]["role"], "system")
+            self.assertIn("【主动检索来源】", draft_messages[1]["content"])
+            self.assertEqual([m["role"] for m in draft_messages[2:]], ["user", "assistant"])
+
+    def test_discovery_persists_across_reload(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            def topic_search(topic):
+                return {
+                    "status": "ok",
+                    "query": topic,
+                    "sources": [{
+                        "title": "来源A", "uploader": "u", "published_at": "2026",
+                        "url": "https://www.bilibili.com/video/BV1fixture01",
+                        "description": "d",
+                    }],
+                }
+
+            llm = self.CapturingLLM(["回复"])
+            flow = self._flow(root, llm, topic_search=topic_search)
+            self._configure(root)
+            context = flow.chat_send_start("我想就王扁被打做个视频")
+            session_id = context["session"]["session_id"]
+            list(flow.chat_stream_reply(context))
+            # 刷新精确恢复：新 flow 实例读同一存储，检索证据不丢
+            reloaded = WorkbenchFlow(
+                root, provider_factory=lambda s: None
+            ).chat_state(session_id)["chat"]
+            discovery = reloaded["topic_discovery"]
+            self.assertEqual(discovery["status"], "ok")
+            self.assertEqual(discovery["sources"][0]["url"],
+                             "https://www.bilibili.com/video/BV1fixture01")
+
+    def test_set_discovery_first_write_wins(self):
+        with tempfile.TemporaryDirectory() as raw:
+            from deeptalk_studio.workbench.creative_chat import CreativeChatStore
+
+            root = Path(raw)
+            store = CreativeChatStore(root)
+            session = store.new_session()
+            sid = session["session_id"]
+            first = store.set_discovery(
+                sid, {"query": "q", "status": "ok", "sources": [], "turn_id": "t1"}
+            )
+            second = store.set_discovery(
+                sid, {"query": "q2", "status": "unavailable", "turn_id": "t9"}
+            )
+            self.assertTrue(first)
+            self.assertFalse(second)
+            data = store.load(sid)
+            self.assertEqual(data["topic_discovery"]["status"], "ok")
+            self.assertEqual(data["topic_discovery"]["turn_id"], "t1")
+            with self.assertRaises(Exception):
+                store.set_discovery("nonexistent00", {"query": "q"})
+
+
 if __name__ == "__main__":
     unittest.main()

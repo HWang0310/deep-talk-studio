@@ -381,6 +381,8 @@
   .chat-msg .chat-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .chat-msg .chat-links .link-chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: #fbfaf7; }
   .chat-msg .chat-kind { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  /* Issue #29：选题检索透明小字行（免费匿名检索，非权威事实核查） */
+  .chat-search-note { align-self: flex-start; max-width: 86%; font-size: 12px; color: var(--muted); border-left: 2px solid var(--line); padding: 2px 0 2px 10px; margin: 0 0 8px 0; line-height: 1.5; }
   .chat-msg.streaming::after { content: '▋'; margin-left: 2px; animation: chat-blink 1s steps(2) infinite; }
   @keyframes chat-blink { 50% { opacity: 0; } }
   .draft-revisions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
@@ -2584,6 +2586,21 @@
     return item;
   }
 
+  function appendSearchNoteEl(query, status, count) {
+    // Issue #29 选题驱动：检索是透明增值能力——UI 如实播报检索状态；
+    // 不可用时同样如实声明「未联网核实」，绝不假装做过研究。
+    var text = (status === 'ok' && count > 0)
+      ? '🔎 已主动检索公开来源「' + (query || '') + '」：' + count +
+        ' 条（B 站匿名检索，非权威事实核查）'
+      : '🔎 公开来源检索不可用（「' + (query || '') +
+        '」）：本次回复未联网核实，事实性内容均为未核实构思。';
+    var note = el('div', 'chat-search-note', text);
+    note.dataset.searchNote = '1';
+    chatThread.appendChild(note);
+    if (nearBottom()) { scrollToEndOfConversation(); }
+    return note;
+  }
+
   function renderDrafts(chat) {
     // 草稿不再常驻大表单（issuecomment-6366157284）：只显示一个小入口
     // 「草稿 vN · 未审核」，点击才展开 drawer；无草稿时仅留「整理为草稿」
@@ -2642,7 +2659,17 @@
       try { window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId); } catch (err) { }
     }
     if (chat && chat.turns) {
-      chat.turns.forEach(function (turn) { appendChatTurnEl(turn, false); });
+      // Issue #29：会话内首个选题任务的检索证据（或「未联网核实」
+      // 声明）随会话精确恢复，刷新后透明小字行不丢。
+      var discovery = chat.topic_discovery || null;
+      chat.turns.forEach(function (turn) {
+        appendChatTurnEl(turn, false);
+        if (discovery && turn.role === 'user' && turn.turn_id &&
+            String(discovery.turn_id || '') === String(turn.turn_id)) {
+          appendSearchNoteEl(discovery.query, discovery.status,
+            (discovery.sources || []).length);
+        }
+      });
     }
     renderDrafts(chat);
     updateWelcomeVisibility();
@@ -2744,6 +2771,13 @@
             if (userTurnEl) { userTurnEl.dataset.turnId = event.user_turn.turn_id; }
           }
           chatStatusEl.textContent = kindLabel(event.provider_kind) + ' 流式输出中…';
+        } else if (event.type === 'search') {
+          // Issue #29：流式开始前的检索状态播报（免费匿名检索，非
+          // 权威事实核查）；不可用时同样如实提示，模型按未核实规则作答。
+          appendSearchNoteEl(event.query, event.status, Number(event.count) || 0);
+          chatStatusEl.textContent = event.status === 'ok'
+            ? '已检索到公开来源，模型正在基于来源起草起步产出…'
+            : '公开来源检索不可用，模型将按「未联网核实」如实作答…';
         } else if (event.type === 'delta') {
           var wasNearBottom = nearBottom();
           if (!assistantEl) {
