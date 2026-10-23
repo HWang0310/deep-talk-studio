@@ -236,6 +236,14 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("真实连接", body)
         self.assertIn("清除 API Key", body)
 
+    def test_index_exposes_explicit_deepseek_search_budget_controls(self):
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn("/api/workbench/research/search", body)
+        self.assertIn("/api/workbench/research/fetch", body)
+        self.assertIn("可能产生计费", body)
+        self.assertIn("搜索结果不是事实证据", body)
+
     def test_healthz(self):
         status, headers, body = self.get("/healthz")
         self.assertEqual(status, 200)
@@ -586,7 +594,7 @@ if __name__ == "__main__":
 class WorkbenchRoutesTests(LocalWebUITestCase):
     """Issue #23 unified workbench HTTP surface (fake LLM + fake fetch)."""
 
-    def _flow(self, root: Path):
+    def _flow(self, root: Path, deepseek_client=None):
         from tests.test_workbench import (
             FakeWorkbenchLLM,
             _fake_discovery,
@@ -595,12 +603,78 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
 
         from deeptalk_studio.workbench.flow import WorkbenchFlow
 
+        kwargs = {}
+        if deepseek_client is not None:
+            kwargs["deepseek_client_factory"] = lambda settings: deepseek_client
         return WorkbenchFlow(
             root,
             discovery_runner=_fake_discovery,
             provider_factory=lambda settings: FakeWorkbenchLLM(settings),
             fetcher=_fake_fetcher,
+            **kwargs,
         )
+
+    def test_deepseek_search_and_fetch_routes_require_opt_in_and_persist_budget(self):
+        import tempfile
+
+        class Client:
+            def __init__(self):
+                self.calls = []
+
+            def search(self, query, count=5, need_content=False):
+                self.calls.append(("search", query))
+                return {"request_id": "web-search", "results": [{
+                    "title": "公告", "url": "https://example.gov/notice",
+                    "content": "摘要", "published_at": "2026-10-21",
+                }]}
+
+            def fetch(self, url):
+                self.calls.append(("fetch", url))
+                return {"request_id": "web-fetch", "url": url, "title": "公告",
+                        "content": "这是一段可核验的公告正文，足以作为测试来源。",
+                        "published_at": "2026-10-21"}
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            client = Client()
+            flow = self._flow(root, client)
+            self.start_server(flow=flow)
+            status, _, _ = self.post("/api/workbench/settings", {
+                "provider_mode": "deepseek", "api_key": "sk-http-fixture",
+            })
+            self.assertEqual(status, 200)
+            status, _, body = self.post("/api/workbench/session/start", {
+                "topic": "本市图书馆夜间开放试点", "urls": [],
+            })
+            self.assertEqual(status, 200, body)
+            sid = json.loads(body)["session"]["session_id"]
+            status, _, body = self.post("/api/workbench/research/search", {
+                "session_id": sid, "query": "预算", "opt_in": False,
+                "max_requests": 2,
+            })
+            self.assertEqual(status, 400)
+            self.assertIn("明确勾选", json.loads(body)["error"])
+            self.assertEqual(client.calls, [])
+            status, _, body = self.post("/api/workbench/research/search", {
+                "session_id": sid, "query": "预算", "opt_in": True,
+                "max_requests": 2, "count": 3, "need_content": True,
+            })
+            self.assertEqual(status, 200, body)
+            searched = json.loads(body)
+            self.assertEqual(searched["search_budget"]["used"], 1)
+            status, _, body = self.post("/api/workbench/research/fetch", {
+                "session_id": sid, "url": "https://example.gov/notice",
+                "opt_in": True, "max_requests": 2,
+            })
+            self.assertEqual(status, 200, body)
+            fetched = json.loads(body)
+            self.assertEqual(fetched["kind"], "deepseek_fetched")
+            self.assertEqual(fetched["search_budget"]["used"], 2)
+            status, _, body = self._get_state()
+            self.assertEqual(status, 200)
+            state = json.loads(body)["session"]
+            self.assertEqual(state["search_budget"]["used"], 2)
+            self.assertEqual(state["sources"][0]["kind"], "deepseek_fetched")
 
     def test_settings_roundtrip_over_http_and_masked_echo(self):
         import tempfile

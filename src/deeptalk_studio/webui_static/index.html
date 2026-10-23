@@ -140,6 +140,10 @@
   .src-list { margin-top: 8px; }
   .src-item { border-top: 1px dashed var(--line); padding: 8px 0 4px; font-size: 13.5px; }
   .src-item:first-child { border-top: none; }
+  .tool-box { background: #fffaf0; border: 1px solid #ead9ae; border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+  .tool-result { border-top: 1px dashed #ead9ae; padding: 8px 0 4px; }
+  .tool-result:first-child { border-top: none; }
+  .tool-result .title-link { font-size: 14px; }
   .checks-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
   .checks-table td, .checks-table th { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
   .checks-table th { color: var(--muted); font-weight: 600; }
@@ -290,6 +294,29 @@
       </div>
     </details>
     <div id="source-list" class="src-list"></div>
+    <div class="tool-box" aria-labelledby="deepseek-tools-title">
+      <h3 id="deepseek-tools-title">可选：DeepSeek Search / Fetch</h3>
+      <p class="muted">这是一项可能产生计费的联网工具。只有你明确勾选并设置本集请求上限后才会调用；搜索摘要只是候选线索，搜索结果不是事实证据，选中的页面仍需作为来源保存并独立核查。</p>
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="deepseek-opt-in">
+        我明确同意本集使用 DeepSeek Search/Fetch（按下方上限计数）
+      </label>
+      <div class="field-grid">
+        <div>
+          <label for="deepseek-query">Search 问题</label>
+          <input id="deepseek-query" type="text" maxlength="500" placeholder="例如：官方公告与预算原文">
+        </div>
+        <div>
+          <label for="deepseek-cap">本集请求上限（1–20）</label>
+          <input id="deepseek-cap" type="number" min="1" max="20" value="5" inputmode="numeric">
+        </div>
+      </div>
+      <div class="actions" style="margin-top:10px">
+        <button id="deepseek-search" type="button">搜索（可能计费）</button>
+        <span id="deepseek-budget" class="muted" role="status">本集尚未启用 DeepSeek Search</span>
+      </div>
+      <div id="deepseek-results" class="src-list"></div>
+    </div>
     <div id="research-readiness" class="muted" role="status"></div>
     <div id="partial-override-box" hidden style="margin-top:10px;padding:10px;border:1px solid #d9d9d9;border-radius:8px">
       <label style="display:flex;align-items:center;gap:6px">
@@ -833,6 +860,45 @@
 
   // ---- research ----
 
+  function renderDeepSeekTools(session) {
+    var budget = session.search_budget || { opt_in: false, max_requests: 0, used: 0, results: [] };
+    var budgetEl = document.getElementById('deepseek-budget');
+    var cap = budget.max_requests || '—';
+    budgetEl.textContent = '本集 DeepSeek 请求：' + (budget.used || 0) + ' / ' + cap
+      + (budget.last_error ? ' · 最近一次失败：' + budget.last_error : '')
+      + (budget.opt_in ? ' · 已明确启用' : ' · 尚未启用');
+    var resultsEl = document.getElementById('deepseek-results');
+    resultsEl.textContent = '';
+    (session.search_results || budget.results || []).forEach(function (result) {
+      var item = el('div', 'tool-result');
+      var link = el('a', 'title-link', result.title || result.url || '未命名结果');
+      link.href = result.url || '#';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      item.appendChild(link);
+      item.appendChild(el('div', 'muted', (result.published_at ? '发布：' + result.published_at + ' · ' : '') +
+        '请求：' + (result.request_id || '—') + ' · 仅为候选线索'));
+      if (result.snippet) { item.appendChild(el('div', 'muted', String(result.snippet).slice(0, 300))); }
+      var fetchButton = el('button', null, '抓取并保存为独立来源');
+      fetchButton.type = 'button';
+      fetchButton.addEventListener('click', function () {
+        var optIn = document.getElementById('deepseek-opt-in').checked;
+        if (!optIn) {
+          showRequestError('请先明确勾选 DeepSeek Search/Fetch，并确认可能产生计费。');
+          return;
+        }
+        api('/api/workbench/research/fetch', {
+          session_id: currentSession.session_id,
+          url: result.url,
+          opt_in: true,
+          max_requests: Number(document.getElementById('deepseek-cap').value || 0)
+        }, { message: '抓取 DeepSeek 选定原文（可能计费）…' }).then(refresh).catch(function () { refresh(); });
+      });
+      item.appendChild(fetchButton);
+      resultsEl.appendChild(item);
+    });
+  }
+
   function renderResearch(session) {
     researchCard.hidden = !currentSession;
     if (!currentSession) { return; }
@@ -841,9 +907,12 @@
     (session.sources || []).forEach(function (s) {
       var item = el('div', 'src-item');
       item.appendChild(el('div', null, s.sid + ' · ' + s.title));
-      item.appendChild(el('div', 'muted', s.kind === 'pasted' ? '（用户粘贴正文）' : s.url));
+      var sourceKind = s.kind === 'pasted' ? '（用户粘贴正文）' :
+        (s.kind === 'deepseek_fetched' ? '（DeepSeek Fetch 原文，待独立核查）' : s.url);
+      item.appendChild(el('div', 'muted', sourceKind));
       list.appendChild(item);
     });
+    renderDeepSeekTools(session);
     // Issue #23 B3: visible analyzed-N / eligible-M readiness + explicit
     // partial-analysis override control (never silently label partial as full).
     var readiness = session.references_readiness || { analyzed: 0, eligible: 0 };
@@ -901,6 +970,24 @@
       document.getElementById('source-orig-url').value = '';
       return refresh();
     }).catch(function () {});
+  });
+
+  document.getElementById('deepseek-search').addEventListener('click', function () {
+    if (!currentSession) { showRequestError('请先用上方入口开启本集创作会话'); return; }
+    if (!document.getElementById('deepseek-opt-in').checked) {
+      showRequestError('请先明确勾选 DeepSeek Search/Fetch，并确认可能产生计费。');
+      return;
+    }
+    api('/api/workbench/research/search', {
+      session_id: currentSession.session_id,
+      query: document.getElementById('deepseek-query').value,
+      opt_in: true,
+      max_requests: Number(document.getElementById('deepseek-cap').value || 0),
+      count: 5,
+      need_content: true
+    }, { message: '执行 DeepSeek Search（可能计费；按本集上限计数）…' }).then(function () {
+      return refresh();
+    }).catch(function () { refresh(); });
   });
 
   document.getElementById('research-generate').addEventListener('click', function () {

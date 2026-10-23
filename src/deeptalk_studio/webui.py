@@ -75,6 +75,8 @@ WORKBENCH_ROUTE_CAPS = {
     "/api/workbench/references/reanalyze": 2048,
     "/api/workbench/sources/url": 4096,
     "/api/workbench/sources/text": 420 * 1024,
+    "/api/workbench/research/search": 16 * 1024,
+    "/api/workbench/research/fetch": 8 * 1024,
     "/api/workbench/research/generate": 16 * 1024,
     "/api/workbench/fact-check/run": 2048,
     "/api/workbench/research/approve": 16 * 1024,
@@ -480,6 +482,30 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                     )
 
             result, error = self._workbench_call(_source_text)
+        elif path == "/api/workbench/research/search":
+            def _deepseek_search():
+                with server.workbench_lock:
+                    return flow.search_deepseek(
+                        session_id,
+                        str(payload.get("query", "")),
+                        opt_in=payload.get("opt_in") is True,
+                        max_requests=payload.get("max_requests"),
+                        count=payload.get("count", 5),
+                        need_content=payload.get("need_content") is True,
+                    )
+
+            result, error = self._workbench_call(_deepseek_search)
+        elif path == "/api/workbench/research/fetch":
+            def _deepseek_fetch():
+                with server.workbench_lock:
+                    return flow.fetch_deepseek_source(
+                        session_id,
+                        str(payload.get("url", "")),
+                        opt_in=payload.get("opt_in") is True,
+                        max_requests=payload.get("max_requests"),
+                    )
+
+            result, error = self._workbench_call(_deepseek_fetch)
         elif path == "/api/workbench/research/generate":
             def _research():
                 with server.workbench_lock:

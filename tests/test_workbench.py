@@ -738,6 +738,120 @@ class SessionStoreTests(unittest.TestCase):
             self.assertEqual(store.load_latest()["session_id"], session["session_id"])
 
 
+class DeepSeekWorkbenchTests(unittest.TestCase):
+    """Issue #36: explicit, capped DeepSeek Search/Fetch stays offline in tests."""
+
+    class Client:
+        def __init__(self):
+            self.calls = []
+
+        def search(self, query, count=5, need_content=False):
+            self.calls.append(("search", query, count, need_content))
+            return {
+                "request_id": "req-search-fixture",
+                "results": [
+                    {
+                        "title": "官方公告",
+                        "url": "https://example.gov/notice",
+                        "content": "公告正文摘要",
+                        "published_at": "2026-10-21",
+                    }
+                ],
+            }
+
+        def fetch(self, url):
+            self.calls.append(("fetch", url))
+            return {
+                "request_id": "req-fetch-fixture",
+                "url": url,
+                "title": "官方公告",
+                "content": "这是可供独立核验的原文正文，包含足够长的事实材料。",
+                "published_at": "2026-10-21",
+            }
+
+    def _flow(self, root, client):
+        return WorkbenchFlow(
+            root,
+            discovery_runner=_fake_discovery,
+            provider_factory=lambda settings: FakeWorkbenchLLM(settings),
+            deepseek_client_factory=lambda settings: client,
+        )
+
+    @staticmethod
+    def _configure(root):
+        save_settings(root, apply_settings_update(load_settings(root), {
+            "provider_mode": "deepseek",
+            "api_key": "sk-offline-fixture-only",
+        }))
+
+    def test_search_requires_explicit_opt_in_without_spending_or_calling_client(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            client = self.Client()
+            self._configure(root)
+            flow = self._flow(root, client)
+            sid = flow.start_session("本市图书馆夜间开放试点", [])["session_id"]
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.search_deepseek(sid, "预算证据", opt_in=False, max_requests=2)
+            self.assertIn("明确勾选", str(ctx.exception))
+            self.assertEqual(client.calls, [])
+            self.assertEqual(flow.store.load(sid)["search_budget"]["used"], 0)
+
+    def test_search_and_fetch_consume_cap_and_persist_source_provenance(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            client = self.Client()
+            self._configure(root)
+            flow = self._flow(root, client)
+            sid = flow.start_session("本市图书馆夜间开放试点", [])["session_id"]
+            searched = flow.search_deepseek(
+                sid, "预算证据", opt_in=True, max_requests=2, count=3, need_content=True
+            )
+            self.assertEqual(searched["results"][0]["url"], "https://example.gov/notice")
+            self.assertEqual(searched["search_budget"]["used"], 1)
+            self.assertEqual(client.calls[0], ("search", "预算证据", 3, True))
+            fetched = flow.fetch_deepseek_source(
+                sid, "https://example.gov/notice", opt_in=True, max_requests=2
+            )
+            self.assertEqual(fetched["kind"], "deepseek_fetched")
+            self.assertEqual(fetched["request_id"], "req-fetch-fixture")
+            self.assertEqual(fetched["search_budget"]["used"], 2)
+            source_path = flow.store.sources_dir(sid) / "S1.json"
+            source = flow.store.load_json(source_path)
+            self.assertEqual(source["kind"], "deepseek_fetched")
+            self.assertEqual(source["request_id"], "req-fetch-fixture")
+            self.assertEqual(source["provenance_method"], "deepseek_fetch")
+            self.assertEqual(len(source["sha256"]), 64)
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.search_deepseek(sid, "再次检索", opt_in=True, max_requests=2)
+            self.assertIn("上限", str(ctx.exception))
+            self.assertEqual(len(client.calls), 2)
+            view = flow.view(sid)
+            self.assertEqual(view["search_budget"]["used"], 2)
+            self.assertEqual(view["sources"][0]["kind"], "deepseek_fetched")
+            self.assertEqual(view["sources"][0]["request_id"], "req-fetch-fixture")
+            self.assertEqual(view["sources"][0]["provenance_method"], "deepseek_fetch")
+
+    def test_missing_deepseek_key_is_truthful_and_never_constructs_client(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self_calls = []
+            flow = WorkbenchFlow(
+                root,
+                discovery_runner=_fake_discovery,
+                deepseek_client_factory=lambda settings: self_calls.append(settings),
+            )
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+            }))
+            sid = flow.start_session("本市图书馆夜间开放试点", [])["session_id"]
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.search_deepseek(sid, "证据", opt_in=True, max_requests=1)
+            self.assertIn("WAITING_FOR_OWNER_API_KEY", str(ctx.exception))
+            self.assertEqual(self_calls, [])
+            self.assertEqual(flow.store.load(sid)["search_budget"]["used"], 0)
+
+
 class FullLoopTests(unittest.TestCase):
     """Ordinary-user acceptance path, engine-real, LLM scripted."""
 
