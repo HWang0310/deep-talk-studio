@@ -13,20 +13,16 @@ AIGC:
 
 This index routes readers to the canonical owner of each fact. It prevents historical documents from being mistaken for current product truth.
 
-## Bootstrap Reading Order
+## Bootstrap Reading Order（最短路径）
 
-For a new Codex session:
+对于 Nexus / Forge / Atlas 的常规任务，先检查 Git branch、HEAD、dirty 状态及**远端真实 Issue/PR**，然后按需阅读：
 
-1. [AGENTS.md](../AGENTS.md) — repository operating rules and bootstrap protocol.
-2. [PROJECT_STATE.md](../PROJECT_STATE.md) — concise canonical current truth.
-3. [CURRENT_CONTROL_PLANE.md](../CURRENT_CONTROL_PLANE.md) — compact recovery index for the live project stage, active thread, unresolved items, and immediate next action; remote GitHub facts override it.
-4. This index — document ownership and task routing.
-5. [README.md](../README.md), [PRD.md](../PRD.md), and [ROADMAP.md](../ROADMAP.md) — product orientation and status.
-6. [ARCHITECTURE.md](ARCHITECTURE.md) — implemented and accepted-target architecture.
-7. Only the contracts relevant to the task.
-8. Only when history is needed: [HANDOFF.md](../HANDOFF.md), plans, specs, release notes, and old evaluations.
+1. [AGENTS.md](../AGENTS.md) — 项目规则、硬约束、项目内工程师 roster。
+2. [CURRENT_CONTROL_PLANE.md](../CURRENT_CONTROL_PLANE.md) — **当前唯一执行主线与下一步**（静态快照，远端更新优先）。
+3. [PROJECT_STATE.md](../PROJECT_STATE.md) — **仅在涉及已验收能力、版本/发布、产品范围时**深入阅读，不能拿历史状态覆盖 GitHub。
+4. 本索引定位具体业务合同，再只读该任务相关的代码和测试。
 
-Before acting, also inspect the current Git branch, HEAD, and working-tree status.
+`README`、`PRD`、`ROADMAP`、`ARCHITECTURE` 是按主题查阅的长期材料；`HANDOFF`、旧 plans/specs、评估、Release notes 是历史证据，**不是默认启动上下文**。遇到合同冲突先向 Nexus 报告，而不是为了缩短阅读直接跳过安全/验收规则。
 
 ## Current Product
 

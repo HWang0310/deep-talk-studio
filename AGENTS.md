@@ -1,136 +1,47 @@
 # DeepTalk Studio 工程协作规则
 
-## Bootstrap Protocol
+> **本文件只负责工程行为与关键约束，不是项目进度流水账或全部业务合同的副本。** 完整 Project Engineer Roster 原样保留在文末。代码/产品状态以实时 GitHub 和对应 canonical 文档为准。
 
-本文件面向进入仓库的未来 Codex。用户不是工程师，不应被要求理解架构、代码或命令行。
+## 最短恢复流程
 
-先检查当前 Git branch、HEAD 与 working tree；然后按以下顺序阅读：
+1. 确认本机仓库路径、当前 branch/HEAD、dirty/unpushed 工作；先看相关 GitHub Issue/PR 的真实状态及 exact SHA，不覆盖用户本地文件。
+2. 读本文件（规则和 roster）及 [CURRENT_CONTROL_PLANE.md](CURRENT_CONTROL_PLANE.md)（**当前唯一开发主线**）。短期索引不是实时服务；若冲突以远端真实状态为准，先报告并核实。
+3. **按任务**使用 [docs/INDEX.md](docs/INDEX.md) 定位对应 Skill/合同、实现和测试；[PROJECT_STATE.md](PROJECT_STATE.md) 只在涉及已验收能力、版本、发布或产品范围时深读。README、PRD、ROADMAP、ARCHITECTURE 按需查阅。
+4. `HANDOFF.md`、旧设计/计划、历史评测、已关闭 PR 和 release notes 是追溯依据，不是默认上下文、当前待办或新任务授权。
+5. Nexus 负责 PM / exact-head 评审；项目 Engineer 身份由文末 roster 决定，Codex/TeleAgent 是执行 backend，**切换 backend 不改变人员身份**。任何新的开发方向、发布、权限、付费调用、删除分支或修改正式 Gate，都要匹配 Owner 的授权。
 
-1. `AGENTS.md`：工程协作与安全规则。
-2. `PROJECT_STATE.md`：唯一的 concise current truth。
-3. `docs/INDEX.md`：文档职责、阅读顺序与 task routing。
-4. `README.md`、`PRD.md`、`ROADMAP.md`：产品入门、需求和交付状态。
-5. `docs/ARCHITECTURE.md`：当前实现与明确标注的目标架构。
-6. 只读任务相关的 canonical contracts、代码和测试。
-7. 只有需要追溯决策、commit lineage、真实 Episode、bug origin 或架构演进时，才读 `HANDOFF.md`、旧 plans/specs、release notes 或历史 evals。
+## 产品与执行边界（所有任务适用）
 
-`PROJECT_STATE.md` 的当前状态优先于历史记录。Plan exists ≠ accepted；implemented ≠ released。若当前代码/测试与 canonical current docs 冲突，记录证据并在本轮进行 reconciliation，不得静默选择任一方。
+- 最新正式发布为 **v1.0.0**；新合入 `main` 的 post-release 代码、开放 PR 上的实现、已验收和正式发布必须严格区分。当前 Owner 优先级、开发 SHA 和待审项以 Control Plane + GitHub 为准；V2 Phase D/E/F、原生 TTS/声音克隆不是自动激活任务。
+- **创作路径分两类：** 可在聊天中自由讨论、生成/修改明确标为 `Creative Draft / 未审核` 的草稿，普通草稿不强制核查；正式 `Reviewed Script` 和 Research / Fact Check / Thesis / Rights / Production 的原有审批、质量 Gate 仍为强制条件。聊天文字不能代替明确的权限卡、费用同意或准确版本的人工审批；模型不能自报 approved/reviewed、revision、provenance、QA 成功。
+- B 站/竞品视频只参考**叙事结构**，不得洗稿、复制独特表达或作为事实来源。区分事实、当事方说法、观点及尚未核实内容；来源必须真实打开、记录 provenance，搜索摘要不等于独立核查，不得制造证据或把同源报道充作独立来源。
+- 时间轴、字幕与素材插入时间只能根据**最终真实音频/视频和实际 ASR/对齐**产生，不能按稿件估计或由模型伪造。PR #31 已提供窄范围 WAV/MP3 audio-only CLI 适配（未正式发布）；不得由此假定 Web UI 已完成端到端交付。缺 ASR、clean/rights/QA 或有效正式工件时 fail closed。
+- 人工决定最终使用的素材、配音、剪映/NLE 剪辑及发布；不自动删剪 A-roll、拼接停顿、生成 NLE 工程、输出成片、发布或绕过下载网站的登录/付费/风控/DRM。仅授权范围内获取已验证许可素材；不可把参考视频直接当可复用素材。
+- 不把 API Key、密码、Cookie、私人音频、下载媒体、真实研究原稿或私有会话提交 Git 或写进日志/截图。默认保存于 gitignored 本地目录，验证路径/MIME/大小/权限/内容指纹；不得无授权调用收费 API、下载大型模型或上传私人材料。测试夹具须诚实标记，不能冒充真实 DeepSeek/B 站/真实媒体验收。
+- 未经 Owner 明确改变方向，不放宽独立 Review、Claim/Evidence、Rights、Clean、Artifact lineage、Renderer QA 等校验，不通过改状态字段、重写结果、伪造时间戳或静默降级来让错误数据“通过”。所有正式工件身份/版本/指纹由代码负责。
 
-## Current Product Safety Context
+## 任务 → 必读规则（仅在命中场景时加载）
 
-`v1.0.0` 已正式发布（tag `v1.0.0`，GitHub Release <https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0>）；当前 Latest Formal Release 是 `v1.0.0`，`v0.6.1` 为历史版本。发布后的 v1.0 产品定义为「一主四辅」：写稿 / Reviewed Script 为主，穿插素材、MG、小黑漫画 / Illustrated Metaphor、手绘动画为辅；不得自行移动 tag、改写历史或新增功能。当前主路径是 Final Clean A-roll → ASR → Alignment → Semantic Timeline → V1 Visual Director → asset QA → Asset Pack + Edit Map → 用户手工 NLE → read-only Finished Cut Review。全片 Preview 只保留 compatibility/QA。绝不自动选择 take、删除/重录/拼接 A-roll、替用户选择最终素材、生成 NLE 工程、输出最终成片或发布。
+| 任务 | Skill 与 canonical 合同 |
+|---|---|
+| 选题推荐、候选编号选择 | `.agents/skills/discover-topics/SKILL.md`、`docs/TOPIC_DISCOVERY_CONTRACT.md`；候选排序、来源实看和风险 Gate 必须复验，不把 Discovery 种子当事实 |
+| 独立研究与事实核查（**正式路径**） | `.agents/skills/research-topic/SKILL.md`；Research Draft 与独立 Fact Check 各自留证，先审再确认 |
+| 正式原创写稿与修订 | `.agents/skills/write-script/SKILL.md`、`docs/SCRIPT_CONTRACT.md`；只绑定已批准 Research/Thesis，独立 Writer / Reviewer，不用网络补缺或虚构事实 |
+| 素材研究、来源检查及许可 | `.agents/skills/prepare-materials/SKILL.md`、`docs/MATERIAL_CONTRACT.md`、`docs/VISUAL_SPEC.md`；已审核脚本、Evidence、rights 与独立 QA 为前置 |
+| 动画、渲染、Production | `.agents/skills/produce-video-assets/SKILL.md`、`docs/PRODUCTION_CONTRACT.md`、`docs/PRODUCTION_EVALS.md`；只有 QA-ready 输出可交付，特殊渲染器细节在合同/Skill 中 |
+| 最终音频或视频对齐、Edit Map | `.agents/skills/align-video/SKILL.md`、`docs/EDIT_BRIDGE_CONTRACT.md`；实际输入的 ASR/timing 与 gap 必须真实 |
+| Creator Workbench、DeepSeek 设置、对话 UI | `docs/WORKBENCH_CONTRACT.md`、相关 PR / 具体实现与测试；区分自由草稿与正式生产门禁，收费请求显式授权 |
 
-Multi-Asset Studio 的 Visual Opportunity → non-exclusive Candidate Portfolio 方向已获得 Product Review 接受。Product Architecture V2 已 PASS / ACCEPTED。Phase A（Contract Compatibility Foundation）已 ACCEPTED / IMPLEMENTED_UNRELEASED，已集成 canonical `73f8b35b`；Phase B（WHERE / Visual Opportunity boundary formalization + hardening）已 PASS / ACCEPTED / IMPLEMENTED_UNRELEASED，已集成 `51e8706d`；Phase C（WHEN / Placement Planner）已 ACCEPTED / INTEGRATED / IMPLEMENTED_UNRELEASED，已集成 `9362d2a5`。Phase A–C 不得写成 production-enabled；Phase D/E/F 尚未开始，也不属于 v1.0 已实现能力，除非有新的明确授权不得实施。
+**只执行与本次任务相关的 Skill；合同与实施代码若不一致，先提供证据并交 Nexus 复核，不能静默拿历史协议覆盖当前已批准事实。**
 
-## Content Director + Script Agent V1（Unreleased）
+## 工程操作、测试和交接
 
-进入 V1 写稿前，先读取 approved Research、Content Thesis Card、Thesis Review 和本期的普通中文人工确认。不得用竞争视频、竞品转录或其高传播结论作为事实来源；它们只能影响高层问题、叙事机制和风险提示。没有可验证的 Thesis Review Artifact 与人工确认，不得创建 V1 Script Draft。V1 Script Review 必须同时完成既有事实安全检查和 17 项 Script Quality Gate；任何 Quality Gate fail 都是 blocking。不要为绕过 Gate 改写研究、伪造确认、缩短实际口播时长，或提前创建 A-roll / 视觉产物。
-
-## 开始任何任务前
-
-遵守上方 Bootstrap Protocol；此外，若任务涉及制作，完整阅读 `docs/PRODUCTION_CONTRACT.md`、`docs/PRODUCTION_EVALS.md` 和 `.agents/skills/produce-video-assets/SKILL.md`。用户说“我视频剪好了”、“帮我把素材卡进去”或“给我生成粗剪”时，完整阅读 `.agents/skills/align-video/SKILL.md` 和 `docs/EDIT_BRIDGE_CONTRACT.md`。
-
-## 工作原则
-
-- 主动完成设计、实现、测试、调试、文档和安全的 Git 操作。
-- 合理工程决策由 Codex 自行完成；只有会实质改变产品方向或需要新权限时才问用户。
-- 面向用户只说结果、影响和下一步，不要求其自己总结技术内容。
-- 本开发机访问 GitHub 等公网服务可能依赖 macOS 系统级代理或 VPN。若终端访问 GitHub 超时但主机网络可用，先检查系统代理，并仅向当前 terminal/Git 进程临时传递代理后再判断网络阻塞；绝不把代理端点、凭据或 cookie 写入仓库、Git 配置或日志。
-- 任何功能或修复先写失败测试，再做最小实现。
-- 不削弱校验器来迁就错误的模型输出。
-- 保持模块单一职责，通过版本化 JSON 工件连接未来 Agent。
-- V0.5.1 与 V0.6.1 已正式验收；第一轮真实 E2E Material + Motion、Preview Hardening 与 canonical lineage 均已通过。Audio Alignment + Visual Edit Bridge + Basic Subtitle V1 当前为 Unreleased Candidate；本地 ASR Selection Gate 已 PASS，quality-first 生产默认是 `LocalWhisperCppTranscriptionProvider`（whisper.cpp v1.9.2 multilingual full `large-v3`，只能配 `--dtw large.v3`）。正式主 UX 是 Final Clean A-roll → ASR → global monotonic Alignment → Semantic Timeline → Visual Director → individual asset QA → Asset Pack + Edit Map → 用户手工 NLE 剪辑 → Finished Cut Review + Production Feedback Loop；后两步只读分析计划/实际差异，不修改成片、不自动二剪、不生成 NLE 工程。绝不自动选择 take、删除停顿/重录/废段、裁剪/拼接 A-roll、决定 NLE 时间线或发布。没有通过 Clean A-roll Gate 和真实 Alignment，不得生成正式素材或 Edit Map；所有正式时间只能来自真实 A-roll。`FACT_CONFLICT` 必须标注真实时间并禁止错误画面。普通 KEEP/REAL/MG 不逐条请求确认，Advanced Motion 必须独立 Review。单一 Episode 的反馈只能成为 `CANDIDATE_PRODUCT_RULE`，必须经人工或多 Episode Review 才能升级。历史 `resolve_real_edit_bridge_session` → `run_real_edit_bridge_session` 的全片 Preview 保留为兼容/QA，不是默认交付。默认自动准备项目外缓存 runtime/model，不检查或要求 `OPENAI_API_KEY`。medium 的 cache 与 Selection Gate 工件只作历史审计，绝不可静默回退。Provider 只接受 runtime 直接 token offsets，缺失、越界或重叠即 fail closed；不允许插值、LLM 伪造或静默云端 fallback。OpenAI Provider 只保留为未来可选能力。保留 `evaluations/local_asr_selection/` 历史和外部 `~/.cache/deep-talk-studio/transcription/` production cache，不提交二进制、模型或私人音频。不要扩展自动 A-roll cleanup、假主播、TTS、BGM、标题封面或发布。
-- 用户说“今天讲什么”“找几个选题”“换一批”或带分类偏好时，先阅读 `.agents/skills/discover-topics/SKILL.md` 和 `docs/TOPIC_DISCOVERY_CONTRACT.md`，不要把它塞进 `research-topic`。
-- 用户回复候选编号时，读取 latest Candidate Set 的结构化 Research Handoff，直接进入 `research-topic`；不要要求用户再复制标题，也不要把 Discovery Source Seeds 当成事实证据。
-- Topic Candidate Set 0.3 的总分、资格状态、资格理由、推荐标签、展示顺序、首选、统计数、身份、时间和来源 provenance 由程序计算并在读取时重新推导；模型或 Skill 只能给评分理由和轻量预检内容。
-- Codex Seed 只有在 `discover-topics` 后台 inspection manifest 中记录了实际打开 URL 后才是 `manual_open`；未记录 URL 必须是 `unmatched`，不能参与两条研究方向计数。
-- Discovery Raw Candidate 少于 7 个时必须失败或继续搜索，不能以少量结果假装完成；Top 5 可以少于 5 个。
-- Top 5 不展示 `watch` 或 `rejected`；高风险且资料薄弱的事件应降为 `watch`，而不是为凑热点上榜。
-- Research Draft 与 Fact Check 必须是不同步骤；Fact Check 必须有新的搜索 provenance。
-- 未通过质量 Gate 的报告只能保持 `draft`，不能手工改状态绕过。
-- `unknown`、`related`、`duplicate`、`syndicated` 来源不能计作独立确认；不得为过 Gate 自动改成 `independent`。
-- API 模型只生成研究判断，身份、revision、状态、provenance、quality 和审批字段由代码确定。
-- Fact Check 新来源必须与 Draft 来源一起重新规范化和归组后才能保存或应用。
-- 即使质量 Gate 通过，Script Agent 前也必须保留用户明确确认；确认必须通过 Approval Workflow 建立新的 Research Revision，不能只改内存状态。
-- 用户要求“根据报告写稿”“做成 8 分钟”“做长一点”或修改稿件时，先阅读 `.agents/skills/write-script/SKILL.md` 和 `docs/SCRIPT_CONTRACT.md`。
-- Writer 只能读取绑定的 `ready_for_script` Research Revision；草稿、未通过 Gate、未完成 Fact Check 或没有确认文本的报告一律拒绝。
-- Script Writer 与 Script Reviewer 必须独立执行，二者均不得自行 Web Search，也不得用网络内容补齐 Research gap。
-- Fact Beat 只能引用已核查的 `confirmed_fact`；party statement / commentary 必须使用 Attribution Beat；Analysis Beat 必须保存 basis Claim。
-- `avoid_claims` 是禁止结论，不是写作建议；直接使用必须失败，语义近似越界必须由 Reviewer 检查。
-- Script Draft 的身份、revision、状态、Beat ID、时长、字数和 must-keep coverage 由程序生成和重新校验，Writer / Reviewer 不能自报。
-- Script Review 必须完成 15 个必检维度；每个失败 check 必须有类型匹配的 issue，八项事实安全 check 还必须有 blocking issue。缺失关联时拒绝 Artifact，绝不猜测为通过。
-- `reviewed` Script 必须能在读取时找到匹配的通过 Review Artifact，并复验 review ID、来源 revision、内容指纹和 Gate；V0.4.0 旧 reviewed JSON 缺少 linkage 时必须重新审查。
-- Script 修订只接受程序校验过的 continuity hint；保留 Beat 的 ID 不变，新 ID 单调递增，退休 ID 永不复用。
-- Editor Markdown 用于追踪 Claim / Evidence / 风险；Teleprompter 只保留可朗读正文，不得包含机器 ID、URL 或编辑标签。
-- 所有 Script revision 必须不可覆盖并绑定同一份已批准 Research revision；新研究内容会重置旧 Approval，旧稿不能偷换新底稿。
-- 用户说“给这期配素材”“把画面准备一下”或要求素材多一点/少一点时，先完整阅读 `.agents/skills/prepare-materials/SKILL.md`、`docs/MATERIAL_CONTRACT.md` 和 `docs/VISUAL_SPEC.md`。
-- Material Workflow 只接受能复验 V0.4.1 Review Artifact、内容指纹和 exact Research revision 的 `reviewed` Script；任何 draft、伪造 linkage 或错版 Research 在搜索前拒绝。
-- Material Search 可以联网找候选，但不是新 Research。冲突、更新或新事实必须写 `research_update_required`，不得静默改稿、改报告或把新数字写进 Visual。
-- 搜索摘要只能是 discovered。只有实际打开并进入 inspection manifest 的 URL 是 inspected；模型不能自报 provenance。
-- Evidence 素材必须绑定有效 Claim/Evidence；context 与 illustration 必须明确，illustration 永远不能冒充证据。
-- Rights/Reuse 状态只能来自实际打开的素材页与 `rights_evidence_url` 权利页；rights manifest 的 tool reference 必须与权利页 inspection 完全相同。普通新闻、creator 内容和 unknown 只能 reference-only；不得从发布者名称推断许可。
-- 自动获取只处理 ready-to-use 的安全静态文件；拒绝登录/付费墙/DRM/反爬绕过、本机内网 URL、危险 MIME、脚本 SVG、超限文件、路径越界和覆盖。
-- 网页/PDF capture 必须记录从 1 开始的页码、区域、上下文、caption、能证明和不能证明的内容，并验证真实 PNG/JPEG/WebP 格式；视频无明确权利时只保存 reference，不下载。
-- Visual Spec 只能使用 approved Research timeline/Claim/Evidence；所有内部 event/data point/comparison/node 也必须逐项验证。数值采用边界匹配，value label 不能显示不同数值；生成 SVG 不得伪造新闻、文件、聊天、UI、人物或事件现场。
-- Material Reviewer 与 Search 分离，只审已有 Package，不扩大 Research。failed check 必须有 typed issue；issue severity、item eligibility、package Gate 和最终状态由代码拥有。
-- Material r1 同时保存 input、inspection、rights provenance artifact；reviewed r2 在读取时必须由精确 r1 和 Review Artifact 重建，任何手改 eligibility、rights/provenance、ranking、package status 或 review linkage 均失败关闭。Material Package、Review 和 Assets 不可覆盖，默认位于 gitignored `material_packages/` 与 `material_assets/`。Markdown 只给普通用户阅读，不能当机器接口。
-- 用户说“生成视频素材”“做动画”或“出粗剪预览”时，使用 `produce-video-assets` Skill。先通过 V0.5.1 canonical loader，再创建 Production Plan。
-- 普通 Production run 只创建 `selected_renderer` 对应的一个适配器。双引擎只用于明确评测，且必须使用同一 tiny Production Plan。
-- 素材 stage 前重验 root/path/MIME/size/SHA/eligibility/render status。reference-only、permission-required、rejected、missing 或 tampered asset 不得进入 renderer。
-- 除版本化 `machine_editorial` 白名单外，屏幕事实文字即使没有数字也必须语义回查绑定 Claim/Evidence 或精确 approved Research Timeline；合法但无关的 Claim ID 不算通过。
-- raw PDF 永远不能作为 CanvasImage/img；Production 只消费 V0.5 已登记、已审且带 capture metadata 的 PNG/JPEG/WebP。无 capture 必须生成固定 gap。
-- 四类 Visual 必须由 Python Core 生成结构化 `scene_payload`，renderer 逐元素动画；V0.5 SVG 只能作静态 fallback/debug，不得作为四类 Motion 主体。
-- Remotion 必须 frame-driven，使用 `useCurrentFrame` / `interpolate` / `staticFile`，不用 CSS animation/transition。HyperFrames 必须先 DESIGN.md、再 HTML，使用 paused 同步 GSAP timeline，按 lint → validate/inspect → preview → render 执行。
-- Renderer 命令成功不等于 asset ready。所有命令以 typed check 进入 Core；任一关键 fail 必须产生 blocking issue。只有输出通过 ffprobe、size、SHA、duration、dimensions、fps 和 binding QA 才可用。
-- Production Plan、Manifest、QA、输出和 renderer project 不可覆盖，分别位于 gitignored `production_packages/`、`production_assets/`、`production_projects/`。
-
-## 内容与研究安全
-
-- Research Agent 建立原创研究底稿，不找别人稿子改写。
-- 不复制、洗稿或模仿任何具体创作者的独特表达。
-- 明确区分事实、报道、当事方说法、评论和尚未证实的信息。
-- 重要事实保留来源；搜索摘要不算完成核查。
-- 高风险、快速变化或证据不足的结论必须暴露局限性。
-- 不把密码、令牌、API 密钥、登录信息或恢复码写入仓库、报告或日志。
-
-## 验证命令
-
-```bash
-PYTHONPATH=src python3 -m unittest discover -s tests -v
-./scripts/deeptalk sample
-```
-
-> 凭据与聊天历史安全：`unittest discover` 与 `pytest` 都不会触碰真实的 `~/.deeptalk/workbench.local.json`（Owner 已保存的 DeepSeek Key）与 `~/.deeptalk/chat/`（Owner 真实聊天历史）——`tests/test_workbench.py` / `tests/test_webui.py` 在模块加载时即把用户级配置目录与用户级聊天目录指向一次性临时目录，并为每个测试提供独立隔离目录，对 pytest 与直接 unittest 两种入口同样生效；生产端点的用户级配置行为不受影响。
-./scripts/deeptalk validate examples/sample-research-report.json
-./scripts/deeptalk prepare-draft examples/sample-codex-draft-input.json
-./scripts/deeptalk prepare-discovery <discovery-input.json> --output discoveries
-./scripts/deeptalk select-topic "1" --output discoveries
-./scripts/deeptalk approve-report <reviewed-report.json> --confirmation "确认进入写稿"
-./scripts/deeptalk prepare-script <approved-report.json> <script-content.json> --duration "8 分钟"
-./scripts/deeptalk review-script <approved-report.json> <script-r1.json> <review.json>
-./scripts/deeptalk compare-script <script-r1.json> <script-r2.json>
-./scripts/deeptalk prepare-materials <report.json> <reviewed-script.json> <content.json> --inspection-manifest <inspection.json> --rights-manifest <rights.json>
-./scripts/deeptalk review-materials <report.json> <reviewed-script.json> <package.json> <review.json>
-./scripts/deeptalk produce-assets <report.json> <reviewed-script.json> <reviewed-package.json> --renderer auto
-./scripts/deeptalk align-video --session <current-session-directory>
-PYTHONPATH=src:. python3 evaluations/audio-alignment-edit-bridge/run_full_eval.py --verify-repeat
-npm --prefix renderer_templates/aligned_preview_remotion run lint
-npm --prefix renderer_templates/aligned_preview_remotion run typecheck
-```
-
-修改 `.agents/skills/research-topic`、`.agents/skills/discover-topics`、`.agents/skills/write-script`、`.agents/skills/prepare-materials`、`.agents/skills/produce-video-assets` 或 `.agents/skills/align-video` 后，还要运行 Skill Creator 的 `quick_validate.py`。若本机脚本缺少 PyYAML，可在临时目录安装依赖运行，不能把临时依赖提交到仓库。
-
-## 每轮结束前必须完成
-
-1. 运行与风险相称的全部测试和端到端检查。
-2. 更新 `CHANGELOG.md`，只记录实际完成内容。
-3. 如本轮值得保留 chronological handoff，追加 `HANDOFF.md`；不要把它当作 current truth 的唯一入口。
-4. 若改变产品定位、Hard Boundary、主 workflow、canonical architecture、Release state、validated capability 或 major accepted direction，更新该事实的 canonical owner：`PROJECT_STATE.md`、PRD、ROADMAP、ARCHITECTURE，必要时 README。
-5. 检查 README、PRD、ROADMAP、架构、current state 与实际行为一致。
-6. 检查 Git diff，避免提交报告草稿、私有 episode 内容、媒体、密钥、缓存或无关文件。
-7. 如果本轮形成新的正式版本号，严格执行 `RELEASE_POLICY.md`，创建并核验 GitHub Release；不要发布空软件包。
-
-不允许只在聊天中汇报而不更新与事实类型匹配的 canonical documentation。
+- 在原有任务分支/PR 继续单一 Writer 工作；先补可复现的失败测试，再做最小实现。现有用户工作区、未提交更改、Git tag 和 Release 不得被擅自覆盖、重写或清理。跨文件大重构、额外新 Issue/PR 或改 PR base 前，先核对真实依赖并交 Nexus 判定。
+- 需要联网而终端失败时，先诊断系统代理，仅对当前进程临时传递代理；绝不把地址中的机密或凭据写进仓库、Git 配置或日志。
+- 验证按风险选用 `PYTHONPATH=src python3 -m unittest discover -s tests -v`、任务相关 pytest、Skill / Contract 评测、真实浏览器或音频端到端（必须明确 fixture vs real）。可用 `./scripts/deeptalk` 查看命令入口；不得为凑 PASS 降低检查标准。修改 Skill 需运行 Skill Creator `quick_validate.py`。
+- 自动化测试与试用数据必须隔离：`pytest` 与 `unittest discover` 两种入口均应使用临时用户级配置及聊天目录，不得读取或覆盖 Owner 已保存的 DeepSeek Key 或真实历史；测试代码和执行结果应检验此隔离。
+- 交付前做 `git diff --check`、敏感内容排查、必要的回归与真实使用证据。只更新与事实变更有关的 canonical owner；`CHANGELOG.md` 只记录已完成改动，`HANDOFF.md` 只记录值得留存的历史。改变产品定位、主流程、Gate、发布/能力状态时，才协调 PROJECT_STATE / PRD / ROADMAP / ARCHITECTURE / README，避免机械复制。
+- 向 Owner 只报**结果、体验影响与下一步**；向 Nexus 提供 PR、exact SHA、测试/浏览器证据、未解决风险和 `READY_FOR_NEXUS_REVIEW`。PR 被审核前不得自行合并、打 tag 或发布。
 
 ## Project Engineer Roster
 
