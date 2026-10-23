@@ -30,8 +30,42 @@ from tests.test_reference_discovery import (
     search_item,
 )
 
+# ---- 测试凭据安全（P0，review 5628439637）---------------------------
+# pytest 与直接 `PYTHONPATH=src python3 -m unittest discover -s tests -v`
+# （AGENTS.md/README.md 文档命令）都必须与真实 ~/.deeptalk 完全隔离：
+# 绝不读取、覆盖或清除 Owner 已保存的 DeepSeek Key。
+#
+# 本模块级兜底在本文件被任何 runner（pytest / unittest / IDE / CI）加载时
+# 先于任何 settings 读/写执行——用户级配置目录指向一次性临时目录，
+# 不解析真实 Path.home()；下方基类再为每个测试提供独立目录，防止
+# 测试间串扰。生产运行不导入本文件，用户级 ~/.deeptalk 行为保持不变。
+import atexit as _atexit
+import shutil as _shutil
+import tempfile as _tempfile
 
-class LocalWebUITestCase(unittest.TestCase):
+from deeptalk_studio.workbench import settings as _settings_module
+
+if _settings_module.USER_SETTINGS_DIR is None:
+    _SESSION_USER_DIR = Path(_tempfile.mkdtemp(prefix="deeptalk-tests-user-"))
+    _atexit.register(_shutil.rmtree, _SESSION_USER_DIR, ignore_errors=True)
+    _settings_module.USER_SETTINGS_DIR = _SESSION_USER_DIR
+
+
+class _UserSettingsIsolatedTestCase(unittest.TestCase):
+    """每个测试独享一个用户级配置目录（pytest 与 unittest 双入口均生效）。"""
+
+    def setUp(self):
+        super().setUp()
+        isolated = Path(
+            _tempfile.mkdtemp(prefix="deeptalk-user-%s-" % self.id()[:60])
+        )
+        self.addCleanup(_shutil.rmtree, isolated, ignore_errors=True)
+        previous = _settings_module.USER_SETTINGS_DIR
+        _settings_module.USER_SETTINGS_DIR = isolated
+        self.addCleanup(setattr, _settings_module, "USER_SETTINGS_DIR", previous)
+
+
+class LocalWebUITestCase(_UserSettingsIsolatedTestCase):
     """Starts a real loopback server per test with an injected fake provider."""
 
     def start_server(self, provider=None, flow=None):
@@ -135,7 +169,7 @@ class LocalWebUITestCase(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class ValidatePayloadTests(unittest.TestCase):
+class ValidatePayloadTests(_UserSettingsIsolatedTestCase):
     def test_valid_minimal(self):
         result = validate_discover_payload({"topic": "  某主题  ", "urls": []})
         self.assertEqual(result, {"topic": "某主题", "urls": []})

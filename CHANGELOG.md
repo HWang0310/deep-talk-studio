@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 2026-10-23 — Issue #44 — P0 测试凭据安全：pytest 与 unittest 双入口隔离 Owner 真实 Key（review #5628439637）
+
+- **修复**：`tests/conftest.py` 是 pytest-only 的 autouse fixture，而 AGENTS.md/README.md 文档推荐 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 直跑——该入口不加载 conftest，`USER_SETTINGS_DIR` 保持 None → `user_settings_path()` 解析真实 `~/.deeptalk/workbench.local.json`，测试的 `save_settings`（合成 Key/清除）会覆盖或清掉 Owner 已保存的 DeepSeek Key，迁移逻辑也会被真实用户级配置干扰。
+- **修复方式（runner 无关，不依赖任何特定入口）**：删除 pytest-only 的 conftest；`tests/test_workbench.py` 与 `tests/test_webui.py`（全仓库仅这两个文件触及 settings/flow）在**模块加载时**（任何 runner 加载即先于任何 settings 读/写执行）把 `USER_SETTINGS_DIR` 指向一次性临时目录（session 级安全网，绝不解析真实 `Path.home()`），并由内联 `_UserSettingsIsolatedTestCase` 基类为**每个测试**提供独立用户级目录 + cleanup 恢复（防测试间串扰）；两个文件全部测试类改继承该基类。生产端用户级 `~/.deeptalk` 行为零改动。
+- **安全证明（Review 要求方式）**：① 一次性 HOME + sentinel `.deeptalk/workbench.local.json`，运行**裸文档命令** `HOME=<sentinel> PYTHONPATH=src python3 -m unittest discover -s tests` → `Ran 1125 tests … OK (skipped=7)`，sentinel 文件 sha256 **前后完全不变**；② pytest 全量在真实 HOME 下运行，真实 `~/.deeptalk/workbench.local.json` sha256/mtime/size 前后不变；③ 跨工作树/迁移/清除测试在每测试独立目录下行为不变（两 root 在同一测试内仍共享同一隔离目录）。
+- 文档：AGENTS.md/README.md 在两条测试命令旁补充凭据隔离说明（两种入口均不触碰真实用户级配置）。
+- 本轮零 UI 改动、零生产代码改动（settings.py 不变）、零付费调用。
+
 ## Unreleased — 2026-10-23 — Issue #44 — Nexus 收尾修复：U1 失败事务性气泡 + U2 视口遮挡核验 + Owner Key 跨工作树用户级持久化（review #5628192126）
 
 - **U1/P0 失败请求不再残留假「已发送」气泡（事务性发送）**：`sendChatMessage` 引入 `accepted` 前哨（SSE `start` 事件 = 服务器已校验并持久化）——未接受的新消息（400 在飞拒绝 / 404 / 网络未达）在 catch 中**移除乐观 user 气泡**、恢复输入框内容并回写 localStorage 草稿、如实提示（404 附「本机服务可能是旧版本，请重启本地服务后刷新页面」），且**不显示「重发上一条」**（消息从未持久化，直接再点发送即可，绝不静默重发）；SSE 开始后的网络中断 = 消息已保存，保留幂等重发；停止后与服务器**对账**（refresh 后按磁盘真实状态判定 lastTurn 是否本条消息）决定「重发」语义——已持久化则设置 turn id 供幂等复用，未送达则恢复输入；幂等重发被 400（停止后预约尚未释放的短窗口）拒绝时保留重发按钮（消息已在记录中），不误入「未发送」路径。浏览器实测：404/400 拦截下线程气泡数不变、磁盘零污染、输入恢复、无误导重发；stop→对账→retry→一问一答（磁盘仅一条该消息）。

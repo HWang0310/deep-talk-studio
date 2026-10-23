@@ -374,3 +374,27 @@ Review 所指 31/32 全页截图中输入框「盖住」长回复为 **Playwrigh
 ### 调用预算
 
 本轮 U1/U2 全部经 8322 本地 mock（8931）与浏览器路由拦截完成——**零真实付费调用**；真实 DeepSeek 端到端已于上一轮以 5 次调用（≤8）完成并获 Nexus 确认，未重复。
+
+## 测试凭据安全轮（2026-10-23，review #5628439637）
+
+### P0 复现（代码级确定性，未对真实凭据运行）
+
+`tests/conftest.py` 的 autouse fixture 仅 pytest 加载；AGENTS.md/README.md 文档命令 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 不经 pytest → `USER_SETTINGS_DIR` 保持 None → `user_settings_path()` 解析真实 `~/.deeptalk/workbench.local.json` → 测试中的 `save_settings`（合成 Key、清除）将覆盖/清除 Owner 已保存的 DeepSeek Key。全仓库精确复核：仅 `test_workbench.py` 与 `test_webui.py` 触及 settings/flow（148 个测试文件中其余均不涉及用户级凭据）。
+
+### 修复（runner 无关）
+
+两个测试文件**模块加载时**（任何 runner 导入即先于任何 settings 读/写）：
+- session 级安全网：`USER_SETTINGS_DIR` 为 None 时指向一次性 `mkdtemp` 目录（atexit 清理），绝不解析真实 `Path.home()`；
+- 每测试隔离：内联 `_UserSettingsIsolatedTestCase` 基类为每个测试新建独立用户级目录并 cleanup 恢复；两文件全部测试类改继承；
+- 删除 pytest-only 的 `tests/conftest.py`（基类对 pytest 与 unittest 双入口同样生效，统一机制）；
+- 生产端零改动：settings.py 不变，8321 等生产进程不导入测试文件，用户级 `~/.deeptalk` 行为保持。
+
+### 安全证明（Review 要求方式）
+
+| 步骤 | 命令 | 结果 |
+| --- | --- | --- |
+| ① sentinel HOME + 裸文档命令 | `HOME=<sentinel-home> PYTHONPATH=src python3 -m unittest discover -s tests` | `Ran 1125 tests in 210.933s` → `OK (skipped=7)`，exit=0；sentinel `.deeptalk/workbench.local.json` sha256 **两次运行前后均完全不变**，目录内无新文件 |
+| ② pytest 全量（真实 HOME） | `PYTHONPATH=src pytest tests/ -q` | 全量绿；真实 `~/.deeptalk/workbench.local.json` sha256/mtime/size 运行前后不变 |
+| ③ 每测试隔离语义 | SettingsTests/CreativeChatTests 等 | 跨工作树共享测试（两 root 同一测试内共享同一隔离目录）与迁移/清除测试在双入口下行为一致 |
+
+（完整 pytest 全量统计见对应轮提交记录；unittest 与 pytest 的 1125 = 1118 passed + 7 skipped 完全对应。）

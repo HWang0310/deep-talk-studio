@@ -45,6 +45,40 @@ from deeptalk_studio.workbench.settings import (
     user_settings_path,
 )
 
+# ---- 测试凭据安全（P0，review 5628439637）---------------------------
+# pytest 与直接 `PYTHONPATH=src python3 -m unittest discover -s tests -v`
+# （AGENTS.md/README.md 文档命令）都必须与真实 ~/.deeptalk 完全隔离：
+# 绝不读取、覆盖或清除 Owner 已保存的 DeepSeek Key。
+#
+# 本模块级兜底在本文件被任何 runner（pytest / unittest / IDE / CI）加载时
+# 先于任何 settings 读/写执行——用户级配置目录指向一次性临时目录，
+# 不解析真实 Path.home()；下方基类再为每个测试提供独立目录，防止
+# 测试间串扰。生产运行不导入本文件，用户级 ~/.deeptalk 行为保持不变。
+import atexit as _atexit
+import shutil as _shutil
+import tempfile as _tempfile
+
+from deeptalk_studio.workbench import settings as _settings_module
+
+if _settings_module.USER_SETTINGS_DIR is None:
+    _SESSION_USER_DIR = Path(_tempfile.mkdtemp(prefix="deeptalk-tests-user-"))
+    _atexit.register(_shutil.rmtree, _SESSION_USER_DIR, ignore_errors=True)
+    _settings_module.USER_SETTINGS_DIR = _SESSION_USER_DIR
+
+
+class _UserSettingsIsolatedTestCase(unittest.TestCase):
+    """每个测试独享一个用户级配置目录（pytest 与 unittest 双入口均生效）。"""
+
+    def setUp(self):
+        super().setUp()
+        isolated = Path(
+            _tempfile.mkdtemp(prefix="deeptalk-user-%s-" % self.id()[:60])
+        )
+        self.addCleanup(_shutil.rmtree, isolated, ignore_errors=True)
+        previous = _settings_module.USER_SETTINGS_DIR
+        _settings_module.USER_SETTINGS_DIR = isolated
+        self.addCleanup(setattr, _settings_module, "USER_SETTINGS_DIR", previous)
+
 REPO = Path(__file__).resolve().parents[1]
 
 SOURCE_A_TEXT = (
@@ -537,7 +571,7 @@ def _fake_acquirer(reference, downloads_dir, authorization_text, *, runner=None,
     return record
 
 
-class SettingsTests(unittest.TestCase):
+class SettingsTests(_UserSettingsIsolatedTestCase):
     def test_deepseek_preset_uses_official_defaults_and_single_endpoint_suffix(self):
         data = apply_settings_update(load_settings(Path(tempfile.mkdtemp())), {
             "provider_mode": "deepseek",
@@ -830,7 +864,7 @@ class SettingsTests(unittest.TestCase):
             self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
 
 
-class AcquisitionTests(unittest.TestCase):
+class AcquisitionTests(_UserSettingsIsolatedTestCase):
     def test_authorize_requires_meaningful_attestation(self):
         for bad in ["", "同意", "我同意在本地研究使用这些视频"]:
             with self.assertRaises(acquisition.WorkbenchAcquisitionError):
@@ -872,7 +906,7 @@ class AcquisitionTests(unittest.TestCase):
         self.assertTrue(metrics["top_terms"])
 
 
-class SessionStoreTests(unittest.TestCase):
+class SessionStoreTests(_UserSettingsIsolatedTestCase):
     def test_create_load_update_and_latest(self):
         with tempfile.TemporaryDirectory() as raw:
             store = SessionStore(Path(raw))
@@ -888,7 +922,7 @@ class SessionStoreTests(unittest.TestCase):
             self.assertEqual(store.load_latest()["session_id"], session["session_id"])
 
 
-class DeepSeekWorkbenchTests(unittest.TestCase):
+class DeepSeekWorkbenchTests(_UserSettingsIsolatedTestCase):
     """Issue #36: explicit, capped DeepSeek Search/Fetch stays offline in tests."""
 
     class Client:
@@ -1007,7 +1041,7 @@ class DeepSeekWorkbenchTests(unittest.TestCase):
             self.assertEqual(flow.store.load(sid)["search_budget"]["used"], 0)
 
 
-class AudioWorkbenchTests(unittest.TestCase):
+class AudioWorkbenchTests(_UserSettingsIsolatedTestCase):
     """Issue #37: safe import/status around the canonical audio delivery core."""
 
     @staticmethod
@@ -1094,7 +1128,7 @@ class AudioWorkbenchTests(unittest.TestCase):
             self.assertEqual(state["audio_delivery"]["gaps"][0]["reason"], "AUDIO_ONLY")
             self.assertFalse(state["audio_delivery"].get("preview_path"))
 
-class FullLoopTests(unittest.TestCase):
+class FullLoopTests(_UserSettingsIsolatedTestCase):
     """Ordinary-user acceptance path, engine-real, LLM scripted."""
 
     def _flow(self, root: Path, provider=None):
@@ -1373,7 +1407,7 @@ class FullLoopTests(unittest.TestCase):
             self.assertGreater(bad_result["quote_downgraded_checks"], 0)
 
 
-class AcquisitionFailureFlowTests(unittest.TestCase):
+class AcquisitionFailureFlowTests(_UserSettingsIsolatedTestCase):
     """Round-2 Nexus regression: validly authorized download failures are
     durable unresolved references, not transient response-only errors."""
 
@@ -1513,7 +1547,7 @@ class AcquisitionFailureFlowTests(unittest.TestCase):
             self.assertIn("离线测试拒绝", state["references"][0]["study_error"])
 
 
-class ReferenceAnalysisStateTests(unittest.TestCase):
+class ReferenceAnalysisStateTests(_UserSettingsIsolatedTestCase):
     def _configure(self, root):
         save_settings(root, apply_settings_update(load_settings(root), {
             "provider_mode": "chat",
@@ -1610,7 +1644,7 @@ class ReferenceAnalysisStateTests(unittest.TestCase):
         self.assertIn("segments", html)
 
 
-class ThesisPromptTests(unittest.TestCase):
+class ThesisPromptTests(_UserSettingsIsolatedTestCase):
     """Real prompt builders must work end to end (fakes bypass them, so a
     broken import or rendering would otherwise only surface at runtime)."""
 
@@ -1664,7 +1698,7 @@ class ThesisPromptTests(unittest.TestCase):
         self.assertIn("绝不作为事实来源", prompt)
 
 
-class NetFetchTests(unittest.TestCase):
+class NetFetchTests(_UserSettingsIsolatedTestCase):
     """Issue #23 B2: user-supplied source URLs may only reach public
     HTTP(S) destinations (no loopback/private/link-local SSRF, no rebinding
     window, no proxy bypass, no non-http redirect targets)."""
@@ -1968,7 +2002,7 @@ class NetFetchTests(unittest.TestCase):
                     os.environ[key] = value
 
 
-class TopicConsistencyTests(unittest.TestCase):
+class TopicConsistencyTests(_UserSettingsIsolatedTestCase):
     """Issue #23 B1: off-topic research/thesis/script must fail closed at
     generation AND approval/delivery boundaries — the exact observed E2E
     mismatch was a Moscow University topic with a library-themed payload."""
@@ -2158,7 +2192,7 @@ class TopicConsistencyTests(unittest.TestCase):
             )
 
 
-class ReferenceSynthesisTests(unittest.TestCase):
+class ReferenceSynthesisTests(_UserSettingsIsolatedTestCase):
     """Issue #23 B3: analyzed-N/eligible-M readiness, explicit
     partial-analysis override, and the deterministic five-way viewpoint
     comparison injected into research + thesis."""
@@ -2379,7 +2413,7 @@ class StreamChatLLM:
             yield chunk
 
 
-class CreativeChatTests(unittest.TestCase):
+class CreativeChatTests(_UserSettingsIsolatedTestCase):
     """Issue #44 chat-first MVP：真实流式协议（注入离线 transport）、
     多轮恢复、Creative Draft 修订与 canonical 门禁隔离。"""
 
