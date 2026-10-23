@@ -138,6 +138,7 @@
     cursor: pointer;
     transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
   }
+  button:disabled { opacity: .55; cursor: not-allowed; }
   button:hover { background: #fdfcf9; border-color: var(--line-strong); }
   button:active { transform: translateY(1px); }
   button[disabled] { opacity: .48; cursor: not-allowed; transform: none; }
@@ -1470,13 +1471,13 @@
   document.getElementById('st-mode').addEventListener('change', function () {
     syncManualFields(this.value);
     syncChatHint(this.value);
+    // Nexus P0（PR #45 review 5625537364）：从自定义 Chat 切换到 DeepSeek 时，
+    // 无条件重置模型与 Chat 地址为官方默认，丢弃隐藏字段里残留的自定义值，
+    // 绝不让新粘贴的 DeepSeek Key 路由到先前的自定义端点。
+    // （服务端 apply_settings_update 同样强制官方值，双保险）
     if (this.value === 'deepseek') {
-      if (!document.getElementById('st-chat').value) {
-        document.getElementById('st-chat').value = 'https://api.deepseek.com';
-      }
-      if (!document.getElementById('st-model').value) {
-        document.getElementById('st-model').value = 'deepseek-flash';
-      }
+      document.getElementById('st-chat').value = 'https://api.deepseek.com';
+      document.getElementById('st-model').value = 'deepseek-flash';
     }
   });
 
@@ -1518,13 +1519,21 @@
   // 显式点「测试连接」：先安全保存当前表单（含刚粘贴的 Key），
   // 保存失败必须阻止网络测试并给出中文错误；成功后只测试刚保存的配置。
   // （Nexus delta：paste → Test 旅程；Key 只经 POST JSON 走本机 loopback）
+  // 在飞防抖（Nexus P0）：一次点击未完成前忽略重复点击，不重复发起付费 ping。
+  var settingsTestInFlight = false;
   document.getElementById('settings-test').addEventListener('click', function () {
+    var btn = this;
+    if (settingsTestInFlight) { return; }
+    settingsTestInFlight = true;
+    btn.disabled = true;
+    var release = function () { settingsTestInFlight = false; btn.disabled = false; };
     var statusEl = document.getElementById('settings-status');
     statusEl.textContent = '保存中…';
     persistSettings()
       .then(function (saveResult) {
         if (!saveResult.ok) {
           statusEl.textContent = (saveResult.data.error || '保存失败') + '，未连接测试。';
+          release();
           return;
         }
         statusEl.textContent = '已保存，测试中…';
@@ -1545,11 +1554,12 @@
             } else {
               statusEl.textContent = result.data.error || '连接失败，请检查后重试。';
             }
+            release();
             return refresh();
           })
-          .catch(function () { statusEl.textContent = '网络错误'; });
+          .catch(function () { statusEl.textContent = '网络错误'; release(); });
       })
-      .catch(function () { statusEl.textContent = '网络错误'; });
+      .catch(function () { statusEl.textContent = '网络错误'; release(); });
   });
 
   document.getElementById('settings-clear-key').addEventListener('click', function () {

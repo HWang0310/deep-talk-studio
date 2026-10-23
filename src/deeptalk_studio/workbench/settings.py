@@ -131,15 +131,16 @@ def apply_settings_update(current: Dict[str, Any], payload: Mapping[str, Any]) -
                 f"超时需在 {MIN_TIMEOUT_SECONDS}–{MAX_TIMEOUT_SECONDS} 秒之间"
             )
         data["timeout_seconds"] = timeout
-    # Selecting the named preset is an explicit user action.  Fill only the
-    # preset fields the caller did not provide; custom model/base values stay
-    # editable and all unrelated settings (including the key and download
-    # folder) remain untouched.
+    # Selecting the DeepSeek preset is an explicit user action.  Nexus P0
+    # (PR #45 review 5625537364): while provider_mode is "deepseek" the
+    # server unconditionally pins the official endpoint and model, so a
+    # stale hidden custom chat URL/model can never survive a provider
+    # switch and a newly entered DeepSeek key is never routed to the
+    # previous custom endpoint.  There is no advanced override for this in
+    # the UI; anyone needing a custom target must switch to "chat" mode.
     if data["provider_mode"] == "deepseek":
-        if "chat_base_url" not in payload or not data.get("chat_base_url"):
-            data["chat_base_url"] = DEEPSEEK_BASE_URL
-        if "model" not in payload or not str(data.get("model", "")).strip():
-            data["model"] = DEEPSEEK_DEFAULT_MODEL
+        data["chat_base_url"] = DEEPSEEK_BASE_URL
+        data["model"] = DEEPSEEK_DEFAULT_MODEL
     # A changed provider/endpoint/model/key invalidates an older connection
     # observation.  Do this after normalization so equivalent URLs do not
     # cause a needless reset.

@@ -571,6 +571,41 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(switched["connection_status"], "not_tested")
             self.assertEqual(switched["model"], "deepseek-flash")
 
+    def test_deepseek_mode_discards_stale_custom_endpoint_and_model(self):
+        """Nexus P0（PR #45 review 5625537364）：切换到 DeepSeek 预设后，
+        服务端无条件强制官方端点与官方模型，丢弃残留的自定义值；
+        显式提交的旧 Chat 端点/模型名同样被覆盖，绝不把新粘贴的
+        DeepSeek Key 路由到先前的自定义端点。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "chat",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "custom-model",
+                "api_key": "sk-old",
+            }))
+            # 切换 payload 不带端点/模型：残留 custom 值必须被丢弃
+            switched = apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+                "api_key": "sk-newly-pasted",
+            })
+            self.assertEqual(switched["chat_base_url"], "https://api.deepseek.com")
+            self.assertEqual(switched["model"], "deepseek-flash")
+            self.assertEqual(switched["api_key"], "sk-newly-pasted")
+            # 即使 payload 显式带上旧/自定义端点，deepseek 模式仍强制官方值
+            hostile = apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+                "chat_base_url": "http://127.0.0.1:8931/v1",
+                "model": "attacker-model",
+            })
+            self.assertEqual(hostile["chat_base_url"], "https://api.deepseek.com")
+            self.assertEqual(hostile["model"], "deepseek-flash")
+            # 凭证路由终点必须是官方 chat/completions 端点
+            self.assertEqual(
+                effective_chat_endpoint(hostile),
+                "https://api.deepseek.com/chat/completions",
+            )
+
     def test_connection_status_view_is_masked_and_clear_is_explicit(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

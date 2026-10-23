@@ -413,6 +413,24 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("已输入未保存", body)
         self.assertIn("Key 已输入但尚未保存", body)
 
+    def test_settings_p0_frontend_resets_hidden_fields_and_debounces_test(self):
+        """Nexus P0 前端断言：切换到 DeepSeek 无条件重置模型/地址为官方值
+        （丢弃隐藏字段残留），「测试连接」有在飞防抖，不重复发起付费 ping。"""
+        status, _, body = self.get("/settings")
+        self.assertEqual(status, 200)
+        marker = body.index("st-mode').addEventListener")
+        block = body[marker:marker + 1200]
+        # 无条件重置（不再有空值判断包裹）
+        self.assertIn("Nexus P0", block)
+        self.assertIn("document.getElementById('st-chat').value = 'https://api.deepseek.com'", block)
+        self.assertIn("document.getElementById('st-model').value = 'deepseek-flash'", block)
+        # 防抖：在飞标志 + disabled
+        self.assertIn("settingsTestInFlight", body)
+        self.assertIn("if (settingsTestInFlight) { return; }", body)
+        self.assertIn("btn.disabled = true", body)
+        self.assertIn("btn.disabled = false", body)
+        self.assertIn("button:disabled", body)
+
     def test_index_exposes_explicit_deepseek_search_budget_controls(self):
         status, _, body = self.get("/")
         self.assertEqual(status, 200)
@@ -948,6 +966,43 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
             self.assertTrue(payload["configured"])
             status, _, body = self.get("/api/workbench/state?" ) if False else (0, None, None)
             # (state GET covered by the full-loop test below)
+
+    def test_settings_p0_deepseek_switch_discards_stale_custom_values(self):
+        """Nexus P0（PR #45 review 5625537364）：HTTP 层强制——切换到
+        DeepSeek 后保存，即便请求体携带残留的自定义 Chat 端点/模型，
+        持久化配置与响应都必须是官方端点与官方模型，新 Key 绝不路由到旧端点。"""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.start_server(flow=self._flow(root))
+            status, _, body = self.post("/api/workbench/settings", {
+                "provider_mode": "chat",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "custom-model",
+                "api_key": "sk-old-chat-key",
+                "downloads_dir": str(root),
+            })
+            self.assertEqual(status, 200)
+            status, _, body = self.post("/api/workbench/settings", {
+                "provider_mode": "deepseek",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "custom-model",
+                "api_key": "sk-newly-pasted-key",
+                "downloads_dir": str(root),
+            })
+            self.assertEqual(status, 200)
+            payload = json.loads(body)
+            self.assertEqual(payload["provider_mode"], "deepseek")
+            self.assertEqual(payload["chat_base_url"], "https://api.deepseek.com")
+            self.assertEqual(payload["model"], "deepseek-flash")
+            self.assertEqual(payload["endpoint"], "https://api.deepseek.com/chat/completions")
+            self.assertNotIn("llm.example.com", body)
+            self.assertNotIn("custom-model", body)
+            # 状态接口同样只暴露官方配置
+            status, _, body = self._get_state()
+            self.assertEqual(status, 200)
+            self.assertNotIn("llm.example.com", body)
 
     def test_workbench_unknown_route_is_404_and_settings_test_requires_config(self):
         import tempfile
