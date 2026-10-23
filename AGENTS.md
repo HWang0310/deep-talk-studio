@@ -11,7 +11,7 @@
 
 **事实边界：** GitHub 实时 PR/Issue/commit 事实优先于静态“下一步”快照；`PROJECT_STATE.md` 管理已验收能力与正式发布状态；具体合同管理不可随意绕过的工作流规则。若相互冲突，先注明差异并向 Nexus 复核，不能静默推断“计划＝完成”或“实现＝已发布”。
 
-**当前项目主线请看 `CURRENT_CONTROL_PLANE.md`，不要从本文件历史实例启动新的 V2/TTS 任务。
+**当前项目主线请看 `CURRENT_CONTROL_PLANE.md`，不要从本文件历史实例启动新的 V2/TTS 任务。**
 
 ## Current Product Safety Context
 
