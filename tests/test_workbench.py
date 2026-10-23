@@ -2476,6 +2476,30 @@ class CreativeChatTests(unittest.TestCase):
             self.assertEqual(mode, 0o600)
             self.assertNotIn("sk-chat-fixture", files[0].read_text(encoding="utf-8"))
 
+    def test_loopback_endpoint_is_labeled_fixture_even_without_injected_provider(self):
+        """诚实标注：即使未注入 provider_factory，指向 loopback 的 Chat 端点
+        也必须标记为本地夹具，绝不冒充真实模型连接。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "chat",
+                "chat_base_url": "http://127.0.0.1:9999/v1",
+                "model": "mock-e2e-model",
+                "api_key": "sk-loopback",
+            }))
+            llm = StreamChatLLM(["内容"], [])
+            flow = WorkbenchFlow(root, provider_factory=lambda settings: llm)
+            flow.connection_kind = "real"  # 模拟未注入夹具的真实模式
+            context = flow.chat_send_start("loopback 端点")
+            self.assertEqual(context["provider_kind"], "fixture")
+            # 官方端点则是真实连接
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+                "api_key": "sk-real-endpoint",
+            }))
+            context2 = flow.chat_send_start("官方端点")
+            self.assertEqual(context2["provider_kind"], "real")
+
 
 if __name__ == "__main__":
     unittest.main()

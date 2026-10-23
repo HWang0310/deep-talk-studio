@@ -1,6 +1,6 @@
 # Issue #44 / PR #45 — 极简创作页与独立模型设置页
 
-> **状态：READY_FOR_NEXUS_UX_REREVIEW（第三轮：paste→Test 旅程修复）。** 本分支保留 PR #45 的工作流和后端门禁，完成参考截图导向的首页 / 设置页重设计与 Nexus Review B1/B2/B3 修复；第二轮按 Owner 六点要求完成「DeepSeek 默认只需填 API Key」的设置体验；第三轮按 Nexus delta（issuecomment-6358124584）修复「粘贴 Key 后直接点「测试连接」」旅程——先自动安全保存再执行真实连接测试。PR 保持打开，未合并。
+> **状态：READY_FOR_NEXUS_MVP_REVIEW（第四轮：Chat-first Creative Draft MVP）。** 本分支保留 PR #45 的工作流和后端门禁，完成参考截图导向的首页 / 设置页重设计与 Nexus Review B1/B2/B3 修复；第二轮按 Owner 六点要求完成「DeepSeek 默认只需填 API Key」的设置体验；第三轮修复 paste→Test 旅程；第四轮按 Owner 批准的 Option A 实现 Chat-first Creative Draft MVP（真实流式、多轮恢复、可编辑草稿；正式审核与生产门禁保持不变）。PR 保持打开，未合并。
 
 ## 视觉与交互交付
 
@@ -20,6 +20,21 @@
 - **视觉打磨（评审反馈逐项落地）**：未配置徽章改琥珀警示色；徽章提示与自动配置说明去重；说明行括号内只保留模型名；按钮行重排为「取消 / 测试连接 / 清除 API Key 靠左，保存设置靠右」；状态文字与保存按钮间距加大；连接状态行 `word-break: keep-all` 防止「模型」等中文标签被拆到两行。
 - **占位符窄屏自适应**：Key 占位符桌面为「粘贴你的 DeepSeek API Key」；窄屏放不下时（canvas 实测完整版 190px > 输入框内宽 168px）自动降级为「粘贴你的 API Key」，避免占位符被截断，窗口 resize 时双向切换。
 - **配置隔离**：真实仓库 `config/workbench.local.json` 保持 DeepSeek 官方默认（无 Key）；mock / 本地端点配置只存在于 8322 隔离演示环境的独立根目录。
+
+### 第四轮：Chat-first Creative Draft MVP（Owner 批准 Option A，issuecomment-6361415259）
+
+**P0 前置（先行落地并测试，才允许任何聊天模型调用）**：
+- 服务端强制：`provider_mode=deepseek` 时无条件锁定官方端点 `https://api.deepseek.com` 与官方模型 `deepseek-flash`；从自定义 Chat 切换后，残留的隐藏 model/URL 被丢弃，新粘贴的 DeepSeek Key 绝不路由到旧自定义端点。官方文档实现时确认：`deepseek-flash` + `stream: true` SSE on `/chat/completions`。
+- 前端切换无条件重置隐藏字段；「测试连接」在飞防抖（连点只发一对保存+测试）；paste→Test 自动保存、掩码、夹具诚实标注全部保留。
+- Playwright 合成 Key 验证：custom chat → 切 DeepSeek → 请求 payload 全部为官方值；4 次同步连点仅 1 次 test 请求。
+
+**聊天与草稿（Nexus 派工 1–6 点逐项）**：
+- `creative-chat/1` 会话 + 不可变 turn：`workbench/chat/*.json`（0600 权限，无任何秘密）；user turn 在流式开始前持久化，assistant turn 只在流完成后写入——停止/断开不写半截回复，重连不重复调用模型，重试永远是显式动作。
+- 真实 provider 流式（非打字机）：上游 `stream:true` SSE，浏览器 `fetch` + `ReadableStream` 增量渲染（实测 30→42→66→90→107→131 字符逐步到达）；AbortController 停止；输入/刷新零隐式请求。
+- 只有两个顶级页面：Chat-first 创作 UI（单一自然语言 composer：选题/观点/请求/粘贴 URL → link chips 如实标注「未读取」）+ 独立 `/settings`；旧 canonical 阶段工作流对既有会话仍可达（门禁不变），不再是首页入口。
+- `creative-draft/1` 草稿：`status: unreviewed`，生成/自由编辑/修改（不可变 revisions v1/v2/v3）/复制/导出 .md；**永不写** `research.approved_path`、`thesis.approved_path`、`script.reviewed_path` 或任何质量门禁字段，不解锁正式生产；测试证明 canonical 门禁保持 fail-closed。
+- 「进入正式审核」说明卡解释现有门禁路径，无自动转换/晋级；无自动 Search/Fetch、视频获取、rights bypass、fact-check 执行、外部发布。
+- 诚实标注：注入夹具或 loopback 端点（如 127.0.0.1:8931）一律标「本地夹具回复（非真实模型）」，绝不冒充真实连接；发送前一次性说明计费（hero 常驻文案），不逐轮打断。
 
 ### 第三轮：粘贴 Key →「测试连接」旅程（Nexus delta，issuecomment-6358124584）
 
@@ -92,6 +107,10 @@
 | 保存后掩码与「已保存未验证」 | 通过；掩码显示、按钮行右对齐主按钮 | [14-desktop-settings-saved-masked-key.png](screenshots/14-desktop-settings-saved-masked-key.png) |
 | 隔离环境「开发测试环境」标注 | 通过；夹具连接显示独立徽章与诚实文案，非「已连接」 | [15-desktop-settings-dev-test-not-real-success.png](screenshots/15-desktop-settings-dev-test-not-real-success.png) |
 | 375px 手机设置页 | 通过；无横向溢出、状态行在「·」处换行、占位符自适应降级 | [16-mobile-375-settings-deepseek.png](screenshots/16-mobile-375-settings-deepseek.png) |
+| Chat-first 首页（对话 + 夹具诚实标注 + 草稿区） | 通过；计费说明常驻、停止/重发可用 | [19-desktop-chat-first-home.png](screenshots/19-desktop-chat-first-home.png) |
+| 真实流式输出中（streaming 光标） | 通过；SSE 增量实测 30→42→66→90→107→131 字符逐步到达 | [20-desktop-chat-streaming.png](screenshots/20-desktop-chat-streaming.png) |
+| 草稿 v1/v2/v3 不可变版本链 + 正式审核说明卡 | 通过；用户编辑产生新版本，v1 可回看不可改 | [21-desktop-draft-revisions.png](screenshots/21-desktop-draft-revisions.png) |
+| 375px 手机聊天页 | 通过；无横向溢出，composer/对话/草稿均可用 | [22-mobile-375-chat.png](screenshots/22-mobile-375-chat.png) |
 | 已输入 vs 已持久化 | 通过；粘贴 Key 后徽章「已输入未保存」，不再误导显示「未配置」 | [17-desktop-settings-typed-key-unsaved.png](screenshots/17-desktop-settings-typed-key-unsaved.png) |
 | 粘贴 Key 直接「测试连接」 | 通过；先自动保存再测试（请求顺序实测），夹具诚实标注，掩码持久化 | [18-desktop-settings-paste-key-direct-test.png](screenshots/18-desktop-settings-paste-key-direct-test.png) |
 
@@ -99,8 +118,8 @@
 
 ## 测试结果
 
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **113 passed**（新增 paste→Test 先保存后测试的静态回归断言）
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1093 passed, 7 skipped**
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **127 passed**（新增：聊天/草稿 7 项 flow 测试、SSE HTTP 3 项、Chat-first 静态断言、P0 三项）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1107 passed, 7 skipped**
 - 内联 JavaScript：'node --check /tmp/deeptalk-webui.js' → **通过**
 - 'git diff --check' → **通过**
 - 未修改无关后端、模型门禁、SSRF 防护或生产工作流；未提交本地密钥、模型输出、缓存或临时会话。

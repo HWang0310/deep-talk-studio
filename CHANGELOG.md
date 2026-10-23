@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — 2026-10-23 — Issue #44 — Chat-first Creative Draft MVP（Owner 批准 Option A, issuecomment-6361415259）
+
+- P0 设置加固（先行落地）：`provider_mode=deepseek` 服务端无条件锁定官方端点/模型，丢弃残留 custom 值（显式提交旧端点同样被覆盖），新粘贴 Key 绝不路由到旧自定义端点；前端切换无条件重置隐藏字段；「测试连接」在飞防抖（连点仅一对请求）；官方文档确认 `deepseek-flash` + `stream:true` SSE。
+- 真实流式聊天：`POST /api/workbench/chat/stream`（SSE start/delta/done/error），上游 `stream:true`、浏览器 ReadableStream 增量渲染、AbortController 停止；user turn 流前持久化、assistant turn 流完成才写入——停止/断开不保存半截回复、重连不重复调用；重试为显式动作；输入/刷新零隐式请求。
+- `creative-chat/1` 会话存储：`workbench/chat/*.json` 0600 权限、无秘密、不可变 turns；`/state` 携带完整会话实现刷新精确恢复。
+- `creative-draft/1` 原创草稿（未审核）：显式生成（付费动作）+ 自由编辑产生不可变 revisions（v1/v2/v3 回看）+ 复制/导出 .md；永不写 `research/thesis/script` 的 approved/reviewed 路径或质量门禁字段，不解锁正式生产；「进入正式审核」说明卡解释现有门禁路径，无自动转换；canonical 门禁测试保持 fail-closed。
+- Chat-first 首页：单一自然语言 composer（选题/观点/请求/粘贴 URL → link chips 如实「未读取」）、夹具/真实诚实标注（loopback 即夹具，绝不冒充）、计费说明一次性常驻；仅两个顶级页面（聊天 + /settings）；旧 canonical 阶段工作流对既有会话仍可达，门禁不变。
+- 测试：新增 flow 层 8 项（流式持久化/停止不写半截/未配置阻断/草稿修订不可变/门禁隔离/0600 权限/无秘密/loopback 标注）+ HTTP SSE 3 项（事件契约/恢复/客户端断开）+ 静态断言；focused 127 passed、全量 pytest 见对应轮记录；8322 真实 SSE 夹具浏览器验收（增量实测、停止/重发、两次草稿修改、刷新精确恢复、375px、无 Key 泄漏）；零付费调用、无 Owner Key、不自行合并。
+
 ## Unreleased — 2026-10-23 — Issue #44 — paste→Test 旅程修复（Nexus delta, issuecomment-6358124584）
 
 - 「测试连接」点击后先安全持久化当前表单（含刚粘贴的 API Key，POST JSON 走本机 loopback），保存成功后才对刚保存的配置执行连接测试；保存失败立即停止并显示中文错误（含「未连接测试」），绝不发出测试请求。保存与测试共用 `settingsFormPayload()` / `persistSettings()`，消除保存/测试双路径不一致。

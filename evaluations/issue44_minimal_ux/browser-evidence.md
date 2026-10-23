@@ -143,3 +143,26 @@ Playwright 网络请求顺序实测：
 - 粘贴 `sk-real-test-key-7` 直接点测试 + 拦截**中止** `/settings/test`（确保不向 api.deepseek.com 发起任何请求）：请求顺序为 先 `POST /api/workbench/settings`（payload 含 `provider_mode:deepseek` + 新 Key）→ 再 `POST /api/workbench/settings/test`（被中止）；状态「网络错误」；**重载后**掩码 `sk-…-…` 与「已保存未验证」持久化。
 - 保存失败路径（`/api/workbench/settings` 路由返回 500）：点击测试后**只出现保存请求**，测试请求从未发出；状态「保存失败：…，未连接测试。」；徽章保持「已输入未保存」。
 - 已输入 vs 已持久化：输入 Key 后徽章即时「已输入未保存」（截图 17）；清空输入恢复持久化徽章；最终交付状态恢复 clean DeepSeek（`api_key: ''`、`not_tested`）。
+
+## Chat-first Creative Draft MVP 轮（2026-10-23，issuecomment-6361415259）
+
+### P0 Playwright（合成 Key，零外部调用）
+
+- custom chat（`127.0.0.1:8931/v1` + `stale-custom-model` + 合成 Key）保存后切回 DeepSeek：前端立即把隐藏字段重置为官方值（实测 `st-model=deepseek-flash`、`st-chat=https://api.deepseek.com`），保存 payload 全部为官方值；`/state` 不再出现旧端点。
+- 「测试连接」防抖：`dispatchEvent` 同步连点 4 次仅发出 1 对保存+测试请求（`testHits=1`），期间按钮 disabled，完成后恢复。
+
+### 8322 隔离环境聊天全流程（8931 真实 SSE 流式夹具）
+
+- **增量流实测**：每 200ms 采样助手气泡长度 → 30→42→66→90→107→131 字符逐步增长（SSE `text/event-stream`，非一次性渲染）；截图 20 含 streaming 光标。
+- **多轮**：第二条消息后 4 turns；夹具标注「mock-e2e-model · 本地夹具回复（非真实模型）」（loopback 端点判定，与设置页测试连接逻辑一致）。
+- **草稿**：对话后「把对话整理为草稿」→ v1（模型整理 + 未审核 + 夹具标注）；自由编辑保存 → v2、v3（你的修改）；切回 v1 内容与保存时逐字符一致（不可变回看）；「进入正式审核」说明卡存在；截图 21。
+- **刷新恢复**：重载后 4 turns + 3 revisions + v3 内容精确一致；截图 19/22。
+- **停止/重发**：流式中点「停止」→ 状态「已停止：未完成的回复不会保存，也不会继续计费」；半截 assistant（42 字符）不写入 turn（turn 计数只含 user）；「重发上一条」显式点击 → 完整回复（121 字符）；`/chat/stream` 请求计数恰好 2（无隐藏重复计费）。
+- **375px**：横向溢出 0px；composer/对话/草稿全部可见；截图 22。
+- **无泄漏**：`/state` 响应中唯一 `sk-` 出现是掩码字段 `api_key_masked: "sk-p…ey-2"`；正则无真实密钥匹配；聊天存储文件 0600 权限且无 Key 内容（pytest 断言覆盖）。
+
+### 已知边界（如实声明）
+
+- 8322 演示回复由本地夹具生成（诚实标注「非真实模型」），不代表真实 DeepSeek 质量；真实质量仍为 `WAITING_FOR_OWNER_API_KEY`，等 Owner 填 Key 自测。
+- 旧 canonical 阶段工作流对既有会话仍可达（如 8321 上的历史会话），不再是聊天首页入口；门禁代码与 HTTP 端点全部保留不变。
+- 截图 19–22；聊天验收在全新干净聊天会话上执行（`.temp/issue44-demo-root/workbench/chat` 验收前清空）。

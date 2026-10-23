@@ -533,8 +533,22 @@ class WorkbenchFlow:
             "session": session,
             "user_turn": user_turn,
             "settings": settings,
-            "provider_kind": self.connection_kind,
+            # 诚实标注：注入的夹具 provider 或 loopback 端点都算本地夹具，
+            # 绝不冒充真实模型连接（与设置页测试连接的判定一致）。
+            "provider_kind": self._chat_provider_kind(settings),
         }
+
+    def _chat_provider_kind(self, settings: Mapping[str, Any]) -> str:
+        if self.connection_kind == "fixture":
+            return "fixture"
+        endpoint = (
+            effective_chat_endpoint(settings)
+            if settings.get("provider_mode") in {"chat", "deepseek"}
+            else str(settings.get("base_url", "") or "")
+        )
+        if re.search(r"//(127\.0\.0\.1|localhost|\[::1\])(:|/)", str(endpoint), re.IGNORECASE):
+            return "fixture"
+        return "real"
 
     def chat_stream_reply(self, context: Mapping[str, Any]):
         """Stream the assistant reply for a persisted user turn.
@@ -631,6 +645,7 @@ class WorkbenchFlow:
                 origin_turn_id=origin_turn_id,
                 model=str(settings.get("model", "")),
             )
+            draft["provider_kind"] = self._chat_provider_kind(settings)
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
         return {"draft": draft, "chat": CreativeChatStore.view(session)}
