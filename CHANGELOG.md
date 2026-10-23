@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-10-22 — Issue #37 — local audio timeline and Edit Map delivery
+
+- Added a bounded, atomic local narration import for WAV/MP3/M4A/AAC/FLAC/MP4/MOV/M4V. Each session records the declared origin, byte size, SHA-256 and import status without overwriting existing files or following traversal/symlink targets.
+- Added a real delivery action that delegates to the existing local ASR/alignment and audio-only Asset Pack/Edit Map chain. Missing reviewed Production/Material inputs remain an explicit `WAITING_FOR_OWNER_REVIEW`; injected deterministic runners are labeled `fixture` and never presented as real delivery.
+- The loopback UI now shows resumable import/delivery status, timeline spans, `AUDIO_ONLY`/`VISUAL_GAP` gaps, QA state and allow-listed session-local artifact download links. No human frame, finished cut or automatic NLE edit is fabricated.
+- Tests: focused audio/workbench/WebUI regressions 5/5; existing `tests.test_audio_only_delivery` 18/18. Browser smoke and full-suite evidence will be recorded under Issue #38; no real ASR/model API or paid DeepSeek call was used in this phase.
+
 ## Unreleased — 2026-10-22 — Issue #36 — opt-in DeepSeek Search/Fetch sources
 
 - Added a dependency-free DeepSeek Search/Fetch client using the official tool paths with typed, secret-free HTTP/timeout/response errors; all tests use injected offline transports and no paid request was made.

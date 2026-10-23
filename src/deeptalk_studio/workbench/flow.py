@@ -12,8 +12,11 @@ text; otherwise it is downgraded to ``unverified`` with an honest note.
 """
 
 import hashlib
+import io
 import json
+import os
 import re
+import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -70,6 +73,7 @@ def _now() -> str:
 DEEPSEEK_MAX_REQUESTS = 20
 DEEPSEEK_DEFAULT_REQUESTS = 5
 DEEPSEEK_MAX_QUERY_CHARS = 500
+AUDIO_ORIGINS = {"owner_made", "external_voice_authorized", "unknown"}
 
 
 # --- page fetcher (user-supplied URLs, public-internet-only; Issue #23 B2)----
@@ -298,6 +302,8 @@ class WorkbenchFlow:
         fetcher: Optional[Callable[[str], Dict[str, Any]]] = None,
         acquire_runner=None,
         audio_runner=None,
+        audio_delivery_runner=None,
+        audio_upload_limit_bytes: int = 512 * 1024 * 1024,
         whisper_runner=None,
         whisper_bootstrap=None,
         connection_kind: Optional[str] = None,
@@ -310,6 +316,8 @@ class WorkbenchFlow:
         self.fetcher = fetcher or default_fetcher
         self.acquire_runner = acquire_runner
         self.audio_runner = audio_runner
+        self.audio_delivery_runner = audio_delivery_runner
+        self.audio_upload_limit_bytes = int(audio_upload_limit_bytes)
         self.whisper_runner = whisper_runner
         self.whisper_bootstrap = whisper_bootstrap
         self.discovery_runner = discovery_runner
@@ -449,6 +457,8 @@ class WorkbenchFlow:
     def view(self, session_id: str) -> Dict[str, Any]:
         session = self.store.load(session_id)
         search_budget = self._search_budget_view(session)
+        audio = self._audio_view(session)
+        audio_delivery = self._audio_delivery_view(session)
         references = []
         for reference in session["discovery"]["candidates"]:
             bvid = reference.get("bvid", "")
@@ -481,10 +491,67 @@ class WorkbenchFlow:
             ],
             "search_budget": search_budget,
             "search_results": list(search_budget.get("results", [])),
+            "audio": audio,
+            "audio_delivery": audio_delivery,
             "research": session["research"],
             "thesis": session["thesis"],
             "script": session["script"],
         }
+
+    @staticmethod
+    def _audio_defaults() -> Dict[str, Any]:
+        return {
+            "status": "not_imported",
+            "path": "",
+            "filename": "",
+            "origin": "",
+            "byte_size": 0,
+            "sha256": "",
+            "imported_at": "",
+        }
+
+    def _audio_view(self, session: Mapping[str, Any]) -> Dict[str, Any]:
+        value = self._audio_defaults()
+        raw = session.get("audio") or {}
+        for key in value:
+            if key in raw:
+                value[key] = raw[key]
+        return value
+
+    @staticmethod
+    def _audio_delivery_defaults() -> Dict[str, Any]:
+        return {
+            "status": "not_started",
+            "error": "",
+            "runner_kind": "real",
+            "started_at": "",
+            "completed_at": "",
+            "timeline": [],
+            "gaps": [],
+            "qa_status": "",
+            "paths": {},
+            "preview_path": "",
+        }
+
+    def _audio_delivery_view(self, session: Mapping[str, Any]) -> Dict[str, Any]:
+        value = self._audio_delivery_defaults()
+        raw = session.get("audio_delivery") or {}
+        for key in value:
+            if key in raw:
+                value[key] = raw[key]
+        value["timeline"] = [
+            dict(item) for item in (value.get("timeline") or [])
+            if isinstance(item, Mapping)
+        ][-200:]
+        value["gaps"] = [
+            dict(item) for item in (value.get("gaps") or [])
+            if isinstance(item, Mapping)
+        ][-200:]
+        value["paths"] = {
+            str(key): str(path) for key, path in (value.get("paths") or {}).items()
+            if path
+        }
+        return value
 
     @staticmethod
     def _search_budget_defaults() -> Dict[str, Any]:
@@ -920,6 +987,269 @@ class WorkbenchFlow:
             if study and study.get("narrative_summary"):
                 studies.append(study)
         return serialize_reference_insights(studies)
+
+    # -- owner audio import and canonical delivery --------------------------
+
+    @staticmethod
+    def _audio_filename(filename: Any) -> str:
+        from ..narration_media import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
+
+        if not isinstance(filename, str):
+            raise WorkbenchFlowError("音频文件名必须是文本")
+        cleaned = filename.strip()
+        path = Path(cleaned)
+        if (
+            not cleaned
+            or len(cleaned) > 255
+            or cleaned in {".", ".."}
+            or path.name != cleaned
+            or "/" in cleaned
+            or "\\" in cleaned
+            or cleaned.startswith(".")
+            or any(ord(char) < 32 or ord(char) == 127 for char in cleaned)
+        ):
+            raise WorkbenchFlowError("音频文件名必须是当前会话内的普通文件名")
+        if path.suffix.casefold() not in (AUDIO_EXTENSIONS | VIDEO_EXTENSIONS):
+            raise WorkbenchFlowError("仅支持 WAV、MP3、M4A、AAC、FLAC、MP4 或 MOV 文件")
+        return cleaned
+
+    def import_audio(
+        self,
+        session_id: str,
+        filename: str,
+        data_stream: Any,
+        origin: str,
+    ) -> Dict[str, Any]:
+        """Atomically import one owner-local narration file.
+
+        The destination is the session root because the canonical edit-bridge
+        resolver deliberately accepts exactly one direct audio/video input.
+        A temporary file plus exclusive hard-link publish prevents a retry or
+        a symlink from overwriting an existing user file.
+        """
+
+        filename = self._audio_filename(filename)
+        origin = str(origin or "").strip()
+        if origin not in AUDIO_ORIGINS:
+            raise WorkbenchFlowError("音频来源必须选择 owner_made、external_voice_authorized 或 unknown")
+        session_dir = self.store.session_dir(session_id)
+        if not session_dir.is_dir() or session_dir.is_symlink():
+            raise WorkbenchFlowError("会话目录不可用")
+        target = session_dir / filename
+        if target.exists() or target.is_symlink():
+            raise WorkbenchFlowError("同名音频已存在，不覆盖已有文件；请改名后重新导入")
+        if isinstance(data_stream, (bytes, bytearray, memoryview)):
+            reader = io.BytesIO(bytes(data_stream))
+        elif hasattr(data_stream, "read"):
+            reader = data_stream
+        else:
+            raise WorkbenchFlowError("音频上传内容不可读取")
+        limit = max(1, int(self.audio_upload_limit_bytes))
+        temp_path = None
+        digest = hashlib.sha256()
+        total = 0
+        try:
+            fd, temp_path = tempfile.mkstemp(dir=str(session_dir), prefix=".audio-import-", suffix=".tmp")
+            with os.fdopen(fd, "wb") as handle:
+                while True:
+                    chunk = reader.read(min(1024 * 1024, limit + 1 - total))
+                    if chunk in (b"", ""):
+                        break
+                    if not isinstance(chunk, (bytes, bytearray, memoryview)):
+                        raise WorkbenchFlowError("音频上传内容不是二进制")
+                    chunk = bytes(chunk)
+                    total += len(chunk)
+                    if total > limit:
+                        raise WorkbenchFlowError("音频文件超过本地上传上限，请先压缩或分段处理")
+                    handle.write(chunk)
+                    digest.update(chunk)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if total == 0:
+                raise WorkbenchFlowError("音频文件不能为空")
+            # Same-directory hard-link publication is atomic and refuses to
+            # replace a target that appeared during the upload.
+            try:
+                os.link(temp_path, target)
+            except FileExistsError:
+                raise WorkbenchFlowError("同名音频已存在，不覆盖已有文件；请改名后重新导入") from None
+            os.unlink(temp_path)
+            temp_path = None
+            imported_at = _now()
+            record = {
+                "status": "imported",
+                "path": str(target),
+                "filename": filename,
+                "origin": origin,
+                "byte_size": total,
+                "sha256": digest.hexdigest(),
+                "imported_at": imported_at,
+            }
+
+            def _mutate(session_state):
+                session_state["audio"] = dict(record)
+                session_state["audio_delivery"] = self._audio_delivery_defaults()
+
+            try:
+                self.store.update(session_id, _mutate)
+            except BaseException:
+                target.unlink(missing_ok=True)
+                raise
+            return record
+        finally:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+
+    @staticmethod
+    def _result_value(result: Any, key: str, default: Any = None) -> Any:
+        if isinstance(result, Mapping):
+            return result.get(key, default)
+        return getattr(result, key, default)
+
+    def _audio_result_view(self, result: Any, *, runner_kind: str) -> Dict[str, Any]:
+        delivery = self._result_value(result, "delivery", {}) or {}
+        if not isinstance(delivery, Mapping):
+            delivery = {}
+        timeline = delivery.get("timeline", {}) or {}
+        if isinstance(timeline, Mapping):
+            timeline_rows = list(timeline.get("spans", []) or [])
+        else:
+            timeline_rows = []
+        gaps = list(delivery.get("gaps", []) or [])
+        asset_pack = self._result_value(result, "asset_pack", {}) or {}
+        machine_map = self._result_value(asset_pack, "machine_map", {}) or {}
+        if not isinstance(machine_map, Mapping):
+            machine_map = {}
+        # Keep an explicit gap for every AUDIO_ONLY row even when a custom
+        # runner omitted the richer delivery.gaps projection.
+        if not gaps:
+            for row in list(machine_map.get("rows", []) or []):
+                if isinstance(row, Mapping) and row.get("decision") == "AUDIO_ONLY":
+                    gaps.append({
+                        "span_id": str(row.get("span_id", "")),
+                        "reason": "AUDIO_ONLY",
+                        "detail": str(row.get("why", row.get("placement_advice", "需要人工补画面"))),
+                    })
+        timeline_rows = [dict(item) for item in timeline_rows if isinstance(item, Mapping)][:200]
+        gaps = [dict(item) for item in gaps if isinstance(item, Mapping)][:200]
+        qa = self._result_value(result, "qa", {}) or {}
+        if not isinstance(qa, Mapping):
+            qa = {}
+        qa_status = str(qa.get("package_gate_status", qa.get("status", "")) or "")
+        raw_paths = self._result_value(result, "paths", {}) or {}
+        if not isinstance(raw_paths, Mapping):
+            raw_paths = {}
+        path_keys = ("markdown", "csv", "json", "manifest", "qa", "narration", "alignment", "subtitle")
+        paths = {
+            key: str(raw_paths[key]) for key in path_keys
+            if raw_paths.get(key)
+        }
+        preview = self._result_value(result, "preview_path", None)
+        return {
+            "status": "delivered" if qa_status in {"pass", "warnings", "accepted"} else "failed",
+            "runner_kind": runner_kind,
+            "timeline": timeline_rows,
+            "gaps": gaps,
+            "qa_status": qa_status,
+            "paths": paths,
+            "preview_path": str(preview) if preview else "",
+            "timeline_count": len(timeline_rows),
+            "gap_count": len(gaps),
+        }
+
+    def _set_audio_delivery_state(self, session_id: str, patch: Mapping[str, Any]) -> Dict[str, Any]:
+        def _mutate(session_state):
+            current = self._audio_delivery_defaults()
+            current.update(session_state.get("audio_delivery") or {})
+            current.update(dict(patch))
+            session_state["audio_delivery"] = current
+
+        session = self.store.update(session_id, _mutate)
+        return self._audio_delivery_view(session)
+
+    def run_audio_delivery(self, session_id: str) -> Dict[str, Any]:
+        """Run the canonical local ASR/alignment/Edit Map chain once.
+
+        Missing reviewed production/material inputs are a typed owner-review
+        wait, not a fixture fallback.  An injected runner is used only by
+        deterministic tests and is labeled ``fixture`` in session state.
+        """
+
+        session = self.store.load(session_id)
+        audio = self._audio_view(session)
+        media_path = Path(str(audio.get("path", ""))) if audio.get("path") else None
+        if media_path is None or media_path.is_symlink() or not media_path.is_file():
+            self._set_audio_delivery_state(session_id, {
+                "status": "waiting_for_owner_audio",
+                "error": "WAITING_FOR_OWNER_AUDIO：请先导入一份本地口播音频或视频",
+                "completed_at": _now(),
+            })
+            raise WorkbenchFlowError(
+                "WAITING_FOR_OWNER_AUDIO：请先导入一份本地口播音频或视频",
+                payload={"status": "waiting_for_owner_audio"},
+            )
+        started_at = _now()
+        runner_kind = "fixture" if self.audio_delivery_runner is not None else "real"
+        self._set_audio_delivery_state(session_id, {
+            "status": "running",
+            "error": "",
+            "runner_kind": runner_kind,
+            "started_at": started_at,
+            "completed_at": "",
+        })
+        try:
+            if self.audio_delivery_runner is not None:
+                result = self.audio_delivery_runner(self.store.session_dir(session_id), self.repo_root)
+            else:
+                from ..edit_bridge_session import (
+                    resolve_real_edit_bridge_session,
+                    run_real_edit_bridge_session,
+                )
+                from ..transcription.local_whisper_cpp import resolve_default_transcription_provider
+
+                resolved = resolve_real_edit_bridge_session(
+                    self.store.session_dir(session_id), repo_root=self.repo_root
+                )
+                result = run_real_edit_bridge_session(
+                    resolved,
+                    resolve_default_transcription_provider(),
+                    clock=_now,
+                    id_factory=lambda kind: f"{kind}-{uuid.uuid4().hex}",
+                )
+        except Exception as exc:
+            from ..audio_delivery import AudioDeliveryError
+            from ..edit_bridge_session import RealEditBridgeSessionError
+
+            message = str(exc)[:500]
+            if isinstance(exc, RealEditBridgeSessionError):
+                status = "waiting_for_owner_review"
+                message = f"WAITING_FOR_OWNER_REVIEW：{message}"
+                payload_status = "waiting_for_owner_review"
+            elif isinstance(exc, AudioDeliveryError):
+                status = "failed"
+                payload_status = "failed"
+            else:
+                status = "failed"
+                payload_status = "failed"
+            self._set_audio_delivery_state(session_id, {
+                "status": status,
+                "error": message,
+                "runner_kind": runner_kind,
+                "completed_at": _now(),
+            })
+            raise WorkbenchFlowError(message, payload={"status": payload_status}) from None
+        summary = self._audio_result_view(result, runner_kind=runner_kind)
+        summary["completed_at"] = _now()
+        self._set_audio_delivery_state(session_id, summary)
+        if summary["status"] != "delivered":
+            raise WorkbenchFlowError(
+                "Audio delivery QA 未通过，未交付可用 Edit Map",
+                payload={"status": "failed", "qa_status": summary.get("qa_status", "")},
+            )
+        return summary
 
     # -- sources -------------------------------------------------------------
 

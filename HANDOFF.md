@@ -13,6 +13,13 @@ AIGC:
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-10-22：Creator Workbench Issue #37 — 本地音频时间轴与 Edit Map UI（待 Nexus 复审）
+
+- 在 `agent/issue37-audio-delivery` 上为六步创作工作台加入会话级本地口播导入：WAV/MP3/M4A/AAC/FLAC/MP4/MOV/M4V，512 MiB 上限，普通文件名、来源声明、SHA-256/大小留痕，临时文件 + exclusive hard-link 原子发布，不覆盖既有文件。
+- `run_audio_delivery` 复用既有真实 `resolve_real_edit_bridge_session` / local whisper.cpp / audio-only Asset Pack + Edit Map 链；缺少审核通过的 Production/Material 工件返回 `WAITING_FOR_OWNER_REVIEW`。测试注入 runner 始终标记 `fixture`，不冒充真实交付。
+- Web UI 新增音频选择、来源、重试/状态、会话内 `<audio>` 预览、时间轴、`AUDIO_ONLY`/`VISUAL_GAP` 缺口和 allow-listed Markdown/CSV/JSON/QA 工件下载；不生成真人画面、成片或 NLE 工程。
+- 回归：WorkBench/WebUI 100/100，audio-only delivery 18/18，静态浏览器脚本语法与 `git diff --check` 通过。尚未运行真实 Owner 音频或付费模型调用；真实创作质量仍为 **UNVERIFIED**。
+
 ## 2026-10-22：Issue #23 / PR #33 — Nexus round-2 修复（待独立复审）
 
 - **B3 授权下载失败持久化：** 原分支继续实现。有效授权后的 `WorkbenchAcquisitionError` 现在写入会话与最新 `acquisition.json`（状态、阶段、原因、时间与尝试次数）；失败条目保留在 `eligible/pending`，UI 展示失败原因并提供授权重试。研究只有在重试成功或提交不少于 10 字的明确 partial override 理由后才继续，成功重试会清掉当前失败字段。

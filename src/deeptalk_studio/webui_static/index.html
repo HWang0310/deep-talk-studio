@@ -157,7 +157,14 @@
   .issue { border-left: 3px solid var(--bad); background: #fdf7f6; padding: 6px 10px; margin-top: 8px; font-size: 13.5px; border-radius: 0 8px 8px 0; }
   .gate-reasons { margin: 6px 0 0; padding-left: 18px; color: var(--warn); font-size: 13.5px; }
   .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; color: var(--text); }
+  .audio-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .65fr); gap: 10px 14px; align-items: end; }
+  .timeline-list, .gap-list, .artifact-list { margin: 8px 0 0; padding-left: 20px; }
+  .timeline-list li, .gap-list li, .artifact-list li { margin: 3px 0; font-size: 13px; }
+  .audio-warning { color: var(--warn); background: #fffaf0; border: 1px solid #ead9ae; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+  .audio-error { color: var(--bad); background: #fdecea; border: 1px solid #f5c6c0; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+  .artifact-list a { color: var(--brand); }
   @media (max-width: 700px) { .field-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 700px) { .audio-grid { grid-template-columns: 1fr; } }
   @media (max-width: 600px) {
     main { padding: 14px 10px 40px; }
     .card { padding: 14px 12px 10px; }
@@ -230,6 +237,7 @@
       <span class="step" data-step="research">③ 独立研究</span>
       <span class="step" data-step="thesis">④ 选题卡</span>
       <span class="step" data-step="script">⑤ 口播稿</span>
+      <span class="step" data-step="audio">⑥ 音频与素材交付</span>
     </div>
     <h2 id="form-title" style="margin-top:12px">① 输入选题，开启本集创作</h2>
     <label for="topic">视频主题 <span class="hint">必填，最多 200 字</span></label>
@@ -365,6 +373,43 @@
     <div id="script-body" class="script-box" hidden></div>
     <p id="script-meta" class="muted"></p>
   </section>
+
+  <section id="audio-delivery" class="card" hidden aria-labelledby="audio-delivery-title">
+    <h2 id="audio-delivery-title">⑥ 音频与素材时间轴交付</h2>
+    <p class="muted">
+      选择你已录制或已获授权的本地口播音频/视频。服务器只保存到本集私有目录，并记录来源、大小与 SHA-256。
+      点击交付后使用真实本地 ASR、对齐和现有 Asset Pack / Edit Map 引擎；不会自动剪辑、伪造人物画面或生成成片。
+    </p>
+    <div class="audio-grid">
+      <div>
+        <label for="audio-file">口播文件（WAV / MP3 / M4A / AAC / FLAC / MP4 / MOV）</label>
+        <input id="audio-file" type="file" accept=".wav,.mp3,.m4a,.aac,.flac,.mp4,.mov,.m4v,audio/*,video/*">
+      </div>
+      <div>
+        <label for="audio-origin">来源声明</label>
+        <select id="audio-origin">
+          <option value="owner_made">我本人录制</option>
+          <option value="external_voice_authorized">外部配音，已获授权</option>
+          <option value="unknown">来源未知（仅保留并等待审核）</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="audio-import" type="button" class="primary">导入本地口播</button>
+      <button id="audio-deliver" type="button">运行 ASR / 对齐并生成 Edit Map</button>
+      <span id="audio-status" class="muted" role="status"></span>
+    </div>
+    <div id="audio-import-summary" class="muted"></div>
+    <audio id="audio-preview" controls preload="metadata" hidden style="width:100%;margin-top:8px"></audio>
+    <div id="audio-error" class="audio-error" hidden></div>
+    <div id="audio-warning" class="audio-warning" hidden></div>
+    <h3>时间轴与视觉缺口</h3>
+    <div id="audio-timeline-empty" class="muted">尚未交付时间轴。</div>
+    <ul id="audio-timeline" class="timeline-list"></ul>
+    <ul id="audio-gaps" class="gap-list"></ul>
+    <h3>交付工件</h3>
+    <ul id="audio-artifacts" class="artifact-list"></ul>
+  </section>
 </main>
 
 <footer class="site">DeepTalk Studio · 参考视频仅用于研究叙事结构，不作为事实来源 · 排序不等同于站内整体排名</footer>
@@ -403,6 +448,11 @@
   var researchCard = document.getElementById('research');
   var thesisCard = document.getElementById('thesis');
   var scriptCard = document.getElementById('script');
+  var audioCard = document.getElementById('audio-delivery');
+  var audioFile = document.getElementById('audio-file');
+  var audioOrigin = document.getElementById('audio-origin');
+  var audioImportButton = document.getElementById('audio-import');
+  var audioDeliverButton = document.getElementById('audio-deliver');
   var baseTitle = document.title;
   var busyTimer = null;
   var currentSession = null;
@@ -470,7 +520,8 @@
     topicEl.disabled = busy;
     var actionControls = document.querySelectorAll(
       '#analysis button, #analysis textarea, #research button, #research input, #research textarea, ' +
-      '#thesis button, #thesis textarea, #script button'
+      '#thesis button, #thesis textarea, #script button, #audio-delivery button, ' +
+      '#audio-delivery input, #audio-delivery select'
     );
     actionControls.forEach(function (node) { node.disabled = busy; });
     if (busy) {
@@ -538,17 +589,28 @@
   function renderState(state) {
     renderSettings(state.settings || {});
     currentSession = state.session || null;
-    renderSteps(currentSession ? currentSession.status : 'references');
-    if (!currentSession) { return; }
+    var step = currentSession ? currentSession.status : 'references';
+    if (currentSession && currentSession.audio_delivery &&
+        currentSession.audio_delivery.status !== 'not_started') {
+      step = 'audio';
+    } else if (currentSession && currentSession.audio && currentSession.audio.status === 'imported') {
+      step = 'audio';
+    }
+    renderSteps(step);
+    if (!currentSession) {
+      renderAudioDelivery(null);
+      return;
+    }
     renderCandidates(currentSession);
     renderAnalysis(currentSession);
     renderResearch(currentSession);
     renderThesis(currentSession);
     renderScript(currentSession);
+    renderAudioDelivery(currentSession);
   }
 
   function renderSteps(status) {
-    var order = ['references', 'analysis', 'research', 'thesis', 'script'];
+    var order = ['references', 'analysis', 'research', 'thesis', 'script', 'audio'];
     var index = order.indexOf(status);
     if (index === -1) { index = 0; }
     document.querySelectorAll('#flow-steps .step').forEach(function (step) {
@@ -1184,6 +1246,144 @@
       metaEl.textContent = '审核未通过时不会交付口播稿；可调整研究/选题后重新生成。';
     }
   }
+
+  function renderAudioDelivery(session) {
+    audioCard.hidden = !currentSession;
+    if (!currentSession) { return; }
+    var audio = session.audio || {};
+    var delivery = session.audio_delivery || {};
+    var statusEl = document.getElementById('audio-status');
+    var importSummary = document.getElementById('audio-import-summary');
+    var previewEl = document.getElementById('audio-preview');
+    var errorEl = document.getElementById('audio-error');
+    var warningEl = document.getElementById('audio-warning');
+    var emptyEl = document.getElementById('audio-timeline-empty');
+    var timelineEl = document.getElementById('audio-timeline');
+    var gapsEl = document.getElementById('audio-gaps');
+    var artifactsEl = document.getElementById('audio-artifacts');
+    var statusText = {
+      not_started: '尚未导入口播文件',
+      imported: '文件已导入，等待运行本地 ASR / 对齐',
+      running: '正在运行本地 ASR、全局对齐和素材 QA…',
+      delivered: '已生成时间轴与 Edit Map（仍需你在剪辑软件中选择和组装）',
+      waiting_for_owner_audio: '等待你导入口播文件',
+      waiting_for_owner_review: '等待 Owner 补齐审核通过的研究/素材工件',
+      failed: '交付失败，可修复后重试'
+    }[delivery.status || 'not_started'] || (delivery.status || '未开始');
+    statusEl.textContent = '状态：' + statusText;
+    importSummary.textContent = audio.status === 'imported'
+      ? '已导入：' + (audio.filename || '未命名') + ' · ' + Number(audio.byte_size || 0).toLocaleString('zh-CN')
+        + ' bytes · SHA-256 ' + (audio.sha256 || '—') + ' · 来源：' + (audio.origin || '—')
+      : '尚未保存本集口播文件。';
+    if (audio.status === 'imported' && audio.filename && audio.sha256) {
+      var previewKey = session.session_id + ':' + audio.sha256;
+      if (previewEl.dataset.previewKey !== previewKey) {
+        previewEl.src = '/api/workbench/audio/source?session_id=' + encodeURIComponent(session.session_id);
+        previewEl.dataset.previewKey = previewKey;
+      }
+      previewEl.hidden = false;
+    } else {
+      previewEl.removeAttribute('src');
+      previewEl.dataset.previewKey = '';
+      previewEl.hidden = true;
+    }
+    errorEl.hidden = !delivery.error;
+    errorEl.textContent = delivery.error || '';
+    var waitingReview = delivery.status === 'waiting_for_owner_review';
+    warningEl.hidden = !(waitingReview || delivery.status === 'delivered');
+    warningEl.textContent = waitingReview
+      ? '状态码 WAITING_FOR_OWNER_REVIEW：当前没有替代路径，请先完成审核通过的 Material Package / Production Plan，再重试交付。不会用夹具或伪造画面替代。'
+      : (delivery.status === 'delivered'
+        ? '交付只提供真实口播时间轴和候选素材表；AUDIO_ONLY / VISUAL_GAP 行需要你人工补画面，系统不生成成片。'
+        : '');
+    timelineEl.textContent = '';
+    var timeline = delivery.timeline || [];
+    emptyEl.hidden = timeline.length > 0;
+    timeline.slice(0, 200).forEach(function (row) {
+      var start = row.start_seconds !== undefined ? row.start_seconds : row.start;
+      var end = row.end_seconds !== undefined ? row.end_seconds : row.end;
+      var label = row.text || row.summary || row.anchor || row.span_id || '时间段';
+      var decision = row.decision ? ' · ' + row.decision : '';
+      timelineEl.appendChild(el('li', null, '[' + (start || '0') + '–' + (end || '0') + ' 秒] ' + label + decision));
+    });
+    gapsEl.textContent = '';
+    (delivery.gaps || []).slice(0, 200).forEach(function (gap) {
+      var reason = gap.reason || 'VISUAL_GAP';
+      var detail = gap.detail || gap.why || gap.placement_advice || '需要人工补画面';
+      gapsEl.appendChild(el('li', 'status-degraded', (gap.span_id || '时间段') + ' · ' + reason + '：' + detail));
+    });
+    artifactsEl.textContent = '';
+    var paths = delivery.paths || {};
+    var artifactLabels = {
+      markdown: 'Markdown 剪辑表', csv: 'CSV 剪辑表', json: 'JSON Edit Map',
+      manifest: '视觉素材清单', qa: 'QA 报告', alignment: '对齐工件', subtitle: '字幕工件'
+    };
+    Object.keys(artifactLabels).forEach(function (kind) {
+      if (!paths[kind]) { return; }
+      var link = el('a', null, artifactLabels[kind]);
+      link.href = '/api/workbench/audio/artifact?session_id=' +
+        encodeURIComponent(session.session_id) + '&kind=' + encodeURIComponent(kind);
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      var item = el('li');
+      item.appendChild(link);
+      item.appendChild(el('span', 'muted', ' · 本地工件路径：' + paths[kind]));
+      artifactsEl.appendChild(item);
+    });
+    if (!artifactsEl.children.length && delivery.status === 'delivered') {
+      artifactsEl.appendChild(el('li', 'muted', '交付完成但没有可下载的标准工件路径，请检查 QA 日志。'));
+    }
+    audioDeliverButton.disabled = audio.status !== 'imported' || isBusy();
+  }
+
+  function uploadAudio() {
+    if (!currentSession) {
+      showRequestError('请先用上方入口开启本集创作会话');
+      return;
+    }
+    if (isBusy()) { return; }
+    var file = audioFile.files && audioFile.files[0];
+    if (!file) {
+      showRequestError('请先选择一份本地口播音频或视频。');
+      return;
+    }
+    clearRequestError();
+    setBusy(true, '正在安全导入本地口播文件…');
+    var contentType = file.type || 'application/octet-stream';
+    fetch('/api/workbench/audio/import', {
+      method: 'POST',
+      headers: {
+        'Content-Type': contentType,
+        'X-Workbench-Session': currentSession.session_id,
+        'X-Workbench-Filename': file.name,
+        'X-Workbench-Origin': audioOrigin.value
+      },
+      body: file
+    }).then(function (resp) {
+      return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+    }).then(function (result) {
+      setBusy(false);
+      if (!result.ok) {
+        var message = result.data && result.data.error ? result.data.error : '音频导入失败，请重试。';
+        showRequestError(message);
+        throw new Error(message);
+      }
+      return refresh();
+    }).catch(function (error) {
+      setBusy(false);
+      if (String(error.message || '').indexOf('Failed to fetch') !== -1) {
+        showRequestError('网络错误：无法连接本机服务。');
+      }
+    });
+  }
+
+  audioImportButton.addEventListener('click', uploadAudio);
+  audioDeliverButton.addEventListener('click', function () {
+    if (!currentSession) { return; }
+    api('/api/workbench/audio/deliver', { session_id: currentSession.session_id }, {
+      message: '运行真实本地 ASR / 对齐与 Edit Map QA…'
+    }).then(refresh).catch(function () { refresh(); });
+  });
 
   document.getElementById('script-copy').addEventListener('click', function () {
     var text = document.getElementById('script-body').textContent;
