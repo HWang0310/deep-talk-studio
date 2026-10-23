@@ -314,10 +314,12 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("window.localStorage.getItem(SELECTED_CHAT_KEY)", body)
         self.assertIn("window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId)", body)
         # 所有聊天/草稿操作携带显式选中会话 ID，绝不静默回落 latest；
-        # newChatMode 首发送才建新会话（点击「新建对话」零服务端调用）
+        # newChatMode 首发送才建新会话（点击「新建对话」零服务端调用）。
+        # review 5629701467：草稿操作在发起时捕获会话身份（opSessionId），
+        # 期间切换会话不会把 A 的内容写进 B。
         self.assertIn("payload.session_id = selectedSessionId", body)
         self.assertIn("payload.new_session = true", body)
-        self.assertIn("{ session_id: selectedSessionId }", body)
+        self.assertIn("{ session_id: opSessionId }", body)
         # 失败不丢输入：404/路由不匹配给出真实服务版本指引并恢复未发送内容
         self.assertIn("本机服务可能是旧版本", body)
         # U1（5628192126）：乐观气泡只在服务器接受（SSE start）前存在 ——
@@ -354,6 +356,52 @@ class StaticPageTests(LocalWebUITestCase):
         # settingsPage 状态直接驱动互斥 hidden。
         self.assertIn("creatorView.hidden = settingsPage", body)
         self.assertIn("settingsView.hidden = !settingsPage", body)
+
+    def test_multi_session_async_guards_against_stale_results(self):
+        """review 5629701467：迟到的异步结果绝不污染其他会话 —— 草稿
+        生成/保存按「发起时会话 + 视图代际」守卫，迟到结果只更新列表
+        元数据；refresh 单调代际，乱序 state 响应被更新的请求超越即丢弃。"""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        # P0：视图代际存在，且选中会话实际变化时单调递增
+        self.assertIn("var chatViewToken = 0", body)
+        self.assertIn("chatViewToken += 1", body)
+        # P0：草稿操作在发起时捕获会话身份与视图代际（生成与保存两处）
+        self.assertEqual(body.count("var opSessionId = selectedSessionId;"), 2)
+        self.assertEqual(body.count("var opViewToken = chatViewToken;"), 2)
+        self.assertEqual(
+            body.count(
+                "var stillSameView = chatViewToken === opViewToken "
+                "&& selectedSessionId === opSessionId && !newChatMode"
+            ),
+            2,
+        )
+        # P0：迟到结果只更新未选中会话的列表元数据，绝不改写当前编辑器
+        self.assertIn("function refreshSessionsQuietly", body)
+        self.assertEqual(
+            body.count("refreshSessionsQuietly();  // 迟到结果：仅更新未选中会话的列表元数据"),
+            2,
+        )
+        # P0：用户切回发起会话的迟到结果 = 同一会话：如实提示并刷新当前
+        # 视图（无跨会话污染），不残留「仍在进行中」误导状态
+        self.assertEqual(
+            body.count("if (!stillSameView && !newChatMode && selectedSessionId === opSessionId)"),
+            2,
+        )
+        # P0：保存的内容与 session_id 都在点击时捕获 —— A 的内容永远不会
+        # 被存为 B 的修订
+        self.assertIn("body: JSON.stringify({ content: content, session_id: opSessionId })", body)
+        # P0：按钮 disabled 按「当前选中会话」的在飞操作重算（切换会话时
+        # 同步重算，跨视图迟到完成只清理自己的记录）；状态文案属于视图，
+        # 切换后旧会话的在飞提示不残留
+        self.assertIn("function syncDraftButtons", body)
+        self.assertIn("draftGenBusySessions[selectedSessionId]", body)
+        self.assertIn("draftSaveBusySessions[selectedSessionId]", body)
+        self.assertIn("function syncDraftViewStatus", body)
+        # P1：refresh 单调代际，被更新请求超越的迟到响应直接丢弃
+        self.assertIn("var refreshGeneration = 0", body)
+        self.assertIn("var gen = ++refreshGeneration", body)
+        self.assertIn("if (gen !== refreshGeneration) { return; }", body)
 
     def test_creator_stages_are_three_plus_optional_audio(self):
         """Issue #44: 概念三阶段 ① 视频参考 → ② 观点与资料 → ③ 原创口播稿；
@@ -1342,6 +1390,174 @@ class ChatStreamHttpTests(LocalWebUITestCase):
                               "乙的后续", "".join(f"段{i}" for i in range(20))])
             # 模型调用计数：甲流 + 甲草稿 + 乙草稿 + 甲重叠流 + 乙流 + 乙后续 = 6 次显式
             self.assertEqual(len(calls), 6)
+
+    def test_legacy_latest_send_conflicts_with_explicit_send_for_same_session(self):
+        """review 5629701467：legacy（不带 id）发送与显式 id 发送若指向同一
+        最近会话，必须占用同一 flight key 冲突（400）—— 别名在预约前规范化
+        为解析出的最近会话 id（只读、零持久化变更），不得绕过 per-session
+        单飞；两个方向都要覆盖；其他会话的显式流照常放行（无全局锁）。"""
+        import tempfile
+        import threading
+        import time
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            calls = []
+            llm = self.StreamLLM([f"段{i}" for i in range(20)], calls)
+            self.start_server(flow=self._chat_flow(root, llm))
+            self._configure_deepseek(root)
+
+            def post(path, payload):
+                req = urllib.request.Request(
+                    self.base + path,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=25) as resp:
+                        return resp.status, json.loads(resp.read().decode("utf-8"))
+                except urllib.error.HTTPError as exc:
+                    return exc.code, json.loads(exc.read().decode("utf-8"))
+
+            def get(path):
+                with urllib.request.urlopen(
+                    urllib.request.Request(self.base + path), timeout=15
+                ) as resp:
+                    return json.loads(resp.read().decode("utf-8"))
+
+            # 建立两个已完成会话：A（legacy/latest 语义）与 B（new_session），
+            # B 是最近会话。
+            _, _, events_a = self._sse_post("/api/workbench/chat/stream", {
+                "message": "甲的消息",
+            }, timeout=25)
+            session_a = events_a[0]["session_id"]
+            _, _, events_b = self._sse_post("/api/workbench/chat/stream", {
+                "message": "乙的消息", "new_session": True,
+            }, timeout=25)
+            session_b = events_b[0]["session_id"]
+            reply = "".join(f"段{i}" for i in range(20))
+
+            # 方向一：显式 id（B=最近会话）在飞期间，legacy 不带 id 的重叠
+            # 发送必须被规范化到 B 的 flight key 上拒绝；再次 legacy 同理；
+            # 其他会话（A）的显式发送照常放行（无全局锁）。
+            results = {}
+
+            def stream_b_explicit():
+                results["b_stream"] = self._sse_post("/api/workbench/chat/stream", {
+                    "message": "乙的在飞消息", "session_id": session_b,
+                }, timeout=25)
+
+            thread = threading.Thread(target=stream_b_explicit, daemon=True)
+            thread.start()
+            time.sleep(0.12)
+            status, body = post("/api/workbench/chat/stream", {
+                "message": "被拒的 legacy 重叠一",
+            })
+            self.assertEqual(status, 400)
+            self.assertIn("上一条回复还在进行中", body["error"])
+            status, body = post("/api/workbench/chat/stream", {
+                "message": "被拒的 legacy 重叠二",
+            })
+            self.assertEqual(status, 400)
+            status_a, _, events_a2 = self._sse_post("/api/workbench/chat/stream", {
+                "message": "甲的显式后续", "session_id": session_a,
+            }, timeout=25)
+            self.assertEqual(status_a, 200)
+            thread.join(timeout=25)
+            self.assertEqual(results["b_stream"][0], 200)
+
+            # 方向二：legacy 在飞（此刻最近会话已因 A 的完成变为 A）期间，
+            # 指向同一最近会话的显式 id 发送必须 400；指向 B 的显式发送
+            # 照常放行 —— 别名与显式请求双向不能互相绕过。
+            def stream_legacy():
+                results["legacy_stream"] = self._sse_post("/api/workbench/chat/stream", {
+                    "message": "甲的 legacy 后续",
+                }, timeout=25)
+
+            thread2 = threading.Thread(target=stream_legacy, daemon=True)
+            thread2.start()
+            time.sleep(0.12)
+            status, body = post("/api/workbench/chat/stream", {
+                "message": "甲的显式重叠", "session_id": session_a,
+            })
+            self.assertEqual(status, 400)
+            self.assertIn("上一条回复还在进行中", body["error"])
+            status_b2, _, _ = self._sse_post("/api/workbench/chat/stream", {
+                "message": "乙的显式后续", "session_id": session_b,
+            }, timeout=25)
+            self.assertEqual(status_b2, 200)
+            thread2.join(timeout=25)
+            self.assertEqual(results["legacy_stream"][0], 200)
+
+            # 存储：两会话各自完整的问答序列，被拒的 legacy 重叠零出现。
+            chat_a = get(f"/api/workbench/state?chat={session_a}")["chat"]
+            self.assertEqual([t["content"] for t in chat_a["turns"]],
+                             ["甲的消息", reply, "甲的显式后续", reply,
+                              "甲的 legacy 后续", reply])
+            chat_b = get(f"/api/workbench/state?chat={session_b}")["chat"]
+            self.assertEqual([t["content"] for t in chat_b["turns"]],
+                             ["乙的消息", reply, "乙的在飞消息", reply,
+                              "乙的显式后续", reply])
+            for rejected in ("被拒的 legacy 重叠一", "被拒的 legacy 重叠二", "甲的显式重叠"):
+                self.assertNotIn(rejected, json.dumps(chat_a, ensure_ascii=False))
+                self.assertNotIn(rejected, json.dumps(chat_b, ensure_ascii=False))
+            # 模型调用：A 首发 + B 首发 + B 在飞流 + A 显式后续 + legacy 流
+            # + B 显式后续 = 6 次显式；被拒的三次重叠零调用。
+            self.assertEqual(len(calls), 6)
+
+    def test_explicit_send_to_legacy_created_latest_conflicts_mid_flight(self):
+        """review 5629701467：legacy 首发送（尚无任何会话，仅占 "chat:latest"
+        槽）在飞途中刚创建会话 X —— 显式指向 X 的并发请求必须在锁内别名
+        冲突检查处 400，不得绕过 per-session 单飞（X 尚未出现在持有 key
+        集里，靠「latest 在飞 + 解析出的最近会话恰为该 id」拒绝）。"""
+        import tempfile
+        import threading
+        import time
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            calls = []
+            llm = self.StreamLLM([f"段{i}" for i in range(20)], calls)
+            self.start_server(flow=self._chat_flow(root, llm))
+            self._configure_deepseek(root)
+            result = {}
+
+            def legacy_first_stream():
+                result["events"] = self._sse_post("/api/workbench/chat/stream", {
+                    "message": "legacy 首发送的消息",
+                }, timeout=25)
+
+            thread = threading.Thread(target=legacy_first_stream, daemon=True)
+            thread.start()
+            time.sleep(0.15)  # 首发送已持久化 user turn：会话 X 已存在且在飞
+            status, _, body = self._get_state()
+            session_x = json.loads(body)["chat"]["session_id"]
+            # 显式指向 X（此刻的最近会话）→ 别名冲突 400，绝不放行第二个流
+            req = urllib.request.Request(
+                self.base + "/api/workbench/chat/stream",
+                data=json.dumps({
+                    "message": "显式指向 X 的重叠消息", "session_id": session_x,
+                }).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=25) as resp:  # noqa: F841
+                    self.fail("显式指向在飞最近会话的请求应被 400 拒绝")
+            except urllib.error.HTTPError as exc:
+                self.assertEqual(exc.code, 400)
+                self.assertIn("上一条回复还在进行中",
+                              json.loads(exc.read().decode("utf-8"))["error"])
+            self.assertEqual(len(calls), 1)  # 被拒请求零模型调用
+            thread.join(timeout=25)
+            self.assertEqual(result["events"][0], 200)
+            # 存储：仅 legacy 首发送的一问一答，被拒消息零出现
+            status, _, body = self._get_state()
+            chat = json.loads(body)["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user", "assistant"])
+            self.assertEqual([t["content"] for t in chat["turns"]][0], "legacy 首发送的消息")
+            self.assertNotIn("显式指向 X 的重叠消息", json.dumps(chat, ensure_ascii=False))
 
 
 if __name__ == "__main__":

@@ -430,19 +430,46 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         # 同时只允许一个在飞流；「新建对话」共享 'chat:new' 槽。预约仍在
         # **任何存储变更之前**原子完成（5627594838），重叠发送 400。
         raw_session_id = str(payload.get("session_id", "") or "")
-        if str(payload.get("new_session", "")) not in ("", "false", False):
-            flight_key = "chat:new"
+        new_session_flag = str(payload.get("new_session", "")) not in ("", "false", False)
+        # Legacy/latest 别名规范化（review 5629701467）：legacy（不带 id）
+        # 发送与显式 id 发送可能指向同一会话，却占用不同的 flight key，
+        # 绕过 per-session 单飞。规范化规则（预约前只读解析，零持久化变更；
+        # 不同会话绝不互斥，无全局锁）：
+        #   - legacy 请求同时持有 "chat:latest" 槽与解析出的最近会话 id
+        #     （存在时）——先到者占住 latest 槽，后到的 legacy 重叠在任
+        #     一 key 上冲突；首个 legacy 发送（尚无会话）仅占 latest 槽；
+        #   - 显式 id 请求除自身 id 外，若 "chat:latest" 在飞且解析出的
+        #     最近会话恰为该 id（含 legacy 首发送在飞途中刚创建的会话），
+        #     同样冲突 —— 两个方向都不能互相绕过；
+        #   - new_session 独占 "chat:new" 槽。
+        try:
+            resolved_latest = flow.creative.latest_session_id()
+        except Exception:
+            resolved_latest = None
+        if new_session_flag:
+            flight_keys = {"chat:new"}
         elif raw_session_id:
-            flight_key = raw_session_id
+            flight_keys = {raw_session_id}
         else:
-            flight_key = "chat:latest"
+            flight_keys = {"chat:latest"}
+            if resolved_latest:
+                flight_keys.add(resolved_latest)
         with server.chat_flight_lock:
-            if flight_key in server.chat_in_flight:
+            # 显式 id 的别名冲突检查在锁内完成（读到的在飞集合与解析结果
+            # 一致，无 check-then-act 竞态）：legacy 首发送在飞途中刚创建
+            # 的最近会话尚未出现在其持有 key 里，显式请求指向它时靠此
+            # 检查拒绝。
+            alias_conflict = (
+                bool(raw_session_id) and not new_session_flag
+                and "chat:latest" in server.chat_in_flight
+                and resolved_latest == raw_session_id
+            )
+            if alias_conflict or (flight_keys & server.chat_in_flight):
                 _send_json(self, 400, {
                     "error": "上一条回复还在进行中，请先停止或等待完成后再发送",
                 })
                 return
-            server.chat_in_flight.add(flight_key)
+            server.chat_in_flight |= flight_keys
         try:
             try:
                 context = flow.chat_send_start(
@@ -450,7 +477,7 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                     payload.get("links", []) or [],
                     retry_turn_id=str(payload.get("retry_turn_id", "") or ""),
                     session_id=raw_session_id,
-                    new_session=str(payload.get("new_session", "")) not in ("", "false", False),
+                    new_session=new_session_flag,
                 )
             except WorkbenchFlowError as exc:
                 body = {"error": str(exc)}
@@ -500,9 +527,10 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                 return
         finally:
             # B2 单飞：预约在任何退出路径（含 chat_send_start 失败、流中异常、
-            # 用户停止/断开）都释放，会话可继续发送
+            # 用户停止/断开）都释放，会话可继续发送；legacy 持有的全部
+            # key（latest 槽 + 解析 id）一并释放。
             with server.chat_flight_lock:
-                server.chat_in_flight.discard(flight_key)
+                server.chat_in_flight -= flight_keys
 
     def _handle_workbench_get_state(self) -> None:
         flow = self._workbench_flow()

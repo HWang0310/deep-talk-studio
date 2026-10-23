@@ -1,6 +1,6 @@
 # Issue #44 / PR #45 — 极简创作页与独立模型设置页
 
-> **状态：READY_FOR_NEXUS_MULTI_CHAT_UX_REVIEW（第八轮：多会话 UX）。** 前七轮完成两页极简 UX、DeepSeek 设置体验、paste→Test 修复、Chat-first MVP、B1–B4/B2-P0 阻断修复、一体化对话工作区 + 限额真实模型端到端（Nexus 已确认真实 E2E）、U1/U2 收尾修复 + Key 跨工作树用户级持久化 + 双 runner 凭据隔离（P0）；本轮按 issuecomment-6366157284 完成：左侧历史会话 sidebar（桌面 244px 可收起 / 375px 抽屉，标题取首条用户消息零付费调用、按最近更新倒序、选中高亮）、＋新建对话（零服务端调用，首发送才建持久化会话 ID）、所有聊天/草稿操作显式携带 session_id 绝不静默回落 latest、刷新/进程重启选择保持、流式中切换守卫（确定性验证）、草稿收起为小入口+点击展开抽屉（生成后自动展开、返回默认收起、v1/v2/v3 不删）、聊天历史升级为用户级 `~/.deeptalk/chat/`（0600 + 一次性迁移：同 ID 不覆盖/原文件保留/幂等，8321 真实迁移实测）。PR 保持打开，未合并。
+> **状态：READY_FOR_NEXUS_MULTI_CHAT_REREVIEW（第九轮：多会话复审修复）。** 前八轮完成两页极简 UX、DeepSeek 设置体验、paste→Test 修复、Chat-first MVP、B1–B4/B2-P0 阻断修复、一体化对话工作区 + 限额真实模型端到端、U1/U2 收尾 + Key 跨工作树 + 双 runner 凭据隔离、多会话 UX（sidebar/新建/草稿抽屉/聊天历史用户级迁移）；本轮按 review #5629701467 完成：P0 迟到草稿结果跨会话污染（发起时捕获会话+视图代际，迟到只更新列表元数据，切回发起会话如实刷新）、P1 乱序 state 响应翻转选中（refresh 单调代际丢弃过期响应）、legacy/latest 单飞别名绕过（双 key 持有 + 锁内别名冲突检查，双向不互相绕过、不同会话不互斥）。UI 结构零重设计，全部为行为修复。PR 保持打开，未合并。
 
 ## 视觉与交互交付
 
@@ -158,15 +158,24 @@
 | 多会话：375px 初始（sidebar 移出屏幕 + ☰ 按钮） | 通过；横向溢出 0 | [48-mobile-375-initial.png](screenshots/48-mobile-375-initial.png) |
 | 多会话：375px 抽屉打开 | 通过；遮罩可见、会话可达 | [49-mobile-drawer-open.png](screenshots/49-mobile-drawer-open.png) |
 | 多会话：375px 选择会话后自动关闭 | 通过；抽屉滑出、溢出 0、内容渲染 | [50-mobile-after-select-closed.png](screenshots/50-mobile-after-select-closed.png) |
+| 复审 P0：草稿请求在飞期间切回 A（D 的生成被按住） | 通过；确定性 route 控制，不依赖时序 | [51-draft-guard-a-during-held-op.png](screenshots/51-draft-guard-a-during-held-op.png) |
+| 复审 P0：释放 D 的迟到响应，A 编辑器前后逐字节一致 | 通过；D 侧栏元数据静默出现「草稿 v1」（poll 6.6s），A 零触碰 | [52-draft-guard-a-unchanged-after-late-release.png](screenshots/52-draft-guard-a-unchanged-after-late-release.png) |
+| 复审 P0：切到 D 显示自己的草稿 v1 | 通过；内容围绕话题丁、零话题甲内容 | [53-draft-guard-d-own-draft.png](screenshots/53-draft-guard-d-own-draft.png) |
+| 复审 P0：切回发起会话时在飞状态如实提示 | 通过；「该会话的草稿操作仍在进行中…」，不残留旧会话提示 | [54-return-to-origin-session-truthful-busy.png](screenshots/54-return-to-origin-session-truthful-busy.png) |
+| 复审 P0：切回会话后迟到保存如实提示并刷新 | 通过；「已保存为版本 v3」+ 入口 v3 + 服务端 3 版本 | [55-return-to-origin-session-refreshed.png](screenshots/55-return-to-origin-session-refreshed.png) |
+| 复审 P1：点 A（响应被按住）后点 D，D 先渲染 | 通过；A 的响应被 route 按住，界面仍 D | [56-out-of-order-d-rendered-a-held.png](screenshots/56-out-of-order-d-rendered-a-held.png) |
+| 复审 P1：释放 A 的迟到响应（网络事件证明送达），选中保持 D | 通过；localStorage/界面均 D、零 A 内容，refresh 代际丢弃 | [57-out-of-order-stale-a-discarded.png](screenshots/57-out-of-order-stale-a-discarded.png) |
+| 复审 P1：下一条消息 payload 作用域仍为 D | 通过；截获 session_id===D，流后选中仍 D | [58-out-of-order-send-scoped-to-d.png](screenshots/58-out-of-order-send-scoped-to-d.png) |
+| 复审 375px：抽屉选择 A 自动关闭零溢出 | 通过；横向溢出 0 | [59](screenshots/59-mobile-375-drawer-sessions.png) / [60](screenshots/60-mobile-375-selected-a-closed.png) |
+| 复审 375px：草稿抽屉展开零溢出 | 通过；入口「草稿 v3 · 未审核」可用 | [61-mobile-375-draft-drawer.png](screenshots/61-mobile-375-draft-drawer.png) |
 
 完整的 B1/B2 断言、设置体验流与浏览器输出见 [browser-evidence.md](browser-evidence.md)。
 
 ## 测试结果
 
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **141 passed**（第八轮新增：多会话完全隔离 + 聊天历史用户级迁移 + HTTP 作用域操作 3 项；前七轮累计 138 项保持全过）
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1121 passed, 7 skipped**（第八轮全量，退出码 0；1118+3 精确衔接）
-- 'HOME=<sentinel> PYTHONPATH=src python3 -m unittest discover -s tests'（裸文档命令） → **Ran 1128 tests … OK (skipped=7)**，退出码 0；sentinel `.deeptalk` 文件列表与 marker sha256 前后一致（双 runner 均不触碰真实用户级配置与聊天历史）
-- 真实 `~/.deeptalk` 全文件 sha256 快照在 focused 套件运行前后完全一致（聊天目录隔离确定性证明）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **144 passed**（第九轮新增：legacy/explicit 双向别名冲突 + 显式指向 legacy 刚创建会话 400 + 守卫结构静态断言 3 项；前八轮累计 141 项保持全过）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1124 passed, 7 skipped**（第九轮全量，退出码 0；1121+3 精确衔接）
+- 真实 `~/.deeptalk` 全文件 sha256 快照在全量套件（真实 HOME）运行前后完全一致（零触碰）
 - 内联 JavaScript：'node --check'（提取 `<script>` 块）→ **通过**
 - 'git diff --check' → **通过**
 - 未修改无关后端、模型门禁、SSRF 防护或生产工作流；未提交本地密钥、模型输出、缓存或临时会话。

@@ -1113,7 +1113,14 @@
   }
 
   function refresh() {
-    return getState().then(renderState);
+    // P1（review 5629701467）：每次发起 refresh 代际 +1，被更新请求超越的
+    // 迟到响应直接丢弃 —— 先点 A（慢响应）再点 B（快响应）时，A 的迟到
+    // 响应绝不能把选中会话静默翻回 A，后续发送永远作用于当前选中会话。
+    var gen = ++refreshGeneration;
+    return getState().then(function (state) {
+      if (gen !== refreshGeneration) { return; }
+      renderState(state);
+    });
   }
 
   // Owner UX（issuecomment-6364369899）：空态内容不足一屏时 creator-view
@@ -2388,6 +2395,18 @@
   // 此时零服务端调用，首次发送才创建新会话。
   var selectedSessionId = '';
   var newChatMode = false;
+  // P0/P1（review 5629701467）：视图代际 —— 选中会话每次实际变化时 +1；
+  // 草稿操作发起时捕获代际，完成时若已被超越则只更新列表元数据，
+  // 绝不改写当前视图的编辑器/缓存/状态（迟到结果不得污染其他会话）。
+  var chatViewToken = 0;
+  // P1（review 5629701467）：refresh 单调代际 —— 乱序到达的 state 响应
+  // 被更新的 refresh 超越即丢弃，绝不把选中会话静默翻回旧目标。
+  var refreshGeneration = 0;
+  // P0（review 5629701467）：草稿操作在飞按会话追踪 —— 按钮的 disabled
+  // 属于当前视图，跨视图的迟到完成只清理自己的记录后按当前视图重算，
+  // 既不误改其他会话的在飞语义，也不误恢复当前会话的按钮。
+  var draftGenBusySessions = {};
+  var draftSaveBusySessions = {};
   try { selectedSessionId = window.localStorage.getItem(SELECTED_CHAT_KEY) || ''; } catch (err) { }
   var legacyEntry = document.getElementById('legacy-workbench-entry');
   var legacyTopic = document.getElementById('legacy-topic');
@@ -2435,6 +2454,9 @@
     if (!sessionId || (!newChatMode && sessionId === selectedSessionId)) { return; }
     newChatMode = false;
     selectedSessionId = sessionId;
+    chatViewToken += 1;  // 选中会话实际变化 → 视图代际 +1（迟到回调据此丢弃）
+    syncDraftButtons();
+    syncDraftViewStatus();
     try { window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId); } catch (err) { }
     // 旧会话的重发/未完成状态一并失效，绝不跨会话误重发
     lastUserMessage = '';
@@ -2451,7 +2473,10 @@
     }
     closeSidebarDrawer();
     newChatMode = true;
+    chatViewToken += 1;  // 视图切换到新建空态 → 代际 +1
     selectedDraftRevision = 0;
+    syncDraftButtons();
+    syncDraftViewStatus();
     lastUserMessage = '';
     lastUserTurnId = '';
     lastSendIncomplete = false;
@@ -2694,9 +2719,17 @@
           accepted = true; // 服务器已校验并持久化本条 user turn
           if (event.session_id) {
             // 多会话：锁定服务器持久化的会话 id；新建对话的首发送在
-            // 此刻退出 newChatMode，后续 refresh/follow-up 都作用于它
+            // 此刻退出 newChatMode，后续 refresh/follow-up 都作用于它。
+            // P0（review 5629701467）：会话实际变化（含新建首发送）时
+            // 视图代际 +1 —— 此前发起的草稿操作属于旧会话，完成时按
+            // 代际丢弃，绝不改写新会话的编辑器。
+            if (String(event.session_id) !== selectedSessionId || newChatMode) {
+              chatViewToken += 1;
+            }
             selectedSessionId = String(event.session_id);
             newChatMode = false;
+            syncDraftButtons();
+            syncDraftViewStatus();
             try { window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId); } catch (err) { }
           }
           if (event.user_turn && event.user_turn.turn_id) {
@@ -2825,18 +2858,66 @@
     sendChatMessage(lastUserMessage, lastUserLinks, lastUserTurnId);
   });
 
+  // P0（review 5629701467）：迟到草稿结果的唯一落点 —— 只刷新会话列表
+  // 元数据（消息/草稿计数），绝不触碰当前视图的编辑器/缓存/状态文案；
+  // 自身失败静默（元数据由下一次正常 refresh 兜底）。
+  function refreshSessionsQuietly() {
+    getState().then(function (state) {
+      if (state && state.sessions) { renderSessions(state.sessions); }
+    }).catch(function () { });
+  }
+
+  // P0（review 5629701467）：按钮 disabled 跟随「当前选中会话」的在飞
+  // 草稿操作；切换会话/新会话锁定时重算，跨会话迟到完成不误改。
+  function syncDraftButtons() {
+    draftGenerateBtn.disabled = !!draftGenBusySessions[selectedSessionId];
+    draftSaveBtn.disabled = !!draftSaveBusySessions[selectedSessionId];
+  }
+
+  // P0（review 5629701467）：状态文案属于视图 —— 切换会话后旧会话的在飞
+  // 提示不得残留；若目标会话自身有草稿操作在飞，给出真实提示（诚实
+  // 说明按钮为何禁用），否则清空。
+  function syncDraftViewStatus() {
+    var busy = !!(draftGenBusySessions[selectedSessionId] || draftSaveBusySessions[selectedSessionId]);
+    draftStatusEl.textContent = busy ? '该会话的草稿操作仍在进行中，完成后会显示在这里。' : '';
+  }
+
   draftGenerateBtn.addEventListener('click', function () {
     if (draftGenerateBtn.disabled || newChatMode) { return; }
-    draftGenerateBtn.disabled = true;
+    // P0（review 5629701467）：捕获动作发起时的会话身份与视图代际 ——
+    // 完成时若选中会话已变（如已切到 B），A 的草稿绝不渲染进当前
+    // 编辑器，绝不污染 chatStateCache/状态文案，只静默更新列表元数据；
+    // 保存亦同理，A 的内容永远不会被存为 B 的修订。
+    var opSessionId = selectedSessionId;
+    var opViewToken = chatViewToken;
+    draftGenBusySessions[opSessionId] = true;
+    syncDraftButtons();
     draftStatusEl.textContent = '正在把对话整理为草稿（调用你的模型服务）…';
     fetch('/api/workbench/chat/draft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: selectedSessionId })
+      body: JSON.stringify({ session_id: opSessionId })
     }).then(function (resp) {
       return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
     }).then(function (result) {
-      draftGenerateBtn.disabled = false;
+      delete draftGenBusySessions[opSessionId];
+      syncDraftButtons();
+      var stillSameView = chatViewToken === opViewToken && selectedSessionId === opSessionId && !newChatMode;
+      if (!stillSameView && !newChatMode && selectedSessionId === opSessionId) {
+        // 迟到结果，但用户已切回发起会话（视图代际已变）：如实提示并
+        // 刷新当前会话 —— 同一会话无跨会话污染，结果直接可见，不残留
+        // “仍在进行中”的误导状态。
+        if (result.ok) { selectedDraftRevision = result.data.draft.revision; }
+        draftStatusEl.textContent = result.ok
+          ? '草稿已生成（未审核）。可自由编辑后保存为新版本。'
+          : (result.data.error || '草稿生成失败，请重试。');
+        refresh().catch(function () { });
+        return;
+      }
+      if (!stillSameView) {
+        refreshSessionsQuietly();  // 迟到结果：仅更新未选中会话的列表元数据
+        return;
+      }
       if (!result.ok) {
         draftStatusEl.textContent = result.data.error || '草稿生成失败，请重试。';
         return;
@@ -2850,8 +2931,11 @@
       draftDrawer.open = true;
       draftDrawer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }).catch(function () {
-      draftGenerateBtn.disabled = false;
-      draftStatusEl.textContent = '草稿生成失败：网络错误，请重试。';
+      delete draftGenBusySessions[opSessionId];
+      syncDraftButtons();
+      if (!newChatMode && selectedSessionId === opSessionId) {
+        draftStatusEl.textContent = '草稿生成失败：网络错误，请重试。';
+      }
     });
   });
 
@@ -2867,16 +2951,38 @@
       draftStatusEl.textContent = '草稿内容不能为空。';
       return;
     }
-    draftSaveBtn.disabled = true;
+    // P0（review 5629701467）：保存同样按发起时会话作用域 —— 内容与
+    // session_id 都在点击时捕获，期间切换会话不会把 A 的内容写进 B；
+    // 迟到响应绝不改写当前视图，只静默更新列表元数据。
+    var opSessionId = selectedSessionId;
+    var opViewToken = chatViewToken;
+    draftSaveBusySessions[opSessionId] = true;
+    syncDraftButtons();
     draftStatusEl.textContent = '正在保存新版本…';
     fetch('/api/workbench/chat/draft/edit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: content, session_id: selectedSessionId })
+      body: JSON.stringify({ content: content, session_id: opSessionId })
     }).then(function (resp) {
       return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
     }).then(function (result) {
-      draftSaveBtn.disabled = false;
+      delete draftSaveBusySessions[opSessionId];
+      syncDraftButtons();
+      var stillSameView = chatViewToken === opViewToken && selectedSessionId === opSessionId && !newChatMode;
+      if (!stillSameView && !newChatMode && selectedSessionId === opSessionId) {
+        // 迟到结果但已切回发起会话：如实提示并刷新当前会话（同一会话
+        // 无跨会话污染），不残留误导状态。
+        if (result.ok) { selectedDraftRevision = result.data.draft.revision; }
+        draftStatusEl.textContent = result.ok
+          ? '已保存为版本 v' + result.data.draft.revision + '（旧版本仍可回看）。'
+          : (result.data.error || '保存失败，请重试。');
+        refresh().catch(function () { });
+        return;
+      }
+      if (!stillSameView) {
+        refreshSessionsQuietly();  // 迟到结果：仅更新未选中会话的列表元数据
+        return;
+      }
       if (!result.ok) {
         draftStatusEl.textContent = result.data.error || '保存失败，请重试。';
         return;
@@ -2886,8 +2992,11 @@
       chatStateCache = result.data.chat;
       renderDrafts(result.data.chat);
     }).catch(function () {
-      draftSaveBtn.disabled = false;
-      draftStatusEl.textContent = '保存失败：网络错误，请重试。';
+      delete draftSaveBusySessions[opSessionId];
+      syncDraftButtons();
+      if (!newChatMode && selectedSessionId === opSessionId) {
+        draftStatusEl.textContent = '保存失败：网络错误，请重试。';
+      }
     });
   });
 
