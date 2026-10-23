@@ -19,12 +19,12 @@ AIGC:
 |---|---|
 | Product | A content and visual-asset system for creators making human-led, deep spoken videos. |
 | Latest Formal Release | [`v1.0.0`](docs/releases/v1.0.0.md), tagged `v1.0.0` on `main`; GitHub Release [v1.0.0](https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0). Previous formal release: [`v0.6.1`](docs/releases/v0.6.1.md), commit `8a0ac94cbaf6b2a472c3624c1c2e1f573cfb113d`. |
-| Current Development Status | **v1.0.0 是最新正式发布**。post-release 的参考发现、Web UI、audio-only CLI 窄兼容和 Workbench 基础已陆续合入 `main`，但未发布新版本。基于 `main` 的 #39→#40→#41→#42→#43→#45 堆叠 PR 仍 OPEN；#45 Chat-first Creative Draft MVP 已提交实现，**Nexus CHANGES_REQUIRED / 未验收未合并**。真实 DeepSeek 创作质量仍待 Owner 自己的 API Key 验证。 |
-| Product Code Baseline | 正式版 `v1.0.0`；当前 `main` 已纳入 post-release PR #25、#27、#31、#33。历史 `agent/multi-asset-studio` 是 v1.0 周期开发血统，**不再是当前活跃开发分支**。 |
-| Canonical Development Branch | 集成基线是 `main`；当前**唯一活跃变更审查主线**为 PR #45 的 `agent/issue44-minimal-ux`（base `agent/issue38-workbench-qa`）；stacked PR 仍未合并。更高优先级是 Issue #29 的首条真实视频闭环。 |
-| Historical V1/V2 visual-asset development（保留证据） | Phases 0–5 的历史验收、插件 pin、Phase 6 demo HOLD 等仍以 Git/`HANDOFF.md`/`docs/ARCHITECTURE.md` 为证；V2 Phase D/E/F 未启动。Issue #28 内嵌 TTS/HOLD；Issue #30 / PR #31 的 **WAV/MP3 最终音轨窄适配已集成 `main`、未发布**，真实音频作为时间基准；不把 CLI 支持误说成整个工作台的成熟支持。 |
-| Creator Workbench unified UI (Issue #23 / PR #33) | PR #33 **已合入 `main`，实现未正式发布**。#34–#38 对应 PR #39–#43 仍为 OPEN 堆叠分支；最新 Chat-first 创作 MVP 在 [PR #45](https://github.com/HWang0310/deep-talk-studio/pull/45) OPEN / Nexus 待修正。旧正式工作流保留 Research/Fact Check/Thesis/Script 权限与审核 Gate；自由 Creative Draft 独立、未审核，不可伪装 Reviewed Script 或解锁生产。离线夹具测试 ≠ 真实模型质量验收。 |
-| Current product priority (Owner 2026-10-23) | **最高产品结果：首条真实视频 Issue #29**，总线 #23。当前工程只修正并验收 **Issue #44 / PR #45 Chat-first 方案 A**（自由聊天、真实流式回复、可修改未审核草稿；正式 Gate 不变），随后 Owner 真实模型体验，再回首条实际视频。最终口播以 Owner 确认的真人音轨或已获授权外部 WAV/MP3 为计时依据；真实对齐不依赖文稿估时；剪映人工剪辑/发布；内嵌 TTS 及 V2 Phase D/E/F 继续 HOLD。 |
+| Current Development Status | **v1.0.0 仍是最新正式发布；新代码已集成但未发布。** Post-release Creator Workbench、DeepSeek 配置/真实 SSE、参考视频分析、显式检索、音频交付 UI、多会话历史、未审核 Creative Draft，已按依赖顺序由 PR #39 → #40 → #41 → #42 → #43 → #45 全部合并到 `main`（末个功能整合 SHA `fcb0b6d4`）。Nexus 对 PR #45 范围代码审核 PASS；早期单会话真实 DeepSeek 调用有 5 次报告证据，多会话新增行为主要经 mock/浏览器回归，**集成后 `main` 的本机 8321 部署/测试及完整视频交付尚待验证**。 |
+| Product Code Baseline | 正式版仍为 `v1.0.0`；当前**唯一集成代码基线**是 `main`，包含已合并 PR #25、#27、#31、#33、#39–#43、#45。历史 `agent/multi-asset-studio` 与嵌套开发分支是历史血统，不是新 Agent 的工作基线。 |
+| Canonical Development Branch | `main`（所有六个堆叠 PR 已闭合/merged）。后续开发只能从最新 `main` 单线派工，不应再以旧 #45/旧 #43 基线继续开发。下一步是单 Writer Forge 的本机集成验证及 [Issue #29](https://github.com/HWang0310/deep-talk-studio/issues/29) 首条真实视频。 |
+| Historical V1/V2 visual-asset development（保留证据） | Phases 0–5、插件 pin 和 Phase 6 demo HOLD 仍为历史/未默认启用路径。Issue #28 内嵌 TTS/HOLD；PR #31 WAV/MP3 最终音轨 audio-only CLI 窄适配**已集成，未另行发布**；PR #42 新增音频导入/时间轴/Asset Pack+Edit Map UI **已合入 `main`，尚未用 Owner 最终口播完成真实整集交付验收**。 |
+| Creator Workbench unified UI (Issue #23 / PR #33) | PR #33 和其后 #39–#43、#45 **全部合入 `main`，未正式发新版**。包括 DeepSeek 设置一次保存跨工作树、Chat-first SSE、桌面/手机历史会话、独立聊天与 Creative Draft 版本、草稿按需展开、参考/音频 Workbench；真实用户目录与测试隔离是硬边界。开放式 Creative Draft **始终未审核**，正式 Research/Fact Check/Thesis/Reviewed Script/Rights/Production Gate 独立有效；fixture PASS ≠ 真实付费搜索/真实视频质量 PASS。 |
+| Current product priority (Owner 2026-10-23) | **最高产品目标：首条真实视频 [Issue #29](https://github.com/HWang0310/deep-talk-studio/issues/29)**。2026-10-24 Owner 新反馈要求：直接给时事选题（如「王扁被打」）后，产品应主动检索公开来源、识别具体事件、生成可修改原创内容并推进到需要人审的节点，而非只做泛泛的对话式追问；**这项 topic-to-creation 自动编排尚未实现，不能虚报已具备**。先做合并后主线无损验证，再在原授权/证据/真实音轨/版权门禁下设计单线实现。剪映人工最终编辑/发布；V2 Phase D/E/F 与内嵌 TTS 仍 HOLD。 |
 
 ## Current Product Positioning
 
