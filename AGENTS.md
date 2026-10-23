@@ -1,20 +1,17 @@
 # DeepTalk Studio 工程协作规则
 
-## Bootstrap Protocol
+## Bootstrap Protocol（按任务读取，降低上下文开销）
+本文件是 DeepTalk 项目的工程协作规范与 **唯一 engineer roster**。适用于 Nexus、Forge、Atlas 等当前项目身份；执行 backend 的选择另见 `engineering-journal/BACKEND-CAPABILITY-CERTIFICATION.md`，不得把 backend 当成人员身份。
 
-本文件面向进入仓库的未来 Codex。用户不是工程师，不应被要求理解架构、代码或命令行。
+**默认恢复顺序（不要求一次读完所有文档）：**
+1. 先检查本地 branch、HEAD、dirty/unpushed 变更，并核实 GitHub 远端相关 Issue/PR 的 **当前状态与 exact HEAD**；保留用户本地文件，不因历史 handoff 覆盖远端新事实。
+2. 阅读本文件的适用规则与末尾 roster，随后阅读 [CURRENT_CONTROL_PLANE.md](CURRENT_CONTROL_PLANE.md) 的**简短当前任务索引**。
+3. 按任务需要再读 [PROJECT_STATE.md](PROJECT_STATE.md)（已接受能力/发布事实）与 [docs/INDEX.md](docs/INDEX.md)（定位 canonical 合同），**只打开任务相关**代码、合同、测试。
+4. `README.md`、`PRD.md`、`ROADMAP.md`、`docs/ARCHITECTURE.md` 为专题参考，不是所有任务的必读套餐；`HANDOFF.md`、旧 plans/specs、release notes/evals 仅在追溯历史时查阅。
 
-先检查当前 Git branch、HEAD 与 working tree；然后按以下顺序阅读：
+**事实边界：** GitHub 实时 PR/Issue/commit 事实优先于静态“下一步”快照；`PROJECT_STATE.md` 管理已验收能力与正式发布状态；具体合同管理不可随意绕过的工作流规则。若相互冲突，先注明差异并向 Nexus 复核，不能静默推断“计划＝完成”或“实现＝已发布”。
 
-1. `AGENTS.md`：工程协作与安全规则。
-2. `PROJECT_STATE.md`：唯一的 concise current truth。
-3. `docs/INDEX.md`：文档职责、阅读顺序与 task routing。
-4. `README.md`、`PRD.md`、`ROADMAP.md`：产品入门、需求和交付状态。
-5. `docs/ARCHITECTURE.md`：当前实现与明确标注的目标架构。
-6. 只读任务相关的 canonical contracts、代码和测试。
-7. 只有需要追溯决策、commit lineage、真实 Episode、bug origin 或架构演进时，才读 `HANDOFF.md`、旧 plans/specs、release notes 或历史 evals。
-
-`PROJECT_STATE.md` 的当前状态优先于历史记录。Plan exists ≠ accepted；implemented ≠ released。若当前代码/测试与 canonical current docs 冲突，记录证据并在本轮进行 reconciliation，不得静默选择任一方。
+**当前项目主线请看 `CURRENT_CONTROL_PLANE.md`，不要从本文件历史实例启动新的 V2/TTS 任务。**
 
 ## Current Product Safety Context
 
