@@ -404,32 +404,23 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
     def _handle_chat_stream(self, flow, payload: Dict[str, object]) -> None:
         """真实流式聊天：SSE 增量转发；停止/断开尝试中断上游请求。
 
-        - 发送前先校验并持久化用户消息（失败返回 400 JSON）；
-        - 同一会话同时只允许一个在飞流（B2 单飞），重叠发送返回 400；
-        - 助手回复只在流完成后原子写入最新会话；停止/断开不写半截回复；
+        - **准入预约先于任何存储变更**（B2/P0，5627594838）：同一时刻只允许
+          一个在飞流，重叠发送在持久化 user turn **之前**被 400 拒绝——被拒
+          绝的消息绝不进入聊天记录，也不会污染后续模型上下文；预约检查+注册
+          在 ``chat_flight_lock`` 内原子完成，并发首次发送（尚无会话）与稳态
+          重叠都 race-safe；
+        - 预约在所有失败/断开路径释放（finally）；等待模型期间不持有任何
+          全局锁；
+        - 通过预约后才校验并持久化用户消息（Key/空消息防护不变），助手回复
+          只在流完成后原子写入最新会话；停止/断开不写半截回复；
         - 计费诚实（B3）：停止尽力中断上游请求，但不承诺已产生费用
           不计入账单；重试永远是用户显式幂等动作。
         """
 
-        try:
-            context = flow.chat_send_start(
-                str(payload.get("message", "")),
-                payload.get("links", []) or [],
-                retry_turn_id=str(payload.get("retry_turn_id", "") or ""),
-            )
-        except WorkbenchFlowError as exc:
-            body = {"error": str(exc)}
-            body.update(getattr(exc, "payload", {}) or {})
-            _send_json(self, 400, body)
-            return
-        except (WorkbenchLLMError, CreativeChatError) as exc:
-            _send_json(self, 400, {"error": str(exc)})
-            return
-        except Exception as exc:  # never kill the local server
-            _send_json(self, 500, {"error": f"发送失败：{type(exc).__name__}，请重试"})
-            return
         server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment]
-        flight_key = str(context["session"].get("session_id", ""))
+        # 聊天为单会话（latest session）设计：固定 flight key 即整个聊天通道，
+        # 且不依赖 chat_send_start 的结果（首次发送时 session 尚不存在）。
+        flight_key = "chat"
         with server.chat_flight_lock:
             if flight_key in server.chat_in_flight:
                 _send_json(self, 400, {
@@ -438,42 +429,61 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                 return
             server.chat_in_flight.add(flight_key)
         try:
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Connection", "close")
-            self.close_connection = True
-            self.end_headers()
-
-            def send_event(obj) -> None:
-                data = json.dumps(obj, ensure_ascii=False)
-                self.wfile.write(("data: " + data + "\n\n").encode("utf-8"))
-                self.wfile.flush()
-
-            send_event({
-                "type": "start",
-                "session_id": context["session"].get("session_id", ""),
-                "user_turn": context["user_turn"],
-                "provider_kind": context.get("provider_kind", ""),
-                "model": context["settings"].get("model", ""),
-            })
-            events = flow.chat_stream_reply(context)
             try:
-                for event in events:
-                    send_event(event)
+                context = flow.chat_send_start(
+                    str(payload.get("message", "")),
+                    payload.get("links", []) or [],
+                    retry_turn_id=str(payload.get("retry_turn_id", "") or ""),
+                )
             except WorkbenchFlowError as exc:
-                send_event({"type": "error", "error": str(exc)})
-            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-                # 用户停止或浏览器断开：尝试中断上游请求，不写助手回复
-                events.close()
+                body = {"error": str(exc)}
+                body.update(getattr(exc, "payload", {}) or {})
+                _send_json(self, 400, body)
                 return
-            except Exception as exc:  # never kill the local server mid-stream
-                send_event({"type": "error", "error": f"流式输出中断：{type(exc).__name__}，请重试"})
-        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-            return
+            except (WorkbenchLLMError, CreativeChatError) as exc:
+                _send_json(self, 400, {"error": str(exc)})
+                return
+            except Exception as exc:  # never kill the local server
+                _send_json(self, 500, {"error": f"发送失败：{type(exc).__name__}，请重试"})
+                return
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Connection", "close")
+                self.close_connection = True
+                self.end_headers()
+
+                def send_event(obj) -> None:
+                    data = json.dumps(obj, ensure_ascii=False)
+                    self.wfile.write(("data: " + data + "\n\n").encode("utf-8"))
+                    self.wfile.flush()
+
+                send_event({
+                    "type": "start",
+                    "session_id": context["session"].get("session_id", ""),
+                    "user_turn": context["user_turn"],
+                    "provider_kind": context.get("provider_kind", ""),
+                    "model": context["settings"].get("model", ""),
+                })
+                events = flow.chat_stream_reply(context)
+                try:
+                    for event in events:
+                        send_event(event)
+                except WorkbenchFlowError as exc:
+                    send_event({"type": "error", "error": str(exc)})
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                    # 用户停止或浏览器断开：尝试中断上游请求，不写助手回复
+                    events.close()
+                    return
+                except Exception as exc:  # never kill the local server mid-stream
+                    send_event({"type": "error", "error": f"流式输出中断：{type(exc).__name__}，请重试"})
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                return
         finally:
-            # B2 单飞：任何退出路径都释放，会话可继续发送
+            # B2 单飞：预约在任何退出路径（含 chat_send_start 失败、流中异常、
+            # 用户停止/断开）都释放，会话可继续发送
             with server.chat_flight_lock:
                 server.chat_in_flight.discard(flight_key)
 

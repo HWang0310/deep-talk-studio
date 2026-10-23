@@ -987,8 +987,10 @@ class ChatStreamHttpTests(LocalWebUITestCase):
             self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
 
     def test_second_stream_while_first_in_flight_returns_400(self):
-        """Nexus B2：同一会话在飞流未结束前，第二条发送返回 400 JSON，
-        不并发、不隐藏第二次模型调用；第一条流照常完成。"""
+        """Nexus B2/P0（5627594838）：在飞流的准入预约必须先于任何存储变更 ——
+        重叠发送 400 时被拒消息绝不进入聊天记录（stored turns 保持
+        [user A]→[user A, assistant A]，B 内容零出现），零隐藏模型调用，
+        且预约释放后后续发送照常可行。"""
         import tempfile
         import threading
         import time
@@ -1002,25 +1004,90 @@ class ChatStreamHttpTests(LocalWebUITestCase):
             self._configure_deepseek(root)
             result = {}
 
+            # 1) A 流开始：提交 user A 并保持慢速进行
             def first_stream():
                 result["status"], result["ctype"], result["events"] = self._sse_post(
-                    "/api/workbench/chat/stream", {"message": "第一条消息"}
+                    "/api/workbench/chat/stream", {"message": "第一条消息 A"}
                 )
 
             thread = threading.Thread(target=first_stream, daemon=True)
             thread.start()
-            time.sleep(0.15)  # 等第一条流注册 in-flight 并开始产出
+            time.sleep(0.15)  # 等第一条流注册预约并开始产出
+            # 2) B 尝试重叠发送 → 400；A 运行期间存储恰为 [user A]，
+            #    被拒的 B 消息不得在任何位置出现
             status, _, body = self.post("/api/workbench/chat/stream", {
-                "message": "第二条消息",
+                "message": "重叠时被拒绝的第二条消息 B",
             })
             self.assertEqual(status, 400)
             self.assertIn("上一条回复还在进行中", json.loads(body)["error"])
+            self.assertEqual(len(calls), 1)  # 拒绝发生在持久化前，B 不触发模型调用
+            status, _, body = self._get_state()
+            chat = json.loads(body)["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
+            self.assertEqual([t["content"] for t in chat["turns"]], ["第一条消息 A"])
+            self.assertNotIn("重叠时被拒绝的第二条消息 B", json.dumps(chat, ensure_ascii=False))
+            # 3) A 完成 → 存储恰为 [user A, assistant A]；B 内容仍零出现
             thread.join(timeout=15)
             self.assertEqual(result["status"], 200)
             kinds = [e["type"] for e in result["events"]]
             self.assertEqual(kinds[0], "start")
             self.assertEqual(kinds[-1], "done")
-            # 只发生一次模型调用（重叠发送被拒，零隐藏计费）
+            status, _, body = self._get_state()
+            chat = json.loads(body)["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user", "assistant"])
+            self.assertEqual([t["content"] for t in chat["turns"]],
+                             ["第一条消息 A", "".join(f"段{i}" for i in range(20))])
+            self.assertNotIn("重叠时被拒绝的第二条消息 B", json.dumps(chat, ensure_ascii=False))
+            self.assertEqual(len(calls), 1)
+            # 4) 预约已释放：后续正常发送 C 照常可行（retry/stop 语义不受影响）
+            status, ctype, events = self._sse_post("/api/workbench/chat/stream", {
+                "message": "后续第三条消息 C",
+            }, timeout=15)
+            self.assertEqual(status, 200)
+            self.assertEqual(events[-1]["type"], "done")
+            status, _, body = self._get_state()
+            chat = json.loads(body)["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]],
+                             ["user", "assistant", "user", "assistant"])
+            self.assertEqual([t["content"] for t in chat["turns"]][2], "后续第三条消息 C")
+            self.assertEqual(len(calls), 2)  # A + C，各一次显式调用
+
+    def test_concurrent_first_sends_admit_exactly_one(self):
+        """Nexus B2/P0（5627594838）：两个并发首次发送（尚无任何会话）也必须
+        恰好放行一个 —— 预约检查+注册在锁内原子完成；被 400 拒绝的一方
+        不创建会话、不写 user turn，存储最终只有被放行方的一问一答。"""
+        import tempfile
+        import threading
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            calls = []
+            llm = self.StreamLLM(["首条回复"], calls)
+            self.start_server(flow=self._chat_flow(root, llm))
+            self._configure_deepseek(root)
+            outcomes = []
+            barrier = threading.Barrier(2)
+
+            def send(message):
+                barrier.wait()  # 两线程对齐发送时刻，最大化竞争窗口
+                outcomes.append(self._sse_post(
+                    "/api/workbench/chat/stream", {"message": message}, timeout=15
+                ))
+
+            t1 = threading.Thread(target=send, args=("并发首发之一",), daemon=True)
+            t2 = threading.Thread(target=send, args=("并发首发之二",), daemon=True)
+            t1.start()
+            t2.start()
+            t1.join(timeout=15)
+            t2.join(timeout=15)
+            self.assertEqual(sorted(o[0] for o in outcomes), [200, 400])
+            status, _, body = self._get_state()
+            chat = json.loads(body)["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user", "assistant"])
+            admitted = chat["turns"][0]["content"]
+            self.assertIn(admitted, ("并发首发之一", "并发首发之二"))
+            rejected = "并发首发之二" if admitted == "并发首发之一" else "并发首发之一"
+            self.assertNotIn(rejected, json.dumps(chat, ensure_ascii=False))
             self.assertEqual(len(calls), 1)
 
     def test_http_retry_after_disconnect_reuses_turn_without_duplicate(self):

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-10-23 — Issue #44 — B2/P0 修正：重叠消息拒绝先于持久化（Nexus exact-head review #5627594838）
+
+- **修复 mutation-before-rejection**：`_handle_chat_stream` 的单飞准入检查+预约（`chat_in_flight`）前移到任何 `chat_send_start` 存储变更**之前**——此前重叠的 B 消息会先被持久化再收到 400，留下 `[user A, user B(被拒), assistant A]` 污染会话与后续模型上下文。预约检查+注册在 `chat_flight_lock` 内原子完成（check-and-reserve race-safe），并发首次发送（尚无会话）与稳态重叠同路径覆盖；flight key 改为固定 `"chat"`（聊天为单会话设计，不依赖 `chat_send_start` 结果）；预约在所有失败/断开路径（含 `chat_send_start` 抛错）经 finally 释放；等待模型期间不持有任何全局锁；retry-by-turn-ID 与 Key/空消息防护不变。
+- **确定性 HTTP 回归**（按 review 四步要求增强/新增）：① A 慢流提交 user A 保持进行；② B 重叠发送 → 400，A 运行期间存储恰 `[user A]` 且 B 内容零出现、零模型调用；③ A 完成 → 存储恰 `[user A, assistant A]`，B 仍零出现；④ 预约释放后 C 正常发送照常可行（A+C 各一次显式调用）。新增并发首发测试：Barrier 对齐两线程同时首次发送 → 恰一个 200 一个 400，存储只有被放行方一问一答，被拒方不创建会话不写 turn。
+- 8322 真实 HTTP 实测：15 条基线完整保留，B 在 mid/final 存储双检零出现，新增恰一问一答，8931 mock 调用恰 +1（B 零调用）。
+- 测试：focused **136 passed**（+1 并发首发用例、单飞用例增强为四步回归）；全量见对应轮记录。
+
 ## Unreleased — 2026-10-23 — Issue #44 — Nexus B1–B4 阻断修复（Chat-first MVP delta review #5626927896）
 
 - **B1 旧集工作流与聊天首页明确分离**：hero 永远是首页主体；即使存在历史 canonical 会话，其 stage-bar/参考/授权表单/候选也默认隐藏，只在新增的 `<details id="legacy-workbench-entry">` 折叠入口（「查看既有正式工作流（与聊天相互独立）· 本集：<主题>」）显式展开时才渲染；无会话/新一集模式下折叠入口同样隐藏；legacy sessions 一律保留不删除。8322 隔离夹具（旭日旗旧集 + 图书馆聊天共存）浏览器验证：默认态文本节点级零泄漏（leakCount=0），展开渲染/收起隐藏双向正确。

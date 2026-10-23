@@ -242,3 +242,44 @@ v4（新代码生成）`provider_kind="fixture"` 持久化保留；v1–v3 为�
 - screenshots/22-mobile-375-chat.png（重拍：375px 全页，折叠入口/版本按钮无截断无溢出）
 - screenshots/23-desktop-legacy-entry-expanded.png（新增：B1 展开态——旧集 stages 只在显式展开后渲染）
 - screenshots/24-desktop-chat-stopped-retry.png（新增：B3 停止态——计费诚实文案 + 重发按钮可见）
+
+## B2/P0 修正轮：拒绝先于持久化（2026-10-23，exact-head review #5627594838）
+
+Nexus 在 2597fc7 上确认 B1/B3/B4 通过，B2 遗留 P0：`_handle_chat_stream` 先调 `chat_send_start`（持久化 user turn）再查 `chat_in_flight`，重叠的 B 消息被 400 拒绝前已进入聊天记录。
+
+### 修复（webui.py，最小改动）
+
+准入预约（检查+注册，`chat_flight_lock` 内原子）前移到任何存储变更之前；flight key 改为固定 `"chat"`（聊天单会话设计，首次发送尚无会话也可检查）；从预约成功起整段逻辑（含 `chat_send_start` 失败路径）由 finally 释放预约；等待模型不持锁；retry/Key 防护不变。
+
+### 8322 真实 HTTP 实测（8931 慢速流式夹具 0.5s/块）
+
+~~~json
+{
+  "baseline_turns": 15,
+  "B_overlap_send": {
+    "status": 400,
+    "error": "上一条回复还在进行中，请先停止或等待完成后再发送"
+  },
+  "mid_storage_while_A_running": {
+    "turns": 16, "tail_roles": "uau",
+    "B_content_in_storage": false
+  },
+  "final_storage_after_A_done": {
+    "new_turns": [
+      ["user", "B2 修复实测：A 流慢速进行中的消息"],
+      ["assistant", "收到。围绕「B2 修复实测：A 流慢速进行中的消…"]
+    ],
+    "B_content_in_storage": false,
+    "baseline_15_turns_preserved": true
+  },
+  "mock_calls_since_marker": ["stage=chat stream=True chars=100"]
+}
+~~~
+
+被拒的 B 消息在 A 运行中与 A 完成后**双检零出现**；mock 调用恰 +1（B 零调用、零隐藏计费）；基线 15 turns 逐条保留。
+
+### 回归测试
+
+- `test_second_stream_while_first_in_flight_returns_400` 按 review 四步增强：②B 400 + 存储恰 `[user A]` + B 零出现 + 零额外调用 → ③A 完成恰 `[user A, assistant A]` + B 仍零出现 → ④预约释放后 C 正常发送（A+C 各一次显式调用，最终四 turns）。
+- 新增 `test_concurrent_first_sends_admit_exactly_one`：Barrier 对齐两线程并发首次发送（尚无会话）→ 恰 `[200, 400]`，存储只有被放行方一问一答，被拒方不创建会话不写 turn，模型恰一次调用。
+- focused 136 passed；全量见提交记录。
