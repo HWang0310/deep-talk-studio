@@ -584,6 +584,7 @@
     var failedCount = readiness.failed || 0;
     statusEl.textContent = '就绪度：已分析 ' + (readiness.analyzed || 0)
       + ' · 已下载待分析 ' + downloadPending + ' · 失败待重试 ' + failedCount
+      + ' · 模型未验证 ' + (readiness.unverified || 0)
       + ' · 本集候选 ' + total
       + '（研究要求：所有已授权参考完成分析，或明确选择部分分析）';
     var targets = session.references.filter(function (c) {
@@ -619,7 +620,10 @@
         not_analyzed: ['badge-wait', '未分析'],
         downloaded: ['badge-progress', '已下载待分析'],
         analyzed: ['badge-analyzed', '已分析'],
-        failed: ['badge-failed', '失败']
+        failed: ['badge-failed', '下载失败'],
+        unverified: ['badge-progress', '转写完成，模型未验证'],
+        analysis_failed: ['badge-failed', '分析失败，可重试'],
+        transcribing: ['badge-progress', '转写中']
       }[status] || ['badge-wait', '未分析'];
       head.appendChild(el('span', 'badge ' + badge[0], badge[1]));
       var link = el('a', 'title-link', c.title || c.bvid);
@@ -640,6 +644,21 @@
         if (c.study.narrative_summary) {
           item.appendChild(el('p', null, '叙事手法：' + c.study.narrative_summary));
         }
+        if (c.study.analysis_status === 'unverified') {
+          item.appendChild(el('p', 'status-degraded', '模型分析未验证：' + (c.study.analysis_error || '模型不可用') + '；仅保留本地转写，不计入研究就绪度。'));
+        }
+        if (c.study.transcript_segments && c.study.transcript_segments.length) {
+          var transcriptDetails = document.createElement('details');
+          var transcriptSummary = document.createElement('summary');
+          transcriptSummary.textContent = '查看本地转写时间段（' + c.study.transcript_segments.length + ' 段）';
+          transcriptDetails.appendChild(transcriptSummary);
+          var transcriptList = document.createElement('ul');
+          c.study.transcript_segments.slice(0, 20).forEach(function (segment) {
+            transcriptList.appendChild(el('li', 'muted', '[' + segment.start_seconds + '–' + segment.end_seconds + ' 秒] ' + segment.text));
+          });
+          transcriptDetails.appendChild(transcriptList);
+          item.appendChild(transcriptDetails);
+        }
         if (c.study.takeaways && c.study.takeaways.length) {
           var ul = el('ul', 'muted');
           c.study.takeaways.slice(0, 3).forEach(function (t) { ul.appendChild(el('li', null, t)); });
@@ -652,6 +671,16 @@
       if (status === 'failed' && c.study_error) {
         item.appendChild(el('p', 'status-blocked', '下载失败（可重试）：' + String(c.study_error)));
       }
+      if ((status === 'unverified' || status === 'analysis_failed') && c.study_error) {
+        var retry = el('button', null, '重新分析');
+        retry.type = 'button';
+        retry.addEventListener('click', function () {
+          api('/api/workbench/references/reanalyze', {
+            session_id: currentSession.session_id, bvid: c.bvid
+          }, { message: '重试模型参考分析（复用已保存转写）…' }).then(refresh).catch(function () { refresh(); });
+        });
+        item.appendChild(retry);
+      }
       list.appendChild(item);
     });
     list.insertBefore(control, list.firstChild);
@@ -663,10 +692,13 @@
     // already downloaded locally skip straight to local analysis (no
     // duplicate download / duplicate authorization archive).
     var acquireBvids = targets.filter(function (c) {
-      return (c.study_status || 'not_analyzed') !== 'downloaded';
+      return ['not_analyzed', 'failed'].indexOf(c.study_status || 'not_analyzed') !== -1;
     }).map(function (c) { return c.bvid; }).filter(Boolean);
     var analyzeBvids = targets.filter(function (c) {
       return (c.study_status || 'not_analyzed') === 'downloaded';
+    }).map(function (c) { return c.bvid; }).filter(Boolean);
+    var reanalyzeBvids = targets.filter(function (c) {
+      return ['unverified', 'analysis_failed', 'transcribing'].indexOf(c.study_status || '') !== -1;
     }).map(function (c) { return c.bvid; }).filter(Boolean);
     var finish = function (acquired) {
       var okBvids = (acquired.results || []).filter(function (r) { return r.ok; }).map(function (r) { return r.bvid; });
@@ -677,6 +709,13 @@
           return api('/api/workbench/references/analyze', {
             session_id: currentSession.session_id, bvid: bvid
           }, { message: '本地转写与叙事分析（whisper.cpp large-v3）…' });
+        });
+      });
+      reanalyzeBvids.forEach(function (bvid) {
+        chain = chain.then(function () {
+          return api('/api/workbench/references/reanalyze', {
+            session_id: currentSession.session_id, bvid: bvid
+          }, { message: '重试模型参考分析（复用已保存转写）…' });
         });
       });
       return chain.then(function () {

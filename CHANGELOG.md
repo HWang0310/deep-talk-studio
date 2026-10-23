@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-10-22 — Issue #35 — resumable reference transcription and analysis
+
+- Authorized acquisition failures and model-analysis failures now survive reloads with attempt/error provenance; failed or `unverified` references remain in the readiness denominator and cannot silently count as analyzed.
+- Local transcript artifacts retain segment timestamps, SHA/model/runtime provenance, and a visible transcript preview. LLM-unavailable studies are explicitly `unverified`; the UI offers a re-analysis retry that reuses the saved transcript without another download or ASR run.
+- Tests: `tests.test_workbench` + `tests.test_webui` 90/90 pass, including restart persistence and outage→retry regressions. No real model call was made; real-model acceptance remains `WAITING_FOR_OWNER_API_KEY`.
+
 ## Unreleased — 2026-10-22 — Issue #34 — first-class DeepSeek settings
 
 - Added a named DeepSeek preset (`https://api.deepseek.com`, `deepseek-flash`) with one-time `/chat/completions` endpoint composition while retaining Responses and generic Chat modes.

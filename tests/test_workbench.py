@@ -1136,6 +1136,123 @@ class AcquisitionFailureFlowTests(unittest.TestCase):
         self.assertIn("失败待重试", html)
         self.assertIn("readiness.failed", html)
 
+    def test_failed_authorized_state_survives_new_flow_instance(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._configure(root)
+            flow = self._flow(root)
+            view = flow.start_session("本市图书馆夜间开放试点", [])
+            sid = view["session_id"]
+            bvid = view["references"][0]["bvid"]
+
+            def deny(reference, downloads_dir, authorization_text, **kwargs):
+                raise acquisition.WorkbenchAcquisitionError("下载失败：离线测试拒绝")
+
+            with mock.patch.object(acquisition, "acquire_reference", deny):
+                flow.acquire_references(sid, [bvid], "我授权在本地研究使用该参考视频。")
+            restarted = self._flow(root)
+            state = restarted.view(sid)
+            self.assertEqual(state["references_readiness"]["eligible"], 1)
+            self.assertEqual(state["references_readiness"]["failed"], 1)
+            self.assertIn("离线测试拒绝", state["references"][0]["study_error"])
+
+
+class ReferenceAnalysisStateTests(unittest.TestCase):
+    def _configure(self, root):
+        save_settings(root, apply_settings_update(load_settings(root), {
+            "provider_mode": "chat",
+            "chat_base_url": "https://llm.example.com/v1",
+            "model": "test-model",
+            "api_key": "sk-fixture",
+            "downloads_dir": str(root),
+        }))
+
+    def test_llm_outage_is_unverified_then_reanalysis_reuses_transcript(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._configure(root)
+            view_counter = {"extract": 0, "whisper": 0}
+
+            class FlakyProvider(FakeWorkbenchLLM):
+                def __init__(self, settings):
+                    super().__init__(settings)
+                    self.summary_attempts = 0
+
+                def summarize_reference(self, transcript_text, metrics, metadata):
+                    self.summary_attempts += 1
+                    if self.summary_attempts == 1:
+                        raise WorkbenchLLMError("测试模型暂不可用", category="network")
+                    return super().summarize_reference(transcript_text, metrics, metadata)
+
+            provider = FlakyProvider({})
+            flow = WorkbenchFlow(
+                root,
+                discovery_runner=lambda topic, urls: _fake_discovery(topic, urls, count=1),
+                provider_factory=lambda settings: provider,
+            )
+            view = flow.start_session("本市图书馆夜间开放试点", [])
+            sid = view["session_id"]
+            bvid = view["references"][0]["bvid"]
+            media = root / "reference.mp4"
+            media.write_bytes(b"fixture-media")
+
+            def acquire(reference, downloads_dir, authorization_text, **kwargs):
+                record = _fake_acquirer(reference, downloads_dir, authorization_text)
+                record["media_path"] = str(media)
+                return record
+
+            def audio_runner(command, **kwargs):
+                view_counter["extract"] += 1
+                Path(command[-1]).write_bytes(b"RIFF" + b"\x00" * 100)
+                return _FakeCompleted(returncode=0)
+
+            def whisper_runner(command, **kwargs):
+                view_counter["whisper"] += 1
+                base = Path(command[command.index("--output-file") + 1])
+                base.with_suffix(".json").write_text(json.dumps({
+                    "transcription": [
+                        {"offset": 0, "duration": 4000, "text": "真实转写段落。"},
+                    ],
+                    "result": {"language": "zh"},
+                }, ensure_ascii=False), encoding="utf-8")
+                return _FakeCompleted(returncode=0)
+
+            class Installation:
+                runtime_path = "/usr/bin/true"
+                model_path = "/models/large-v3.bin"
+                dtw_preset = "none"
+                model_name = "large-v3"
+                runtime_version = "fixture"
+
+            class Bootstrap:
+                def ensure(self):
+                    return Installation()
+
+            flow.audio_runner = audio_runner
+            flow.whisper_runner = whisper_runner
+            flow.whisper_bootstrap = Bootstrap()
+            with mock.patch.object(acquisition, "acquire_reference", acquire):
+                flow.acquire_references(sid, [bvid], "我授权在本地研究使用该参考视频。")
+                first = flow.analyze_reference(sid, bvid)
+            self.assertEqual(first["study"]["analysis_status"], "unverified")
+            state = flow.view(sid)
+            self.assertEqual(state["references_readiness"]["analyzed"], 0)
+            self.assertEqual(state["references"][0]["study_status"], "unverified")
+            self.assertEqual(state["references"][0]["study"]["transcript_status"], "complete")
+            self.assertEqual(state["references"][0]["study"]["transcript_provenance"]["model"], "large-v3")
+            self.assertEqual(view_counter, {"extract": 1, "whisper": 1})
+
+            second = flow.reanalyze_reference(sid, bvid)
+            self.assertEqual(second["study"]["analysis_status"], "analyzed")
+            self.assertEqual(flow.view(sid)["references_readiness"]["analyzed"], 1)
+            self.assertEqual(view_counter, {"extract": 1, "whisper": 1})
+
+    def test_ui_exposes_unverified_retry_and_transcript_segments(self):
+        html = (REPO / "src/deeptalk_studio/webui_static/index.html").read_text(encoding="utf-8")
+        self.assertIn("unverified", html)
+        self.assertIn("重新分析", html)
+        self.assertIn("segments", html)
+
 
 class ThesisPromptTests(unittest.TestCase):
     """Real prompt builders must work end to end (fakes bypass them, so a
