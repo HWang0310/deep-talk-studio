@@ -1,31 +1,24 @@
 # DeepTalk Studio — Current Control Plane
 
-> **2026-10-23 GitHub verified snapshot（不是自动同步的实时状态）。** 进入项目必须先刷新相关远端 Issue/PR 与 branch HEAD；远端新事实优先。正式验收/发布事实归 [PROJECT_STATE.md](PROJECT_STATE.md)，engineer roster 归 [AGENTS.md](AGENTS.md)。历史交接留在 `HANDOFF.md`，不默认读取。
+> **2026-10-24 GitHub-verified integration snapshot, not a live status service.** On every recovery first check remote `main`, relevant Issue/PR exact SHAs and local dirty/worktree state. [PROJECT_STATE.md](PROJECT_STATE.md) owns formal release / accepted capability facts; [AGENTS.md](AGENTS.md) owns guardrails and canonical engineer roster. Historical handoffs and plans are not default next actions.
 
 ## 当前一句话
-**先完成 Chat-first 对话/原创草稿 MVP 的 PR #45 修正与 Owner 真实体验，再推进首条真实视频 Issue #29。** 不是做新的大重构，也不是启动 V2/TTS。
+**PR #39 → #40 → #41 → #42 → #43 → #45 六个依赖功能 PR 已全部合并 `main`。下一关是 Forge 对集成后 `main` 做隔离测试、本机 8321 与真实聊天/草稿/Key 的无损验证；然后推进 [Issue #29](https://github.com/HWang0310/deep-talk-studio/issues/29) 首条真实视频，而不是继续改基础聊天界面。**
 
-## 已确认的发布与能力边界
-- 最新**正式发布**：[`v1.0.0`](https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0)。`main` 已集成参考发现 [PR #25](https://github.com/HWang0310/deep-talk-studio/pull/25)、本地 Web UI [PR #27](https://github.com/HWang0310/deep-talk-studio/pull/27)、首片 WAV/MP3 音频时间基准窄兼容 [PR #31](https://github.com/HWang0310/deep-talk-studio/pull/31) 与 Workbench 基础 [PR #33](https://github.com/HWang0310/deep-talk-studio/pull/33)；这些 post-release 代码**不等于新的正式发布**。
-- [#29](https://github.com/HWang0310/deep-talk-studio/issues/29) 最高**产品结果**：选题 → 必要独立来源/原创稿人工审核（正式路径）→ Owner 外部 VoxCPM2 或自录最终真实口播 → DeepTalk 真实音频时间对齐、素材/剪辑建议 → Owner 剪映人工完成并发布。最终口播可以是经许可的独立 WAV/MP3；CLI 窄适配**已集成、未发布**，不宣称整个 Web UI 已打通音频交付。
-- Owner 2026-10-23 选择 **方案 A**：[Issue #44](https://github.com/HWang0310/deep-talk-studio/issues/44) — 默认自由聊天、真实流式回复、可修改和导出 Creative Draft；普通草稿不强制事实核查；正式 Research/Fact Check/Thesis/Reviewed Script/rights/production Gate **不变**。
-- [#28](https://github.com/HWang0310/deep-talk-studio/issues/28) 内嵌 TTS/声音克隆及 V2 Phase D/E/F：**DEFERRED/HOLD**。不下载模型，不接触私人声音，不自动剪辑或发布视频。
+## 已确认状态与产品边界
+- **最新正式发布仍为 [v1.0.0](https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0)**；当前 `main` 已包含 post-release Creator Workbench、DeepSeek 设置、参考视频分析、显式 Search/Fetch、音频交付 UI、浏览器验收、Chat-first 多会话与未审核 Creative Draft。**已合并代码不等于新版本已发布、本机服务已自动升级、真实视频已完成。**
+- 已合并的功能 PR：[ #39](https://github.com/HWang0310/deep-talk-studio/pull/39) → [#40](https://github.com/HWang0310/deep-talk-studio/pull/40) → [#41](https://github.com/HWang0310/deep-talk-studio/pull/41) → [#42](https://github.com/HWang0310/deep-talk-studio/pull/42) → [#43](https://github.com/HWang0310/deep-talk-studio/pull/43) → [#45](https://github.com/HWang0310/deep-talk-studio/pull/45)。最终集成提交为 `fcb0b6d4c12208cf86a589211fe8a43f05f809ef`（后续文档提交将推进 `main` HEAD）。合并使用保留祖先的 merge commit；#42/#43/#45 与项目瘦身文档冲突已明确取新版状态与人员规范，同时保留应用代码和测试。
+- Owner 已保存 DeepSeek API Key：稳定用户级 `~/.deeptalk/workbench.local.json`，必须跨工作树/重启复用且不泄露。历史聊天稳定保存于 `~/.deeptalk/chat/`；迁移不得覆盖旧文件，测试 `pytest` / `unittest` 双入口必须隔离真实 Key 与聊天。**不得再次要求 Owner 反复输入 Key。**
+- 2026-10-23 Owner 批准 Chat-first 方案 A：自由聊天、真实 SSE、多会话、未审核草稿不强制先做事实核查。**正式** Research / Fact Check / Thesis / Reviewed Script / Rights / Production 的人工审批 Gate 不变；显式付费 Search/Fetch、素材下载、上传私人数据需要适当的授权；真实最终音轨由 Owner 录制或合法提供，剪映编辑/发布由 Owner 完成。
+- 内嵌 TTS/声音克隆 [#28](https://github.com/HWang0310/deep-talk-studio/issues/28) 与 V2 后续阶段仍 **HOLD**。不要擅自自动发布、复制他人原创表达、伪造事实来源/模型结果/时间对齐。
 
-## 唯一活跃开发/验收主线
-- **[PR #45](https://github.com/HWang0310/deep-talk-studio/pull/45)** (`agent/issue44-minimal-ux`，基于 PR #43)：Forge 提交了 Chat-first 流式聊天和未审核草稿的实现；截至本快照 HEAD 为 `f08942a0a9d5b3a71a0e7bfebda0b874f3ce8d76`，**OPEN / NEXUS CHANGES_REQUIRED / 未合并未发布**。本地夹具验证 ≠ Owner 真实 DeepSeek 测试。
-- Nexus 本轮代码审查 [Review #5626927896](https://github.com/HWang0310/deep-talk-studio/pull/45#pullrequestreview-5626927896) 的 **4 个未决点**：旧集表单混入聊天首页、并发/陈旧快照可能覆盖聊天或草稿、停止重发重复用户消息和错误计费承诺、草稿模型来源标记未持久化。
-- **Writer = Forge（TeleAgent-first）；Reviewer / PM = Nexus**。修复只在原 PR #45 分支推进，逐项补测试/真实浏览器证据。跨模块重大架构问题再升级 Atlas。不得让第二个 Writer 同时改 `webui_static/index.html`。
-- **下一关**：Forge 推送修复 → Nexus exact-head delta review → Owner 仅用自己的 API Key 在本机真实体验；未验收前不合并、不打 tag、不正式发布。
+## 近期执行顺序
+1. **只允许一个 Writer：Forge；Nexus 审核。** Forge 首先核对本机现有 8321 的 PID/实际运行代码/工作树与最新 `main`，保留 dirty 文件、用户级 Key、原会话和所有草稿；不要直接重置或覆盖。运行隔离的 pytest 与裸 unittest、桌面/375px 浏览器 smoke（新建 A、B/快速切换/迟到草稿、关闭/展开侧栏、刷新重启、404/stop/retry、草稿版本），核对用户目录快照前后未改。**可使用 mock 验收集成，不必重复调用付费模型。**
+2. **Owner 最新产品反馈待落地：输入一个时事选题（如「王扁被打」）后，DeepTalk 应主动识别事件、尝试找到可信公开来源和准备结构/可修改草稿，而不是先向用户抛出泛泛的身份/视角问题。** 这是一项尚未实现的 **topic-to-creation 编排能力**，不能因为聊天 AI 能回答问题就声称已完成。搜不到或同名歧义才精确询问；发现报道同源要区分，未有权威确认的动机/伤情不能编造。可先产出清楚标记“未核实”的创作方向/自由草稿；正式口播发布仍按原 Gate。涉及付费检索和下载应先按产品现有授权约束行动。
+3. 回到 [Issue #29](https://github.com/HWang0310/deep-talk-studio/issues/29)：从真实选题到独立来源、可审核原创口播稿、Owner 最终音频、真实对齐/素材建议、剪映人工成片。目标是 **第一条真实视频**，不是更多工程表单或治理文档。
+4. 当前不要再创建一串嵌套 PR；新工作若需 PR，应从最新 `main` 单一分支提交；禁止重新打开/重复合并 #39–#45、批量删历史分支、未经授权发布/tag 或绕过人审。
 
-## 分支与 PR 依赖（集成时核对 GitHub）
-`main` ← [#39](https://github.com/HWang0310/deep-talk-studio/pull/39)（设置）← [#40](https://github.com/HWang0310/deep-talk-studio/pull/40)（参考分析）← [#41](https://github.com/HWang0310/deep-talk-studio/pull/41)（独立检索）← [#42](https://github.com/HWang0310/deep-talk-studio/pull/42)（音频 UI）← [#43](https://github.com/HWang0310/deep-talk-studio/pull/43)（浏览器验收）← [#45](https://github.com/HWang0310/deep-talk-studio/pull/45)（对话 MVP）。
+## Agent 最短阅读
+远端当前状态 → [AGENTS.md](AGENTS.md) → 本索引 → 按需 [docs/INDEX.md](docs/INDEX.md) 的 canonical Skill/合同、实现和测试。只有涉及正式产品能力与版本时深入 [PROJECT_STATE.md](PROJECT_STATE.md)。GitHub 最新事实优先，遇到冲突向 Nexus 报告。
 
-这 **6 个 OPEN PR 是堆叠依赖，不是 6 条独立开发主线**。合并/改 base/关闭/删除分支必须先复核 exact SHA、diff 与合同，不因瘦身而批量清理。已经合入的 [#25](https://github.com/HWang0310/deep-talk-studio/pull/25)、[#27](https://github.com/HWang0310/deep-talk-studio/pull/27)、[#31](https://github.com/HWang0310/deep-talk-studio/pull/31)、[#33](https://github.com/HWang0310/deep-talk-studio/pull/33) 是历史/已实现能力，不是当前待派工任务。
-
-## 恢复与派工最短步骤
-1. **先检查远端 PR #45 HEAD、最新评论和所有相关 PR 的真实状态。** 快照若过期，按远端新事实调整；不要重播旧 ChatGPT 会话。
-2. 阅读 `AGENTS.md` 的 roster、任务相关 Hard Boundary，以及本索引；根据 `docs/INDEX.md` **按需**读取具体合同/代码/测试。`PROJECT_STATE.md` 仅在要确认产品已验收能力/发布事实时深读。
-3. 阅读 `engineering-journal` 的现行 `AGENT-OPERATING-MODEL.md` 与 `BACKEND-CAPABILITY-CERTIFICATION.md` 以确认路由：工程师身份和 backend 分离，已退役 backend 不派工；不复制另一项目 roster。
-4. 当前只处理 PR #45 的 correction delta；不得自行启动 #28、V2、删除历史、付费 API 调用或合并。保留本地未提交文件、私有素材与凭据。
-
-**维护规则：** 本文件只记录活跃工作及其短期 next action。PR 合并、任务切换、Owner 优先级改变时由 Nexus 更新对应段落；长期事实在 `PROJECT_STATE.md`，完整历史在 `HANDOFF.md`/Git，不把本文件堆成流水账。
+**维护规则：** 只更新当前主线/下一步，已完成历史保存在 GitHub PR、CHANGELOG 与 HANDOFF；保持本文件简洁。
