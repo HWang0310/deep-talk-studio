@@ -166,3 +166,79 @@ Playwright 网络请求顺序实测：
 - 8322 演示回复由本地夹具生成（诚实标注「非真实模型」），不代表真实 DeepSeek 质量；真实质量仍为 `WAITING_FOR_OWNER_API_KEY`，等 Owner 填 Key 自测。
 - 旧 canonical 阶段工作流对既有会话仍可达（如 8321 上的历史会话），不再是聊天首页入口；门禁代码与 HTTP 端点全部保留不变。
 - 截图 19–22；聊天验收在全新干净聊天会话上执行（`.temp/issue44-demo-root/workbench/chat` 验收前清空）。
+
+## Nexus B1–B4 修复轮（2026-10-23，MVP delta review #5626927896）
+
+环境：8322 隔离夹具（`.temp/issue44-demo-root`：旭日旗 canonical 会话 B 与图书馆聊天 A 共存——B1 的天然测试床）；8931 流式 mock 放慢至 0.5s/块保证停止操作窗口；服务重启加载本轮新代码（creative_chat 锁 / webui 单飞 / index.html B1+B3）。
+
+### B1：默认聊天首页不混入旧集工作流（TreeWalker 文本节点级验证）
+
+~~~json
+{
+  "stageBarVisible": false,
+  "visibleSections": [],
+  "legacyEntryExists": true,
+  "legacyEntryHidden": false,
+  "legacyEntryOpen": false,
+  "legacyTopicText": "本集：莫斯科大学留学生旭日旗事件",
+  "chatCardVisible": true,
+  "chatTurns": 9,
+  "leakCount": 0
+}
+~~~
+
+`leakCount=0`：全文档 TreeWalker 遍历所有可见文本节点，旧集关键词（莫斯科大学/旭日旗/授权/BV1hi）在折叠入口之外零出现（一次祖先容器误报已用文本节点级检查排除）。展开 `<details>`（toggle 事件）→ `stageBarVisible: true`、`sessionTopic: 本集：莫斯科大学留学生旭日旗事件`、`stage-references` 渲染（截图 23）；收起 → stageBar 与全部 stage 重新隐藏。
+
+### B3：停止 → 重发（实测请求/存储/调用三重验证）
+
+发送「停止测试：这条消息会被中途停止然后重发」→ 流式中（streaming 气泡 ×1、停止按钮可见）点「停止」：
+
+~~~json
+{
+  "after_stop": {
+    "total": 12, "roles": "uauauuauau",
+    "streamingLeft": 0,
+    "status": "已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单。可点「重发上一条」。",
+    "retryVisible": true, "stopVisible": false, "lastIsUser": true
+  },
+  "after_retry": {
+    "total": 13, "roles": "uauauuauaua",
+    "status": "回复完成，已保存到本机。",
+    "retryVisible": false
+  }
+}
+~~~
+
+- 停止态：半截 streaming 气泡已从 UI 清除；计费诚实文案（不再有「不会继续计费」）；重发按钮可见（截图 24）。
+- 重发：12→13 只增加 1 条 assistant 气泡，**零新增 user 气泡**；`/api/workbench/state` 存储：该 user 消息仅一条（`t12`），一问一答（13 turns）；done 后重发按钮正确隐藏。
+- 8931 mock 调用日志（重启后）：`stream=False`（健康检查）+ `stream=True` ×2（首次 + 重发）——**恰两次显式流式调用，零隐藏第三次**。
+
+### B4：草稿来源标注重载保留
+
+对话后生成新草稿 v4 → `/api/workbench/state`（磁盘重载视角）：
+
+~~~json
+[
+  {"revision": 1, "origin": "model", "provider_kind": "<<MISSING>>"},
+  {"revision": 2, "origin": "user_edit", "provider_kind": "<<MISSING>>"},
+  {"revision": 3, "origin": "user_edit", "provider_kind": "<<MISSING>>"},
+  {"revision": 4, "origin": "model", "provider_kind": "fixture"}
+]
+~~~
+
+v4（新代码生成）`provider_kind="fixture"` 持久化保留；v1–v3 为修复前历史数据、无该字段属预期（不做迁移）。UI meta 显示「v4 · 模型整理 · 状态：未审核 · 本地夹具回复（非真实模型）」（截图 21）。
+
+### B2：并发防护（pytest 覆盖 + HTTP 单飞实测）
+
+- flow 级：交错完成（B 先 A 后）→ 4 turns 顺序完整 `["user","user","assistant","assistant"]`；流式中并发 `chat_draft_save` → 两个 draft revisions 均保留。
+- HTTP 级：20 段慢流进行中第二条发送 → 400「上一条回复还在进行中，请先停止或等待完成后再发送」，第一条流照常完成、恰一次模型调用。
+- 本轮取证勘误：8322 验收前曾因批量编辑误删 webui 服务器 `__init__` 的 `output_dir`/`provider_factory`/`discovery_lock`/`workbench_lock` 四行导致 12 个既有测试 500（`discovery run failed: provider/IO` 兜底掩盖 AttributeError），focused 全量复跑发现并已恢复；修复后 135/135。
+
+### 本轮截图
+
+- screenshots/19-desktop-chat-first-home.png（全页重拍：hero + 13 turns 聊天 + 折叠入口「本集：莫斯科大学留学生旭日旗事件」+ v4 草稿；零阶段标签/候选/授权表单）
+- screenshots/20-desktop-chat-streaming.png（重拍：流式中 + 诚实夹具标注）
+- screenshots/21-desktop-draft-revisions.png（重拍：v1–v4 版本链 + 「本地夹具回复（非真实模型）」来源标注）
+- screenshots/22-mobile-375-chat.png（重拍：375px 全页，折叠入口/版本按钮无截断无溢出）
+- screenshots/23-desktop-legacy-entry-expanded.png（新增：B1 展开态——旧集 stages 只在显式展开后渲染）
+- screenshots/24-desktop-chat-stopped-retry.png（新增：B3 停止态——计费诚实文案 + 重发按钮可见）

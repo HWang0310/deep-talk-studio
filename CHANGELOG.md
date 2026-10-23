@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — 2026-10-23 — Issue #44 — Nexus B1–B4 阻断修复（Chat-first MVP delta review #5626927896）
+
+- **B1 旧集工作流与聊天首页明确分离**：hero 永远是首页主体；即使存在历史 canonical 会话，其 stage-bar/参考/授权表单/候选也默认隐藏，只在新增的 `<details id="legacy-workbench-entry">` 折叠入口（「查看既有正式工作流（与聊天相互独立）· 本集：<主题>」）显式展开时才渲染；无会话/新一集模式下折叠入口同样隐藏；legacy sessions 一律保留不删除。8322 隔离夹具（旭日旗旧集 + 图书馆聊天共存）浏览器验证：默认态文本节点级零泄漏（leakCount=0），展开渲染/收起隐藏双向正确。
+- **B2 陈旧快照写入防护（数据不丢）**：`CreativeChatStore` 全部跨请求持久化改为存储锁内 re-load 最新会话后追加（`start_user_turn`/`retry_user_turn`/`append_assistant_turn`/`append_draft_latest`/`latest_session_id`），绝不把内存旧快照整体写回；webui 层增加同会话单飞（`chat_in_flight`，重叠发送 400「上一条回复还在进行中」，finally 释放），等待模型期间不持有任何全局锁。交错场景（A、B 两个流式以任意顺序完成）与「流式中并发草稿编辑」均验证零丢失。
+- **B3 重发幂等 + 计费诚实**：停止后的「重发上一条」携带服务器持久化的 `retry_turn_id`，后端 `retry_user_turn` 验证目标仍是「最后一条且无回复」的 user turn 后原样复用，绝不追加重复用户消息（前端也不再本地重复渲染 user 气泡，并清除停止遗留的半截 streaming 气泡）；已有回复/ID 不匹配一律拒绝且零模型调用。停止文案改为诚实表述「已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单。」（`llm.py` 注释同步），删除不可能的「不会继续计费」承诺；重发按钮只在「上一条未完成」（停止/失败/中断）时出现。8322 实测停止→重发：12→13 只增加 assistant 气泡、存储中该 user 消息仅一条、mock 调用恰两次显式流式零隐藏。
+- **B4 草稿来源标注持久化**：`provider_kind` 在 `append_draft` 的 revision JSON 内原子持久化（此前只在内存 `draft["provider_kind"]` 赋值、重载即丢）；8322 新生成 v4 重载后 `provider_kind="fixture"` 保留，历史草稿不做迁移。
+- **修复本轮引入的回归**：webui 服务器 `__init__` 曾被批量编辑误删 `output_dir`/`provider_factory`/`discovery_lock`/`workbench_lock` 四行导致 discover/workbench 路由 500，已恢复并保持 B2 单飞字段；静态断言中旧停止文案同步更新为新契约。
+- 测试：新增 flow 级 5 项（交错完成零丢失/流式中并发草稿编辑不覆盖/停止后幂等重发无重复/已回复或未知 ID 拒绝/草稿 provider_kind 重载保留）+ HTTP 级 2 项（在飞流单飞 400/断开后带 retry_turn_id 重发一问一答）+ B1 静态断言 1 项；focused 135 passed；全量见对应轮记录；8322 真实 Chromium 浏览器验收（B1 默认/展开/收起、B3 停止/重发、B4 新草稿重载、375px）；截图 19–22 按当前行为重拍，新增 23（legacy 展开）/24（停止计费诚实）。零付费调用、无 Owner Key、不自行合并。
+
 ## Unreleased — 2026-10-23 — Issue #44 — Chat-first Creative Draft MVP（Owner 批准 Option A, issuecomment-6361415259）
 
 - P0 设置加固（先行落地）：`provider_mode=deepseek` 服务端无条件锁定官方端点/模型，丢弃残留 custom 值（显式提交旧端点同样被覆盖），新粘贴 Key 绝不路由到旧自定义端点；前端切换无条件重置隐藏字段；「测试连接」在飞防抖（连点仅一对请求）；官方文档确认 `deepseek-flash` + `stream:true` SSE。

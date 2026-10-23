@@ -402,17 +402,20 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return None, (500, {"error": f"这一步执行失败：{type(exc).__name__}：{str(exc)[:300]}"})
 
     def _handle_chat_stream(self, flow, payload: Dict[str, object]) -> None:
-        """真实流式聊天：SSE 增量转发，用户停止/断开即中止上游请求。
+        """真实流式聊天：SSE 增量转发；停止/断开尝试中断上游请求。
 
         - 发送前先校验并持久化用户消息（失败返回 400 JSON）；
-        - 助手回复只在流完成后写入，停止/断开不写半截回复；
-        - 重试永远是用户显式动作，不自动重复计费调用。
+        - 同一会话同时只允许一个在飞流（B2 单飞），重叠发送返回 400；
+        - 助手回复只在流完成后原子写入最新会话；停止/断开不写半截回复；
+        - 计费诚实（B3）：停止尽力中断上游请求，但不承诺已产生费用
+          不计入账单；重试永远是用户显式幂等动作。
         """
 
         try:
             context = flow.chat_send_start(
                 str(payload.get("message", "")),
                 payload.get("links", []) or [],
+                retry_turn_id=str(payload.get("retry_turn_id", "") or ""),
             )
         except WorkbenchFlowError as exc:
             body = {"error": str(exc)}
@@ -425,6 +428,15 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         except Exception as exc:  # never kill the local server
             _send_json(self, 500, {"error": f"发送失败：{type(exc).__name__}，请重试"})
             return
+        server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment]
+        flight_key = str(context["session"].get("session_id", ""))
+        with server.chat_flight_lock:
+            if flight_key in server.chat_in_flight:
+                _send_json(self, 400, {
+                    "error": "上一条回复还在进行中，请先停止或等待完成后再发送",
+                })
+                return
+            server.chat_in_flight.add(flight_key)
         try:
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -453,13 +465,17 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             except WorkbenchFlowError as exc:
                 send_event({"type": "error", "error": str(exc)})
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-                # 用户停止或浏览器断开：中止上游请求，不写助手回复
+                # 用户停止或浏览器断开：尝试中断上游请求，不写助手回复
                 events.close()
                 return
             except Exception as exc:  # never kill the local server mid-stream
                 send_event({"type": "error", "error": f"流式输出中断：{type(exc).__name__}，请重试"})
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             return
+        finally:
+            # B2 单飞：任何退出路径都释放，会话可继续发送
+            with server.chat_flight_lock:
+                server.chat_in_flight.discard(flight_key)
 
     def _handle_workbench_get_state(self) -> None:
         flow = self._workbench_flow()
@@ -868,6 +884,10 @@ class _DeepTalkWebUIServer(ThreadingHTTPServer):
         self.discovery_lock = threading.Lock()
         self.workbench_lock = threading.Lock()
         self.flow = flow
+        # Nexus B2：同一聊天会话同时只允许一个在飞流（单飞），
+        # 重叠发送返回 400，避免并发流互相竞争与隐藏重复计费。
+        self.chat_in_flight = set()
+        self.chat_flight_lock = threading.Lock()
 
 
 def _default_repo_root() -> Path:

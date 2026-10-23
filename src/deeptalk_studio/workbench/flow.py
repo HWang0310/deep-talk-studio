@@ -496,7 +496,13 @@ class WorkbenchFlow:
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
 
-    def chat_send_start(self, message: str, links: Sequence[Mapping[str, Any]] = ()) -> Dict[str, Any]:
+    def chat_send_start(
+        self,
+        message: str,
+        links: Sequence[Mapping[str, Any]] = (),
+        *,
+        retry_turn_id: str = "",
+    ) -> Dict[str, Any]:
         """Validate + persist the user's turn before any streaming starts.
 
         Raises a typed flow error (400 JSON) when the model is not
@@ -505,11 +511,13 @@ class WorkbenchFlow:
         keeps an honest record, while the assistant reply is only written
         after the stream completes (no partial turns masquerading as
         full replies, no duplicate model call on reconnect).
+
+        B3（Nexus review 5626927896）：显式重试走幂等路径 —— 复用既有
+        未回复的 user turn（retry_turn_id），绝不追加重复的用户消息；
+        只有新建发送才写入新 turn。两者都在存储锁内 re-load 最新会话，
+        避免并发/重叠请求用陈旧快照覆盖数据（B2）。
         """
 
-        text = str(message or "").strip()
-        if not text:
-            raise WorkbenchFlowError("消息内容不能为空")
         settings = load_settings(self.repo_root)
         if not is_configured(settings):
             raise WorkbenchFlowError(
@@ -520,18 +528,25 @@ class WorkbenchFlow:
                 },
             )
         try:
-            session = self.creative.load_latest() or self.creative.new_session()
-            user_turn = self.creative.append_turn(
-                session,
-                "user",
-                text,
-                links=[{"url": str(item.get("url", ""))} for item in links if item.get("url")],
-            )
+            if retry_turn_id:
+                # 幂等重试：目标必须是当前最后一条、且尚无回复的 user turn
+                session_id = self.creative.latest_session_id()
+                if not session_id:
+                    raise WorkbenchFlowError("还没有可重试的消息，请直接发送")
+                opened = self.creative.retry_user_turn(session_id, str(retry_turn_id))
+            else:
+                text = str(message or "").strip()
+                if not text:
+                    raise WorkbenchFlowError("消息内容不能为空")
+                opened = self.creative.start_user_turn(
+                    text,
+                    links=[{"url": str(item.get("url", ""))} for item in links if item.get("url")],
+                )
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
         return {
-            "session": session,
-            "user_turn": user_turn,
+            "session": opened["session"],
+            "user_turn": opened["turn"],
             "settings": settings,
             # 诚实标注：注入的夹具 provider 或 loopback 端点都算本地夹具，
             # 绝不冒充真实模型连接（与设置页测试连接的判定一致）。
@@ -556,11 +571,17 @@ class WorkbenchFlow:
         Yields ``{"type": "delta", "text": …}`` events; the completed
         assistant turn is appended (``{"type": "done", …}``) only after the
         upstream stream finishes.  Closing the generator (user stop /
-        browser disconnect) aborts the upstream request and writes no
-        assistant turn — retry is always an explicit user action.
+        browser disconnect) tries to abort the upstream request and writes
+        no assistant turn — retry is always an explicit user action.
+
+        计费诚实（B3）：停止会尽力中断上游请求，但**不承诺取消已产生的
+        费用** —— 已消耗的 tokens 仍可能计入账单，UI 文案与此一致。
+        完成时的 assistant turn 在存储锁内 re-load 最新会话后追加（B2：
+        并发请求/流式中草稿编辑不会互相覆盖）。
         """
 
         session = context["session"]
+        session_id = str(session.get("session_id", ""))
         settings = context["settings"]
         messages = [{"role": "system", "content": self.CHAT_SYSTEM_PROMPT}]
         for turn in session.get("turns", []):
@@ -582,9 +603,10 @@ class WorkbenchFlow:
                 "模型服务返回了空内容，请重试", payload={"status": "empty_response"}
             )
         try:
-            assistant_turn = self.creative.append_turn(
-                session,
-                "assistant",
+            # B2：完成后在锁内 re-load 最新会话再追加，避免覆盖并发期间
+            # 其他请求（另一个流式/草稿编辑）已保存的 turns/drafts。
+            assistant_turn = self.creative.append_assistant_turn(
+                session_id,
                 accumulated,
                 model=str(settings.get("model", "")),
                 provider_mode=str(settings.get("provider_mode", "")),
@@ -592,7 +614,11 @@ class WorkbenchFlow:
             )
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
-        yield {"type": "done", "turn": assistant_turn, "chat": CreativeChatStore.view(session)}
+        try:
+            fresh = self.creative.load(session_id)
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        yield {"type": "done", "turn": assistant_turn, "chat": CreativeChatStore.view(fresh)}
 
     def chat_draft_generate(self) -> Dict[str, Any]:
         """Explicit user action: turn the conversation into a Creative Draft.
@@ -638,17 +664,23 @@ class WorkbenchFlow:
                 origin_turn_id = str(turn.get("turn_id", ""))
                 break
         try:
-            draft = self.creative.append_draft(
-                session,
+            # B2：锁内 re-load 最新会话后追加 revision（流式进行中的其他
+            # 保存不会被覆盖）；B4：provider_kind 在 revision 内持久化。
+            draft = self.creative.append_draft_latest(
+                str(session.get("session_id", "")),
                 accumulated,
                 origin="model",
                 origin_turn_id=origin_turn_id,
                 model=str(settings.get("model", "")),
+                provider_kind=self._chat_provider_kind(settings),
             )
-            draft["provider_kind"] = self._chat_provider_kind(settings)
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
-        return {"draft": draft, "chat": CreativeChatStore.view(session)}
+        try:
+            fresh = self.creative.load(str(session.get("session_id", "")))
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        return {"draft": draft, "chat": CreativeChatStore.view(fresh)}
 
     def chat_draft_save(self, content: str) -> Dict[str, Any]:
         """Persist the creator's free edit as a new immutable draft revision."""
@@ -663,10 +695,17 @@ class WorkbenchFlow:
         if not session or not session.get("drafts"):
             raise WorkbenchFlowError("还没有草稿，请先在对话后生成草稿")
         try:
-            draft = self.creative.append_draft(session, text, origin="user_edit")
+            # B2：锁内 re-load 最新会话后追加（不再用调用方的旧快照）
+            draft = self.creative.append_draft_latest(
+                str(session.get("session_id", "")), text, origin="user_edit"
+            )
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
-        return {"draft": draft, "chat": CreativeChatStore.view(session)}
+        try:
+            fresh = self.creative.load(str(session.get("session_id", "")))
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        return {"draft": draft, "chat": CreativeChatStore.view(fresh)}
 
     # -- session -------------------------------------------------------------
 

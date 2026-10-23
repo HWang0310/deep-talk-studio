@@ -1,6 +1,6 @@
 # Issue #44 / PR #45 — 极简创作页与独立模型设置页
 
-> **状态：READY_FOR_NEXUS_MVP_REVIEW（第四轮：Chat-first Creative Draft MVP）。** 本分支保留 PR #45 的工作流和后端门禁，完成参考截图导向的首页 / 设置页重设计与 Nexus Review B1/B2/B3 修复；第二轮按 Owner 六点要求完成「DeepSeek 默认只需填 API Key」的设置体验；第三轮修复 paste→Test 旅程；第四轮按 Owner 批准的 Option A 实现 Chat-first Creative Draft MVP（真实流式、多轮恢复、可编辑草稿；正式审核与生产门禁保持不变）。PR 保持打开，未合并。
+> **状态：READY_FOR_NEXUS_MVP_REREVIEW（第五轮：Nexus B1–B4 阻断修复）。** 本分支保留 PR #45 的工作流和后端门禁，完成参考截图导向的首页 / 设置页重设计与 Nexus Review B1/B2/B3 修复；第二轮按 Owner 六点要求完成「DeepSeek 默认只需填 API Key」的设置体验；第三轮修复 paste→Test 旅程；第四轮按 Owner 批准的 Option A 实现 Chat-first Creative Draft MVP；第五轮按 Nexus MVP Review #5626927896 修复 B1（旧集工作流与聊天首页明确分离）、B2（陈旧快照写入防护）、B3（重发幂等 + 计费诚实）、B4（草稿来源标注持久化）。PR 保持打开，未合并。
 
 ## 视觉与交互交付
 
@@ -20,6 +20,27 @@
 - **视觉打磨（评审反馈逐项落地）**：未配置徽章改琥珀警示色；徽章提示与自动配置说明去重；说明行括号内只保留模型名；按钮行重排为「取消 / 测试连接 / 清除 API Key 靠左，保存设置靠右」；状态文字与保存按钮间距加大；连接状态行 `word-break: keep-all` 防止「模型」等中文标签被拆到两行。
 - **占位符窄屏自适应**：Key 占位符桌面为「粘贴你的 DeepSeek API Key」；窄屏放不下时（canvas 实测完整版 190px > 输入框内宽 168px）自动降级为「粘贴你的 API Key」，避免占位符被截断，窗口 resize 时双向切换。
 - **配置隔离**：真实仓库 `config/workbench.local.json` 保持 DeepSeek 官方默认（无 Key）；mock / 本地端点配置只存在于 8322 隔离演示环境的独立根目录。
+
+### 第五轮：Nexus B1–B4 阻断修复（MVP delta review #5626927896）
+
+**B1 旧集工作流与聊天首页明确分离（P0）**：
+- hero 永远是首页主体；存在历史 canonical 会话时，其 stage-bar/参考/授权表单/候选默认隐藏，只显示 `<details id="legacy-workbench-entry">` 折叠入口（「查看既有正式工作流（与聊天相互独立）· 本集：<主题>」）。
+- 折叠入口显式展开才渲染旧集 stages（toggle 监听），收起即彻底隐藏；无会话/新一集模式下折叠入口也隐藏；legacy sessions 一律保留不删除。
+- 8322 隔离夹具（旭日旗旧集 + 图书馆聊天共存）浏览器验证：默认态文本节点级零泄漏（TreeWalker 实测 leakCount=0），展开渲染 / 收起隐藏双向正确。
+
+**B2 陈旧快照写入防护（P0）**：
+- `CreativeChatStore` 全部跨请求持久化改为存储锁内 re-load 最新会话后追加（`start_user_turn` / `retry_user_turn` / `append_assistant_turn` / `append_draft_latest` / `latest_session_id`），绝不把内存旧快照整体写回。
+- webui 层同会话单飞（`chat_in_flight` + `chat_flight_lock`）：重叠发送返回 400「上一条回复还在进行中，请先停止或等待完成后再发送」，任何退出路径 finally 释放；等待模型期间不持有全局锁。
+- 交错场景（A、B 两个流式任意顺序完成）与「流式中并发草稿编辑」均验证零丢失。
+
+**B3 重发幂等 + 计费诚实（P1）**：
+- 停止后「重发上一条」携带服务器持久化的 `retry_turn_id`；后端验证目标仍是「最后一条且无回复」的 user turn 后原样复用，绝不追加重复用户消息；前端不再本地重复渲染 user 气泡，并清除停止遗留的半截 streaming 气泡。
+- 已有回复 / ID 不匹配一律拒绝且零模型调用；重发按钮只在「上一条未完成」（停止/失败/中断）时出现（`updateRetryBtn`）。
+- 停止文案改为诚实表述「已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单。」（`llm.py` 注释同步），删除不可能的「不会继续计费」承诺。
+- 8322 实测停止→重发：消息数 12→13 只增加 assistant 气泡、存储中该 user 消息仅一条（t12）、mock 调用恰两次显式流式零隐藏。
+
+**B4 草稿来源标注持久化（P1）**：
+- `provider_kind` 在 `append_draft` 的 revision JSON 内原子持久化（此前只在内存 `draft["provider_kind"]` 赋值、重载即丢）；8322 新生成 v4 重载后 `provider_kind="fixture"` 保留；历史草稿不做迁移。
 
 ### 第四轮：Chat-first Creative Draft MVP（Owner 批准 Option A，issuecomment-6361415259）
 
@@ -113,14 +134,20 @@
 | 375px 手机聊天页 | 通过；无横向溢出，composer/对话/草稿均可用 | [22-mobile-375-chat.png](screenshots/22-mobile-375-chat.png) |
 | 已输入 vs 已持久化 | 通过；粘贴 Key 后徽章「已输入未保存」，不再误导显示「未配置」 | [17-desktop-settings-typed-key-unsaved.png](screenshots/17-desktop-settings-typed-key-unsaved.png) |
 | 粘贴 Key 直接「测试连接」 | 通过；先自动保存再测试（请求顺序实测），夹具诚实标注，掩码持久化 | [18-desktop-settings-paste-key-direct-test.png](screenshots/18-desktop-settings-paste-key-direct-test.png) |
+| B1 默认态：聊天首页不混入旧集工作流 | 通过；折叠入口显示旧集主题，stage-bar/候选/授权表单全隐藏（文本节点级 leakCount=0） | [19-desktop-chat-first-home.png](screenshots/19-desktop-chat-first-home.png) |
+| B1 展开态：旧集工作流只在显式展开后渲染 | 通过；展开后 stage-bar/主题行/阶段渲染，收起即隐藏 | [23-desktop-legacy-entry-expanded.png](screenshots/23-desktop-legacy-entry-expanded.png) |
+| B3 停止态：计费诚实文案 | 通过；「已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单」，半截气泡已清除，重发按钮可见 | [24-desktop-chat-stopped-retry.png](screenshots/24-desktop-chat-stopped-retry.png) |
+| B3 重发后：零重复 user 消息 | 通过；12→13 只增加 assistant 气泡，存储中 user 消息仅一条，mock 恰两次显式流式调用 | [20-desktop-chat-streaming.png](screenshots/20-desktop-chat-streaming.png) |
+| B4 草稿来源标注重载保留 | 通过；新草稿 v4 重载后 provider_kind=fixture 仍在（21 内可见「本地夹具回复（非真实模型）」） | [21-desktop-draft-revisions.png](screenshots/21-desktop-draft-revisions.png) |
+| 375px 手机聊天页（B1 后重拍） | 通过；无横向溢出，折叠入口/草稿版本按钮完整显示 | [22-mobile-375-chat.png](screenshots/22-mobile-375-chat.png) |
 
 完整的 B1/B2 断言、设置体验流与浏览器输出见 [browser-evidence.md](browser-evidence.md)。
 
 ## 测试结果
 
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **127 passed**（新增：聊天/草稿 7 项 flow 测试、SSE HTTP 3 项、Chat-first 静态断言、P0 三项）
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1107 passed, 7 skipped**
-- 内联 JavaScript：'node --check /tmp/deeptalk-webui.js' → **通过**
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **135 passed**（第五轮新增：B2 交错/并发 2 项、B3 幂等重发/拒绝 2 项、B4 持久化 1 项 flow 测试，B1 静态断言 + B2 单飞 400 + B3 retry_turn_id HTTP 3 项；前四轮累计 127 项保持全过）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1115 passed, 7 skipped**（第五轮全量，退出码 0）
+- 内联 JavaScript：'node --check'（提取 `<script>` 块）→ **通过**
 - 'git diff --check' → **通过**
 - 未修改无关后端、模型门禁、SSRF 防护或生产工作流；未提交本地密钥、模型输出、缓存或临时会话。
 

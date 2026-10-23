@@ -251,7 +251,14 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("getReader()", body)
         self.assertIn("AbortController", body)
         self.assertIn("renderChat(state.chat", body)
-        self.assertIn("未完成的回复不会保存", body)
+        # B3（Nexus 5626927896）计费诚实：停止 = 停止显示 + 尽力中断请求，
+        # 绝不承诺「不再计费」——已产生的费用可能仍会计入账单。
+        self.assertIn("已停止显示并尝试中断模型请求", body)
+        self.assertIn("已产生的费用可能仍会计入账单", body)
+        self.assertNotIn("不会继续计费", body)
+        # B3 幂等重试：按服务器持久化的 turn id 复用，不复制用户消息
+        self.assertIn("retry_turn_id", body)
+        self.assertIn("function updateRetryBtn", body)
         self.assertIn("stage-nav", body)
         self.assertIn("高级设置", body)
         self.assertIn("下载位置", body)
@@ -289,6 +296,24 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("function cancelNewEpisode", body)
         self.assertIn("stageBar.hidden = true", body)
         self.assertIn("STAGES.forEach(function (id) { document.getElementById(id).hidden = true; })", body)
+
+    def test_legacy_workbench_is_collapsed_entry_never_inline_with_chat(self):
+        """Nexus B1 (5626927896)：旧集正式工作流默认折叠、与聊天首页明确
+        分离 —— stage-bar/表单/候选绝不混进聊天下方，只有显式展开才渲染。"""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn('id="legacy-workbench-entry"', body)
+        self.assertIn("查看既有正式工作流", body)
+        self.assertIn("相互独立", body)
+        # 有会话但未展开：stage-bar 隐藏、折叠入口可见（含旧集主题）
+        self.assertIn("if (!legacyEntry.open)", body)
+        self.assertIn("legacyTopic.textContent = '本集：' + currentSession.topic", body)
+        # 展开监听：legacy stages 只在 <details> open 时才渲染进 stageBar
+        self.assertIn("legacyEntry.addEventListener('toggle'", body)
+        # 无会话 / 新一集模式：折叠入口也隐藏（没有旧集可看）
+        self.assertIn("legacyEntry.hidden = true", body)
+        # <details> 默认收起：绝不在聊天下方平铺旧集工作流
+        self.assertIn('<details id="legacy-workbench-entry" class="card legacy-entry" hidden>', body)
 
     def test_script_result_is_cleared_and_async_reload_is_session_bound(self):
         """Nexus B2: a reviewed manuscript from episode A cannot leak into
@@ -960,6 +985,98 @@ class ChatStreamHttpTests(LocalWebUITestCase):
             self.assertEqual(status, 200)
             chat = json.loads(body)["chat"]
             self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
+
+    def test_second_stream_while_first_in_flight_returns_400(self):
+        """Nexus B2：同一会话在飞流未结束前，第二条发送返回 400 JSON，
+        不并发、不隐藏第二次模型调用；第一条流照常完成。"""
+        import tempfile
+        import threading
+        import time
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            calls = []
+            # 20 段 × 0.05s ≈ 1s，保证第二条请求落在第一条流进行中
+            llm = self.StreamLLM([f"段{i}" for i in range(20)], calls)
+            self.start_server(flow=self._chat_flow(root, llm))
+            self._configure_deepseek(root)
+            result = {}
+
+            def first_stream():
+                result["status"], result["ctype"], result["events"] = self._sse_post(
+                    "/api/workbench/chat/stream", {"message": "第一条消息"}
+                )
+
+            thread = threading.Thread(target=first_stream, daemon=True)
+            thread.start()
+            time.sleep(0.15)  # 等第一条流注册 in-flight 并开始产出
+            status, _, body = self.post("/api/workbench/chat/stream", {
+                "message": "第二条消息",
+            })
+            self.assertEqual(status, 400)
+            self.assertIn("上一条回复还在进行中", json.loads(body)["error"])
+            thread.join(timeout=15)
+            self.assertEqual(result["status"], 200)
+            kinds = [e["type"] for e in result["events"]]
+            self.assertEqual(kinds[0], "start")
+            self.assertEqual(kinds[-1], "done")
+            # 只发生一次模型调用（重叠发送被拒，零隐藏计费）
+            self.assertEqual(len(calls), 1)
+
+    def test_http_retry_after_disconnect_reuses_turn_without_duplicate(self):
+        """Nexus B3：客户端停止后，带 retry_turn_id 的重发请求被幂等复用 ——
+        会话中只有一条 user turn；完成后一问一答，绝无重复消息。"""
+        import socket
+        import tempfile
+        import time
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            calls = []
+            llm = self.StreamLLM([f"慢段{i}" for i in range(20)], calls)
+            self.start_server(flow=self._chat_flow(root, llm))
+            self._configure_deepseek(root)
+            port = self.server.server_address[1]
+            payload = json.dumps({"message": "中途停止的消息"}).encode("utf-8")
+            request = (
+                b"POST /api/workbench/chat/stream HTTP/1.1\r\n"
+                + f"Host: 127.0.0.1:{port}\r\n".encode("utf-8")
+                + b"Content-Type: application/json\r\n"
+                + f"Content-Length: {len(payload)}\r\n\r\n".encode("utf-8")
+                + payload
+            )
+            # 1) 读到 start 事件（user turn 已持久化）后立即断开 = 用户停止
+            with socket.create_connection((DEFAULT_HOST, port), timeout=6) as sock:
+                sock.sendall(request)
+                sock.settimeout(4)
+                data = b""
+                while b'"type": "start"' not in data:
+                    chunk = sock.recv(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+            time.sleep(0.8)  # 等服务端感知断开、释放 in-flight
+            status, _, body = self._get_state()
+            chat = json.loads(body)["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
+            turn_id = chat["turns"][0]["turn_id"]
+            # 2) 带原 turn id 的显式重发 → 幂等复用，不追加重复 user turn
+            status, ctype, events = self._sse_post("/api/workbench/chat/stream", {
+                "message": "中途停止的消息",
+                "retry_turn_id": turn_id,
+            }, timeout=15)
+            self.assertEqual(status, 200)
+            self.assertEqual(events[0]["type"], "start")
+            self.assertEqual(events[0]["user_turn"]["turn_id"], turn_id)
+            self.assertEqual(events[-1]["type"], "done")
+            # 3) 最终会话一问一答，只有一条 user 消息
+            status, _, body = self._get_state()
+            chat = json.loads(body)["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user", "assistant"])
+            self.assertEqual([t["content"] for t in chat["turns"]],
+                             ["中途停止的消息", "".join(f"慢段{i}" for i in range(20))])
+            # 两次模型调用均为显式动作（首次 + 重发），无隐藏第三次
+            self.assertEqual(len(calls), 2)
 
 
 if __name__ == "__main__":

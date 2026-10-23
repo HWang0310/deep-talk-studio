@@ -17,6 +17,7 @@ Script contract:
 import json
 import os
 import tempfile
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -38,11 +39,17 @@ class CreativeChatError(RuntimeError):
 
 
 class CreativeChatStore:
-    """Append-only local storage for one chat session and its drafts."""
+    """Append-only local storage for one chat session and its drafts.
+
+    所有变更都在内部锁内 **重新加载最新会话** 后追加再保存
+    （load-modify-save 原子化），保证并发/重叠请求（两个标签页、
+    流式中途草稿编辑）不会用陈旧快照覆盖对方的 turns/drafts。
+    """
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
         self.directory = self.root / "workbench" / "chat"
+        self._lock = threading.RLock()
 
     # -- paths ----------------------------------------------------------
 
@@ -117,7 +124,118 @@ class CreativeChatStore:
         session["updated_at"] = _now()
         self.save(session)
 
+    # -- 并发安全（Nexus B2）：锁内 re-load latest + append + save --------
+    # 所有跨请求的持久化变更都走这里：绝不把内存里的旧快照整体写回，
+    # 否则重叠请求（A 流式完成覆盖 B 已保存的 turn/draft）会永久丢数据。
+
+    def start_user_turn(
+        self,
+        message: str,
+        links: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Atomically open (or reuse) the latest session and append a user turn."""
+
+        with self._lock:
+            session = self.load_latest()
+            if session is None:
+                session = self.new_session()
+            turn = self.append_turn(session, "user", message, links=links)
+            return {"session": session, "turn": turn}
+
+    def retry_user_turn(self, session_id: str, turn_id: str) -> Dict[str, Any]:
+        """Idempotently reuse an existing pending user turn for an explicit retry.
+
+        The turn must still be the latest turn and have no assistant reply;
+        retry never appends a duplicate user turn into the conversation.
+        """
+
+        with self._lock:
+            session = self.load(session_id)
+            if session is None:
+                raise CreativeChatError("聊天会话不存在，请重新发送")
+            turns = session.get("turns", [])
+            last = turns[-1] if turns else None
+            if (
+                not last
+                or last.get("turn_id") != turn_id
+                or last.get("role") != "user"
+            ):
+                raise CreativeChatError("上一条消息状态已变化，请直接重新发送")
+            return {"session": session, "turn": last}
+
+    def append_assistant_turn(
+        self,
+        session_id: str,
+        content: str,
+        *,
+        model: str = "",
+        provider_mode: str = "",
+        provider_kind: str = "",
+    ) -> Dict[str, Any]:
+        """Atomically append the completed assistant turn to the LATEST session."""
+
+        with self._lock:
+            session = self.load(session_id)
+            if session is None:
+                raise CreativeChatError("聊天会话不存在，无法保存回复")
+            return self.append_turn(
+                session,
+                "assistant",
+                content,
+                model=model,
+                provider_mode=provider_mode,
+                provider_kind=provider_kind,
+            )
+
+    def append_draft_latest(
+        self,
+        session_id: str,
+        content: str,
+        *,
+        origin: str,
+        origin_turn_id: str = "",
+        model: str = "",
+        provider_kind: str = "",
+    ) -> Dict[str, Any]:
+        """Atomically append a draft revision to the LATEST session."""
+
+        with self._lock:
+            session = self.load(session_id)
+            if session is None:
+                raise CreativeChatError("聊天会话不存在，无法保存草稿")
+            return self.append_draft(
+                session,
+                content,
+                origin=origin,
+                origin_turn_id=origin_turn_id,
+                model=model,
+                provider_kind=provider_kind,
+            )
+
+    def latest_session_id(self) -> Optional[str]:
+        with self._lock:
+            session = self.load_latest()
+            return str(session.get("session_id", "")) if session else None
+
     def append_turn(
+        self,
+        session: Dict[str, Any],
+        role: str,
+        content: str,
+        *,
+        links: Optional[List[Dict[str, Any]]] = None,
+        model: str = "",
+        provider_mode: str = "",
+        provider_kind: str = "",
+    ) -> Dict[str, Any]:
+        with self._lock:
+            return self._append_turn_locked(
+                session, role, content,
+                links=links, model=model,
+                provider_mode=provider_mode, provider_kind=provider_kind,
+            )
+
+    def _append_turn_locked(
         self,
         session: Dict[str, Any],
         role: str,
@@ -166,6 +284,24 @@ class CreativeChatStore:
         origin: str,
         origin_turn_id: str = "",
         model: str = "",
+        provider_kind: str = "",
+    ) -> Dict[str, Any]:
+        with self._lock:
+            return self._append_draft_locked(
+                session, content, origin=origin,
+                origin_turn_id=origin_turn_id, model=model,
+                provider_kind=provider_kind,
+            )
+
+    def _append_draft_locked(
+        self,
+        session: Dict[str, Any],
+        content: str,
+        *,
+        origin: str,
+        origin_turn_id: str = "",
+        model: str = "",
+        provider_kind: str = "",
     ) -> Dict[str, Any]:
         if origin not in {"model", "user_edit"}:
             raise CreativeChatError("草稿来源无效")
@@ -184,6 +320,9 @@ class CreativeChatStore:
             "origin": origin,
             "origin_turn_id": str(origin_turn_id or ""),
             "model": str(model or ""),
+            # B4：模型来源标注持久化在 revision 内，重载后不丢，
+            # 浏览器才能可靠区分本地夹具与真实模型。
+            "provider_kind": str(provider_kind or ""),
             # 创作草稿永远是未审核：区别于 canonical Reviewed Script，
             # 不携带任何 approved/reviewed/quality-Gate 字段。
             "status": "unreviewed",

@@ -311,6 +311,9 @@
   .draft-revisions button { min-height: 34px; padding: 5px 13px; font-size: 12.5px; }
   .draft-editor { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; font: inherit; line-height: 1.7; resize: vertical; }
   .gate-note { margin-top: 16px; padding: 12px 15px; border: 1px solid #e8ddd0; border-radius: 11px; background: #fbf6ee; color: #6b5d4b; font-size: 13px; line-height: 1.7; }
+  .legacy-entry { padding: 14px 18px; }
+  .legacy-entry summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+  .legacy-entry summary .muted { font-weight: 400; margin-left: 8px; }
   .prompt-hints { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
   .prompt-hints span { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); background: rgba(255,255,255,.45); font-size: 12px; }
   .hero-new-note { margin: 17px 0 0; color: var(--muted); font-size: 12px; }
@@ -585,6 +588,11 @@
       <div id="chat-thread" class="chat-thread" role="log" aria-live="polite"></div>
       <p id="chat-status" class="muted" role="status"></p>
     </section>
+
+    <details id="legacy-workbench-entry" class="card legacy-entry" hidden>
+      <summary>📂 查看既有正式工作流（与聊天相互独立）<span id="legacy-topic" class="muted"></span></summary>
+      <p class="muted">正式口播稿流程（视频参考 → 独立研究与事实核查 → 选题卡 → 审核成稿）与这里的自由聊天/草稿是两条独立路径，正式门禁保持不变；聊天内容不会混入正式工作流。</p>
+    </details>
 
     <section id="draft-card" class="card" hidden aria-labelledby="draft-title">
       <h2 id="draft-title">原创草稿（未审核）</h2>
@@ -1036,20 +1044,29 @@
       stageBar.hidden = true;
       STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
       heroNewNote.hidden = false;
+      legacyEntry.hidden = true;
       return;
     }
-    // Chat-first：hero 始终是首页主体，不再因为有正式会话而隐藏；
-    // 旧正式工作流（如有）仍在下方保留可达，门禁不变。
+    // Chat-first（Nexus B1）：hero 永远是首页主体；即使存在历史正式会话，
+    // 其 stage-bar/表单也**默认隐藏**，只显示一个明确分离的折叠入口，
+    // 避免旧集的参考视频/授权表单混进当前聊天首页。
     heroCard.hidden = false;
     if (!currentSession) {
       stageBar.hidden = true;
       heroNewNote.hidden = true;
       focusedStage = null;
       STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
+      legacyEntry.hidden = true;
       return;
     }
     heroNewNote.hidden = true;
-    stageBar.hidden = false;
+    legacyTopic.textContent = '本集：' + currentSession.topic;
+    if (!legacyEntry.open) {
+      stageBar.hidden = true;
+      STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
+      legacyEntry.hidden = false;
+      return;
+    }
     sessionTopic.textContent = '本集：' + currentSession.topic;
     renderReferences(currentSession);
     renderResearch(currentSession);
@@ -2209,7 +2226,39 @@
   var chatAbort = null;
   var lastUserMessage = '';
   var lastUserLinks = [];
+  var lastUserTurnId = '';
+  var lastSendIncomplete = false;
   var selectedDraftRevision = 0;
+  var legacyEntry = document.getElementById('legacy-workbench-entry');
+  var legacyTopic = document.getElementById('legacy-topic');
+
+  // B3（Nexus review 5626927896）：重试按钮只在「上一条发送未完成」
+  // （停止 / 失败 / 中断）时出现；已有完整回复的上一条不再是待重试
+  // 状态 —— 重发永远复用已保存的那条 user turn，不复制用户消息。
+  function updateRetryBtn() {
+    chatRetryBtn.hidden = !(lastUserMessage && !chatInFlight && lastSendIncomplete);
+  }
+
+  // B1：旧集正式工作流与聊天首页明确分离 —— 展开时才渲染其阶段内容，
+  // 收起时彻底隐藏，绝不把旧集的参考/表单混进当前聊天。
+  legacyEntry.addEventListener('toggle', function () {
+    if (!currentSession) { legacyEntry.open = false; return; }
+    if (legacyEntry.open) {
+      stageBar.hidden = false;
+      sessionTopic.textContent = '本集：' + currentSession.topic;
+      renderReferences(currentSession);
+      renderResearch(currentSession);
+      renderThesis(currentSession);
+      renderScript(currentSession);
+      renderAudioDelivery(currentSession);
+      renderStageTabs();
+      focusStage(focusedStage || stageForSession(currentSession), false);
+      stageBar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      stageBar.hidden = true;
+      STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
+    }
+  });
 
   function kindLabel(kind) {
     return kind === 'fixture' ? '本地夹具回复（非真实模型）' : '真实模型回复';
@@ -2290,17 +2339,17 @@
       chat.turns.forEach(function (turn) { appendChatTurnEl(turn, false); });
     }
     renderDrafts(chat);
-    chatRetryBtn.hidden = !(lastUserMessage && !chatInFlight);
+    updateRetryBtn();
   }
 
   function finishChatUi() {
     chatInFlight = false;
     searchBtn.disabled = false;
     chatStopBtn.hidden = true;
-    chatRetryBtn.hidden = !lastUserMessage;
+    updateRetryBtn();
   }
 
-  function sendChatMessage(message, links) {
+  function sendChatMessage(message, links, retryTurnId) {
     if (chatInFlight) { return; }
     clearRequestError();
     if (!message) {
@@ -2310,20 +2359,43 @@
     }
     lastUserMessage = message;
     lastUserLinks = links;
+    if (!retryTurnId) {
+      // 新消息开始：旧 turn id 不再适用，收到 start 事件后再记录新的
+      lastUserTurnId = '';
+    }
+    lastSendIncomplete = false;
     chatInFlight = true;
     searchBtn.disabled = true;
     chatStopBtn.hidden = false;
     chatRetryBtn.hidden = true;
-    chatStatusEl.textContent = '发送中…（调用你配置的模型服务）';
+    chatStatusEl.textContent = retryTurnId
+      ? '重发上一条…（复用已保存的消息，不会重复发送）'
+      : '发送中…（调用你配置的模型服务）';
     chatCard.hidden = false;
-    var userTurnEl = appendChatTurnEl({ role: 'user', content: message, links: links }, false);
-    userTurnEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    var userTurnEl = null;
+    if (!retryTurnId) {
+      // B3：只有新消息才本地显示用户气泡；幂等重试复用已保存的那条，
+      // 绝不再次 append 相同内容（Nexus review：retry 不得复制 user prompt）
+      userTurnEl = appendChatTurnEl({ role: 'user', content: message, links: links }, false);
+    } else {
+      // 清掉上次停止遗留的半截流式气泡，避免视觉残留误导
+      chatThread.querySelectorAll('.chat-msg.streaming').forEach(function (node) {
+        if (node.parentNode) { node.parentNode.removeChild(node); }
+      });
+    }
+    if (userTurnEl) {
+      userTurnEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    } else if (chatThread.lastElementChild) {
+      chatThread.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
     var assistantEl = null;
     chatAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var payload = { message: message, links: links };
+    if (retryTurnId) { payload.retry_turn_id = retryTurnId; }
     fetch('/api/workbench/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: message, links: links }),
+      body: JSON.stringify(payload),
       signal: chatAbort ? chatAbort.signal : undefined
     }).then(function (resp) {
       if (!resp.ok) {
@@ -2340,8 +2412,10 @@
         var event;
         try { event = JSON.parse(line.slice(5).trim()); } catch (err) { return; }
         if (event.type === 'start') {
-          if (userTurnEl && event.user_turn && event.user_turn.turn_id) {
-            userTurnEl.dataset.turnId = event.user_turn.turn_id;
+          if (event.user_turn && event.user_turn.turn_id) {
+            // B3：记录服务器持久化的 user turn id，停止后重试按 ID 幂等复用
+            lastUserTurnId = event.user_turn.turn_id;
+            if (userTurnEl) { userTurnEl.dataset.turnId = event.user_turn.turn_id; }
           }
           chatStatusEl.textContent = kindLabel(event.provider_kind) + ' 流式输出中…';
         } else if (event.type === 'delta') {
@@ -2351,8 +2425,10 @@
           assistantEl.firstChild.textContent += event.text;
           assistantEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
         } else if (event.type === 'done') {
+          lastSendIncomplete = false;
           chatStatusEl.textContent = '回复完成，已保存到本机。';
         } else if (event.type === 'error') {
+          lastSendIncomplete = true;
           chatStatusEl.textContent = '回复中断：' + (event.error || '请重试。');
         }
       }
@@ -2374,8 +2450,14 @@
       return refresh();
     }).catch(function (error) {
       var aborted = chatAbort && chatAbort.signal && chatAbort.signal.aborted;
+      lastSendIncomplete = true;
       if (aborted) {
-        chatStatusEl.textContent = '已停止：未完成的回复不会保存，也不会继续计费；可点「重发上一条」。';
+        // B3：停止 = 停止显示 + 尽力中断上游请求；半截回复既不保存也不留在
+        // 界面上。计费诚实 —— 已产生的费用可能仍会计入账单，不做取消承诺。
+        if (assistantEl && assistantEl.parentNode) {
+          assistantEl.parentNode.removeChild(assistantEl);
+        }
+        chatStatusEl.textContent = '已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单。可点「重发上一条」。';
       } else {
         chatStatusEl.textContent = '发送失败：' + ((error && error.message) || '网络错误') + '；可点「重发上一条」。';
       }
@@ -2394,7 +2476,7 @@
     }
     topicEl.value = '';
     try { window.localStorage.removeItem(TOPIC_DRAFT_KEY); } catch (err) { }
-    sendChatMessage(message, links);
+    sendChatMessage(message, links, '');
   }
 
   chatStopBtn.addEventListener('click', function () {
@@ -2403,7 +2485,9 @@
 
   chatRetryBtn.addEventListener('click', function () {
     if (chatInFlight || !lastUserMessage) { return; }
-    sendChatMessage(lastUserMessage, lastUserLinks);
+    // B3：有已保存的 turn id 走幂等重试（服务器复用原消息，不重复 append）；
+    // 之前发送未到达服务器（没有 turn id）则按新消息正常发送。
+    sendChatMessage(lastUserMessage, lastUserLinks, lastUserTurnId);
   });
 
   draftGenerateBtn.addEventListener('click', function () {

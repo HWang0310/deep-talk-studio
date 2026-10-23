@@ -2500,6 +2500,114 @@ class CreativeChatTests(unittest.TestCase):
             context2 = flow.chat_send_start("官方端点")
             self.assertEqual(context2["provider_kind"], "real")
 
+    def test_interleaved_replies_reload_latest_and_lose_no_turns(self):
+        """Nexus B2 (5626927896)：两个交错开启的流式回复无论以什么顺序完成，
+        已保存的 turns 绝不丢失 —— 完成时锁内 re-load 最新会话再追加，
+        不允许任何一方用陈旧内存快照整体覆盖存储。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["A 的回复"], []))
+            self._configure(root)
+            context_a = flow.chat_send_start("消息 A")
+            context_b = flow.chat_send_start("消息 B")
+            # 交错完成：B 先完成、A 后完成（A 持有的是最旧的会话快照）
+            list(flow.chat_stream_reply(context_b))
+            list(flow.chat_stream_reply(context_a))
+            reloaded = WorkbenchFlow(root, provider_factory=lambda s: None).chat_state()["chat"]
+            self.assertEqual([t["role"] for t in reloaded["turns"]],
+                             ["user", "user", "assistant", "assistant"])
+            self.assertEqual([t["content"] for t in reloaded["turns"]],
+                             ["消息 A", "消息 B", "A 的回复", "A 的回复"])
+
+    def test_concurrent_draft_edit_during_stream_is_never_overwritten(self):
+        """Nexus B2：流式回复进行中发生的草稿编辑，在回复完成持久化后仍
+        完整保留 —— 助手 turn 追加走锁内 re-load，绝不覆盖并发保存的数据。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["流式回复正文"], []))
+            self._configure(root)
+            context = flow.chat_send_start("会话消息")
+            list(flow.chat_stream_reply(context))
+            flow.chat_draft_generate()
+            context2 = flow.chat_send_start("第二条消息")
+            events = flow.chat_stream_reply(context2)
+            next(events)  # 流式进行中……
+            # 并发路径：流式未完成时保存草稿编辑（旧实现会整体覆盖它）
+            flow.chat_draft_save("流式进行中的并发草稿编辑")
+            rest = list(events)
+            self.assertTrue(any(e["type"] == "done" for e in rest))
+            reloaded = WorkbenchFlow(root, provider_factory=lambda s: None).chat_state()["chat"]
+            self.assertEqual([d["content"] for d in reloaded["drafts"]],
+                             ["流式回复正文", "流式进行中的并发草稿编辑"])
+            self.assertEqual([t["role"] for t in reloaded["turns"]],
+                             ["user", "assistant", "user", "assistant"])
+
+    def test_retry_after_stop_reuses_user_turn_without_duplicating(self):
+        """Nexus B3：停止后的重发按 turn id 幂等复用已保存的 user turn，
+        绝不追加重复的用户消息；完成后一问一答，无重复计费调用。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, calls = self._flow(root, StreamChatLLM(["重发后的完整回复"], []))
+            self._configure(root)
+            context = flow.chat_send_start("聊一半就停的消息")
+            turn_id = context["user_turn"]["turn_id"]
+            events = flow.chat_stream_reply(context)
+            next(events)
+            events.close()  # 用户停止：user turn 已保存、无 assistant 回复
+            chat = flow.chat_state()["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
+            # 幂等重试：复用同一条 user turn（id 相同），线程不出现第二条 user
+            retry_context = flow.chat_send_start(
+                "聊一半就停的消息", [], retry_turn_id=turn_id
+            )
+            self.assertEqual(retry_context["user_turn"]["turn_id"], turn_id)
+            chat = flow.chat_state()["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
+            self.assertEqual([t["content"] for t in chat["turns"]], ["聊一半就停的消息"])
+            list(flow.chat_stream_reply(retry_context))
+            reloaded = WorkbenchFlow(root, provider_factory=lambda s: None).chat_state()["chat"]
+            self.assertEqual([t["role"] for t in reloaded["turns"]], ["user", "assistant"])
+            self.assertEqual([t["content"] for t in reloaded["turns"]],
+                             ["聊一半就停的消息", "重发后的完整回复"])
+            # 两次模型调用都是显式用户动作（首次 + 重发），零隐藏第三次
+            self.assertEqual(len(calls), 2)
+
+    def test_retry_is_rejected_when_turn_already_replied_or_unknown(self):
+        """Nexus B3：重发只针对「仍是最后一条且尚无回复」的 user turn；
+        已有回复或不匹配的 id 一律拒绝且零模型调用，状态保持不变。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, calls = self._flow(root, StreamChatLLM(["回复"], []))
+            self._configure(root)
+            context = flow.chat_send_start("已有回复的消息")
+            turn_id = context["user_turn"]["turn_id"]
+            list(flow.chat_stream_reply(context))
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.chat_send_start("已有回复的消息", [], retry_turn_id=turn_id)
+            self.assertIn("状态已变化", str(ctx.exception))
+            with self.assertRaises(WorkbenchFlowError):
+                flow.chat_send_start("任意内容", [], retry_turn_id="t999")
+            self.assertEqual(len(calls), 1)  # 拒绝路径零模型调用
+            chat = flow.chat_state()["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user", "assistant"])
+
+    def test_draft_provider_kind_survives_reload(self):
+        """Nexus B4：草稿来源标注（fixture/real）随 revision 原子持久化，
+        重载后不消失 —— 绝不在 append 之后才在内存里补字段。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["草稿内容"], []))
+            self._configure(root)
+            context = flow.chat_send_start("选题讨论")
+            list(flow.chat_stream_reply(context))
+            generated = flow.chat_draft_generate()["draft"]
+            self.assertEqual(generated["provider_kind"], "fixture")
+            flow.chat_draft_save("用户编辑版")
+            reloaded = WorkbenchFlow(root, provider_factory=lambda s: None).chat_state()["chat"]
+            # 模型整理的 revision 带持久化来源；用户编辑版无模型来源标注
+            self.assertEqual([d.get("provider_kind") for d in reloaded["drafts"]],
+                             ["fixture", ""])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -82,7 +82,8 @@ def _default_chat_stream_transport(url, headers, body, timeout):
     """真实 SSE 流式传输：上游 stream:true，逐行解析 data: 增量。
 
     只产出文本增量（delta.content），错误由调用方映射；生成器被关闭时
-    通过 finally 关闭上游响应，停止继续计费。
+    通过 finally 关闭上游响应、尽力中断后续生成。计费诚实（B3）：已
+    消耗 tokens 的费用仍可能计入账单，不承诺停止后零计费。
     """
 
     request = Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
@@ -204,9 +205,10 @@ class ChatCompletionsProvider:
     def chat_stream(self, messages):
         """真实流式对话：上游 stream:true，yield 文本增量。
 
-        这是真实 provider 流式（非打字机模拟）；生成器提前关闭（用户停止）
-        会关闭上游响应，不继续产生费用。
-        """
+    这是真实 provider 流式（非打字机模拟）；生成器提前关闭（用户停止）
+    会关闭上游响应、尽力中断后续生成，但已消耗 tokens 的费用仍可能
+    计入账单（计费诚实，与 UI 文案一致）。
+    """
 
         payload = {
             "model": self.model,
