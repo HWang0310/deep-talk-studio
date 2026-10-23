@@ -386,6 +386,33 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("modelField.hidden = deepseek", body)
         self.assertIn("chatField.hidden = !(mode === 'chat')", body)
 
+    def test_settings_test_click_persists_form_before_pinging(self):
+        """Nexus delta（issuecomment-6358124584）：粘贴 API Key 后直接点
+        「测试连接」必须先安全保存当前表单，保存成功后再对刚保存的配置
+        执行真实连接测试；保存失败必须阻止测试并给出中文错误。"""
+        status, _, body = self.get("/settings")
+        self.assertEqual(status, 200)
+        # 表单收集与持久化是可复用函数（保存/测试共用同一路径）
+        self.assertIn("function settingsFormPayload()", body)
+        self.assertIn("function persistSettings()", body)
+        # 「测试连接」处理器内：persistSettings() 必须先于 /settings/test 请求
+        marker = body.index("settings-test').addEventListener")
+        block = body[marker:marker + 4000]
+        self.assertIn("persistSettings()", block)
+        self.assertIn("/api/workbench/settings/test", block)
+        self.assertLess(
+            block.index("persistSettings()"),
+            block.index("/api/workbench/settings/test"),
+        )
+        # 保存失败阻止网络测试：中文提示含「未连接测试」
+        self.assertIn("未连接测试", block)
+        # 保存成功后测试刚保存的配置
+        self.assertIn("已保存，测试中…", block)
+        # 已输入 vs 已持久化：输入框有新 Key 时徽章显示「已输入未保存」，
+        # 不再误导显示「未配置」
+        self.assertIn("已输入未保存", body)
+        self.assertIn("Key 已输入但尚未保存", body)
+
     def test_index_exposes_explicit_deepseek_search_budget_controls(self):
         status, _, body = self.get("/")
         self.assertEqual(status, 200)

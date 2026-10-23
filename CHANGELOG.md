@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-10-23 — Issue #44 — paste→Test 旅程修复（Nexus delta, issuecomment-6358124584）
+
+- 「测试连接」点击后先安全持久化当前表单（含刚粘贴的 API Key，POST JSON 走本机 loopback），保存成功后才对刚保存的配置执行连接测试；保存失败立即停止并显示中文错误（含「未连接测试」），绝不发出测试请求。保存与测试共用 `settingsFormPayload()` / `persistSettings()`，消除保存/测试双路径不一致。
+- 已输入 vs 已持久化：输入框粘贴新 Key 时徽章即时「已输入未保存」（琥珀色 state-warn），不再误导显示「未配置」；清空输入恢复持久化徽章；保留「空 Key 保持已存 Key」与显式「清除 API Key」语义，夹具仍为「开发测试环境」徽章，仅显式点击才发起测试，零付费调用。
+- 证据：8322 隔离夹具实测请求顺序「先保存（含新 Key）→ 再测试」、掩码 `sk-p…ey-2` 持久化、开发测试状态诚实；8321 真实配置实测保存先行 + 测试请求中止（零外部调用）+ 重载掩码持久化 + 保存失败（HTTP 500）阻断测试；截图 17/18；`tests.test_webui` + `tests.test_workbench` 113/113、全量 pytest 见对应轮记录；diff 无密钥，真实 DeepSeek 连接质量仍为 `WAITING_FOR_OWNER_API_KEY`，不自行合并。
+
 ## Unreleased — 2026-10-23 — Issue #44 — DeepSeek 设置体验：只需填 API Key + 诚实开发夹具标注
 
 - DeepSeek 默认模式下普通用户只需填写 API Key：模型与官方 API 地址自动配置（说明行「模型与官方 API 地址已自动配置（deepseek-flash），只需填写 API Key」），模型名称与 API 地址字段仅在切换其他服务商时出现。

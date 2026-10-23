@@ -114,5 +114,32 @@ UI：127.0.0.1 loopback，真实页面脚本和后端流程
 - screenshots/14-desktop-settings-saved-masked-key.png（961px 宽桌面视口）
 - screenshots/15-desktop-settings-dev-test-not-real-success.png（961px 宽桌面视口）
 - screenshots/16-mobile-375-settings-deepseek.png（328px 宽手机视口）
+- screenshots/17-desktop-settings-typed-key-unsaved.png（961px 宽桌面；「已输入未保存」徽章）
+- screenshots/18-desktop-settings-paste-key-direct-test.png（961px 宽桌面；粘贴 Key 直接测试 → 自动保存 + 夹具测试通过）
 
 > 取证勘误：截图 12–15 首次拍摄时 Playwright 会话视口残留上一轮的 375px，被误标为桌面截图（328×1068）；已全部在 1280×800 桌面视口重拍（961px 宽）并覆盖。
+
+## Nexus delta 轮（2026-10-23，issuecomment-6358124584）
+
+### 修复内容
+
+「测试连接」点击后：先安全持久化当前表单（含刚粘贴的 Key，POST JSON body 走本机 loopback），成功后才对**刚保存的配置**执行连接测试；保存失败立即停止并显示中文错误（含「未连接测试」），不发测试请求。保存与测试共用 `settingsFormPayload()` / `persistSettings()`。输入框有新 Key 时徽章显示「已输入未保存」（区分 typed 与 persisted），不再误导显示「未配置」；空 Key = 保留已存 Key、显式清除不变；夹具仍显示「开发测试环境」徽章。
+
+### 8322 粘贴 Key → 直接测试（隔离夹具，未先保存）
+
+Playwright 网络请求顺序实测：
+
+```json
+[
+  "POST /api/workbench/settings {\"provider_mode\":\"chat\",\"chat_base_url\":\"http://127.0.0.1:8931/v1\",\"model\":\"mock-e2e-model\",\"api_key\":\"sk-paste-test-key-2\"}",
+  "POST /api/workbench/settings/test {}"
+]
+```
+
+先自动保存（含新 Key）→ 再测试；结果徽章「开发测试环境」、掩码 `sk-p…ey-2`、状态「开发测试连接通过：这是本地测试服务，不代表真实的 DeepSeek 连接。」（截图 18）。
+
+### 8321 真实配置（clean DeepSeek，零真实外部调用）
+
+- 粘贴 `sk-real-test-key-7` 直接点测试 + 拦截**中止** `/settings/test`（确保不向 api.deepseek.com 发起任何请求）：请求顺序为 先 `POST /api/workbench/settings`（payload 含 `provider_mode:deepseek` + 新 Key）→ 再 `POST /api/workbench/settings/test`（被中止）；状态「网络错误」；**重载后**掩码 `sk-…-…` 与「已保存未验证」持久化。
+- 保存失败路径（`/api/workbench/settings` 路由返回 500）：点击测试后**只出现保存请求**，测试请求从未发出；状态「保存失败：…，未连接测试。」；徽章保持「已输入未保存」。
+- 已输入 vs 已持久化：输入 Key 后徽章即时「已输入未保存」（截图 17）；清空输入恢复持久化徽章；最终交付状态恢复 clean DeepSeek（`api_key: ''`、`not_tested`）。

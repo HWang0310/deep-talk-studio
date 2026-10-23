@@ -1,6 +1,6 @@
 # Issue #44 / PR #45 — 极简创作页与独立模型设置页
 
-> **状态：READY_FOR_NEXUS_UX_REREVIEW（第二轮：DeepSeek 设置体验）。** 本分支保留 PR #45 的工作流和后端门禁，完成参考截图导向的首页 / 设置页重设计与 Nexus Review B1/B2/B3 修复；第二轮按 Owner 六点要求完成「DeepSeek 默认只需填 API Key」的设置体验与视觉打磨。PR 保持打开，未合并。
+> **状态：READY_FOR_NEXUS_UX_REREVIEW（第三轮：paste→Test 旅程修复）。** 本分支保留 PR #45 的工作流和后端门禁，完成参考截图导向的首页 / 设置页重设计与 Nexus Review B1/B2/B3 修复；第二轮按 Owner 六点要求完成「DeepSeek 默认只需填 API Key」的设置体验；第三轮按 Nexus delta（issuecomment-6358124584）修复「粘贴 Key 后直接点「测试连接」」旅程——先自动安全保存再执行真实连接测试。PR 保持打开，未合并。
 
 ## 视觉与交互交付
 
@@ -20,6 +20,12 @@
 - **视觉打磨（评审反馈逐项落地）**：未配置徽章改琥珀警示色；徽章提示与自动配置说明去重；说明行括号内只保留模型名；按钮行重排为「取消 / 测试连接 / 清除 API Key 靠左，保存设置靠右」；状态文字与保存按钮间距加大；连接状态行 `word-break: keep-all` 防止「模型」等中文标签被拆到两行。
 - **占位符窄屏自适应**：Key 占位符桌面为「粘贴你的 DeepSeek API Key」；窄屏放不下时（canvas 实测完整版 190px > 输入框内宽 168px）自动降级为「粘贴你的 API Key」，避免占位符被截断，窗口 resize 时双向切换。
 - **配置隔离**：真实仓库 `config/workbench.local.json` 保持 DeepSeek 官方默认（无 Key）；mock / 本地端点配置只存在于 8322 隔离演示环境的独立根目录。
+
+### 第三轮：粘贴 Key →「测试连接」旅程（Nexus delta，issuecomment-6358124584）
+
+- 「测试连接」点击后**先安全持久化当前表单**（含刚粘贴的 Key，POST JSON body 走本机 loopback），保存成功后才对**刚保存的配置**执行连接测试；保存失败立即停止并显示中文错误（含「未连接测试」），不发出测试请求。保存与测试共用 `settingsFormPayload()` / `persistSettings()`。
+- **已输入 vs 已持久化**：粘贴新 Key 时徽章即时「已输入未保存」（琥珀色），不再误导显示「未配置」；清空输入恢复持久化徽章。保留「空 Key 保持已存 Key」与显式「清除 API Key」语义。
+- 仅显式点击才发起连接测试，绝不因输入/变更/保存静默请求；夹具仍显示「开发测试环境」徽章；零付费调用。
 
 ## Nexus Review 修复
 
@@ -86,13 +92,15 @@
 | 保存后掩码与「已保存未验证」 | 通过；掩码显示、按钮行右对齐主按钮 | [14-desktop-settings-saved-masked-key.png](screenshots/14-desktop-settings-saved-masked-key.png) |
 | 隔离环境「开发测试环境」标注 | 通过；夹具连接显示独立徽章与诚实文案，非「已连接」 | [15-desktop-settings-dev-test-not-real-success.png](screenshots/15-desktop-settings-dev-test-not-real-success.png) |
 | 375px 手机设置页 | 通过；无横向溢出、状态行在「·」处换行、占位符自适应降级 | [16-mobile-375-settings-deepseek.png](screenshots/16-mobile-375-settings-deepseek.png) |
+| 已输入 vs 已持久化 | 通过；粘贴 Key 后徽章「已输入未保存」，不再误导显示「未配置」 | [17-desktop-settings-typed-key-unsaved.png](screenshots/17-desktop-settings-typed-key-unsaved.png) |
+| 粘贴 Key 直接「测试连接」 | 通过；先自动保存再测试（请求顺序实测），夹具诚实标注，掩码持久化 | [18-desktop-settings-paste-key-direct-test.png](screenshots/18-desktop-settings-paste-key-direct-test.png) |
 
 完整的 B1/B2 断言、设置体验流与浏览器输出见 [browser-evidence.md](browser-evidence.md)。
 
 ## 测试结果
 
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **112 passed**（本轮新增 DeepSeek 只需填 Key、无机器码文案、开发测试环境 3 组断言）
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1092 passed, 7 skipped**
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **113 passed**（新增 paste→Test 先保存后测试的静态回归断言）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1093 passed, 7 skipped**
 - 内联 JavaScript：'node --check /tmp/deeptalk-webui.js' → **通过**
 - 'git diff --check' → **通过**
 - 未修改无关后端、模型门禁、SSRF 防护或生产工作流；未提交本地密钥、模型输出、缓存或临时会话。

@@ -1391,6 +1391,7 @@
   }
 
   function renderSettings(settings) {
+    lastRenderedSettings = settings;
     var firstVisit = !settings.api_key_masked && settings.connection_status === 'not_tested' && !settings.model;
     var mode = settings.provider_mode || 'deepseek';
     if (firstVisit) { mode = 'deepseek'; }
@@ -1422,6 +1423,8 @@
         (settings.provider_label || settings.provider_mode || '—') + ' · 模型：' +
         (settings.model || '—'));
   }
+
+  var lastRenderedSettings = null;
 
   function fitKeyPlaceholder() {
     // 窄屏降级：完整占位符放不下时去掉「DeepSeek」修饰，避免占位符被截断。
@@ -1479,7 +1482,7 @@
 
   window.addEventListener('resize', fitKeyPlaceholder);
 
-  document.getElementById('settings-save').addEventListener('click', function () {
+  function settingsFormPayload() {
     var payload = {
       provider_mode: document.getElementById('st-mode').value,
       base_url: document.getElementById('st-base').value,
@@ -1488,14 +1491,22 @@
       downloads_dir: document.getElementById('st-dir').value
     };
     var key = document.getElementById('st-key').value;
-    if (key) { payload.api_key = key; }
-    var statusEl = document.getElementById('settings-status');
-    statusEl.textContent = '保存中…';
-    fetch('/api/workbench/settings', {
+    if (key) { payload.api_key = key; }  // 空输入 = 保留已保存 Key（不覆盖）
+    return payload;
+  }
+
+  function persistSettings() {
+    return fetch('/api/workbench/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
+      body: JSON.stringify(settingsFormPayload())
+    }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); });
+  }
+
+  document.getElementById('settings-save').addEventListener('click', function () {
+    var statusEl = document.getElementById('settings-status');
+    statusEl.textContent = '保存中…';
+    persistSettings()
       .then(function (result) {
         if (!result.ok) { statusEl.textContent = result.data.error || '保存失败'; return; }
         renderSettings(result.data);
@@ -1504,27 +1515,39 @@
       .catch(function () { statusEl.textContent = '网络错误'; });
   });
 
+  // 显式点「测试连接」：先安全保存当前表单（含刚粘贴的 Key），
+  // 保存失败必须阻止网络测试并给出中文错误；成功后只测试刚保存的配置。
+  // （Nexus delta：paste → Test 旅程；Key 只经 POST JSON 走本机 loopback）
   document.getElementById('settings-test').addEventListener('click', function () {
     var statusEl = document.getElementById('settings-status');
-    statusEl.textContent = '测试中…';
-    fetch('/api/workbench/settings/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}'
-    }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
-      .then(function (result) {
-        if (result.ok) {
-          var providerNames = { deepseek: 'DeepSeek', responses: 'OpenAI Responses', chat: 'Chat 兼容服务' };
-          var devTest = result.data.connection_kind === 'fixture' ||
-            /\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/)/i.test(String(result.data.endpoint || ''));
-          statusEl.textContent = devTest
-            ? '开发测试连接通过：这是本地测试服务，不代表真实的 DeepSeek 连接。'
-            : '连接正常：' + (providerNames[result.data.provider] || result.data.provider || '') +
-              ' · ' + (result.data.model || '') + ' 已连通，可以开始创作。';
-        } else {
-          statusEl.textContent = result.data.error || '连接失败，请检查后重试。';
+    statusEl.textContent = '保存中…';
+    persistSettings()
+      .then(function (saveResult) {
+        if (!saveResult.ok) {
+          statusEl.textContent = (saveResult.data.error || '保存失败') + '，未连接测试。';
+          return;
         }
-        return refresh();
+        statusEl.textContent = '已保存，测试中…';
+        return fetch('/api/workbench/settings/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
+          .then(function (result) {
+            if (result.ok) {
+              var providerNames = { deepseek: 'DeepSeek', responses: 'OpenAI Responses', chat: 'Chat 兼容服务' };
+              var devTest = result.data.connection_kind === 'fixture' ||
+                /\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/)/i.test(String(result.data.endpoint || ''));
+              statusEl.textContent = devTest
+                ? '开发测试连接通过：这是本地测试服务，不代表真实的 DeepSeek 连接。'
+                : '连接正常：' + (providerNames[result.data.provider] || result.data.provider || '') +
+                  ' · ' + (result.data.model || '') + ' 已连通，可以开始创作。';
+            } else {
+              statusEl.textContent = result.data.error || '连接失败，请检查后重试。';
+            }
+            return refresh();
+          })
+          .catch(function () { statusEl.textContent = '网络错误'; });
       })
       .catch(function () { statusEl.textContent = '网络错误'; });
   });
@@ -1542,6 +1565,20 @@
       statusEl.textContent = result.ok ? 'API Key 已清除' : (result.data.error || '清除失败');
       if (result.ok) { renderSettings(result.data); }
     }).catch(function () { statusEl.textContent = '网络错误'; });
+  });
+
+  // 已输入 vs 已持久化：输入框里有新 Key 时，徽章显示「已输入未保存」，
+  // 避免误导显示「未配置」；清空输入后恢复持久化状态。
+  document.getElementById('st-key').addEventListener('input', function () {
+    var chip = document.getElementById('settings-chip');
+    var hint = document.getElementById('settings-chip-hint');
+    if (this.value && this.value.trim()) {
+      chip.textContent = '已输入未保存';
+      chip.className = 'conn-chip state-warn';
+      if (hint) { hint.textContent = 'Key 已输入但尚未保存；点「测试连接」会先自动保存并验证，或点「保存设置」仅保存。'; }
+    } else if (lastRenderedSettings) {
+      renderConnectionChip(lastRenderedSettings);
+    }
   });
 
   // ---- ② 观点与资料 ----
