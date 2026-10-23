@@ -100,7 +100,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ./scripts/deeptalk sample
 ```
 
-> 凭据安全：`unittest discover` 与 `pytest` 都不会触碰真实的 `~/.deeptalk/workbench.local.json`（Owner 已保存的 DeepSeek Key）——`tests/test_workbench.py` / `tests/test_webui.py` 在模块加载时即把用户级配置目录指向一次性临时目录，并为每个测试提供独立隔离目录，对 pytest 与直接 unittest 两种入口同样生效；生产端点的用户级配置行为不受影响。
+> 凭据与聊天历史安全：`unittest discover` 与 `pytest` 都不会触碰真实的 `~/.deeptalk/workbench.local.json`（Owner 已保存的 DeepSeek Key）与 `~/.deeptalk/chat/`（Owner 真实聊天历史）——`tests/test_workbench.py` / `tests/test_webui.py` 在模块加载时即把用户级配置目录与用户级聊天目录指向一次性临时目录，并为每个测试提供独立隔离目录，对 pytest 与直接 unittest 两种入口同样生效；生产端点的用户级配置行为不受影响。
 ./scripts/deeptalk validate examples/sample-research-report.json
 ./scripts/deeptalk prepare-draft examples/sample-codex-draft-input.json
 ./scripts/deeptalk prepare-discovery <discovery-input.json> --output discoveries

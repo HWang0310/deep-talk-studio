@@ -29,6 +29,16 @@ MAX_TURNS = 400
 MAX_MESSAGE_CHARS = 20000
 MAX_DRAFT_CHARS = 60000
 
+# 用户级稳定聊天历史目录（Owner 会话数据跨工作树/升级持久化，
+# issuecomment-6366157284）：与 Key 同模式——测试/演示环境通过注入
+# 隔离，绝不读写真实 ~/.deeptalk。
+USER_CHAT_DIR: Optional[Path] = None
+
+
+def user_chat_dir() -> Path:
+    base = USER_CHAT_DIR if USER_CHAT_DIR is not None else Path.home()
+    return Path(base) / ".deeptalk" / "chat"
+
 
 def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
@@ -48,8 +58,48 @@ class CreativeChatStore:
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
-        self.directory = self.root / "workbench" / "chat"
+        # 聊天历史存用户级稳定目录（跨工作树/升级不丢，与 Key 同模式）；
+        # 仓库级 workbench/chat 仅作向后兼容 fallback：首次发现即一次性
+        # 迁移到用户级（同 ID 不覆盖、原文件保留、幂等）。
+        self.repo_directory = self.root / "workbench" / "chat"
+        self.directory = user_chat_dir()
+        self._migrate_repo_chat_to_user()
         self._lock = threading.RLock()
+
+    def _migrate_repo_chat_to_user(self) -> None:
+        """一次性向后兼容迁移：把仓库级聊天历史复制到用户级。
+
+        - 同名会话绝不覆盖（用户级已是唯一真源，旧文件只作首次迁移输入）；
+        - 仓库级原文件保留（安全回退），迁移幂等可重复执行；
+        - 复制件 0600；失败静默回退仓库级语义（下次启动再试）。
+        """
+
+        try:
+            if not self.repo_directory.is_dir():
+                return
+            self.directory.mkdir(parents=True, exist_ok=True)
+            existing = {p.name for p in self.directory.glob("*.json")}
+            for path in self.repo_directory.glob("*.json"):
+                if not path.is_file() or path.name in existing:
+                    continue
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(data, dict) or data.get("schema") != CHAT_SCHEMA:
+                    continue
+                fd, tmp = tempfile.mkstemp(
+                    dir=str(self.directory), prefix=".chat-migrate-", suffix=".tmp"
+                )
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                        json.dump(data, handle, ensure_ascii=False, indent=2)
+                    os.chmod(tmp, 0o600)
+                    os.replace(tmp, self.directory / path.name)
+                except OSError:
+                    try:
+                        os.unlink(tmp)
+                    except OSError:
+                        pass
+        except OSError:
+            return
 
     # -- paths ----------------------------------------------------------
 
@@ -118,6 +168,71 @@ class CreativeChatStore:
         self.save(session)
         return session
 
+    def list_sessions(self, limit: int = 200) -> List[Dict[str, Any]]:
+        """会话元数据列表（按最近更新倒序）：ID、标题（首条用户消息截断）、
+        更新时间、消息/草稿计数。标题绝不做额外模型调用。"""
+
+        with self._lock:
+            if not self.directory.is_dir():
+                return []
+            items: List[Dict[str, Any]] = []
+            for path in self.directory.glob("*.json"):
+                if not path.is_file():
+                    continue
+                data = self._load_path(path)
+                if not data:
+                    continue
+                title = ""
+                for turn in data.get("turns", []):
+                    if turn.get("role") == "user" and str(turn.get("content", "")).strip():
+                        title = str(turn.get("content", "")).strip()[:40]
+                        break
+                items.append({
+                    "session_id": str(data.get("session_id", path.stem)),
+                    "title": title or "新对话",
+                    "updated_at": str(data.get("updated_at", "")),
+                    "turns": len(data.get("turns", [])),
+                    "drafts": len(data.get("drafts", [])),
+                    # 排序辅助：updated_at 是秒级精度，同一秒内的更新用
+                    # 文件 mtime（更高精度）作为次级键，保证最近更新者居前。
+                    "_mtime": path.stat().st_mtime,
+                })
+            items.sort(
+                key=lambda item: (item["updated_at"], item["_mtime"]),
+                reverse=True,
+            )
+            for item in items:
+                item.pop("_mtime", None)
+            return items[:limit]
+
+    def start_user_turn(
+        self,
+        message: str,
+        links: Optional[List[Dict[str, Any]]] = None,
+        *,
+        session_id: str = "",
+        new_session: bool = False,
+    ) -> Dict[str, Any]:
+        """Atomically append a user turn to the selected conversation.
+
+        解析优先级：new_session（显式新建）> session_id（指定会话，不存在
+        即报错，绝不静默回落 latest）> latest（兼容旧调用，无则新建）。
+        """
+
+        with self._lock:
+            if new_session:
+                session = self.new_session()
+            elif session_id:
+                session = self.load(session_id)
+                if session is None:
+                    raise CreativeChatError("聊天会话不存在，请重新发送")
+            else:
+                session = self.load_latest()
+                if session is None:
+                    session = self.new_session()
+            turn = self.append_turn(session, "user", message, links=links)
+            return {"session": session, "turn": turn}
+
     # -- mutation (append-only) ----------------------------------------
 
     def _touch(self, session: Dict[str, Any]) -> None:
@@ -127,20 +242,6 @@ class CreativeChatStore:
     # -- 并发安全（Nexus B2）：锁内 re-load latest + append + save --------
     # 所有跨请求的持久化变更都走这里：绝不把内存里的旧快照整体写回，
     # 否则重叠请求（A 流式完成覆盖 B 已保存的 turn/draft）会永久丢数据。
-
-    def start_user_turn(
-        self,
-        message: str,
-        links: Optional[List[Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
-        """Atomically open (or reuse) the latest session and append a user turn."""
-
-        with self._lock:
-            session = self.load_latest()
-            if session is None:
-                session = self.new_session()
-            turn = self.append_turn(session, "user", message, links=links)
-            return {"session": session, "turn": turn}
 
     def retry_user_turn(self, session_id: str, turn_id: str) -> Dict[str, Any]:
         """Idempotently reuse an existing pending user turn for an explicit retry.

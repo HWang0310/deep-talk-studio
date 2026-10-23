@@ -28,6 +28,7 @@ from deeptalk_studio.schema import (
 )
 from deeptalk_studio.validation import validate_json_schema
 from deeptalk_studio.workbench import acquisition
+from deeptalk_studio.workbench.creative_chat import CreativeChatStore
 from deeptalk_studio.workbench.flow import WorkbenchFlow, WorkbenchFlowError
 from deeptalk_studio.workbench.llm import (
     ChatCompletionsProvider,
@@ -45,39 +46,52 @@ from deeptalk_studio.workbench.settings import (
     user_settings_path,
 )
 
-# ---- 测试凭据安全（P0，review 5628439637）---------------------------
+# ---- 测试凭据与会话数据安全（P0，review 5628439637 + 6366157284）-------
 # pytest 与直接 `PYTHONPATH=src python3 -m unittest discover -s tests -v`
 # （AGENTS.md/README.md 文档命令）都必须与真实 ~/.deeptalk 完全隔离：
-# 绝不读取、覆盖或清除 Owner 已保存的 DeepSeek Key。
+# 绝不读取、覆盖或清除 Owner 已保存的 DeepSeek Key 与聊天历史。
 #
-# 本模块级兜底在本文件被任何 runner（pytest / unittest / IDE / CI）加载时
-# 先于任何 settings 读/写执行——用户级配置目录指向一次性临时目录，
-# 不解析真实 Path.home()；下方基类再为每个测试提供独立目录，防止
-# 测试间串扰。生产运行不导入本文件，用户级 ~/.deeptalk 行为保持不变。
+# 本模块级兑底在本文件被任何 runner（pytest / unittest / IDE / CI）加载时
+# 先于任何 settings/chat 读/写执行——用户级配置与聊天历史目录都指向
+# 一次性临时目录，不解析真实 Path.home()；下方基类再为每个测试提供独立
+# 目录，防止测试间串扰。生产运行不导入本文件，用户级 ~/.deeptalk 行为
+# 保持不变。
 import atexit as _atexit
 import shutil as _shutil
 import tempfile as _tempfile
 
 from deeptalk_studio.workbench import settings as _settings_module
+from deeptalk_studio.workbench import creative_chat as _creative_chat_module
 
 if _settings_module.USER_SETTINGS_DIR is None:
     _SESSION_USER_DIR = Path(_tempfile.mkdtemp(prefix="deeptalk-tests-user-"))
     _atexit.register(_shutil.rmtree, _SESSION_USER_DIR, ignore_errors=True)
     _settings_module.USER_SETTINGS_DIR = _SESSION_USER_DIR
+if _creative_chat_module.USER_CHAT_DIR is None:
+    _SESSION_CHAT_DIR = Path(_tempfile.mkdtemp(prefix="deeptalk-tests-chat-"))
+    _atexit.register(_shutil.rmtree, _SESSION_CHAT_DIR, ignore_errors=True)
+    _creative_chat_module.USER_CHAT_DIR = _SESSION_CHAT_DIR
 
 
 class _UserSettingsIsolatedTestCase(unittest.TestCase):
-    """每个测试独享一个用户级配置目录（pytest 与 unittest 双入口均生效）。"""
+    """每个测试独享用户级配置与聊天历史目录（pytest 与 unittest 双入口均生效）。"""
 
     def setUp(self):
         super().setUp()
-        isolated = Path(
+        settings_dir = Path(
             _tempfile.mkdtemp(prefix="deeptalk-user-%s-" % self.id()[:60])
         )
-        self.addCleanup(_shutil.rmtree, isolated, ignore_errors=True)
-        previous = _settings_module.USER_SETTINGS_DIR
-        _settings_module.USER_SETTINGS_DIR = isolated
-        self.addCleanup(setattr, _settings_module, "USER_SETTINGS_DIR", previous)
+        self.addCleanup(_shutil.rmtree, settings_dir, ignore_errors=True)
+        previous_settings = _settings_module.USER_SETTINGS_DIR
+        _settings_module.USER_SETTINGS_DIR = settings_dir
+        self.addCleanup(setattr, _settings_module, "USER_SETTINGS_DIR", previous_settings)
+        chat_dir = Path(
+            _tempfile.mkdtemp(prefix="deeptalk-chat-%s-" % self.id()[:60])
+        )
+        self.addCleanup(_shutil.rmtree, chat_dir, ignore_errors=True)
+        previous_chat = _creative_chat_module.USER_CHAT_DIR
+        _creative_chat_module.USER_CHAT_DIR = chat_dir
+        self.addCleanup(setattr, _creative_chat_module, "USER_CHAT_DIR", previous_chat)
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -2557,12 +2571,111 @@ class CreativeChatTests(_UserSettingsIsolatedTestCase):
             self._configure(root)
             context = flow.chat_send_start("包含秘密吗")
             list(flow.chat_stream_reply(context))
-            chat_dir = root / "workbench" / "chat"
+            # 聊天历史存用户级稳定目录（issuecomment-6366157284，本测试类
+            # 已注入隔离目录）；0600 权限与「无 Key 落盘」不变。
+            chat_dir = flow.creative.directory
             files = list(chat_dir.glob("*.json"))
             self.assertEqual(len(files), 1)
             mode = files[0].stat().st_mode & 0o777
             self.assertEqual(mode, 0o600)
             self.assertNotIn("sk-chat-fixture", files[0].read_text(encoding="utf-8"))
+
+    def test_multiple_sessions_are_fully_isolated(self):
+        """多会话（issuecomment-6366157284）：新建会话零污染、选中会话的
+        turns/草稿完全独立、操作绝不静默回落 latest、列表元数据正确、
+        会话间互不覆盖。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            class SequencedChatLLM:
+                def __init__(self, replies):
+                    self.replies = [list(r) for r in replies]
+                    self.calls = []
+
+                def chat_stream(self, messages):
+                    self.calls.append([dict(m) for m in messages])
+                    idx = min(len(self.calls) - 1, len(self.replies) - 1)
+                    for piece in self.replies[idx]:
+                        yield piece
+
+            llm = SequencedChatLLM([
+                ["A 的回复"], ["甲草稿正文"], ["B 的回复"], ["B 的追问回复"],
+            ])
+            flow, _ = self._flow(root, llm)
+            self._configure(root)
+            # 会话 A：发送 + 回复 + 草稿 + 二次编辑
+            ctx_a = flow.chat_send_start("话题甲：城市夜间自习空间")
+            session_a = str(ctx_a["session"]["session_id"])
+            list(flow.chat_stream_reply(ctx_a))
+            flow.chat_draft_generate(session_a)
+            flow.chat_draft_save("甲草稿的第二次修改", session_a)
+            # 「新建对话」首发送才创建新会话（点击新建零服务端调用）
+            ctx_b = flow.chat_send_start("话题乙：通勤路上的观察", new_session=True)
+            session_b = str(ctx_b["session"]["session_id"])
+            self.assertNotEqual(session_a, session_b)
+            list(flow.chat_stream_reply(ctx_b))
+            # B 与 A 完全隔离：B 无 A 的任何内容/草稿
+            chat_b = flow.chat_state(session_b)["chat"]
+            self.assertEqual([t["content"] for t in chat_b["turns"]],
+                             ["话题乙：通勤路上的观察", "B 的回复"])
+            self.assertEqual(chat_b["drafts"], [])
+            chat_a = flow.chat_state(session_a)["chat"]
+            self.assertEqual([t["content"] for t in chat_a["turns"]][0], "话题甲：城市夜间自习空间")
+            self.assertEqual(len(chat_a["drafts"]), 2)
+            # 回退 latest 兼容路径仍指向最近更新的会话 B
+            self.assertEqual(flow.chat_state()["chat"]["session_id"], session_b)
+            # 在 B 继续回复不影响 A
+            ctx_b2 = flow.chat_send_start("继续乙话题", session_id=session_b)
+            list(flow.chat_stream_reply(ctx_b2))
+            self.assertEqual(len(flow.chat_state(session_a)["chat"]["turns"]), 2)
+            self.assertEqual(len(flow.chat_state(session_b)["chat"]["turns"]), 4)
+            # 列表：按最近更新倒序，标题取首条用户消息，计数正确
+            sessions = flow.chat_sessions()["sessions"]
+            self.assertEqual(sessions[0]["session_id"], session_b)
+            self.assertEqual(sessions[0]["title"], "话题乙：通勤路上的观察")
+            self.assertEqual(sessions[0]["turns"], 4)
+            self.assertEqual(sessions[1]["session_id"], session_a)
+            self.assertEqual(sessions[1]["drafts"], 2)
+            # 重载后（新 flow 实例）两会话仍精确恢复
+            fresh = WorkbenchFlow(root, provider_factory=lambda s: None)
+            self.assertEqual(len(fresh.chat_state(session_a)["chat"]["drafts"]), 2)
+            self.assertEqual(fresh.chat_state(session_b)["chat"]["session_id"], session_b)
+            # 未知会话：明确报错，绝不静默回落
+            with self.assertRaises(WorkbenchFlowError):
+                flow.chat_send_start("任意", session_id="deadbeef" * 4)
+
+    def test_chat_history_migrates_once_to_user_level(self):
+        """聊天历史用户级迁移：旧仓库级 workbench/chat 首次加载即复制到
+        用户级（同 ID 不覆盖、原文件保留、幂等、0600）。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            legacy_dir = root / "workbench" / "chat"
+            legacy_dir.mkdir(parents=True)
+            legacy_id = "a" * 32
+            (legacy_dir / f"{legacy_id}.json").write_text(json.dumps({
+                "schema": "creative-chat/1",
+                "session_id": legacy_id,
+                "created_at": "2026-10-01T10:00:00+08:00",
+                "updated_at": "2026-10-01T10:00:00+08:00",
+                "turns": [{"turn_id": "t1", "role": "user", "content": "旧会话内容", "created_at": "2026-10-01T10:00:00+08:00"}],
+                "drafts": [],
+            }, ensure_ascii=False), encoding="utf-8")
+            store = CreativeChatStore(root)
+            user_path = store.directory / f"{legacy_id}.json"
+            self.assertTrue(user_path.is_file())
+            self.assertEqual(user_path.stat().st_mode & 0o777, 0o600)
+            self.assertTrue((legacy_dir / f"{legacy_id}.json").is_file())  # 原文件保留
+            # 幂等：再建一个 store 不破坏、不重复
+            store2 = CreativeChatStore(root)
+            self.assertEqual(
+                store2.list_sessions()[0]["session_id"], legacy_id,
+            )
+            # 用户级已有同名会话时绝不覆盖（用户级是唯一真源）
+            user_path.write_text(json.dumps({"schema": "creative-chat/1",
+                "session_id": legacy_id, "created_at": "", "updated_at": "2026-10-02T00:00:00+08:00",
+                "turns": [], "drafts": []}, ensure_ascii=False), encoding="utf-8")
+            CreativeChatStore(root)
+            self.assertEqual(CreativeChatStore(root).list_sessions()[0]["turns"], 0)
 
     def test_loopback_endpoint_is_labeled_fixture_even_without_injected_provider(self):
         """诚实标注：即使未注入 provider_factory，指向 loopback 的 Chat 端点

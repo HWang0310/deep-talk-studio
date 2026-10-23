@@ -278,6 +278,14 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         if path == "/api/workbench/state":
             self._handle_workbench_get_state()
             return
+        if path == "/api/workbench/chat/sessions":
+            flow = self._workbench_flow()
+            result, error = self._workbench_call(flow.chat_sessions)
+            if error:
+                _send_json(self, error[0], error[1])
+                return
+            _send_json(self, 200, result)
+            return
         if path == "/api/workbench/script/final":
             self._handle_workbench_final_script()
             return
@@ -418,9 +426,16 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         """
 
         server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment]
-        # 聊天为单会话（latest session）设计：固定 flight key 即整个聊天通道，
-        # 且不依赖 chat_send_start 的结果（首次发送时 session 尚不存在）。
-        flight_key = "chat"
+        # B2 单飞按会话隔离（多会话，issuecomment-6366157284）：同一会话
+        # 同时只允许一个在飞流；「新建对话」共享 'chat:new' 槽。预约仍在
+        # **任何存储变更之前**原子完成（5627594838），重叠发送 400。
+        raw_session_id = str(payload.get("session_id", "") or "")
+        if str(payload.get("new_session", "")) not in ("", "false", False):
+            flight_key = "chat:new"
+        elif raw_session_id:
+            flight_key = raw_session_id
+        else:
+            flight_key = "chat:latest"
         with server.chat_flight_lock:
             if flight_key in server.chat_in_flight:
                 _send_json(self, 400, {
@@ -434,6 +449,8 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                     str(payload.get("message", "")),
                     payload.get("links", []) or [],
                     retry_turn_id=str(payload.get("retry_turn_id", "") or ""),
+                    session_id=raw_session_id,
+                    new_session=str(payload.get("new_session", "")) not in ("", "false", False),
                 )
             except WorkbenchFlowError as exc:
                 body = {"error": str(exc)}
@@ -489,13 +506,24 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
 
     def _handle_workbench_get_state(self) -> None:
         flow = self._workbench_flow()
+        # 多会话（issuecomment-6366157284）：?chat=<session_id> 返回显式
+        # 选中会话（绝不静默回落 latest）；无参数保持旧行为（latest）。
+        # 同时附上侧栏元数据列表（ID/标题/更新时间/计数，无任何机密）。
+        query = urllib.parse.parse_qs(
+            urllib.parse.urlparse(self.path).query, keep_blank_values=True
+        )
+        chat_id = ""
+        values = query.get("chat", [])
+        if len(values) == 1 and str(values[0]).strip():
+            chat_id = str(values[0]).strip()
 
         def _read():
             settings = flow.get_settings()
             session = flow.store.load_latest()
             view = flow.view(session["session_id"]) if session else None
-            chat = flow.chat_state()
-            return {"settings": settings, "session": view, **chat}
+            chat = flow.chat_state(chat_id)
+            sessions = flow.chat_sessions()
+            return {"settings": settings, "session": view, **chat, **sessions}
 
         result, error = self._workbench_call(_read)
         if error:
@@ -698,10 +726,15 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             self._handle_chat_stream(flow, payload)
             return
         if path == "/api/workbench/chat/draft":
-            result, error = self._workbench_call(flow.chat_draft_generate)
+            result, error = self._workbench_call(
+                lambda: flow.chat_draft_generate(str(payload.get("session_id", "") or ""))
+            )
         elif path == "/api/workbench/chat/draft/edit":
             result, error = self._workbench_call(
-                lambda: flow.chat_draft_save(str(payload.get("content", "")))
+                lambda: flow.chat_draft_save(
+                    str(payload.get("content", "")),
+                    str(payload.get("session_id", "") or ""),
+                )
             )
         elif path == "/api/workbench/settings":
             result, error = self._workbench_call(lambda: flow.save_settings(payload))

@@ -1,6 +1,6 @@
 # Issue #44 / PR #45 — 极简创作页与独立模型设置页
 
-> **状态：READY_FOR_NEXUS_OWNER_UX_FINAL_REVIEW（第七轮：Nexus 收尾修复 U1/U2 + Key 跨工作树）。** 前六轮完成两页极简 UX、DeepSeek 设置体验、paste→Test 修复、Chat-first MVP、B1–B4/B2-P0 阻断修复与一体化对话工作区 + 限额真实模型端到端（Nexus 已确认真实 E2E 证据）；本轮按 review #5628192126 完成：U1 失败请求事务性（乐观气泡零残留 + 停止后对账 + 幂等重发语义三态）、U2 真实视口核验（fullPage 遮挡系截图伪影，零设计改动）、Owner Key 升级为用户级 `~/.deeptalk`（0600）跨工作树持久化 + 一次性向后兼容迁移。PR 保持打开，未合并。
+> **状态：READY_FOR_NEXUS_MULTI_CHAT_UX_REVIEW（第八轮：多会话 UX）。** 前七轮完成两页极简 UX、DeepSeek 设置体验、paste→Test 修复、Chat-first MVP、B1–B4/B2-P0 阻断修复、一体化对话工作区 + 限额真实模型端到端（Nexus 已确认真实 E2E）、U1/U2 收尾修复 + Key 跨工作树用户级持久化 + 双 runner 凭据隔离（P0）；本轮按 issuecomment-6366157284 完成：左侧历史会话 sidebar（桌面 244px 可收起 / 375px 抽屉，标题取首条用户消息零付费调用、按最近更新倒序、选中高亮）、＋新建对话（零服务端调用，首发送才建持久化会话 ID）、所有聊天/草稿操作显式携带 session_id 绝不静默回落 latest、刷新/进程重启选择保持、流式中切换守卫（确定性验证）、草稿收起为小入口+点击展开抽屉（生成后自动展开、返回默认收起、v1/v2/v3 不删）、聊天历史升级为用户级 `~/.deeptalk/chat/`（0600 + 一次性迁移：同 ID 不覆盖/原文件保留/幂等，8321 真实迁移实测）。PR 保持打开，未合并。
 
 ## 视觉与交互交付
 
@@ -145,13 +145,28 @@
 | Owner UX：流式与停止态（夹具诚实标注/计费诚实文案） | 通过；滚动跟随不强制（上翻保持 scrollY 37） | [27](screenshots/27-unified-streaming.png) / [28](screenshots/28-unified-stopped-retry.png) |
 | Owner UX：375px 一体化 | 通过；溢出 0px，safe-area 适配 | [29-unified-mobile-375.png](screenshots/29-unified-mobile-375.png) |
 | 真实 DeepSeek：停止态 + 完整对话（产品内 Owner Key，共 5 次 ≤8） | 通过；真实回复诚实标注、v1/v2/v3、无明文 Key | [30](screenshots/30-real-deepseek-stopped.png) / [31](screenshots/31-real-deepseek-conversation-full.png) / [32](screenshots/32-real-deepseek-mobile-375.png) |
+| 多会话：初始态（既有会话列在 sidebar + 草稿仅小入口） | 通过；巨型草稿编辑器不再常驻，会话元数据「13 条消息 · 草稿 v3」 | [38-desktop-initial-sidebar.png](screenshots/38-desktop-initial-sidebar.png) |
+| 多会话：＋新建对话零调用空态 | 通过；performance 资源计数 delta=0、旧会话保留 | [39-new-chat-empty-state.png](screenshots/39-new-chat-empty-state.png) |
+| 多会话：话题甲首发送创建会话 A | 通过；侧栏新增条目标题=首条用户消息、localStorage 记录新 id | [40-session-a-created.png](screenshots/40-session-a-created.png) |
+| 多会话：草稿 v1 生成后抽屉自动展开 | 通过；生成前入口行显示小「把对话整理为草稿（调用模型，可能计费）」 | [41-draft-v1-drawer-autoopen.png](screenshots/41-draft-v1-drawer-autoopen.png) |
+| 多会话：v1/v2/v3 保存后收起 | 通过；入口「草稿 v3 · 未审核」 | [42-draft-v3-collapsed-entry.png](screenshots/42-draft-v3-collapsed-entry.png) |
+| 多会话：新建 B（3 会话倒序） | 通过；B 与 A 完全隔离（A 内容零出现） | [43-session-b-created-3-sessions.png](screenshots/43-session-b-created-3-sessions.png) |
+| 多会话：选中 A 精确恢复 | 通过；仅 A 内容、v1/v2/v3 版本链齐全、抽屉默认收起 | [44-session-a-recovery-drafts.png](screenshots/44-session-a-recovery-drafts.png) |
+| 多会话：刷新保持选择 | 通过；localStorage 非机密 id、内容/草稿恢复 | [45-refresh-persist-selection.png](screenshots/45-refresh-persist-selection.png) |
+| 多会话：8322 进程重启后仍精确恢复 | 通过；A 仍选中、3 会话齐全 | [46-restart-persist-selection.png](screenshots/46-restart-persist-selection.png) |
+| 多会话：流式切换守卫（确定性同步验证） | 通过；守卫文案出现、localStorage 不动、会话不切换 | [47-streaming-guard-blocked.png](screenshots/47-streaming-guard-blocked.png) |
+| 多会话：375px 初始（sidebar 移出屏幕 + ☰ 按钮） | 通过；横向溢出 0 | [48-mobile-375-initial.png](screenshots/48-mobile-375-initial.png) |
+| 多会话：375px 抽屉打开 | 通过；遮罩可见、会话可达 | [49-mobile-drawer-open.png](screenshots/49-mobile-drawer-open.png) |
+| 多会话：375px 选择会话后自动关闭 | 通过；抽屉滑出、溢出 0、内容渲染 | [50-mobile-after-select-closed.png](screenshots/50-mobile-after-select-closed.png) |
 
 完整的 B1/B2 断言、设置体验流与浏览器输出见 [browser-evidence.md](browser-evidence.md)。
 
 ## 测试结果
 
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **138 passed**（第七轮新增：Key 跨工作树共享 + 迁移/清除 2 项；U1 静态断言增强；前六轮累计 136 项保持全过）
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1118 passed, 7 skipped**（第七轮全量，退出码 0）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **141 passed**（第八轮新增：多会话完全隔离 + 聊天历史用户级迁移 + HTTP 作用域操作 3 项；前七轮累计 138 项保持全过）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1121 passed, 7 skipped**（第八轮全量，退出码 0；1118+3 精确衔接）
+- 'HOME=<sentinel> PYTHONPATH=src python3 -m unittest discover -s tests'（裸文档命令） → **Ran 1128 tests … OK (skipped=7)**，退出码 0；sentinel `.deeptalk` 文件列表与 marker sha256 前后一致（双 runner 均不触碰真实用户级配置与聊天历史）
+- 真实 `~/.deeptalk` 全文件 sha256 快照在 focused 套件运行前后完全一致（聊天目录隔离确定性证明）
 - 内联 JavaScript：'node --check'（提取 `<script>` 块）→ **通过**
 - 'git diff --check' → **通过**
 - 未修改无关后端、模型门禁、SSRF 防护或生产工作流；未提交本地密钥、模型输出、缓存或临时会话。

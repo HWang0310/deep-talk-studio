@@ -30,39 +30,52 @@ from tests.test_reference_discovery import (
     search_item,
 )
 
-# ---- 测试凭据安全（P0，review 5628439637）---------------------------
+# ---- 测试凭据与会话数据安全（P0，review 5628439637 + 6366157284）-------
 # pytest 与直接 `PYTHONPATH=src python3 -m unittest discover -s tests -v`
 # （AGENTS.md/README.md 文档命令）都必须与真实 ~/.deeptalk 完全隔离：
-# 绝不读取、覆盖或清除 Owner 已保存的 DeepSeek Key。
+# 绝不读取、覆盖或清除 Owner 已保存的 DeepSeek Key 与聊天历史。
 #
 # 本模块级兜底在本文件被任何 runner（pytest / unittest / IDE / CI）加载时
-# 先于任何 settings 读/写执行——用户级配置目录指向一次性临时目录，
-# 不解析真实 Path.home()；下方基类再为每个测试提供独立目录，防止
-# 测试间串扰。生产运行不导入本文件，用户级 ~/.deeptalk 行为保持不变。
+# 先于任何 settings/chat 读/写执行——用户级配置与聊天历史目录都指向
+# 一次性临时目录，不解析真实 Path.home()；下方基类再为每个测试提供独立
+# 目录，防止测试间串扰。生产运行不导入本文件，用户级 ~/.deeptalk 行为
+# 保持不变。
 import atexit as _atexit
 import shutil as _shutil
 import tempfile as _tempfile
 
 from deeptalk_studio.workbench import settings as _settings_module
+from deeptalk_studio.workbench import creative_chat as _creative_chat_module
 
 if _settings_module.USER_SETTINGS_DIR is None:
     _SESSION_USER_DIR = Path(_tempfile.mkdtemp(prefix="deeptalk-tests-user-"))
     _atexit.register(_shutil.rmtree, _SESSION_USER_DIR, ignore_errors=True)
     _settings_module.USER_SETTINGS_DIR = _SESSION_USER_DIR
+if _creative_chat_module.USER_CHAT_DIR is None:
+    _SESSION_CHAT_DIR = Path(_tempfile.mkdtemp(prefix="deeptalk-tests-chat-"))
+    _atexit.register(_shutil.rmtree, _SESSION_CHAT_DIR, ignore_errors=True)
+    _creative_chat_module.USER_CHAT_DIR = _SESSION_CHAT_DIR
 
 
 class _UserSettingsIsolatedTestCase(unittest.TestCase):
-    """每个测试独享一个用户级配置目录（pytest 与 unittest 双入口均生效）。"""
+    """每个测试独享用户级配置与聊天历史目录（pytest 与 unittest 双入口均生效）。"""
 
     def setUp(self):
         super().setUp()
-        isolated = Path(
+        settings_dir = Path(
             _tempfile.mkdtemp(prefix="deeptalk-user-%s-" % self.id()[:60])
         )
-        self.addCleanup(_shutil.rmtree, isolated, ignore_errors=True)
-        previous = _settings_module.USER_SETTINGS_DIR
-        _settings_module.USER_SETTINGS_DIR = isolated
-        self.addCleanup(setattr, _settings_module, "USER_SETTINGS_DIR", previous)
+        self.addCleanup(_shutil.rmtree, settings_dir, ignore_errors=True)
+        previous_settings = _settings_module.USER_SETTINGS_DIR
+        _settings_module.USER_SETTINGS_DIR = settings_dir
+        self.addCleanup(setattr, _settings_module, "USER_SETTINGS_DIR", previous_settings)
+        chat_dir = Path(
+            _tempfile.mkdtemp(prefix="deeptalk-chat-%s-" % self.id()[:60])
+        )
+        self.addCleanup(_shutil.rmtree, chat_dir, ignore_errors=True)
+        previous_chat = _creative_chat_module.USER_CHAT_DIR
+        _creative_chat_module.USER_CHAT_DIR = chat_dir
+        self.addCleanup(setattr, _creative_chat_module, "USER_CHAT_DIR", previous_chat)
 
 
 class LocalWebUITestCase(_UserSettingsIsolatedTestCase):
@@ -284,7 +297,27 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn('id="search-btn"', body)
         self.assertIn('id="chat-stop"', body)
         self.assertIn('id="chat-retry"', body)
-        self.assertIn('id="draft-card"', body)
+        # 多会话 UX（issuecomment-6366157284）：左侧历史会话列表 + 新建对话 + 375px 抽屉；
+        # 草稿不再常驻聊天下方，改为小入口 + 点击展开抽屉（默认收起）。
+        self.assertIn('id="chat-sidebar"', body)
+        self.assertIn('id="new-chat-btn"', body)
+        self.assertIn('id="chat-session-list"', body)
+        self.assertIn('id="sidebar-backdrop"', body)
+        self.assertIn('id="draft-entry-row"', body)
+        self.assertIn('id="draft-entry-btn"', body)
+        self.assertIn('id="draft-drawer"', body)
+        self.assertIn("function renderSessions", body)
+        self.assertIn("function selectSession", body)
+        self.assertIn("function startNewChat", body)
+        self.assertIn("var SELECTED_CHAT_KEY = 'deeptalk.chat-session'", body)
+        # 会话选择持久化在 localStorage（非机密 id），刷新/重启后保持
+        self.assertIn("window.localStorage.getItem(SELECTED_CHAT_KEY)", body)
+        self.assertIn("window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId)", body)
+        # 所有聊天/草稿操作携带显式选中会话 ID，绝不静默回落 latest；
+        # newChatMode 首发送才建新会话（点击「新建对话」零服务端调用）
+        self.assertIn("payload.session_id = selectedSessionId", body)
+        self.assertIn("payload.new_session = true", body)
+        self.assertIn("{ session_id: selectedSessionId }", body)
         # 失败不丢输入：404/路由不匹配给出真实服务版本指引并恢复未发送内容
         self.assertIn("本机服务可能是旧版本", body)
         # U1（5628192126）：乐观气泡只在服务器接受（SSE start）前存在 ——
@@ -305,7 +338,7 @@ class StaticPageTests(LocalWebUITestCase):
         # 流式与恢复契约：真实 SSE 增量 + 停止不写半截回复 + 刷新恢复
         self.assertIn("getReader()", body)
         self.assertIn("AbortController", body)
-        self.assertIn("renderChat(state.chat", body)
+        self.assertIn("renderChat(newChatMode ? null : (state.chat || null))", body)
         # B3（Nexus 5626927896）计费诚实：停止 = 停止显示 + 尽力中断请求，
         # 绝不承诺「不再计费」——已产生的费用可能仍会计入账单。
         self.assertIn("已停止显示并尝试中断模型请求", body)
@@ -1199,6 +1232,116 @@ class ChatStreamHttpTests(LocalWebUITestCase):
                              ["中途停止的消息", "".join(f"慢段{i}" for i in range(20))])
             # 两次模型调用均为显式动作（首次 + 重发），无隐藏第三次
             self.assertEqual(len(calls), 2)
+
+    def test_chat_sessions_list_and_scoped_operations_over_http(self):
+        """多会话（issuecomment-6366157284）：sessions 列表端点、按 ID 作用域
+        的发送/草稿、未知会话明确 400、每会话独立单飞互不干扰。"""
+        import tempfile
+        import threading
+        import time
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            calls = []
+            llm = self.StreamLLM([f"段{i}" for i in range(20)], calls)
+            self.start_server(flow=self._chat_flow(root, llm))
+            self._configure_deepseek(root)
+
+            def post(path, payload):
+                req = urllib.request.Request(
+                    self.base + path,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=25) as resp:
+                        return resp.status, json.loads(resp.read().decode("utf-8"))
+                except urllib.error.HTTPError as exc:
+                    return exc.code, json.loads(exc.read().decode("utf-8"))
+
+            def get(path):
+                with urllib.request.urlopen(
+                    urllib.request.Request(self.base + path), timeout=15
+                ) as resp:
+                    return json.loads(resp.read().decode("utf-8"))
+
+            # 会话 A：普通发送（latest 语义）→ 完成
+            status_a, _, events_a = self._sse_post("/api/workbench/chat/stream", {
+                "message": "话题甲的消息",
+            }, timeout=25)
+            self.assertEqual(status_a, 200)
+            session_a = events_a[0]["session_id"]
+            self.assertEqual(events_a[-1]["type"], "done")
+            # 会话 B：new_session=True 首发送创建新会话
+            status_b, _, events_b = self._sse_post("/api/workbench/chat/stream", {
+                "message": "话题乙的消息", "new_session": True,
+            }, timeout=25)
+            self.assertEqual(status_b, 200)
+            session_b = events_b[0]["session_id"]
+            self.assertNotEqual(session_a, session_b)
+            # 列表：标题取首条用户消息（无额外模型调用）
+            sessions = get("/api/workbench/chat/sessions")["sessions"]
+            self.assertEqual({s["session_id"] for s in sessions}, {session_a, session_b})
+            titles = {s["session_id"]: s["title"] for s in sessions}
+            self.assertEqual(titles[session_a], "话题甲的消息")
+            self.assertEqual(titles[session_b], "话题乙的消息")
+            # 未知会话明确 400，绝不静默回落 latest
+            status, body = post("/api/workbench/chat/stream", {
+                "message": "任意", "session_id": "deadbeef" * 4,
+            })
+            self.assertEqual(status, 400)
+            self.assertIn("不存在", body["error"])
+            # ?chat=<id> 的 state 返回显式选中会话；B 无 A 的内容
+            chat_a = get(f"/api/workbench/state?chat={session_a}")["chat"]
+            self.assertEqual(chat_a["session_id"], session_a)
+            self.assertEqual([t["content"] for t in chat_a["turns"]][:1], ["话题甲的消息"])
+            chat_b = get(f"/api/workbench/state?chat={session_b}")["chat"]
+            self.assertEqual([t["content"] for t in chat_b["turns"]][:1], ["话题乙的消息"])
+            # 会话作用域草稿：A 生成+编辑；B 也能独立生成（互不混淆）
+            status, _ = post("/api/workbench/chat/draft", {"session_id": session_a})
+            self.assertEqual(status, 200)
+            status, _ = post("/api/workbench/chat/draft/edit", {
+                "content": "甲草稿的用户修改", "session_id": session_a,
+            })
+            self.assertEqual(status, 200)
+            status, _ = post("/api/workbench/chat/draft", {"session_id": session_b})
+            self.assertEqual(status, 200)
+            self.assertEqual(len(get(f"/api/workbench/state?chat={session_b}")["chat"]["drafts"]), 1)
+            self.assertEqual(len(get(f"/api/workbench/state?chat={session_a}")["chat"]["drafts"]), 2)
+            # 每会话独立单飞：A 在飞期间对 A 重叠 400；B 可照常发送
+            results = {}
+
+            def stream_a_second():
+                results["overlap"] = self._sse_post("/api/workbench/chat/stream", {
+                    "message": "甲的重叠消息", "session_id": session_a,
+                }, timeout=25)
+
+            thread = threading.Thread(target=stream_a_second, daemon=True)
+            thread.start()
+            time.sleep(0.12)
+            status, body = post("/api/workbench/chat/stream", {
+                "message": "对甲的重叠", "session_id": session_a,
+            })
+            self.assertEqual(status, 400)
+            self.assertIn("上一条回复还在进行中", body["error"])
+            status_b2, _, events_b2 = self._sse_post("/api/workbench/chat/stream", {
+                "message": "乙的后续", "session_id": session_b,
+            }, timeout=25)
+            self.assertEqual(status_b2, 200)
+            thread.join(timeout=25)
+            self.assertEqual(results["overlap"][0], 200)
+            # A 与 B 各自完整一问一答/问答对，互不污染
+            chat_a2 = get(f"/api/workbench/state?chat={session_a}")["chat"]
+            self.assertEqual([t["content"] for t in chat_a2["turns"]],
+                             ["话题甲的消息", "".join(f"段{i}" for i in range(20)),
+                              "甲的重叠消息", "".join(f"段{i}" for i in range(20))])
+            chat_b2 = get(f"/api/workbench/state?chat={session_b}")["chat"]
+            self.assertEqual([t["content"] for t in chat_b2["turns"]],
+                             ["话题乙的消息", "".join(f"段{i}" for i in range(20)),
+                              "乙的后续", "".join(f"段{i}" for i in range(20))])
+            # 模型调用计数：甲流 + 甲草稿 + 乙草稿 + 甲重叠流 + 乙流 + 乙后续 = 6 次显式
+            self.assertEqual(len(calls), 6)
 
 
 if __name__ == "__main__":

@@ -260,10 +260,67 @@
     margin: 14px auto 0;
     padding-bottom: 6px;
   }
+  /* Owner UX（issuecomment-6366157284）：ChatGPT 式左侧历史会话 */
+  #chat-layout { display: flex; align-items: stretch; }
+  .chat-sidebar {
+    width: 244px;
+    flex: 0 0 auto;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 16px 12px 20px;
+    border-right: 1px solid var(--line);
+    background: rgba(255,255,255,.42);
+    scrollbar-width: thin;
+  }
+  .chat-sidebar.collapsed { display: none; }
+  .sidebar-head { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 10px; }
+  .sidebar-title { color: var(--ink-soft); font-size: 12px; font-weight: 700; letter-spacing: .14em; }
+  .sidebar-new-chat { width: 100%; justify-content: center; min-height: 40px; }
+  .chat-session-list { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+  .chat-session-list button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.45;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .chat-session-list button:hover { background: rgba(255,255,255,.75); color: var(--ink); }
+  .chat-session-list button.active { background: var(--coral-wash); color: var(--coral-deep); font-weight: 650; }
+  .chat-session-list .session-meta { display: block; color: var(--muted); font-size: 11px; font-weight: 400; margin-top: 2px; }
+  .sidebar-open-btn { display: none; margin-bottom: 10px; }
+  .sidebar-backdrop { display: none; }
+  .chat-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  /* 草稿小入口（不再常驻大表单）*/
+  .draft-entry-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding: 8px 4px 0;
+  }
+  .draft-entry-btn { font-weight: 650; color: var(--coral-deep); }
+  .draft-generate-btn { font-size: 12.5px; color: var(--ink-soft); }
+  .draft-drawer { margin-top: 10px; }
+  .draft-drawer summary { cursor: pointer; font-weight: 650; color: var(--ink); }
+  .draft-drawer summary .muted { font-weight: 400; margin-left: 8px; font-size: 12px; }
+  .draft-drawer[open] summary { margin-bottom: 8px; }
   /* Owner UX：空态内容不足一屏时，creator-view 由 JS 按实测顶栏高度撑满
      视口并把 composer 推到底部；内容超屏时 composer 依然 sticky 贴底。 */
   #creator-view { display: flex; flex-direction: column; }
   #creator-view > #composer-dock { margin-top: auto; }
+  #chat-main > #composer-dock { margin-top: auto; }
   .composer-dock {
     position: sticky;
     bottom: 0;
@@ -448,6 +505,28 @@
     .hero-mark { margin-bottom: 18px; }
     .welcome-copy { max-width: 430px; margin-bottom: 4px; font-size: 13px; }
     .conversation { margin-top: 12px; }
+    /* 375px：侧栏变为抽屉，选择后自动收起，不产生横向溢出 */
+    .chat-sidebar {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      width: min(300px, 84vw);
+      height: auto;
+      z-index: 70;
+      transform: translateX(-105%);
+      transition: transform .18s ease-out;
+      background: var(--ivory);
+      box-shadow: 14px 0 40px rgba(70,62,48,.16);
+    }
+    .chat-sidebar.drawer-open { transform: translateX(0); }
+    .chat-sidebar.collapsed { display: block; transform: translateX(-105%); }
+    .sidebar-open-btn { display: inline-flex; }
+    .sidebar-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 65;
+      background: rgba(40,36,28,.32);
+    }
     .settings-page { padding-top: 18px; }
     .settings-card { padding: 34px 24px 27px; border-radius: 20px; }
     .settings-form-grid { grid-template-columns: 1fr; }
@@ -570,10 +649,25 @@
   </div>
 
   <div id="creator-view">
+    <!-- Owner UX（issuecomment-6366157284）：ChatGPT 式多会话。
+         左侧历史会话侧栏（桌面常驻可收起，375px 抽屉）+ 右侧单一
+         连续对话工作区；「新建对话」零服务端调用，首次发送才创建会话。 -->
+    <div id="chat-layout" class="chat-layout">
+      <aside id="chat-sidebar" class="chat-sidebar" aria-label="历史会话">
+        <div class="sidebar-head">
+          <span class="sidebar-title">对话</span>
+          <button id="sidebar-close" class="quiet-btn" type="button" aria-label="收起侧栏">‹</button>
+        </div>
+        <button id="new-chat-btn" class="primary sidebar-new-chat" type="button">＋ 新建对话</button>
+        <nav id="chat-session-list" class="chat-session-list" aria-label="历史会话列表"></nav>
+      </aside>
+      <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
+      <div id="chat-main" class="chat-main">
     <!-- Owner UX（issuecomment-6364369899）：单一连续对话工作区。
          空态 = 安静居中欢迎 + 贴底 composer；有对话后 welcome 隐藏，
          turns / 草稿 / 旧集入口都在同一个滚动流里，composer 永远
          贴在视口底部 —— 绝不需要滚回顶部发下一条消息。 -->
+    <button id="sidebar-open" class="quiet-btn sidebar-open-btn" type="button" aria-label="打开历史会话侧栏">☰ 历史</button>
     <div id="welcome-pane" class="welcome-pane">
       <div class="hero-mark" aria-hidden="true"><span></span><i></i></div>
       <p class="hero-kicker">自由聊天创作</p>
@@ -585,14 +679,18 @@
     <div id="conversation" class="conversation" hidden>
       <div id="chat-thread" class="chat-thread" role="log" aria-live="polite"></div>
 
-      <section id="draft-card" class="card draft-card" hidden aria-labelledby="draft-title">
-        <h2 id="draft-title">原创草稿（未审核）</h2>
+      <!-- 草稿不再常驻占据阅读面（issuecomment-6366157284）：仅显示一个
+           小入口「草稿 vN · 未审核」，点击才展开编辑器/版本链；无草稿时
+           只留一个小的「整理为草稿」动作。刷新后默认收起。 -->
+      <div id="draft-entry-row" class="draft-entry-row" hidden>
+        <button id="draft-entry-btn" type="button" class="quiet-btn draft-entry-btn" hidden>📝 草稿</button>
+        <button id="draft-generate" type="button" class="quiet-btn draft-generate-btn">把对话整理为草稿（调用模型，可能计费）</button>
+        <span id="draft-status" class="muted" role="status"></span>
+      </div>
+      <details id="draft-drawer" class="card draft-drawer" hidden>
+        <summary>原创草稿（未审核）<span id="draft-drawer-meta" class="muted"></span></summary>
         <p class="muted">草稿区别于正式口播稿：<strong>未经研究与事实核查</strong>，由你自由编辑；每次修改保存为新的不可变版本，可随时回看。</p>
-        <div class="actions" style="margin-top:6px">
-          <button id="draft-generate" type="button" class="primary">把对话整理为草稿（调用模型，可能计费）</button>
-          <span id="draft-status" class="muted" role="status"></span>
-        </div>
-        <div id="draft-workspace" hidden>
+        <div id="draft-workspace">
           <div id="draft-revisions" class="draft-revisions" role="tablist" aria-label="草稿历史版本"></div>
           <label class="visually-hidden" for="draft-editor">草稿编辑区</label>
           <textarea id="draft-editor" class="draft-editor" rows="14" aria-label="草稿正文，可自由编辑"></textarea>
@@ -609,7 +707,7 @@
             </div>
           </details>
         </div>
-      </section>
+      </details>
     </div>
 
     <!-- 旧集正式工作流的独立可选入口：无论是否已有聊天，都可展开查看，
@@ -809,9 +907,10 @@
       </div>
       <div id="ref-list" aria-label="已有参考链接"></div>
     </div>
+    </div>
+    </div>
   </div>
 </main>
-
 <footer class="site">DeepTalk Studio · 参考视频仅用于研究叙事结构，不作为事实来源 · 排序不等同于站内整体排名</footer>
 
 <script>
@@ -821,6 +920,7 @@
   var MAX_REFS = 5;
   var DEFAULT_AUTHORIZATION = "我授权仅在本地对你下载研究使用本集所选参考视频，文件仅保存在我指定的文件夹，不重新分发；我确认拥有这些视频的合法观看权限。";
   var TOPIC_DRAFT_KEY = 'deeptalk.topic-draft';
+  var SELECTED_CHAT_KEY = 'deeptalk.chat-session';
   var STAGES = ['stage-references', 'stage-research', 'stage-script', 'stage-audio'];
   var CREATOR_TITLE = 'DeepTalk · 创作';
   var SETTINGS_TITLE = '大模型设置 · DeepTalk';
@@ -1003,7 +1103,13 @@
   }
 
   function getState() {
-    return fetch('/api/workbench/state').then(function (resp) { return resp.json(); });
+    var url = '/api/workbench/state';
+    // 多会话：?chat=<id> 返回显式选中会话（后端绝不静默回落 latest）。
+    // 「新建对话」模式（尚未发送）不携带选中 id，chat 区由本地渲染空态。
+    if (!newChatMode && selectedSessionId) {
+      url += '?chat=' + encodeURIComponent(selectedSessionId);
+    }
+    return fetch(url).then(function (resp) { return resp.json(); });
   }
 
   function refresh() {
@@ -1071,7 +1177,10 @@
 
   function renderState(state) {
     renderSettings(state.settings || {});
-    renderChat(state.chat || null);
+    renderSessions(state.sessions || []);
+    // 新建对话模式下 chat 区为本地空态（零服务端副作用）；否则渲染
+    // ?chat=<id> 返回的显式选中会话
+    renderChat(newChatMode ? null : (state.chat || null));
     var incomingSession = state.session || null;
     var sessionChanged = currentSession && incomingSession &&
       currentSession.session_id !== incomingSession.session_id;
@@ -2246,7 +2355,10 @@
   var chatStatusEl = document.getElementById('chat-status');
   var chatStopBtn = document.getElementById('chat-stop');
   var chatRetryBtn = document.getElementById('chat-retry');
-  var draftCard = document.getElementById('draft-card');
+  var draftEntryRow = document.getElementById('draft-entry-row');
+  var draftEntryBtn = document.getElementById('draft-entry-btn');
+  var draftDrawer = document.getElementById('draft-drawer');
+  var draftDrawerMeta = document.getElementById('draft-drawer-meta');
   var draftStatusEl = document.getElementById('draft-status');
   var draftGenerateBtn = document.getElementById('draft-generate');
   var draftWorkspace = document.getElementById('draft-workspace');
@@ -2256,7 +2368,14 @@
   var draftCopyBtn = document.getElementById('draft-copy');
   var draftExportBtn = document.getElementById('draft-export');
   var draftMetaEl = document.getElementById('draft-meta');
+  var sidebarEl = document.getElementById('chat-sidebar');
+  var sidebarOpenBtn = document.getElementById('sidebar-open');
+  var sidebarCloseBtn = document.getElementById('sidebar-close');
+  var sidebarBackdrop = document.getElementById('sidebar-backdrop');
+  var newChatBtn = document.getElementById('new-chat-btn');
+  var sessionListEl = document.getElementById('chat-session-list');
   var chatStateCache = null;
+  var currentSessionsCache = [];
   var chatInFlight = false;
   var chatAbort = null;
   var lastUserMessage = '';
@@ -2264,15 +2383,100 @@
   var lastUserTurnId = '';
   var lastSendIncomplete = false;
   var selectedDraftRevision = 0;
+  // 多会话（issuecomment-6366157284）：选中的会话 id（非机密，仅本机
+  // localStorage）；newChatMode = 点了「新建对话」但首次发送尚未完成 ——
+  // 此时零服务端调用，首次发送才创建新会话。
+  var selectedSessionId = '';
+  var newChatMode = false;
+  try { selectedSessionId = window.localStorage.getItem(SELECTED_CHAT_KEY) || ''; } catch (err) { }
   var legacyEntry = document.getElementById('legacy-workbench-entry');
   var legacyTopic = document.getElementById('legacy-topic');
 
   // B3（Nexus review 5626927896）：重试按钮只在「上一条发送未完成」
   // （停止 / 失败 / 中断）时出现；已有完整回复的上一条不再是待重试
   // 状态 —— 重发永远复用已保存的那条 user turn，不复制用户消息。
+  // 多会话：新建对话/切换会话后旧会话的重发状态一并失效，绝不跨会话误重发。
   function updateRetryBtn() {
-    chatRetryBtn.hidden = !(lastUserMessage && !chatInFlight && lastSendIncomplete);
+    chatRetryBtn.hidden = !(lastUserMessage && !chatInFlight && lastSendIncomplete && !newChatMode);
   }
+
+  // ---- 多会话侧栏（issuecomment-6366157284）----
+
+  function renderSessions(sessions) {
+    currentSessionsCache = sessions || [];
+    sessionListEl.textContent = '';
+    currentSessionsCache.forEach(function (meta) {
+      var active = !newChatMode && meta.session_id === selectedSessionId;
+      var btn = el('button', active ? 'active' : null);
+      btn.type = 'button';
+      btn.title = meta.title || '';
+      btn.appendChild(el('span', null, meta.title || '新对话'));
+      var updated = String(meta.updated_at || '').replace('T', ' ').slice(5, 16);
+      btn.appendChild(el('span', 'session-meta',
+        updated + ' · ' + (meta.turns || 0) + ' 条消息' +
+        (meta.drafts ? ' · 草稿 v' + meta.drafts : '')));
+      btn.addEventListener('click', function () { selectSession(String(meta.session_id || '')); });
+      sessionListEl.appendChild(btn);
+    });
+  }
+
+  function closeSidebarDrawer() {
+    sidebarEl.classList.remove('drawer-open');
+    sidebarBackdrop.hidden = true;
+  }
+
+  function selectSession(sessionId) {
+    if (chatInFlight) {
+      // 流式中切换保护：绝不产生跨会话迟到 SSE/陈旧覆盖
+      chatStatusEl.textContent = '当前回复还在进行中，请先停止或等待完成后再切换会话。';
+      return;
+    }
+    closeSidebarDrawer();
+    if (!sessionId || (!newChatMode && sessionId === selectedSessionId)) { return; }
+    newChatMode = false;
+    selectedSessionId = sessionId;
+    try { window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId); } catch (err) { }
+    // 旧会话的重发/未完成状态一并失效，绝不跨会话误重发
+    lastUserMessage = '';
+    lastUserTurnId = '';
+    lastSendIncomplete = false;
+    chatStatusEl.textContent = '';
+    refresh().catch(function () { });
+  }
+
+  function startNewChat() {
+    if (chatInFlight) {
+      chatStatusEl.textContent = '当前回复还在进行中，请先停止或等待完成后再新建对话。';
+      return;
+    }
+    closeSidebarDrawer();
+    newChatMode = true;
+    selectedDraftRevision = 0;
+    lastUserMessage = '';
+    lastUserTurnId = '';
+    lastSendIncomplete = false;
+    chatStatusEl.textContent = '';
+    renderChat(null);
+    renderSessions(currentSessionsCache);
+    clearTopicDraft();
+    topicEl.focus();
+  }
+
+  newChatBtn.addEventListener('click', startNewChat);
+  sidebarCloseBtn.addEventListener('click', function () {
+    var collapsed = sidebarEl.classList.toggle('collapsed');
+    sidebarOpenBtn.classList.toggle('sidebar-shown', collapsed);
+  });
+  sidebarOpenBtn.addEventListener('click', function () {
+    if (window.matchMedia('(max-width: 720px)').matches) {
+      sidebarEl.classList.add('drawer-open');
+      sidebarBackdrop.hidden = false;
+    } else {
+      sidebarEl.classList.remove('collapsed');
+      sidebarOpenBtn.classList.remove('sidebar-shown');
+    }
+  });
+  sidebarBackdrop.addEventListener('click', closeSidebarDrawer);
 
   // Owner UX（issuecomment-6364369899）：单一对话工作区的空态/对话态切换
   // —— welcome 只在没有对话（且无在飞流）时出现；一旦有 turns，
@@ -2350,15 +2554,23 @@
   }
 
   function renderDrafts(chat) {
+    // 草稿不再常驻大表单（issuecomment-6366157284）：只显示一个小入口
+    // 「草稿 vN · 未审核」，点击才展开 drawer；无草稿时仅留「整理为草稿」
+    // 小动作；刷新后默认收起，生成动作后自动展开（直接后果）。
     var drafts = (chat && chat.drafts) || [];
-    draftCard.hidden = !(drafts.length || (chat && chat.turns && chat.turns.length));
-    draftGenerateBtn.hidden = !(chat && chat.turns && chat.turns.length);
+    var hasTurns = !!(chat && chat.turns && chat.turns.length);
+    draftEntryRow.hidden = !hasTurns;
+    draftEntryBtn.hidden = !drafts.length;
+    draftGenerateBtn.hidden = !(!drafts.length && hasTurns);
+    draftDrawer.hidden = !drafts.length;
     if (!drafts.length) {
-      draftWorkspace.hidden = true;
+      draftDrawer.open = false;
       draftRevisionsEl.textContent = '';
       return;
     }
-    draftWorkspace.hidden = false;
+    var latest = drafts[drafts.length - 1];
+    draftEntryBtn.textContent = '📝 草稿 v' + latest.revision + ' · 未审核';
+    draftDrawerMeta.textContent = 'v' + latest.revision + ' · 未审核';
     draftRevisionsEl.textContent = '';
     if (selectedDraftRevision < 1 || selectedDraftRevision > drafts.length) {
       selectedDraftRevision = drafts.length;
@@ -2387,6 +2599,17 @@
   function renderChat(chat) {
     chatStateCache = chat;
     chatThread.textContent = '';
+    if (newChatMode) {
+      // 「新建对话」：干净的空 composer / 空草稿态，绝不抹除其他会话
+      renderDrafts(null);
+      updateWelcomeVisibility();
+      updateRetryBtn();
+      return;
+    }
+    if (chat && chat.session_id) {
+      selectedSessionId = String(chat.session_id);
+      try { window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId); } catch (err) { }
+    }
     if (chat && chat.turns) {
       chat.turns.forEach(function (turn) { appendChatTurnEl(turn, false); });
     }
@@ -2444,6 +2667,9 @@
     var accepted = false;
     chatAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var payload = { message: message, links: links };
+    // 多会话：所有操作作用于显式选中会话；newChatMode 首发送才建新会话
+    if (!newChatMode && selectedSessionId) { payload.session_id = selectedSessionId; }
+    if (!retryTurnId && newChatMode) { payload.new_session = true; }
     if (retryTurnId) { payload.retry_turn_id = retryTurnId; }
     fetch('/api/workbench/chat/stream', {
       method: 'POST',
@@ -2466,6 +2692,13 @@
         try { event = JSON.parse(line.slice(5).trim()); } catch (err) { return; }
         if (event.type === 'start') {
           accepted = true; // 服务器已校验并持久化本条 user turn
+          if (event.session_id) {
+            // 多会话：锁定服务器持久化的会话 id；新建对话的首发送在
+            // 此刻退出 newChatMode，后续 refresh/follow-up 都作用于它
+            selectedSessionId = String(event.session_id);
+            newChatMode = false;
+            try { window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId); } catch (err) { }
+          }
           if (event.user_turn && event.user_turn.turn_id) {
             // B3：记录服务器持久化的 user turn id，停止后重试按 ID 幂等复用
             lastUserTurnId = event.user_turn.turn_id;
@@ -2593,13 +2826,13 @@
   });
 
   draftGenerateBtn.addEventListener('click', function () {
-    if (draftGenerateBtn.disabled) { return; }
+    if (draftGenerateBtn.disabled || newChatMode) { return; }
     draftGenerateBtn.disabled = true;
     draftStatusEl.textContent = '正在把对话整理为草稿（调用你的模型服务）…';
     fetch('/api/workbench/chat/draft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: '{}'
+      body: JSON.stringify({ session_id: selectedSessionId })
     }).then(function (resp) {
       return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
     }).then(function (result) {
@@ -2610,13 +2843,22 @@
       }
       draftStatusEl.textContent = '草稿已生成（未审核）。可自由编辑后保存为新版本。';
       selectedDraftRevision = result.data.draft.revision;
-      renderDrafts(result.data.chat);
       chatStateCache = result.data.chat;
-      draftCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      renderDrafts(result.data.chat);
+      // 生成是显式用户动作的直接后果：轻量确认 + 自动展开编辑器；
+      // 下次返回/刷新默认收起（renderDrafts 不主动 open）。
+      draftDrawer.open = true;
+      draftDrawer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }).catch(function () {
       draftGenerateBtn.disabled = false;
       draftStatusEl.textContent = '草稿生成失败：网络错误，请重试。';
     });
+  });
+
+  draftEntryBtn.addEventListener('click', function () {
+    if (draftDrawer.hidden) { return; }
+    draftDrawer.open = !draftDrawer.open;
+    if (draftDrawer.open) { draftDrawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
   });
 
   draftSaveBtn.addEventListener('click', function () {
@@ -2630,7 +2872,7 @@
     fetch('/api/workbench/chat/draft/edit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: content })
+      body: JSON.stringify({ content: content, session_id: selectedSessionId })
     }).then(function (resp) {
       return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
     }).then(function (result) {

@@ -486,13 +486,24 @@ class WorkbenchFlow:
         "这篇草稿未经研究与事实核查，仅用于创作者自由修改。"
     )
 
-    def chat_state(self) -> Dict[str, Any]:
-        """Latest creative-chat session view (reload/recovery for the browser)."""
+    def chat_state(self, session_id: str = "") -> Dict[str, Any]:
+        """Selected (or latest, for backward compatibility) chat session view."""
 
         try:
-            return {
-                "chat": CreativeChatStore.view(self.creative.load_latest()),
-            }
+            session = (
+                self.creative.load(session_id)
+                if str(session_id or "").strip()
+                else self.creative.load_latest()
+            )
+            return {"chat": CreativeChatStore.view(session)}
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+
+    def chat_sessions(self) -> Dict[str, Any]:
+        """Sidebar metadata list（最近更新倒序；标题取首条用户消息截断）。"""
+
+        try:
+            return {"sessions": self.creative.list_sessions()}
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
 
@@ -502,6 +513,8 @@ class WorkbenchFlow:
         links: Sequence[Mapping[str, Any]] = (),
         *,
         retry_turn_id: str = "",
+        session_id: str = "",
+        new_session: bool = False,
     ) -> Dict[str, Any]:
         """Validate + persist the user's turn before any streaming starts.
 
@@ -513,9 +526,11 @@ class WorkbenchFlow:
         full replies, no duplicate model call on reconnect).
 
         B3（Nexus review 5626927896）：显式重试走幂等路径 —— 复用既有
-        未回复的 user turn（retry_turn_id），绝不追加重复的用户消息；
-        只有新建发送才写入新 turn。两者都在存储锁内 re-load 最新会话，
-        避免并发/重叠请求用陈旧快照覆盖数据（B2）。
+        未回复的 user turn（retry_turn_id），绝不追加重复的用户消息。
+        多会话（issuecomment-6366157284）：所有操作作用于显式选中的会话，
+        **绝不静默回落 latest**——new_session 仅在首次发送时创建新会话，
+        点击「新建对话」零服务端调用。两者都在存储锁内 re-load 后追加
+        （B2），避免并发/重叠请求用陈旧快照覆盖数据。
         """
 
         settings = load_settings(self.repo_root)
@@ -529,11 +544,11 @@ class WorkbenchFlow:
             )
         try:
             if retry_turn_id:
-                # 幂等重试：目标必须是当前最后一条、且尚无回复的 user turn
-                session_id = self.creative.latest_session_id()
-                if not session_id:
+                # 幂等重试：目标必须是该会话最后一条、且尚无回复的 user turn
+                resolved = str(session_id or "").strip() or self.creative.latest_session_id()
+                if not resolved:
                     raise WorkbenchFlowError("还没有可重试的消息，请直接发送")
-                opened = self.creative.retry_user_turn(session_id, str(retry_turn_id))
+                opened = self.creative.retry_user_turn(resolved, str(retry_turn_id))
             else:
                 text = str(message or "").strip()
                 if not text:
@@ -541,6 +556,8 @@ class WorkbenchFlow:
                 opened = self.creative.start_user_turn(
                     text,
                     links=[{"url": str(item.get("url", ""))} for item in links if item.get("url")],
+                    session_id=str(session_id or "").strip(),
+                    new_session=bool(new_session),
                 )
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
@@ -620,7 +637,7 @@ class WorkbenchFlow:
             raise WorkbenchFlowError(str(exc)) from None
         yield {"type": "done", "turn": assistant_turn, "chat": CreativeChatStore.view(fresh)}
 
-    def chat_draft_generate(self) -> Dict[str, Any]:
+    def chat_draft_generate(self, session_id: str = "") -> Dict[str, Any]:
         """Explicit user action: turn the conversation into a Creative Draft.
 
         A draft is ``creative-draft/1`` / ``status: unreviewed``：它区别于
@@ -635,7 +652,12 @@ class WorkbenchFlow:
                 payload={"status": "waiting_for_api_key"},
             )
         try:
-            session = self.creative.load_latest()
+            resolved = str(session_id or "").strip()
+            session = (
+                self.creative.load(resolved)
+                if resolved
+                else self.creative.load_latest()
+            )
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
         if not session or not any(
@@ -682,14 +704,19 @@ class WorkbenchFlow:
             raise WorkbenchFlowError(str(exc)) from None
         return {"draft": draft, "chat": CreativeChatStore.view(fresh)}
 
-    def chat_draft_save(self, content: str) -> Dict[str, Any]:
+    def chat_draft_save(self, content: str, session_id: str = "") -> Dict[str, Any]:
         """Persist the creator's free edit as a new immutable draft revision."""
 
         text = str(content or "").strip()
         if not text:
             raise WorkbenchFlowError("草稿内容不能为空")
         try:
-            session = self.creative.load_latest()
+            resolved = str(session_id or "").strip()
+            session = (
+                self.creative.load(resolved)
+                if resolved
+                else self.creative.load_latest()
+            )
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
         if not session or not session.get("drafts"):

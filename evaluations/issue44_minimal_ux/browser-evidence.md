@@ -398,3 +398,66 @@ Review 所指 31/32 全页截图中输入框「盖住」长回复为 **Playwrigh
 | ③ 每测试隔离语义 | SettingsTests/CreativeChatTests 等 | 跨工作树共享测试（两 root 同一测试内共享同一隔离目录）与迁移/清除测试在双入口下行为一致 |
 
 （完整 pytest 全量统计见对应轮提交记录；unittest 与 pytest 的 1125 = 1118 passed + 7 skipped 完全对应。）
+
+## 多会话 UX 轮（2026-10-23，issuecomment-6366157284）
+
+### 验收环境
+
+- 8322 隔离夹具（`.temp/issue44_clean_ui.py`）：真实产品代码 + 一次性 demo root；本轮起新增**用户级聊天目录注入**（`user-chat-home`）——demo 会话与 Owner 真实 `~/.deeptalk/chat/` 完全隔离互不污染；mock LLM 8931（0.5s/块慢节奏），零真实付费调用。
+- 8321 真实仓库（LaunchAgent）：重启加载多会话代码并完成**真实聊天历史用户级迁移**。
+
+### 桌面全流程（1280×800，截图 38–47）
+
+| 步骤 | 判定证据 | 结果 |
+| --- | --- | --- |
+| 初始加载（既有会话） | sidebar 列出既有会话（「13 条消息 · 草稿 v3」元数据行）、会话 turns 渲染、草稿仅小入口「📝 草稿 v3 · 未审核」 | 巨型草稿编辑器不再常驻（截图 38） |
+| ＋ 新建对话 | `performance` 资源计数 delta=0（零服务端调用）、welcome 空态、线程 0 条、既有会话仍在列表 | 点击零调用，旧会话不抹除（截图 39） |
+| 话题甲首发送（new_session=true） | mock 流式回复完整、侧栏新增条目标题=首条用户消息、localStorage 记录新会话 id、选中高亮 | 会话 A 创建（截图 40） |
+| 草稿 v1 生成（显式动作） | 入口行先显示小「把对话整理为草稿（调用模型，可能计费）」、生成后**抽屉自动展开**、入口变「草稿 v1 · 未审核」、编辑器含夹具草稿文本 | 生成是显式计费动作+直接后果轻确认（截图 41） |
+| 编辑保存 v2/v3 后收起 | 入口显示「草稿 v3 · 未审核」、抽屉收起 | 版本链 v1/v2/v3 全保留（截图 42） |
+| 新建 B | welcome 空态、`话题甲`/`甲草稿` 零出现、草稿入口行整体隐藏 | B 与 A 完全隔离（截图 43） |
+| 话题乙首发送 | B 会话创建、侧栏 3 会话按最近更新倒序、localStorage 切到 B | 会话 B 创建（截图 43） |
+| 侧栏点击会话 A | 会话内容=仅 A（`话题乙` 零出现）、入口「草稿 v3」、抽屉**默认收起**、打开抽屉版本页签 v1/v2/v3（你的修改）齐全、状态行「版本 v3 · 你的修改」 | 精确恢复 turns+草稿+来源（截图 44） |
+| 刷新页面 | localStorage（非机密 id）选中 A 保持、内容/草稿恢复、抽屉默认收起 | 刷新保持选择（截图 45） |
+| **8322 进程重启后重载** | A 仍选中恢复、3 会话齐全 | 进程级持久化（截图 46） |
+| **流式切换守卫（确定性）** | 单次同步 evaluate 内：发送 B 追问（chatInFlight=true）→ 立即点击 A → 守卫文案「当前回复还在进行中，请先停止或等待完成后再切换会话。」、localStorage 不动（仍 B）、会话不切换、无跨会话迟到 SSE | 不依赖时序的确定性验证（截图 47） |
+| B 活动后回到 A | A 恰 4 轮（2+追问+回复）、B 内容（话题乙/地铁通勤）零出现、草稿 v3 保留 | B 回复不影响 A |
+| /settings | Key 输入为空（无需重输）、掩码 `sk-p…ey-2`、夹具标注、DOM 无明文密钥 | 掩码持久化保持 |
+
+### 375px 手机（截图 48–50）
+
+| 步骤 | 判定证据 | 结果 |
+| --- | --- | --- |
+| 初始 | sidebar 移出屏幕（left=-315）、☰ 历史按钮可见、遮罩隐藏、**横向溢出 0**（scrollWidth=clientWidth=360） | 零溢出（截图 48） |
+| ☰ 打开抽屉 | sidebar left=0 全入视野、遮罩可见、3 会话+新建按钮可达 | 抽屉形态正常（截图 49） |
+| 选择会话 B | 抽屉滑出（left=-315）、遮罩隐藏、B 内容渲染、**横向溢出 0** | 选择后自动关闭（截图 50） |
+| 键盘可达性 | 真实 Tab 键焦点链依次落于交互按钮、`document.activeElement.matches(':focus-visible')===true`；全局 CSS `button:focus-visible` 焦点环已定义 | 键盘/焦点可达 |
+
+### 真实聊天历史用户级迁移（8321）
+
+| 检查 | 结果 |
+| --- | --- |
+| 迁移件 | `~/.deeptalk/chat/20d07fad….json` 创建，0600，与仓库原件 **sha256 一致**，测试指纹 **0 处** |
+| 仓库原件 | `workbench/chat/20d07fad….json` 保留不动（mtime/size 不变，gitignored） |
+| sessions 端点 | 列出 Owner 真实会话（12 turns · 3 drafts · 标题=首条用户消息截断） |
+| 精确恢复 | `?chat=<id>` 返回同一会话（12 turns/3 drafts） |
+| Owner Key | `~/.deeptalk/workbench.local.json`（0600）不受影响 |
+
+### 开发期污染事故与清理（诚实记录）
+
+多会话代码落地与测试隔离块落地之间存在一次中间测试运行（21:39–21:41），当时 `USER_CHAT_DIR` 隔离尚未就位，把 2 个文件误写入真实 `~/.deeptalk/chat/`：1 个真实会话迁移副本被追加了 fixture 轮次（17,805 字节、测试指纹 5 处）、1 个纯 fixture 会话（6,703 字节、指纹 3 处）。两个文件**均非 Owner 真实数据形态**，已全部移入 `.temp/real-chat-pollution-quarantine/` 隔离保存（未销毁），随后 8321 重启以仓库原件（干净、指纹 0 处）为准重新完成迁移。仓库级真实会话文件全程未被测试触碰。隔离修复后的**确定性证明**：真实 `~/.deeptalk` 全文件 sha256 快照在 focused 套件（141 passed）运行前后完全一致。
+
+### 调用预算
+
+本轮全部浏览器验收经 8322 本地 mock（8931）完成——**零真实付费调用**（真实 DeepSeek 端到端已于 Owner UX 轮以 5 次调用完成并获 Nexus 确认，未重复）。
+
+### 回归与双入口隔离证明
+
+| 步骤 | 命令 | 结果 |
+| --- | --- | --- |
+| focused 套件 + 真实 ~/.deeptalk 快照对照 | `pytest tests/test_workbench.py tests/test_webui.py -q`（真实 HOME） | **141 passed**；真实 `~/.deeptalk` 全文件 sha256 快照运行前后完全一致（零触碰） |
+| 全量 pytest | `PYTHONPATH=src .venv/bin/python -m pytest tests/ -q` | **1121 passed, 7 skipped**（退出码 0；上一轮 1118 passed + 本轮 3 新用例 = 精确衔接，1121+7=1128） |
+| sentinel HOME + 裸文档命令（第一次） | `HOME=<sentinel> PYTHONPATH=src python3 -m unittest discover -s tests` | 退出码 0；sentinel `.deeptalk` 文件列表不变、marker 文件 sha256 不变 |
+| sentinel HOME + 裸文档命令（第二次，完整汇总） | 同上 | **`Ran 1128 tests in 217.897s` → `OK (skipped=7)`**，退出码 0；sentinel `.deeptalk` 文件列表不变；marker 文件 sha256 `b848f27b…93` **前后一致**（含聊天目录在内，双 runner 零触碰真实用户级数据） |
+
+（1125 = 第七轮基线 1118 passed + 7 skipped；本轮 +3 多会话用例 → 1128，与 pytest 1121 passed + 7 skipped 完全对应。）
