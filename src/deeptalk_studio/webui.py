@@ -56,6 +56,7 @@ from .reference_discovery import (
 )
 from .script_validation import ScriptValidationError
 from .validation import ReportValidationError
+from .workbench.creative_chat import CreativeChatError
 from .workbench.flow import WorkbenchFlowError
 from .workbench.llm import WorkbenchLLMError
 
@@ -72,6 +73,9 @@ MAX_AUDIO_UPLOAD_BYTES = 512 * 1024 * 1024
 WORKBENCH_ROUTE_CAPS = {
     "/api/workbench/settings": 32 * 1024,
     "/api/workbench/settings/test": 2048,
+    "/api/workbench/chat/stream": 64 * 1024,
+    "/api/workbench/chat/draft": 2048,
+    "/api/workbench/chat/draft/edit": 128 * 1024,
     "/api/workbench/session/start": 32 * 1024,
     "/api/workbench/references/acquire": 64 * 1024,
     "/api/workbench/references/analyze": 2048,
@@ -397,6 +401,66 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         except Exception as exc:  # never kill the local server on one step
             return None, (500, {"error": f"这一步执行失败：{type(exc).__name__}：{str(exc)[:300]}"})
 
+    def _handle_chat_stream(self, flow, payload: Dict[str, object]) -> None:
+        """真实流式聊天：SSE 增量转发，用户停止/断开即中止上游请求。
+
+        - 发送前先校验并持久化用户消息（失败返回 400 JSON）；
+        - 助手回复只在流完成后写入，停止/断开不写半截回复；
+        - 重试永远是用户显式动作，不自动重复计费调用。
+        """
+
+        try:
+            context = flow.chat_send_start(
+                str(payload.get("message", "")),
+                payload.get("links", []) or [],
+            )
+        except WorkbenchFlowError as exc:
+            body = {"error": str(exc)}
+            body.update(getattr(exc, "payload", {}) or {})
+            _send_json(self, 400, body)
+            return
+        except (WorkbenchLLMError, CreativeChatError) as exc:
+            _send_json(self, 400, {"error": str(exc)})
+            return
+        except Exception as exc:  # never kill the local server
+            _send_json(self, 500, {"error": f"发送失败：{type(exc).__name__}，请重试"})
+            return
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Connection", "close")
+            self.close_connection = True
+            self.end_headers()
+
+            def send_event(obj) -> None:
+                data = json.dumps(obj, ensure_ascii=False)
+                self.wfile.write(("data: " + data + "\n\n").encode("utf-8"))
+                self.wfile.flush()
+
+            send_event({
+                "type": "start",
+                "session_id": context["session"].get("session_id", ""),
+                "user_turn": context["user_turn"],
+                "provider_kind": context.get("provider_kind", ""),
+                "model": context["settings"].get("model", ""),
+            })
+            events = flow.chat_stream_reply(context)
+            try:
+                for event in events:
+                    send_event(event)
+            except WorkbenchFlowError as exc:
+                send_event({"type": "error", "error": str(exc)})
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                # 用户停止或浏览器断开：中止上游请求，不写助手回复
+                events.close()
+                return
+            except Exception as exc:  # never kill the local server mid-stream
+                send_event({"type": "error", "error": f"流式输出中断：{type(exc).__name__}，请重试"})
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            return
+
     def _handle_workbench_get_state(self) -> None:
         flow = self._workbench_flow()
 
@@ -404,7 +468,8 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             settings = flow.get_settings()
             session = flow.store.load_latest()
             view = flow.view(session["session_id"]) if session else None
-            return {"settings": settings, "session": view}
+            chat = flow.chat_state()
+            return {"settings": settings, "session": view, **chat}
 
         result, error = self._workbench_call(_read)
         if error:
@@ -602,7 +667,17 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return
         server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment"]
         session_id = str(payload.get("session_id", "") or "")
-        if path == "/api/workbench/settings":
+        if path == "/api/workbench/chat/stream":
+            # 流式聊天走专用 SSE 响应，不走统一 JSON 尾部
+            self._handle_chat_stream(flow, payload)
+            return
+        if path == "/api/workbench/chat/draft":
+            result, error = self._workbench_call(flow.chat_draft_generate)
+        elif path == "/api/workbench/chat/draft/edit":
+            result, error = self._workbench_call(
+                lambda: flow.chat_draft_save(str(payload.get("content", "")))
+            )
+        elif path == "/api/workbench/settings":
             result, error = self._workbench_call(lambda: flow.save_settings(payload))
         elif path == "/api/workbench/settings/test":
             result, error = self._workbench_call(flow.test_settings)

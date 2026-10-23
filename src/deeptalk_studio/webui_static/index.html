@@ -297,6 +297,20 @@
   #search-btn .button-icon { display: inline-block; font-size: 20px; font-weight: 400; transform: translateY(-1px); }
   #ref-list { margin-top: 10px; }
   #add-ref { white-space: nowrap; }
+  #chat-card, #draft-card { margin-top: 18px; }
+  .chat-thread { display: flex; flex-direction: column; gap: 14px; margin: 14px 0 10px; }
+  .chat-msg { max-width: 86%; border-radius: 14px; padding: 12px 15px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .chat-msg.user { align-self: flex-end; background: #f3ece2; border: 1px solid #e8ddd0; }
+  .chat-msg.assistant { align-self: flex-start; background: #fff; border: 1px solid var(--line); }
+  .chat-msg .chat-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chat-msg .chat-links .link-chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: #fbfaf7; }
+  .chat-msg .chat-kind { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .chat-msg.streaming::after { content: '▋'; margin-left: 2px; animation: chat-blink 1s steps(2) infinite; }
+  @keyframes chat-blink { 50% { opacity: 0; } }
+  .draft-revisions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .draft-revisions button { min-height: 34px; padding: 5px 13px; font-size: 12.5px; }
+  .draft-editor { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; font: inherit; line-height: 1.7; resize: vertical; }
+  .gate-note { margin-top: 16px; padding: 12px 15px; border: 1px solid #e8ddd0; border-radius: 11px; background: #fbf6ee; color: #6b5d4b; font-size: 13px; line-height: 1.7; }
   .prompt-hints { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
   .prompt-hints span { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); background: rgba(255,255,255,.45); font-size: 12px; }
   .hero-new-note { margin: 17px 0 0; color: var(--muted); font-size: 12px; }
@@ -541,26 +555,58 @@
   <div id="creator-view">
     <section id="hero" class="card hero" aria-labelledby="form-title">
       <div class="hero-mark" aria-hidden="true"><span></span><i></i></div>
-      <p class="hero-kicker">开始一集新创作</p>
-      <h2 id="form-title">你想讲什么？</h2>
-      <p class="hero-copy">输入一个选题，DeepTalk 会帮你整理参考视频、独立资料，写出经审核的原创口播稿。每一步都保留你的确认权。</p>
+      <p class="hero-kicker">自由聊天创作</p>
+      <h2 id="form-title">你想聊什么？</h2>
+      <p class="hero-copy">像和朋友聊天一样讨论选题：发一段话题、你的观点、想法或参考链接，模型会流式回应。聊到满意后，一键把对话整理成可自由修改的原创草稿。<strong>发送会调用你在「设置」里配置的模型服务并按其计费</strong>；草稿未经研究与事实核查，不是正式口播稿。</p>
       <div class="hero-composer">
-        <label class="visually-hidden" for="topic">视频主题，最多 200 字</label>
+        <label class="visually-hidden" for="topic">聊天输入，最多 200 字</label>
         <textarea id="topic" name="topic" maxlength="200" autocomplete="off" rows="3"
-                  placeholder="今天想创作什么？"></textarea>
+                  placeholder="聊聊你想做的选题、你的观点，或直接粘贴问题…"></textarea>
         <div class="composer-toolbar">
           <div class="composer-left">
             <button id="add-ref" type="button" class="quiet-btn" aria-label="添加参考链接">＋ <span>添加参考</span></button>
-            <span class="composer-hint">⌘ / Ctrl + Enter 开始创作</span>
+            <span class="composer-hint">⌘ / Ctrl + Enter 发送</span>
           </div>
           <div class="composer-right">
-            <button id="search-btn" type="button" class="primary" aria-label="开始创作"><span class="button-label">开始创作</span><span class="button-icon" aria-hidden="true">↑</span></button>
+            <button id="chat-retry" type="button" class="quiet-btn" hidden>重发上一条</button>
+            <button id="chat-stop" type="button" class="quiet-btn" hidden>停止</button>
+            <button id="search-btn" type="button" class="primary" aria-label="发送消息"><span class="button-label">发送</span><span class="button-icon" aria-hidden="true">↑</span></button>
           </div>
         </div>
       </div>
       <div id="ref-list" aria-label="已有参考链接"></div>
-      <p class="prompt-hints" aria-label="创作方向提示"><span>写一篇有观点的稿子</span><span>整理一场研究</span><span>从参考视频开始</span></p>
+      <p class="prompt-hints" aria-label="创作方向提示"><span>聊一个选题</span><span>说说你的观点</span><span>粘贴一个参考链接</span></p>
       <p id="hero-new-note" class="hero-new-note" hidden><strong>新一集</strong>：上一集仍然保留，确认主题后才会开启新的工作流。<button id="cancel-new-episode" class="quiet-btn" type="button">取消</button></p>
+    </section>
+
+    <section id="chat-card" class="card" hidden aria-labelledby="chat-title">
+      <h2 id="chat-title">对话</h2>
+      <p class="muted">多轮对话会完整保留在本机；刷新后可精确恢复。夹具/真实连接均如实标注，绝不冒充。</p>
+      <div id="chat-thread" class="chat-thread" role="log" aria-live="polite"></div>
+      <p id="chat-status" class="muted" role="status"></p>
+    </section>
+
+    <section id="draft-card" class="card" hidden aria-labelledby="draft-title">
+      <h2 id="draft-title">原创草稿（未审核）</h2>
+      <p class="muted">草稿区别于正式口播稿：<strong>未经研究与事实核查</strong>，由你自由编辑与修改；每次修改保存为新的不可变版本，可随时回看历史版本。草稿不会自动进入正式审核，也不解锁成品制作。</p>
+      <div class="actions" style="margin-top:6px">
+        <button id="draft-generate" type="button" class="primary">把对话整理为草稿（调用模型，可能计费）</button>
+        <span id="draft-status" class="muted" role="status"></span>
+      </div>
+      <div id="draft-workspace" hidden>
+        <div id="draft-revisions" class="draft-revisions" role="tablist" aria-label="草稿历史版本"></div>
+        <label class="visually-hidden" for="draft-editor">草稿编辑区</label>
+        <textarea id="draft-editor" class="draft-editor" rows="14" aria-label="草稿正文，可自由编辑"></textarea>
+        <div class="actions">
+          <button id="draft-save" type="button" class="primary">保存修改（新版本）</button>
+          <button id="draft-copy" type="button">复制全文</button>
+          <button id="draft-export" type="button">导出 .md</button>
+          <span id="draft-meta" class="muted" role="status"></span>
+        </div>
+        <div class="gate-note" role="note">
+          <strong>进入正式审核：</strong>正式口播稿需要经过现有的「视频参考 → 独立研究与事实核查 → 选题卡 → 口播稿审核」门禁，全部保留不变；这篇草稿不会自动转换或替代任何正式审核步骤。需要正式成稿时，请走原有流程并使用你自己的模型 Key。
+        </div>
+      </div>
     </section>
 
     <div id="run-notice">
@@ -979,6 +1025,7 @@
 
   function renderState(state) {
     renderSettings(state.settings || {});
+    renderChat(state.chat || null);
     var incomingSession = state.session || null;
     var sessionChanged = currentSession && incomingSession &&
       currentSession.session_id !== incomingSession.session_id;
@@ -991,15 +1038,16 @@
       heroNewNote.hidden = false;
       return;
     }
+    // Chat-first：hero 始终是首页主体，不再因为有正式会话而隐藏；
+    // 旧正式工作流（如有）仍在下方保留可达，门禁不变。
+    heroCard.hidden = false;
     if (!currentSession) {
-      heroCard.hidden = false;
       stageBar.hidden = true;
       heroNewNote.hidden = true;
       focusedStage = null;
       STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
       return;
     }
-    heroCard.hidden = true;
     heroNewNote.hidden = true;
     stageBar.hidden = false;
     sessionTopic.textContent = '本集：' + currentSession.topic;
@@ -1107,7 +1155,7 @@
       STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
       return;
     }
-    heroCard.hidden = true;
+    heroCard.hidden = false;
     stageBar.hidden = false;
     sessionTopic.textContent = '本集：' + currentSession.topic;
     renderReferences(currentSession);
@@ -2139,39 +2187,315 @@
     }).then(refresh).catch(function () { refresh(); });
   });
 
-  // ---- 开始创作 ----
+  // ---- 自由聊天 + 原创草稿（Issue #44 chat-first MVP） ----
 
-  function startCreation() {
-    if (searchBtn.disabled) { return; }
-    clearRequestError();
-    var topic = topicEl.value.trim();
-    var urls = [];
+  var chatCard = document.getElementById('chat-card');
+  var chatThread = document.getElementById('chat-thread');
+  var chatStatusEl = document.getElementById('chat-status');
+  var chatStopBtn = document.getElementById('chat-stop');
+  var chatRetryBtn = document.getElementById('chat-retry');
+  var draftCard = document.getElementById('draft-card');
+  var draftStatusEl = document.getElementById('draft-status');
+  var draftGenerateBtn = document.getElementById('draft-generate');
+  var draftWorkspace = document.getElementById('draft-workspace');
+  var draftRevisionsEl = document.getElementById('draft-revisions');
+  var draftEditor = document.getElementById('draft-editor');
+  var draftSaveBtn = document.getElementById('draft-save');
+  var draftCopyBtn = document.getElementById('draft-copy');
+  var draftExportBtn = document.getElementById('draft-export');
+  var draftMetaEl = document.getElementById('draft-meta');
+  var chatStateCache = null;
+  var chatInFlight = false;
+  var chatAbort = null;
+  var lastUserMessage = '';
+  var lastUserLinks = [];
+  var selectedDraftRevision = 0;
+
+  function kindLabel(kind) {
+    return kind === 'fixture' ? '本地夹具回复（非真实模型）' : '真实模型回复';
+  }
+
+  function chatLinksFromInputs(message) {
+    var links = [];
     refList.querySelectorAll('input').forEach(function (input) {
       var v = input.value.trim();
-      if (v) { urls.push(v); }
+      if (v) { links.push({ url: v }); }
     });
-    if (!topic) {
-      showRequestError('请先输入视频主题。');
+    var found = String(message || '').match(/https?:\/\/[^\s，。；、）)]+/g) || [];
+    found.forEach(function (url) { links.push({ url: url }); });
+    return links;
+  }
+
+  function appendChatTurnEl(turn, streaming) {
+    var item = el('div', 'chat-msg ' + (turn.role === 'user' ? 'user' : 'assistant') +
+      (streaming ? ' streaming' : ''));
+    item.dataset.turnId = turn.turn_id || '';
+    item.appendChild(el('div', null, turn.content || ''));
+    var links = turn.links || [];
+    if (links.length) {
+      var chips = el('div', 'chat-links');
+      links.forEach(function (link) {
+        chips.appendChild(el('span', 'link-chip', (link.url || '') + ' · ' + (link.status === 'unknown' ? '未读取' : (link.status || '未知'))));
+      });
+      item.appendChild(chips);
+    }
+    if (turn.role === 'assistant') {
+      item.appendChild(el('div', 'chat-kind',
+        (turn.model ? turn.model + ' · ' : '') + kindLabel(turn.provider_kind)));
+    }
+    chatThread.appendChild(item);
+    return item;
+  }
+
+  function renderDrafts(chat) {
+    var drafts = (chat && chat.drafts) || [];
+    draftCard.hidden = !(drafts.length || (chat && chat.turns && chat.turns.length));
+    draftGenerateBtn.hidden = !(chat && chat.turns && chat.turns.length);
+    if (!drafts.length) {
+      draftWorkspace.hidden = true;
+      draftRevisionsEl.textContent = '';
+      return;
+    }
+    draftWorkspace.hidden = false;
+    draftRevisionsEl.textContent = '';
+    if (selectedDraftRevision < 1 || selectedDraftRevision > drafts.length) {
+      selectedDraftRevision = drafts.length;
+    }
+    drafts.forEach(function (draft) {
+      var btn = el('button', draft.revision === selectedDraftRevision ? 'primary' : null,
+        'v' + draft.revision + (draft.origin === 'user_edit' ? '（你的修改）' : ''));
+      btn.type = 'button';
+      btn.addEventListener('click', function () {
+        selectedDraftRevision = draft.revision;
+        renderDrafts(chatStateCache);
+      });
+      draftRevisionsEl.appendChild(btn);
+    });
+    var draft = drafts[selectedDraftRevision - 1];
+    if (document.activeElement !== draftEditor || draftEditor.value !== draft.content) {
+      draftEditor.value = draft.content;
+    }
+    draftEditor.dataset.revision = String(draft.revision);
+    draftMetaEl.textContent = '版本 v' + draft.revision +
+      (draft.origin === 'user_edit' ? ' · 你的修改' : ' · 模型整理') +
+      ' · ' + (draft.created_at || '') + ' · 状态：未审核（未做研究与事实核查）';
+  }
+
+  function renderChat(chat) {
+    chatStateCache = chat;
+    chatCard.hidden = !(chat && chat.turns && chat.turns.length);
+    chatThread.textContent = '';
+    if (chat && chat.turns) {
+      chat.turns.forEach(function (turn) { appendChatTurnEl(turn, false); });
+    }
+    renderDrafts(chat);
+    chatRetryBtn.hidden = !(lastUserMessage && !chatInFlight);
+  }
+
+  function finishChatUi() {
+    chatInFlight = false;
+    searchBtn.disabled = false;
+    chatStopBtn.hidden = true;
+    chatRetryBtn.hidden = !lastUserMessage;
+  }
+
+  function sendChatMessage(message, links) {
+    if (chatInFlight) { return; }
+    clearRequestError();
+    if (!message) {
+      showRequestError('请先输入要聊的内容。');
       topicEl.focus();
       return;
     }
-    api('/api/workbench/session/start', { topic: topic, urls: urls },
-      { message: '正在检索本集参考视频（匿名访问，有界请求）…' })
-      .then(function (state) {
-        clearTopicDraft();
-        clearNewEpisodeModeAfterStart();
-        renderState(state);
-        return state;
-      })
-      .catch(function () {});
+    lastUserMessage = message;
+    lastUserLinks = links;
+    chatInFlight = true;
+    searchBtn.disabled = true;
+    chatStopBtn.hidden = false;
+    chatRetryBtn.hidden = true;
+    chatStatusEl.textContent = '发送中…（调用你配置的模型服务）';
+    chatCard.hidden = false;
+    var userTurnEl = appendChatTurnEl({ role: 'user', content: message, links: links }, false);
+    userTurnEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    var assistantEl = null;
+    chatAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    fetch('/api/workbench/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: message, links: links }),
+      signal: chatAbort ? chatAbort.signal : undefined
+    }).then(function (resp) {
+      if (!resp.ok) {
+        return resp.json().then(function (data) {
+          throw new Error((data && data.error) || '发送失败，请重试。');
+        }, function () { throw new Error('发送失败，请重试。'); });
+      }
+      var reader = resp.body.getReader();
+      var decoder = new TextDecoder('utf-8');
+      var buffer = '';
+      function handleBlock(block) {
+        var line = block.trim();
+        if (!line || line.indexOf('data:') !== 0) { return; }
+        var event;
+        try { event = JSON.parse(line.slice(5).trim()); } catch (err) { return; }
+        if (event.type === 'start') {
+          if (userTurnEl && event.user_turn && event.user_turn.turn_id) {
+            userTurnEl.dataset.turnId = event.user_turn.turn_id;
+          }
+          chatStatusEl.textContent = kindLabel(event.provider_kind) + ' 流式输出中…';
+        } else if (event.type === 'delta') {
+          if (!assistantEl) {
+            assistantEl = appendChatTurnEl({ role: 'assistant', content: '' }, true);
+          }
+          assistantEl.firstChild.textContent += event.text;
+          assistantEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        } else if (event.type === 'done') {
+          chatStatusEl.textContent = '回复完成，已保存到本机。';
+        } else if (event.type === 'error') {
+          chatStatusEl.textContent = '回复中断：' + (event.error || '请重试。');
+        }
+      }
+      function pump() {
+        return reader.read().then(function (chunk) {
+          if (chunk.done) { return; }
+          buffer += decoder.decode(chunk.value, { stream: true });
+          var blocks = buffer.split('\n\n');
+          buffer = blocks.pop();
+          blocks.forEach(handleBlock);
+          return pump();
+        });
+      }
+      return pump().then(function () {
+        if (buffer) { handleBlock(buffer); buffer = ''; }
+      });
+    }).then(function () {
+      finishChatUi();
+      return refresh();
+    }).catch(function (error) {
+      var aborted = chatAbort && chatAbort.signal && chatAbort.signal.aborted;
+      if (aborted) {
+        chatStatusEl.textContent = '已停止：未完成的回复不会保存，也不会继续计费；可点「重发上一条」。';
+      } else {
+        chatStatusEl.textContent = '发送失败：' + ((error && error.message) || '网络错误') + '；可点「重发上一条」。';
+      }
+      finishChatUi();
+    });
   }
 
+  function sendChat() {
+    if (searchBtn.disabled) { return; }
+    var message = topicEl.value.trim();
+    var links = chatLinksFromInputs(message);
+    if (!message) {
+      showRequestError('请先输入要聊的内容。');
+      topicEl.focus();
+      return;
+    }
+    topicEl.value = '';
+    try { window.localStorage.removeItem(TOPIC_DRAFT_KEY); } catch (err) { }
+    sendChatMessage(message, links);
+  }
+
+  chatStopBtn.addEventListener('click', function () {
+    if (chatAbort) { chatAbort.abort(); }
+  });
+
+  chatRetryBtn.addEventListener('click', function () {
+    if (chatInFlight || !lastUserMessage) { return; }
+    sendChatMessage(lastUserMessage, lastUserLinks);
+  });
+
+  draftGenerateBtn.addEventListener('click', function () {
+    if (draftGenerateBtn.disabled) { return; }
+    draftGenerateBtn.disabled = true;
+    draftStatusEl.textContent = '正在把对话整理为草稿（调用你的模型服务）…';
+    fetch('/api/workbench/chat/draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    }).then(function (resp) {
+      return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+    }).then(function (result) {
+      draftGenerateBtn.disabled = false;
+      if (!result.ok) {
+        draftStatusEl.textContent = result.data.error || '草稿生成失败，请重试。';
+        return;
+      }
+      draftStatusEl.textContent = '草稿已生成（未审核）。可自由编辑后保存为新版本。';
+      selectedDraftRevision = result.data.draft.revision;
+      renderDrafts(result.data.chat);
+      chatStateCache = result.data.chat;
+      draftCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }).catch(function () {
+      draftGenerateBtn.disabled = false;
+      draftStatusEl.textContent = '草稿生成失败：网络错误，请重试。';
+    });
+  });
+
+  draftSaveBtn.addEventListener('click', function () {
+    var content = draftEditor.value;
+    if (!content.trim()) {
+      draftStatusEl.textContent = '草稿内容不能为空。';
+      return;
+    }
+    draftSaveBtn.disabled = true;
+    draftStatusEl.textContent = '正在保存新版本…';
+    fetch('/api/workbench/chat/draft/edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: content })
+    }).then(function (resp) {
+      return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+    }).then(function (result) {
+      draftSaveBtn.disabled = false;
+      if (!result.ok) {
+        draftStatusEl.textContent = result.data.error || '保存失败，请重试。';
+        return;
+      }
+      draftStatusEl.textContent = '已保存为版本 v' + result.data.draft.revision + '（旧版本仍可回看）。';
+      selectedDraftRevision = result.data.draft.revision;
+      chatStateCache = result.data.chat;
+      renderDrafts(result.data.chat);
+    }).catch(function () {
+      draftSaveBtn.disabled = false;
+      draftStatusEl.textContent = '保存失败：网络错误，请重试。';
+    });
+  });
+
+  draftCopyBtn.addEventListener('click', function () {
+    var text = draftEditor.value;
+    var done = function () { draftStatusEl.textContent = '已复制到剪贴板。'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {
+        draftStatusEl.textContent = '复制失败，请手动全选复制。';
+      });
+    } else {
+      draftEditor.select();
+      document.execCommand('copy');
+      done();
+    }
+  });
+
+  draftExportBtn.addEventListener('click', function () {
+    var blob = new Blob([draftEditor.value], { type: 'text/markdown;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var link = el('a');
+    link.href = url;
+    var stamp = (chatStateCache && chatStateCache.updated_at || '').replace(/[:+]/g, '-').slice(0, 19);
+    link.download = 'deeptalk-草稿-v' + (draftEditor.dataset.revision || '1') + (stamp ? '-' + stamp : '') + '.md';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    draftStatusEl.textContent = '已导出到本地下载。';
+  });
+
   addBtn.addEventListener('click', addRefInput);
-  searchBtn.addEventListener('click', startCreation);
+  searchBtn.addEventListener('click', sendChat);
   topicEl.addEventListener('keydown', function (event) {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
-      startCreation();
+      sendChat();
     }
   });
   syncAddButton();

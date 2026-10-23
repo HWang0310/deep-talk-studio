@@ -43,6 +43,7 @@ from ..storage import save_report
 from ..validation import ReportValidationError, validate_json_schema
 from ..workflow import run_fact_check_review, run_report_approval
 from . import acquisition
+from .creative_chat import CreativeChatError, CreativeChatStore
 from .llm import WorkbenchLLM, WorkbenchLLMError, build_llm
 from .deepseek_tools import DeepSeekSearchFetchClient, DeepSeekToolError
 from .prompts import serialize_reference_insights
@@ -337,6 +338,7 @@ class WorkbenchFlow:
     ) -> None:
         self.repo_root = Path(repo_root)
         self.store = SessionStore(self.repo_root / "workbench")
+        self.creative = CreativeChatStore(self.repo_root)
         self.provider_factory = provider_factory or (lambda settings: build_llm(settings))
         self.deepseek_client_factory = deepseek_client_factory or self._default_deepseek_client
         self.connection_kind = connection_kind or ("fixture" if provider_factory is not None else "real")
@@ -467,6 +469,189 @@ class WorkbenchFlow:
         if not is_configured(settings):
             raise WorkbenchFlowError("请先在「设置」中配置模型服务，再执行这一步")
         return self.provider_factory(settings)
+
+    # -- creative chat (Issue #44 chat-first MVP) -----------------------------
+
+    CHAT_SYSTEM_PROMPT = (
+        "你是 DeepTalk 的创作对话助手，帮助创作者围绕口播视频选题自由讨论："
+        "梳理选题角度、表达观点、讨论结构。回复使用简体中文，语气自然直接。"
+        "你可以基于对话提出观点与建议，但不要把未经核实的信息说成已核实的事实；"
+        "不确定就明确说不确定。"
+    )
+
+    DRAFT_SYSTEM_PROMPT = (
+        "请把以上对话整理为一篇可以直接口播的简体中文原创草稿（纯文本，不要标题装饰、"
+        "不要寒暄、不要列表编号）。内容只能使用对话中明确讨论过的观点与信息；"
+        "对话中没有的信息不要编造，无法确定的事实不要写成确定语气。"
+        "这篇草稿未经研究与事实核查，仅用于创作者自由修改。"
+    )
+
+    def chat_state(self) -> Dict[str, Any]:
+        """Latest creative-chat session view (reload/recovery for the browser)."""
+
+        try:
+            return {
+                "chat": CreativeChatStore.view(self.creative.load_latest()),
+            }
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+
+    def chat_send_start(self, message: str, links: Sequence[Mapping[str, Any]] = ()) -> Dict[str, Any]:
+        """Validate + persist the user's turn before any streaming starts.
+
+        Raises a typed flow error (400 JSON) when the model is not
+        configured or the message is empty; otherwise returns the stream
+        context.  The user turn is persisted immediately so a stop/reload
+        keeps an honest record, while the assistant reply is only written
+        after the stream completes (no partial turns masquerading as
+        full replies, no duplicate model call on reconnect).
+        """
+
+        text = str(message or "").strip()
+        if not text:
+            raise WorkbenchFlowError("消息内容不能为空")
+        settings = load_settings(self.repo_root)
+        if not is_configured(settings):
+            raise WorkbenchFlowError(
+                _missing_settings_message(settings, action="发送消息"),
+                payload={
+                    "status": "waiting_for_api_key",
+                    "connection_kind": self.connection_kind,
+                },
+            )
+        try:
+            session = self.creative.load_latest() or self.creative.new_session()
+            user_turn = self.creative.append_turn(
+                session,
+                "user",
+                text,
+                links=[{"url": str(item.get("url", ""))} for item in links if item.get("url")],
+            )
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        return {
+            "session": session,
+            "user_turn": user_turn,
+            "settings": settings,
+            "provider_kind": self.connection_kind,
+        }
+
+    def chat_stream_reply(self, context: Mapping[str, Any]):
+        """Stream the assistant reply for a persisted user turn.
+
+        Yields ``{"type": "delta", "text": …}`` events; the completed
+        assistant turn is appended (``{"type": "done", …}``) only after the
+        upstream stream finishes.  Closing the generator (user stop /
+        browser disconnect) aborts the upstream request and writes no
+        assistant turn — retry is always an explicit user action.
+        """
+
+        session = context["session"]
+        settings = context["settings"]
+        messages = [{"role": "system", "content": self.CHAT_SYSTEM_PROMPT}]
+        for turn in session.get("turns", []):
+            if turn.get("role") in {"user", "assistant"}:
+                messages.append({"role": turn["role"], "content": turn.get("content", "")})
+        try:
+            llm = self.provider_factory(settings)
+        except WorkbenchLLMError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        try:
+            accumulated = ""
+            for delta in llm.chat_stream(messages):
+                accumulated += delta
+                yield {"type": "delta", "text": delta}
+        except WorkbenchLLMError as exc:
+            raise WorkbenchFlowError(str(exc), payload={"status": "failed"}) from None
+        if not accumulated.strip():
+            raise WorkbenchFlowError(
+                "模型服务返回了空内容，请重试", payload={"status": "empty_response"}
+            )
+        try:
+            assistant_turn = self.creative.append_turn(
+                session,
+                "assistant",
+                accumulated,
+                model=str(settings.get("model", "")),
+                provider_mode=str(settings.get("provider_mode", "")),
+                provider_kind=str(context.get("provider_kind", "")),
+            )
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        yield {"type": "done", "turn": assistant_turn, "chat": CreativeChatStore.view(session)}
+
+    def chat_draft_generate(self) -> Dict[str, Any]:
+        """Explicit user action: turn the conversation into a Creative Draft.
+
+        A draft is ``creative-draft/1`` / ``status: unreviewed``：它区别于
+        canonical Reviewed Script，永不写 research/thesis/script 的
+        approved/reviewed 路径或任何质量门禁字段，也不解锁正式生产。
+        """
+
+        settings = load_settings(self.repo_root)
+        if not is_configured(settings):
+            raise WorkbenchFlowError(
+                _missing_settings_message(settings, action="生成草稿"),
+                payload={"status": "waiting_for_api_key"},
+            )
+        try:
+            session = self.creative.load_latest()
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        if not session or not any(
+            t.get("role") == "assistant" for t in session.get("turns", [])
+        ):
+            raise WorkbenchFlowError("还没有可整理的对话，请先发送消息")
+        messages = [{"role": "system", "content": self.DRAFT_SYSTEM_PROMPT}]
+        for turn in session.get("turns", []):
+            if turn.get("role") in {"user", "assistant"}:
+                messages.append({"role": turn["role"], "content": turn.get("content", "")})
+        try:
+            llm = self.provider_factory(settings)
+        except WorkbenchLLMError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        try:
+            accumulated = ""
+            for delta in llm.chat_stream(messages):
+                accumulated += delta
+        except WorkbenchLLMError as exc:
+            raise WorkbenchFlowError(str(exc), payload={"status": "failed"}) from None
+        if not accumulated.strip():
+            raise WorkbenchFlowError("模型没有生成草稿内容，请重试")
+        origin_turn_id = ""
+        for turn in reversed(session.get("turns", [])):
+            if turn.get("role") == "assistant":
+                origin_turn_id = str(turn.get("turn_id", ""))
+                break
+        try:
+            draft = self.creative.append_draft(
+                session,
+                accumulated,
+                origin="model",
+                origin_turn_id=origin_turn_id,
+                model=str(settings.get("model", "")),
+            )
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        return {"draft": draft, "chat": CreativeChatStore.view(session)}
+
+    def chat_draft_save(self, content: str) -> Dict[str, Any]:
+        """Persist the creator's free edit as a new immutable draft revision."""
+
+        text = str(content or "").strip()
+        if not text:
+            raise WorkbenchFlowError("草稿内容不能为空")
+        try:
+            session = self.creative.load_latest()
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        if not session or not session.get("drafts"):
+            raise WorkbenchFlowError("还没有草稿，请先在对话后生成草稿")
+        try:
+            draft = self.creative.append_draft(session, text, origin="user_edit")
+        except CreativeChatError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        return {"draft": draft, "chat": CreativeChatStore.view(session)}
 
     # -- session -------------------------------------------------------------
 

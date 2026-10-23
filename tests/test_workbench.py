@@ -2309,5 +2309,173 @@ class ReferenceSynthesisTests(unittest.TestCase):
             self.assertFalse(stored["partial"])
 
 
+class StreamChatLLM:
+    """离线流式夹具：记录调用并逐段产出剧本化增量（无任何网络请求）。"""
+
+    def __init__(self, chunks, calls, *, fail_on=None):
+        self.chunks = list(chunks)
+        self.calls = calls
+        self.fail_on = fail_on
+
+    def chat_stream(self, messages):
+        self.calls.append(("chat_stream", [m.get("role") for m in messages]))
+        if self.fail_on:
+            raise WorkbenchLLMError(self.fail_on, category="http_error", http_status=401)
+        for chunk in self.chunks:
+            yield chunk
+
+
+class CreativeChatTests(unittest.TestCase):
+    """Issue #44 chat-first MVP：真实流式协议（注入离线 transport）、
+    多轮恢复、Creative Draft 修订与 canonical 门禁隔离。"""
+
+    def _flow(self, root, llm):
+        calls = []
+        llm.calls = calls
+        return WorkbenchFlow(root, provider_factory=lambda settings: llm), calls
+
+    def _configure(self, root):
+        save_settings(root, apply_settings_update(load_settings(root), {
+            "provider_mode": "deepseek",
+            "api_key": "sk-chat-fixture",
+        }))
+
+    def test_chat_stream_persists_turns_and_recovers_after_reload(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, calls = self._flow(root, StreamChatLLM(["晚上", "好，", "聊聊选题。"], []))
+            self._configure(root)
+            context = flow.chat_send_start("你好，想聊聊夜间城市选题", [{"url": "https://example.com/a"}])
+            self.assertEqual(context["user_turn"]["role"], "user")
+            self.assertEqual(context["user_turn"]["links"][0]["status"], "unknown")
+            events = list(flow.chat_stream_reply(context))
+            deltas = [e["text"] for e in events if e["type"] == "delta"]
+            done = [e for e in events if e["type"] == "done"]
+            self.assertEqual(deltas, ["晚上", "好，", "聊聊选题。"])
+            self.assertEqual(len(done), 1)
+            assistant = done[0]["turn"]
+            self.assertEqual(assistant["role"], "assistant")
+            self.assertEqual(assistant["content"], "晚上好，聊聊选题。")
+            self.assertEqual(assistant["model"], "deepseek-flash")
+            self.assertEqual(assistant["provider_kind"], "fixture")
+            # 重载后精确恢复（新 flow 实例读同一存储）
+            reloaded = WorkbenchFlow(root, provider_factory=lambda s: None).chat_state()["chat"]
+            self.assertEqual([t["role"] for t in reloaded["turns"]], ["user", "assistant"])
+            self.assertEqual(reloaded["turns"][0]["links"][0]["url"], "https://example.com/a")
+            # 只有一次模型调用（无隐藏重复计费）
+            self.assertEqual([c[0] for c in calls], ["chat_stream"])
+            # 多轮上下文：第二条消息带上完整历史
+            context2 = flow.chat_send_start("第二轮追问")
+            list(flow.chat_stream_reply(context2))
+            roles = calls[-1][1]
+            self.assertEqual(roles[:3], ["system", "user", "assistant"])
+            self.assertEqual(roles[-1], "user")
+
+    def test_chat_stream_stop_writes_no_assistant_turn_and_never_auto_retries(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, calls = self._flow(root, StreamChatLLM(["第一段", "第二段", "第三段"], []))
+            self._configure(root)
+            context = flow.chat_send_start("聊一半就停")
+            events = flow.chat_stream_reply(context)
+            first = next(events)
+            self.assertEqual(first["type"], "delta")
+            events.close()  # 用户停止/浏览器断开
+            chat = flow.chat_state()["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
+            # 没有自动重试：模型只被调用一次（停止后）
+            self.assertEqual(len(calls), 1)
+
+    def test_chat_requires_configured_model_before_any_model_call(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, calls = self._flow(root, StreamChatLLM(["x"], []))
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.chat_send_start("没有 Key 的消息")
+            message = str(ctx.exception)
+            self.assertIn("API Key", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
+            self.assertEqual(calls, [])  # 未配置时绝不发起模型调用
+
+    def test_chat_empty_message_is_rejected(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["x"], []))
+            self._configure(root)
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.chat_send_start("   ")
+            self.assertIn("不能为空", str(ctx.exception))
+
+    def test_draft_generate_edit_and_immutable_revisions(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["草稿正文第一版"], []))
+            self._configure(root)
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.chat_draft_generate()
+            self.assertIn("还没有可整理的对话", str(ctx.exception))
+            context = flow.chat_send_start("请帮我整理个草稿")
+            list(flow.chat_stream_reply(context))
+            result = flow.chat_draft_generate()
+            draft1 = result["draft"]
+            self.assertEqual(draft1["schema"], "creative-draft/1")
+            self.assertEqual(draft1["status"], "unreviewed")
+            self.assertEqual(draft1["revision"], 1)
+            self.assertEqual(draft1["origin"], "model")
+            self.assertEqual(draft1["origin_turn_id"], "t2")
+            # 用户自由编辑 → 追加新 revision，旧 revision 不可变
+            result2 = flow.chat_draft_save("我在草稿上自由修改过的第二版")
+            draft2 = result2["draft"]
+            self.assertEqual(draft2["revision"], 2)
+            self.assertEqual(draft2["origin"], "user_edit")
+            drafts = flow.chat_state()["chat"]["drafts"]
+            self.assertEqual([d["revision"] for d in drafts], [1, 2])
+            self.assertEqual(drafts[0]["content"], "草稿正文第一版")
+            # 没有草稿内容为空
+            with self.assertRaises(WorkbenchFlowError):
+                flow.chat_draft_save("  ")
+
+    def test_draft_is_isolated_from_canonical_gates_and_cannot_masquerade(self):
+        """Nexus 第 4 点：草稿绝不写 canonical approved/reviewed 路径，
+        不解锁正式生产；canonical 门禁保持 fail-closed。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["草稿内容"], []))
+            self._configure(root)
+            context = flow.chat_send_start("选题讨论")
+            list(flow.chat_stream_reply(context))
+            flow.chat_draft_generate()
+            flow.chat_draft_save("人工编辑版")
+            # 聊天/草稿不会创建 canonical workbench 会话
+            self.assertIsNone(flow.store.load_latest())
+            # 草稿存储中不存在任何 canonical 门禁字段
+            chat_file = json.dumps(flow.chat_state()["chat"], ensure_ascii=False)
+            for forbidden in (
+                "reviewed_path",
+                "approved_path",
+                "gate_status",
+                "quality",
+            ):
+                self.assertNotIn(forbidden, chat_file)
+            # canonical 定稿在没有正式会话时依旧 fail-closed
+            with self.assertRaises(Exception) as ctx:
+                flow.final_script("no-such-session")
+            self.assertIn("会话", str(ctx.exception))
+
+    def test_chat_storage_permissions_are_restricted_and_secret_free(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["内容"], []))
+            self._configure(root)
+            context = flow.chat_send_start("包含秘密吗")
+            list(flow.chat_stream_reply(context))
+            chat_dir = root / "workbench" / "chat"
+            files = list(chat_dir.glob("*.json"))
+            self.assertEqual(len(files), 1)
+            mode = files[0].stat().st_mode & 0o777
+            self.assertEqual(mode, 0o600)
+            self.assertNotIn("sk-chat-fixture", files[0].read_text(encoding="utf-8"))
+
+
 if __name__ == "__main__":
     unittest.main()

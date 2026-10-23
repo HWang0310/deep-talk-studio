@@ -201,9 +201,9 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertEqual(headers.get("X-Content-Type-Options"), "nosniff")
         self.assertIn('lang="zh-CN"', body)
         self.assertIn('id="topic"', body)
-        # Issue #23 unified workbench: the page drives the same canonical
-        # discovery service through the session-start endpoint
-        self.assertIn("/api/workbench/session/start", body)
+        # Issue #44 chat-first MVP：首页主操作是流式自由聊天；
+        # canonical session/start 仍保留在服务端与阶段工作流中，但不再是首页入口
+        self.assertIn("/api/workbench/chat/stream", body)
         # XSS-safety: the page must never use innerHTML for rendering
         self.assertNotIn("innerHTML", body)
         self.assertIn("textContent", body)
@@ -235,8 +235,23 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertEqual(status, 200)
         self.assertIn('class="card hero"', body)
         self.assertIn('id="settings-link"', body)
-        self.assertIn("你想讲什么？", body)
-        self.assertIn("开始创作", body)
+        # Chat-first：唯一主操作是发送聊天（明确付费动作），一次说明计费而非每轮打断
+        self.assertIn("你想聊什么？", body)
+        self.assertIn("发送会调用你在「设置」里配置的模型服务并按其计费", body)
+        self.assertIn('id="search-btn"', body)
+        self.assertIn('id="chat-stop"', body)
+        self.assertIn('id="chat-retry"', body)
+        self.assertIn('id="chat-card"', body)
+        self.assertIn('id="draft-card"', body)
+        # 草稿门禁说明卡：解释正式路径但不自动转换
+        self.assertIn("进入正式审核", body)
+        self.assertIn("不会自动转换", body)
+        self.assertIn("未经研究与事实核查", body)
+        # 流式与恢复契约：真实 SSE 增量 + 停止不写半截回复 + 刷新恢复
+        self.assertIn("getReader()", body)
+        self.assertIn("AbortController", body)
+        self.assertIn("renderChat(state.chat", body)
+        self.assertIn("未完成的回复不会保存", body)
         self.assertIn("stage-nav", body)
         self.assertIn("高级设置", body)
         self.assertIn("下载位置", body)
@@ -789,6 +804,162 @@ class ArtifactExclusivityTests(LocalWebUITestCase):
         status2, _, _ = self.post("/api/discover", {"topic": MOSCOW_TOPIC})
         self.assertEqual((status1, status2), (200, 200))
         self.assertEqual(len(list(self.output_dir.glob("reference-candidate-set-*.json"))), 2)
+
+
+class ChatStreamHttpTests(LocalWebUITestCase):
+    """Issue #44 chat-first MVP：SSE 流式 HTTP 契约、恢复与草稿修订。"""
+
+    class StreamLLM:
+        def __init__(self, chunks, calls):
+            self.chunks = list(chunks)
+            self.calls = calls
+
+        def chat_stream(self, messages):
+            import time
+
+            self.calls.append(("chat_stream", [m.get("role") for m in messages]))
+            for chunk in self.chunks:
+                time.sleep(0.05)
+                yield chunk
+
+    def _sse_post(self, path, payload, *, timeout=10.0):
+        import http.client
+
+        port = self.server.server_address[1]
+        conn = http.client.HTTPConnection(DEFAULT_HOST, port, timeout=timeout)
+        conn.request("POST", path, body=json.dumps(payload).encode("utf-8"),
+                     headers={"Content-Type": "application/json"})
+        response = conn.getresponse()
+        raw = response.read().decode("utf-8")
+        status = response.status
+        ctype = response.getheader("Content-Type") or ""
+        conn.close()
+        events = []
+        for block in raw.split("\n\n"):
+            block = block.strip()
+            if block.startswith("data:"):
+                events.append(json.loads(block[5:].strip()))
+        return status, ctype, events
+
+    def _chat_flow(self, root, llm):
+        from deeptalk_studio.workbench.flow import WorkbenchFlow
+
+        return WorkbenchFlow(root, provider_factory=lambda settings: llm)
+
+    def _get_state(self):
+        request = urllib.request.Request(self.base + "/api/workbench/state")
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return response.status, dict(response.headers), response.read().decode("utf-8")
+
+    def _configure_deepseek(self, root):
+        from deeptalk_studio.workbench.settings import (
+            apply_settings_update,
+            load_settings,
+            save_settings,
+        )
+
+        save_settings(root, apply_settings_update(load_settings(root), {
+            "provider_mode": "deepseek",
+            "api_key": "sk-chat-http-fixture",
+            "downloads_dir": str(root),
+        }))
+
+    def test_chat_stream_sse_recovery_and_draft_revisions_over_http(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            calls = []
+            llm = self.StreamLLM(["第一段", "第二段"], calls)
+            self.start_server(flow=self._chat_flow(root, llm))
+            self._configure_deepseek(root)
+            status, ctype, events = self._sse_post("/api/workbench/chat/stream", {
+                "message": "聊聊夜间城市选题",
+                "links": [{"url": "https://example.com/ref"}],
+            })
+            self.assertEqual(status, 200)
+            self.assertIn("text/event-stream", ctype)
+            kinds = [e["type"] for e in events]
+            self.assertEqual(kinds[0], "start")
+            self.assertEqual(kinds[-1], "done")
+            self.assertEqual([e["type"] for e in events if e["type"] == "delta"],
+                             ["delta", "delta"])
+            self.assertEqual(events[0]["provider_kind"], "fixture")
+            self.assertEqual(events[0]["user_turn"]["links"][0]["status"], "unknown")
+            self.assertEqual(events[-1]["turn"]["content"], "第一段第二段")
+            # 刷新恢复：/state 带完整对话
+            status, _, body = self._get_state()
+            self.assertEqual(status, 200)
+            chat = json.loads(body)["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user", "assistant"])
+            # 草稿生成 → 用户编辑修订（不可变 revisions）
+            status, _, body = self.post("/api/workbench/chat/draft", {})
+            self.assertEqual(status, 200, body)
+            draft1 = json.loads(body)["draft"]
+            self.assertEqual((draft1["schema"], draft1["status"], draft1["revision"]),
+                             ("creative-draft/1", "unreviewed", 1))
+            status, _, body = self.post("/api/workbench/chat/draft/edit", {
+                "content": "用户自由编辑后的草稿",
+            })
+            self.assertEqual(status, 200, body)
+            draft2 = json.loads(body)["draft"]
+            self.assertEqual((draft2["revision"], draft2["origin"]), (2, "user_edit"))
+            status, _, body = self._get_state()
+            drafts = json.loads(body)["chat"]["drafts"]
+            self.assertEqual([d["revision"] for d in drafts], [1, 2])
+            self.assertNotIn("sk-chat-http-fixture", json.dumps(json.loads(body)["chat"]))
+            # 只发生一次聊天模型调用 + 一次草稿模型调用（无隐藏重复计费）
+            self.assertEqual(len(calls), 2)
+
+    def test_chat_stream_without_config_is_400_json_not_sse(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            calls = []
+            llm = self.StreamLLM(["x"], calls)
+            self.start_server(flow=self._chat_flow(root, llm))
+            status, _, body = self.post("/api/workbench/chat/stream", {
+                "message": "还没有配置模型",
+            })
+            self.assertEqual(status, 400)
+            error = json.loads(body)["error"]
+            self.assertIn("API Key", error)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", error)
+            self.assertEqual(calls, [])
+
+    def test_chat_stream_client_disconnect_writes_no_assistant_turn(self):
+        import socket
+        import tempfile
+        import time
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            calls = []
+            llm = self.StreamLLM(["段落一", "段落二", "段落三"], calls)
+            self.start_server(flow=self._chat_flow(root, llm))
+            self._configure_deepseek(root)
+            port = self.server.server_address[1]
+            payload = json.dumps({"message": "中途断开"}).encode("utf-8")
+            request = (
+                b"POST /api/workbench/chat/stream HTTP/1.1\r\n"
+                + f"Host: 127.0.0.1:{port}\r\n".encode("utf-8")
+                + b"Content-Type: application/json\r\n"
+                + f"Content-Length: {len(payload)}\r\n\r\n".encode("utf-8")
+                + payload
+            )
+            with socket.create_connection((DEFAULT_HOST, port), timeout=6) as sock:
+                sock.sendall(request)
+                sock.settimeout(3)
+                try:
+                    sock.recv(4096)  # 读到开头就断开（模拟停止/刷新）
+                except socket.timeout:
+                    pass
+            time.sleep(0.8)  # 服务端写失败 → 关闭上游 → 不写助手回复
+            status, _, body = self._get_state()
+            self.assertEqual(status, 200)
+            chat = json.loads(body)["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
 
 
 if __name__ == "__main__":

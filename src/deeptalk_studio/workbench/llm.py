@@ -78,6 +78,38 @@ def _default_chat_transport(url, headers, body, timeout):
         return json.loads(response.read().decode("utf-8"))
 
 
+def _default_chat_stream_transport(url, headers, body, timeout):
+    """真实 SSE 流式传输：上游 stream:true，逐行解析 data: 增量。
+
+    只产出文本增量（delta.content），错误由调用方映射；生成器被关闭时
+    通过 finally 关闭上游响应，停止继续计费。
+    """
+
+    request = Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
+    response = urlopen(request, timeout=timeout)
+    try:
+        for raw_line in response:
+            line = raw_line.decode("utf-8", errors="replace").strip()
+            if not line or not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                return
+            try:
+                chunk = json.loads(data)
+            except ValueError:
+                continue
+            choices = chunk.get("choices") or []
+            if not choices:
+                continue
+            delta = choices[0].get("delta") or {}
+            text = delta.get("content")
+            if text:
+                yield text
+    finally:
+        response.close()
+
+
 class ChatCompletionsProvider:
     """Minimal OpenAI-compatible client for generic chat providers."""
 
@@ -88,6 +120,7 @@ class ChatCompletionsProvider:
         chat_base_url: str,
         timeout: int = 600,
         transport: Optional[ChatTransport] = None,
+        stream_transport=None,
     ) -> None:
         if not api_key.strip():
             raise WorkbenchLLMError("API Key 不能为空")
@@ -99,6 +132,7 @@ class ChatCompletionsProvider:
         self.model = model
         self.timeout = timeout
         self.transport = transport or _default_chat_transport
+        self.stream_transport = stream_transport or _default_chat_stream_transport
 
     def _complete(self, system_prompt: str, user_prompt: str) -> str:
         payload = {
@@ -167,6 +201,67 @@ class ChatCompletionsProvider:
                 "模型连通性测试未返回预期内容", category="unexpected_response"
             )
 
+    def chat_stream(self, messages):
+        """真实流式对话：上游 stream:true，yield 文本增量。
+
+        这是真实 provider 流式（非打字机模拟）；生成器提前关闭（用户停止）
+        会关闭上游响应，不继续产生费用。
+        """
+
+        payload = {
+            "model": self.model,
+            "messages": [{"role": m.get("role", "user"), "content": m.get("content", "")} for m in messages],
+            "stream": True,
+            "temperature": 0.7,
+        }
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+        return self._stream_request(headers, payload)
+
+    def _stream_request(self, headers, payload):
+        try:
+            for delta in self.stream_transport(self.endpoint, headers, payload, self.timeout):
+                yield delta
+        except HTTPError as exc:
+            category = {
+                401: "unauthorized",
+                402: "payment_required",
+                403: "forbidden",
+                429: "rate_limited",
+            }.get(exc.code, "http_error")
+            hints = {
+                "unauthorized": "API Key 无效或已过期，请在设置中替换",
+                "payment_required": "账户余额或计费状态不允许本次请求，请检查预算",
+                "forbidden": "服务拒绝访问，请检查模型权限或端点",
+                "rate_limited": "请求过于频繁，请稍后重试或降低并发",
+                "http_error": "请检查地址、Key 与模型名",
+            }
+            raise WorkbenchLLMError(
+                f"模型服务返回 HTTP {exc.code}：{hints[category]}",
+                category=category,
+                http_status=exc.code,
+            ) from None
+        except (TimeoutError, socket.timeout):
+            raise WorkbenchLLMError(
+                "模型服务连接超时，请检查网络或调高超时设置", category="timeout"
+            ) from None
+        except URLError as exc:
+            if isinstance(getattr(exc, "reason", None), (TimeoutError, socket.timeout)):
+                raise WorkbenchLLMError(
+                    "模型服务连接超时，请检查网络或调高超时设置", category="timeout"
+                ) from None
+            raise WorkbenchLLMError(
+                "无法连接模型服务，请检查网络或服务地址", category="network"
+            ) from None
+        except WorkbenchLLMError:
+            raise
+        except (ValueError, KeyError, TypeError):
+            raise WorkbenchLLMError(
+                "模型服务返回了无法解析的流式响应", category="invalid_response"
+            ) from None
+
     @staticmethod
     def _validated(text: str, schema: Dict[str, Any], schema_name: str) -> Dict[str, Any]:
         try:
@@ -192,7 +287,7 @@ class ChatCompletionsProvider:
 class WorkbenchLLM:
     """Uniform boundary used by ``workbench.flow`` for both modes."""
 
-    def __init__(self, settings: Mapping[str, Any], *, chat_transport=None) -> None:
+    def __init__(self, settings: Mapping[str, Any], *, chat_transport=None, chat_stream_transport=None) -> None:
         self.mode = settings["provider_mode"]
         self.timeout = int(settings["timeout_seconds"])
         self._settings = dict(settings)
@@ -212,7 +307,22 @@ class WorkbenchLLM:
                 chat_base_url=settings["chat_base_url"],
                 timeout=self.timeout,
                 transport=chat_transport,
+                stream_transport=chat_stream_transport,
             )
+
+    def chat_stream(self, messages):
+        """真实 provider 流式自由聊天（stream:true SSE），逐段产出文本增量。
+
+        responses 模式暂不支持聊天流式（MVP 基于 chat/completions）；
+        用户需要自由聊天时引导切换到 DeepSeek 或通用 Chat 模式。
+        """
+
+        if self.mode == "responses" or self._chat is None:
+            raise WorkbenchLLMError(
+                "Responses 模式暂不支持自由聊天，请在「大模型设置」切换到 DeepSeek 或通用 Chat",
+                category="unsupported_mode",
+            )
+        return self._chat.chat_stream(messages)
 
     # -- research / fact check (may search the web in responses mode) -------
 
@@ -364,5 +474,14 @@ class WorkbenchLLM:
         return self._chat._generation(system_prompt, user_prompt, schema, schema_name)
 
 
-def build_llm(settings: Mapping[str, Any], *, chat_transport=None) -> WorkbenchLLM:
-    return WorkbenchLLM(settings, chat_transport=chat_transport)
+def build_llm(
+    settings: Mapping[str, Any],
+    *,
+    chat_transport=None,
+    chat_stream_transport=None,
+) -> WorkbenchLLM:
+    return WorkbenchLLM(
+        settings,
+        chat_transport=chat_transport,
+        chat_stream_transport=chat_stream_transport,
+    )
