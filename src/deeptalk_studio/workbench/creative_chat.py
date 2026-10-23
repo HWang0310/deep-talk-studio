@@ -60,29 +60,46 @@ class CreativeChatStore:
         self.root = Path(root)
         # 聊天历史存用户级稳定目录（跨工作树/升级不丢，与 Key 同模式）；
         # 仓库级 workbench/chat 仅作向后兼容 fallback：首次发现即一次性
-        # 迁移到用户级（同 ID 不覆盖、原文件保留、幂等）。
+        # 迁移到用户级（同 ID 不覆盖、原文件保留、幂等、0600）。
         self.repo_directory = self.root / "workbench" / "chat"
         self.directory = user_chat_dir()
+        self._ensure_private_directory()
         self._migrate_repo_chat_to_user()
         self._lock = threading.RLock()
+
+    def _ensure_private_directory(self) -> None:
+        """B7（review 5630859051）：历史目录显式私有 0700（文件已 0600）。
+
+        显式 chmod 而非依赖 umask —— 已存在/新建同样生效；失败尽力而为
+        不阻断（后续 save 的 mkdir 会再尝试）。"""
+        try:
+            self.directory.mkdir(parents=True, exist_ok=True)
+            os.chmod(self.directory, 0o700)
+        except OSError:
+            return
 
     def _migrate_repo_chat_to_user(self) -> None:
         """一次性向后兼容迁移：把仓库级聊天历史复制到用户级。
 
         - 同名会话绝不覆盖（用户级已是唯一真源，旧文件只作首次迁移输入）；
         - 仓库级原文件保留（安全回退），迁移幂等可重复执行；
+        - B7（review 5630859051）：单个损坏/半截 JSON 只跳过该文件，
+        绝不让迁移（进而整个聊天初始化）失败；损坏原件原地保留待人工
+        恢复，错误绝不携带文件内容进任何日志；
         - 复制件 0600；失败静默回退仓库级语义（下次启动再试）。
         """
 
         try:
             if not self.repo_directory.is_dir():
                 return
-            self.directory.mkdir(parents=True, exist_ok=True)
             existing = {p.name for p in self.directory.glob("*.json")}
             for path in self.repo_directory.glob("*.json"):
                 if not path.is_file() or path.name in existing:
                     continue
-                data = json.loads(path.read_text(encoding="utf-8"))
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue  # 损坏件跳过：原件保留，不影响其他会话迁移
                 if not isinstance(data, dict) or data.get("schema") != CHAT_SCHEMA:
                     continue
                 fd, tmp = tempfile.mkstemp(
@@ -149,7 +166,13 @@ class CreativeChatStore:
             key=lambda p: p.stat().st_mtime,
         )
         for path in reversed(candidates):
-            data = self._load_path(path)
+            # B7（review 5630859051）：最近会话文件损坏时只跳过该件
+            # （原件保留待人工恢复），返回最近的「有效」会话；绝不因单个
+            # 损坏件让 latest 语义对其他健康会话失效。
+            try:
+                data = self._load_path(path)
+            except (CreativeChatError, OSError):
+                continue
             if data:
                 return data
         return None
@@ -179,7 +202,14 @@ class CreativeChatStore:
             for path in self.directory.glob("*.json"):
                 if not path.is_file():
                     continue
-                data = self._load_path(path)
+                # B7（review 5630859051）：损坏/半截文件只跳过该会话
+                # （不出现在列表，原件保留待人工恢复），其他会话照常
+                # 加载；错误绝不携带内容。
+                try:
+                    data = self._load_path(path)
+                    mtime = path.stat().st_mtime
+                except (CreativeChatError, OSError):
+                    continue
                 if not data:
                     continue
                 title = ""
@@ -195,7 +225,7 @@ class CreativeChatStore:
                     "drafts": len(data.get("drafts", [])),
                     # 排序辅助：updated_at 是秒级精度，同一秒内的更新用
                     # 文件 mtime（更高精度）作为次级键，保证最近更新者居前。
-                    "_mtime": path.stat().st_mtime,
+                    "_mtime": mtime,
                 })
             items.sort(
                 key=lambda item: (item["updated_at"], item["_mtime"]),

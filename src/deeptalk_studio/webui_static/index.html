@@ -299,6 +299,9 @@
   .chat-session-list button.active { background: var(--coral-wash); color: var(--coral-deep); font-weight: 650; }
   .chat-session-list .session-meta { display: block; color: var(--muted); font-size: 11px; font-weight: 400; margin-top: 2px; }
   .sidebar-open-btn { display: none; margin-bottom: 10px; }
+  /* B5（review 5630859051）：桌面收起侧栏后 ☰ 重新展开入口 —— 此前只有
+     移动端媒体查询显示该按钮，桌面一旦收起就再也打不开。 */
+  .sidebar-open-btn.sidebar-shown { display: inline-flex; }
   .sidebar-backdrop { display: none; }
   .chat-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
   /* 草稿小入口（不再常驻大表单）*/
@@ -313,6 +316,9 @@
   .draft-entry-btn { font-weight: 650; color: var(--coral-deep); }
   .draft-generate-btn { font-size: 12.5px; color: var(--ink-soft); }
   .draft-drawer { margin-top: 10px; }
+  /* 收起时只保留一个小入口（review 5630859051）：details 的 summary 头
+     不作为第二个大空白卡常驻在对话下方；点开抽屉才显示为编辑器头。 */
+  .draft-drawer:not([open]) { display: none; }
   .draft-drawer summary { cursor: pointer; font-weight: 650; color: var(--ink); }
   .draft-drawer summary .muted { font-weight: 400; margin-left: 8px; font-size: 12px; }
   .draft-drawer[open] summary { margin-bottom: 8px; }

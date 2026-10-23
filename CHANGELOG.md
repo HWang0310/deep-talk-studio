@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — 2026-10-24 — Issue #44 — 收尾三修复：桌面侧栏可重新展开 + 损坏会话 JSON 不拖垮其他会话 + 草稿收起单入口（review #5630859051）
+
+- **B5/P0 桌面侧栏收起后可重新展开**：`.sidebar-open-btn` 此前仅移动端媒体查询显示——桌面点「‹」收起后 ☰ 按钮仍 `display:none`，历史侧栏永久不可达（直到刷新）。新增桌面规则 `.sidebar-open-btn.sidebar-shown { display: inline-flex; }`：JS 收起时挂的 `sidebar-shown` 类现在真正让 ☰ 入口出现，点击重新展开并移除类。1280px 浏览器回归：收起 → ☰ 可见 → 重新展开 → 选择旧会话正常；375px 抽屉行为不受影响（媒体查询规则优先级不变）。
+- **B7/P0 单个损坏会话 JSON 不再拖垮其他会话（数据健壮性 + 隐私）**：此前迁移的 `json.loads` 只捕 OSError——半截/损坏 JSON 抛 `JSONDecodeError` 会让 `CreativeChatStore.__init__` 直接失败、聊天功能整体不可用；`list_sessions()`/`load_latest()` 逐文件 `_load_path` 无容错——单个损坏件让 `/sessions` 与 `/state` 对全部健康会话失败。修复：迁移与列表/最近会话均**逐文件跳过**损坏件（原件原地保留待人工恢复，绝不自动删除，错误绝不携带文件内容进日志）；`load_latest` 跳过「最新但损坏」的件返回最近**有效**会话；显式选中损坏会话仍如实报错（不影响其他会话）。历史目录显式 `chmod 0700`（`_ensure_private_directory`，不依赖 umask，已存在/新建同样生效；文件保持 0600）。
+- **草稿收起时只显示一个简洁入口**：收起态下 `<details id="draft-drawer">` 的 summary 卡（「原创草稿（未审核）…」）作为第二个大空白卡常驻在对话下方——新增 `.draft-drawer:not([open]) { display: none; }`，收起时整卡隐藏、只留 `#draft-entry-row` 小入口行（实测 44px），点击才展开为编辑器 + 不可变版本链（v1/v2/v3 页签、复制/导出、来源标注、正式门禁说明全保留，不删任何草稿、不改正式 Gates）。
+- **确定性回归（零真实付费调用，隔离夹具）**：新增 store 级测试——损坏 legacy 件 + 两个有效件（初始化/迁移成功、有效件迁移、损坏件跳过且仓库原件逐字节保留、目录 0700）；损坏用户件（mtime 最新）+ 两个有效件（列表只含有效件、`load_latest` 跳过最新损坏件返回次新有效件、有效会话显式加载正常、损坏会话如实 `CreativeChatError`）；幂等/零丢失（重建 store 一切不变、损坏件绝不自动删除）；静态断言补 `.sidebar-open-btn.sidebar-shown` 与 `.draft-drawer:not([open])` 两条新规则。
+- **浏览器证据（8322 隔离夹具 + 8931 mock，桌面 + 375px，截图 62–67）**：桌面收起 → ☰ 可见 → 重新展开 → 选旧会话（62/63）；草稿收起单入口 44px、抽屉卡 0×0 隐藏、点开编辑器 + v1/v2/v3、再收起恢复（64/65）；向夹具聊天目录注入损坏 JSON 后页面照常加载、侧栏/API 只列 6 个有效会话、latest 返回最新**有效**会话、有效会话照常可选（66，注入件验证后移除）；375px 抽屉/零溢出/草稿单入口不受影响（67）。
+- 测试：focused **145 passed**（+1 损坏件健壮性）；全量与 sentinel 见对应轮记录。真实聊天历史与已保存 DeepSeek Key 全程零触碰（快照证明）。
+
 ## Unreleased — 2026-10-23 — Issue #44 — 多会话复审修复：迟到草稿结果跨会话污染 / 乱序 state 响应翻转选中 / legacy latest 单飞别名绕过（review #5629701467）
 
 - **P0 迟到草稿结果不得污染其他会话**：草稿生成/保存此前在响应回调里无条件写 `chatStateCache` 并 `renderDrafts` —— 会话 A 发起草稿生成后切到 B，A 的迟到响应会把 A 的草稿渲染进 B 的编辑器，且此时点保存会把 A 的内容持久化为 B 的修订。修复：所有草稿操作在**发起时捕获会话身份与视图代际**（`opSessionId` + `opViewToken`），选中会话每次实际变化（含新建对话首发送）代际 +1；完成时若已被超越：属于其他会话 → **只静默更新会话列表元数据**（`refreshSessionsQuietly`），绝不改写当前视图的编辑器/缓存/状态文案；用户已切回发起会话 → 如实提示并刷新当前会话（同一会话无跨会话污染，不残留「仍在进行中」误导态）。保存的 content 与 session_id 都在点击时捕获，期间切换会话不会把 A 的内容写进 B；按钮 disabled 按「当前选中会话」的在飞操作映射重算（`draftGenBusySessions`/`draftSaveBusySessions` + `syncDraftButtons`），跨视图迟到完成不误恢复按钮；切换会话时状态文案如实重置（`syncDraftViewStatus`：目标会话在飞则显示真实提示，否则清空，旧会话提示不残留）。

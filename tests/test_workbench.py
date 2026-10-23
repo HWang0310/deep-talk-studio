@@ -28,7 +28,7 @@ from deeptalk_studio.schema import (
 )
 from deeptalk_studio.validation import validate_json_schema
 from deeptalk_studio.workbench import acquisition
-from deeptalk_studio.workbench.creative_chat import CreativeChatStore
+from deeptalk_studio.workbench.creative_chat import CreativeChatStore, CreativeChatError
 from deeptalk_studio.workbench.flow import WorkbenchFlow, WorkbenchFlowError
 from deeptalk_studio.workbench.llm import (
     ChatCompletionsProvider,
@@ -2676,6 +2676,93 @@ class CreativeChatTests(_UserSettingsIsolatedTestCase):
                 "turns": [], "drafts": []}, ensure_ascii=False), encoding="utf-8")
             CreativeChatStore(root)
             self.assertEqual(CreativeChatStore(root).list_sessions()[0]["turns"], 0)
+
+    def test_corrupt_chat_files_do_not_break_other_sessions(self):
+        """B7（review 5630859051）：单个损坏 JSON 绝不拖垮其他会话 ——
+        迁移/列表/最近会话逐文件跳过损坏件、原件零改动、历史目录 0700、
+        显式选中损坏会话如实报错而其他会话照常加载。"""
+        import os
+        import stat as stat_module
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            def session(sid, content, updated):
+                return {
+                    "schema": "creative-chat/1",
+                    "session_id": sid,
+                    "created_at": updated,
+                    "updated_at": updated,
+                    "turns": [{"turn_id": "t1", "role": "user",
+                               "content": content, "created_at": updated}],
+                    "drafts": [],
+                }
+
+            # ── 1) 仓库级：一个损坏 + 两个有效 → 初始化/迁移成功 ──
+            legacy = root / "workbench" / "chat"
+            legacy.mkdir(parents=True)
+            valid_a_id, valid_b_id, corrupt_id = "a" * 32, "c" * 32, "b" * 32
+            (legacy / f"{valid_a_id}.json").write_text(json.dumps(
+                session(valid_a_id, "有效甲", "2026-10-01T10:00:00+08:00"),
+                ensure_ascii=False), encoding="utf-8")
+            (legacy / f"{valid_b_id}.json").write_text(json.dumps(
+                session(valid_b_id, "有效乙", "2026-10-01T11:00:00+08:00"),
+                ensure_ascii=False), encoding="utf-8")
+            corrupt_legacy_path = legacy / f"{corrupt_id}.json"
+            corrupt_text = '{"schema": "creative-chat/1", "session_id": "' + corrupt_id + '", "trun'
+            corrupt_legacy_path.write_text(corrupt_text, encoding="utf-8")
+
+            store = CreativeChatStore(root)  # 此前：损坏件会让 __init__ 直接失败
+            # 历史目录显式私有 0700（文件 0600 之上）
+            self.assertEqual(
+                stat_module.S_IMODE(store.directory.stat().st_mode), 0o700,
+            )
+            # 有效件迁移成功；损坏件被跳过且仓库原件逐字节保留
+            self.assertTrue((store.directory / f"{valid_a_id}.json").is_file())
+            self.assertTrue((store.directory / f"{valid_b_id}.json").is_file())
+            self.assertFalse((store.directory / f"{corrupt_id}.json").exists())
+            self.assertEqual(
+                corrupt_legacy_path.read_text(encoding="utf-8"), corrupt_text,
+            )
+
+            # ── 2) 用户级：一个损坏（mtime 最新）+ 两个有效 → 只含有效件 ──
+            corrupt_user_id = "d" * 32
+            corrupt_user_path = store.directory / f"{corrupt_user_id}.json"
+            corrupt_user_text = '{"schema": "creative-chat/1", "broken'
+            corrupt_user_path.write_text(corrupt_user_text, encoding="utf-8")
+            # 固定 mtime（不依赖迁移拷贝的创建时序）：损坏件最新 → 证明被跳过
+            os.utime(store.directory / f"{valid_a_id}.json", (1_000_000, 1_000_000))
+            os.utime(store.directory / f"{valid_b_id}.json", (2_000_000, 2_000_000))
+            os.utime(corrupt_user_path, (3_000_000, 3_000_000))
+
+            sessions = store.list_sessions()
+            self.assertEqual({s["session_id"] for s in sessions},
+                             {valid_a_id, valid_b_id})
+            self.assertEqual(sessions[0]["session_id"], valid_b_id)  # 按最近更新倒序
+            # 最近会话跳过「最新但损坏」的件，返回最近的「有效」会话
+            self.assertEqual(store.load_latest()["session_id"], valid_b_id)
+            # 显式选中有效会话照常精确加载；选中损坏会话如实报错且不影响其他
+            self.assertEqual(store.load(valid_a_id)["session_id"], valid_a_id)
+            with self.assertRaises(CreativeChatError):
+                store.load(corrupt_user_id)
+            self.assertEqual(store.load_latest()["session_id"], valid_b_id)
+
+            # ── 3) 幂等/零丢失：重建 store 后一切不变、损坏件绝不自动删除 ──
+            store2 = CreativeChatStore(root)
+            self.assertEqual({s["session_id"] for s in store2.list_sessions()},
+                              {valid_a_id, valid_b_id})
+            self.assertEqual(
+                stat_module.S_IMODE(store2.directory.stat().st_mode), 0o700,
+            )
+            self.assertEqual(
+                corrupt_legacy_path.read_text(encoding="utf-8"), corrupt_text,
+            )
+            self.assertEqual(
+                corrupt_user_path.read_text(encoding="utf-8"), corrupt_user_text,
+            )
+            self.assertEqual(
+                len(list(store2.directory.glob("*.json"))), 3,
+            )  # 2 有效迁移 + 1 损坏保留：绝不自动删除任何原件
 
     def test_loopback_endpoint_is_labeled_fixture_even_without_injected_provider(self):
         """诚实标注：即使未注入 provider_factory，指向 loopback 的 Chat 端点

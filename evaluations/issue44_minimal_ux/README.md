@@ -1,6 +1,6 @@
 # Issue #44 / PR #45 — 极简创作页与独立模型设置页
 
-> **状态：READY_FOR_NEXUS_MULTI_CHAT_REREVIEW（第九轮：多会话复审修复）。** 前八轮完成两页极简 UX、DeepSeek 设置体验、paste→Test 修复、Chat-first MVP、B1–B4/B2-P0 阻断修复、一体化对话工作区 + 限额真实模型端到端、U1/U2 收尾 + Key 跨工作树 + 双 runner 凭据隔离、多会话 UX（sidebar/新建/草稿抽屉/聊天历史用户级迁移）；本轮按 review #5629701467 完成：P0 迟到草稿结果跨会话污染（发起时捕获会话+视图代际，迟到只更新列表元数据，切回发起会话如实刷新）、P1 乱序 state 响应翻转选中（refresh 单调代际丢弃过期响应）、legacy/latest 单飞别名绕过（双 key 持有 + 锁内别名冲突检查，双向不互相绕过、不同会话不互斥）。UI 结构零重设计，全部为行为修复。PR 保持打开，未合并。
+> **状态：READY_FOR_NEXUS_MULTI_CHAT_FINAL_REVIEW（第十轮：收尾三修复）。** 前九轮完成两页极简 UX、DeepSeek 设置体验、paste→Test 修复、Chat-first MVP、B1–B4/B2-P0 阻断修复、一体化对话工作区 + 限额真实模型端到端、U1/U2 收尾 + Key 跨工作树 + 双 runner 凭据隔离、多会话 UX、多会话并发复审修复（P0/P1/别名均获 PASS）；本轮按 review #5630859051 完成：B5 桌面侧栏收起后可重新展开（新增 `sidebar-shown` 桌面 CSS 规则）、B7 单个损坏会话 JSON 不再拖垮其他会话（迁移/列表/latest 逐文件跳过、原件保留、历史目录 0700）、草稿收起时只留一个小入口（抽屉卡 display:none，点开才是编辑器+版本链）。真实聊天历史与已保存 Key 全程零触碰。PR 保持打开，未合并。
 
 ## 视觉与交互交付
 
@@ -168,14 +168,20 @@
 | 复审 P1：下一条消息 payload 作用域仍为 D | 通过；截获 session_id===D，流后选中仍 D | [58-out-of-order-send-scoped-to-d.png](screenshots/58-out-of-order-send-scoped-to-d.png) |
 | 复审 375px：抽屉选择 A 自动关闭零溢出 | 通过；横向溢出 0 | [59](screenshots/59-mobile-375-drawer-sessions.png) / [60](screenshots/60-mobile-375-selected-a-closed.png) |
 | 复审 375px：草稿抽屉展开零溢出 | 通过；入口「草稿 v3 · 未审核」可用 | [61-mobile-375-draft-drawer.png](screenshots/61-mobile-375-draft-drawer.png) |
+| 收尾 B5：桌面收起后 ☰ 重新展开入口可见 | 通过；`sidebar-shown` 桌面规则生效，收起不再永久丢侧栏 | [62-b5-collapsed-reopen-visible.png](screenshots/62-b5-collapsed-reopen-visible.png) |
+| 收尾 B5：重新展开后选旧会话 | 通过；6 会话列出、话题甲加载、草稿 v3 恢复 | [63-b5-reopened-session-selected.png](screenshots/63-b5-reopened-session-selected.png) |
+| 收尾打磨：草稿收起只留单入口 | 通过；入口行 44px，抽屉卡 0×0 隐藏 | [64-draft-collapsed-single-entry.png](screenshots/64-draft-collapsed-single-entry.png) |
+| 收尾打磨：点开抽屉编辑器 + v1/v2/v3 | 通过；版本链/来源标注/门禁说明全保留 | [65-draft-opened-editor-versions.png](screenshots/65-draft-opened-editor-versions.png) |
+| 收尾 B7：夹具目录注入损坏 JSON，其他会话照常 | 通过；侧栏/API 只列 6 有效会话、latest 返回最新有效件、有效会话可选 | [66-b7-corrupt-file-others-fine.png](screenshots/66-b7-corrupt-file-others-fine.png) |
+| 收尾 375px：抽屉与草稿单入口不受新 CSS 影响 | 通过；零横向溢出 | [67-final-mobile-375-drawer-and-draft-entry.png](screenshots/67-final-mobile-375-drawer-and-draft-entry.png) |
 
 完整的 B1/B2 断言、设置体验流与浏览器输出见 [browser-evidence.md](browser-evidence.md)。
 
 ## 测试结果
 
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **144 passed**（第九轮新增：legacy/explicit 双向别名冲突 + 显式指向 legacy 刚创建会话 400 + 守卫结构静态断言 3 项；前八轮累计 141 项保持全过）
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1124 passed, 7 skipped**（第九轮全量，退出码 0；1121+3 精确衔接）
-- 真实 `~/.deeptalk` 全文件 sha256 快照在全量套件（真实 HOME）运行前后完全一致（零触碰）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **145 passed**（第十轮新增：损坏会话 JSON 健壮性 1 项；前九轮累计 144 项保持全过）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1125 passed, 7 skipped**（第十轮全量，退出码 0；1124+1 精确衔接）
+- 真实 `~/.deeptalk` 全文件 sha256 快照在全量套件（真实 HOME）运行前后完全一致（真实聊天历史与已保存 DeepSeek Key 零触碰）
 - 内联 JavaScript：'node --check'（提取 `<script>` 块）→ **通过**
 - 'git diff --check' → **通过**
 - 未修改无关后端、模型门禁、SSRF 防护或生产工作流；未提交本地密钥、模型输出、缓存或临时会话。

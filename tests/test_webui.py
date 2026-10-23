@@ -303,6 +303,10 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn('id="new-chat-btn"', body)
         self.assertIn('id="chat-session-list"', body)
         self.assertIn('id="sidebar-backdrop"', body)
+        # B5（review 5630859051）：桌面收起侧栏后必须有可见的重新展开入口
+        self.assertIn(".sidebar-open-btn.sidebar-shown { display: inline-flex; }", body)
+        # 收起时草稿只保留一个小入口：details 空白卡不常驻对话下方
+        self.assertIn(".draft-drawer:not([open]) { display: none; }", body)
         self.assertIn('id="draft-entry-row"', body)
         self.assertIn('id="draft-entry-btn"', body)
         self.assertIn('id="draft-drawer"', body)

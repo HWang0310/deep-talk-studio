@@ -505,3 +505,49 @@ Review 所指 31/32 全页截图中输入框「盖住」长回复为 **Playwrigh
 | focused（test_workbench + test_webui） | **144 passed**（+3：legacy/explicit 双向别名冲突 / 显式指向 legacy 刚创建会话 400 / 守卫结构静态断言） |
 | 全量 pytest（真实 HOME） | **1124 passed, 7 skipped**，退出码 0（1121+3 精确衔接）；真实 `~/.deeptalk` 全文件 sha256 快照运行前后完全一致 |
 | sentinel HOME + 裸文档命令 | **`Ran 1131 tests in 222.863s` → `OK (skipped=7)`**，退出码 0；sentinel `.deeptalk` 文件列表不变，marker sha256 `719f48ff…99` 前后一致（双 runner 均不触碰真实用户级配置与聊天历史） |
+
+## 收尾三修复轮（2026-10-24，review #5630859051）
+
+### 验收环境
+
+8322 隔离夹具（用户级设置/聊天目录双注入）+ 8931 mock；**零真实付费调用**；桌面 1280×800 + 375px；真实聊天历史与已保存 DeepSeek Key 全程零触碰（全文件 sha256 快照前后一致）。
+
+### B5 桌面侧栏可重新展开（截图 62–63）
+
+| 步骤 | 判定证据 | 结果 |
+| --- | --- | --- |
+| 初始 | 侧栏可见、☰ 隐藏 | 正常 |
+| 点「‹」收起 | 侧栏不可见、**☰ 历史按钮可见**（`sidebar-shown` 类 + 新桌面 CSS 规则生效） | 此前桌面收起后永久不可达 → 修复后重新展开入口出现（截图 62） |
+| 点 ☰ 重新展开 | 侧栏恢复、6 个会话列出、☰ 再次隐藏 | 重新展开后状态干净 |
+| 重新展开后选旧会话 | 话题甲会话加载、草稿 v3 入口恢复 | 功能完整（截图 63） |
+| 375px | 抽屉开/选择自动关/零溢出不受新 CSS 影响 | 移动端无回归 |
+
+### 草稿收起单入口（截图 64–65）
+
+| 步骤 | 判定证据 | 结果 |
+| --- | --- | --- |
+| 收起态 | 入口行高 **44px**（紧凑）、`#draft-drawer` 整卡 `display:none`（0×0）、summary 不可见 | 第二个大空白卡消失，只留一个小入口（截图 64） |
+| 点开 | 抽屉卡 652px、编辑器可见、版本页签 v1/v2/v3 齐全 | 编辑器+版本链完整（截图 65） |
+| 再收起 | 整卡回到 display:none、入口 134×36 | 往返一致 |
+
+### B7 损坏会话 JSON 不拖垮其他会话（截图 66）
+
+向 8322 夹具聊天目录注入半截 JSON（mtime 最新），随后页面与 API 实测：
+
+| 检查 | 结果 |
+| --- | --- |
+| 页面加载 | 照常，侧栏恰好列出 6 个有效会话 |
+| `GET /api/workbench/chat/sessions` | 200，6 个有效会话，损坏件零出现 |
+| `GET /api/workbench/state`（latest 语义） | 200，返回最新**有效**会话（损坏件为 mtime 最新却被跳过） |
+| 选择有效会话（话题乙） | 照常精确加载 |
+| 注入件处置 | 验证后已从夹具目录移除（fixture 数据）；生产语义中损坏原件原地保留、绝不自动删除 |
+
+（store 级确定性测试覆盖迁移/列表/latest/显式选中损坏件报错/幂等零丢失/目录 0700，见 tests/test_workbench.py `test_corrupt_chat_files_do_not_break_other_sessions`。）
+
+### 回归
+
+| 项 | 结果 |
+| --- | --- |
+| focused（test_workbench + test_webui） | **145 passed**（+1：损坏件健壮性） |
+| 全量 pytest（真实 HOME） | **1125 passed, 7 skipped**，退出码 0（1124+1 精确衔接）；真实 `~/.deeptalk` 全文件 sha256 快照运行前后完全一致 |
+| sentinel HOME + 裸文档命令 | **`Ran 1132 tests in 284.745s` → `OK (skipped=7)`**，退出码 0；sentinel `.deeptalk` 文件列表不变、marker sha256 `719f48ff…99` 前后一致（双 runner 均不触碰真实用户级配置与聊天历史） |
