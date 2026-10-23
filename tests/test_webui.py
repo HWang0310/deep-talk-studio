@@ -253,7 +253,17 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn('id="draft-card"', body)
         # 失败不丢输入：404/路由不匹配给出真实服务版本指引并恢复未发送内容
         self.assertIn("本机服务可能是旧版本", body)
-        self.assertIn("输入已恢复", body)
+        # U1（5628192126）：乐观气泡只在服务器接受（SSE start）前存在 ——
+        # 未接受的 400/404/网络失败移除气泡，不提供误导的「重发」。
+        self.assertIn("var accepted = false", body)
+        self.assertIn("accepted = true", body)
+        self.assertIn("内容未发送，已恢复到输入框", body)
+        self.assertIn("消息已保存，可点「重发上一条」", body)
+        # 幂等重发被 400（停止后预约尚未释放）拒绝时：消息已在记录中，
+        # 保留重发按钮而非误入「未发送」路径
+        self.assertIn("消息已保存，稍候可再点「重发上一条」", body)
+        # 停止后与服务器对账：按磁盘真实状态决定「重发」语义，不猜测不静默重发
+        self.assertIn("lastTurn.content === message", body)
         # 草稿门禁说明卡：解释正式路径但不自动转换
         self.assertIn("进入正式审核", body)
         self.assertIn("不会自动转换", body)

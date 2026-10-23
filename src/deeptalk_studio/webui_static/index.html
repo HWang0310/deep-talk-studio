@@ -2439,6 +2439,9 @@
     // 发送是显式动作：滚到最新消息；之后流式增量只在用户仍靠近底部时跟随
     if (userTurnEl || chatThread.lastElementChild) { scrollToEndOfConversation(); }
     var assistantEl = null;
+    // U1（5628192126）：乐观气泡只在服务器接受（SSE start）前存在 ——
+    // 被拒/未送达的请求绝不留下假「已发送」气泡，也不提供误导的「重发」。
+    var accepted = false;
     chatAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var payload = { message: message, links: links };
     if (retryTurnId) { payload.retry_turn_id = retryTurnId; }
@@ -2462,6 +2465,7 @@
         var event;
         try { event = JSON.parse(line.slice(5).trim()); } catch (err) { return; }
         if (event.type === 'start') {
+          accepted = true; // 服务器已校验并持久化本条 user turn
           if (event.user_turn && event.user_turn.turn_id) {
             // B3：记录服务器持久化的 user turn id，停止后重试按 ID 幂等复用
             lastUserTurnId = event.user_turn.turn_id;
@@ -2502,26 +2506,63 @@
       return refresh();
     }).catch(function (error) {
       var aborted = chatAbort && chatAbort.signal && chatAbort.signal.aborted;
-      lastSendIncomplete = true;
       if (aborted) {
         // B3：停止 = 停止显示 + 尽力中断上游请求；半截回复既不保存也不留在
         // 界面上。计费诚实 —— 已产生的费用可能仍会计入账单，不做取消承诺。
         if (assistantEl && assistantEl.parentNode) {
           assistantEl.parentNode.removeChild(assistantEl);
         }
-        chatStatusEl.textContent = '已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单。可点「重发上一条」。';
-      } else {
-        // Owner UX：失败不丢输入 —— 未发送的消息恢复到输入框，
-        // 404/路径不存在时如实提示服务版本问题（本机服务可能是旧版本）。
-        var reason = ((error && error.message) || '网络错误');
-        var guidance = /404|路径不存在/.test(reason)
-          ? '；本机服务可能是旧版本，请重启本地服务后刷新页面'
-          : '';
-        chatStatusEl.textContent = '发送失败：' + reason + guidance + '；输入已恢复，可修改后重试。';
-        if (!topicEl.value.trim()) { topicEl.value = message; }
-        try { window.localStorage.setItem(TOPIC_DRAFT_KEY, message); } catch (err) { }
-        topicEl.focus();
+        chatStatusEl.textContent = '已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单。';
+        finishChatUi();
+        // U1：停止后与服务器对账 —— 消息是否已持久化决定「重发」语义；
+        // 绝不猜测，也绝不静默重发。
+        refresh().then(function () {
+          var turns = (chatStateCache && chatStateCache.turns) || [];
+          var lastTurn = turns[turns.length - 1];
+          if (lastTurn && lastTurn.role === 'user' && lastTurn.content === message) {
+            lastUserTurnId = lastTurn.turn_id;
+            lastSendIncomplete = true;
+            chatStatusEl.textContent += '可点「重发上一条」。';
+            updateRetryBtn();
+          } else {
+            // 未送达：恢复输入，由用户决定是否重发（不自动重发）
+            if (!topicEl.value.trim()) { topicEl.value = message; }
+            try { window.localStorage.setItem(TOPIC_DRAFT_KEY, message); } catch (err) { }
+            chatStatusEl.textContent += '内容未送达，已恢复到输入框。';
+          }
+        });
+        return;
       }
+      var reason = ((error && error.message) || '网络错误');
+      if (accepted) {
+        // SSE 已开始后网络中断：消息已持久化，可幂等重发（B3 语义）
+        lastSendIncomplete = true;
+        chatStatusEl.textContent = '发送中断：' + reason + '；消息已保存，可点「重发上一条」。';
+        finishChatUi();
+        return;
+      }
+      if (retryTurnId) {
+        // 幂等重发的目标 turn 早已持久化；被 400（停止后预约尚未释放）
+        // 或其他服务端错误拒绝时，不转入「未发送」路径 —— 消息仍在
+        // 记录中，保留重发按钮，稍候再点即可。
+        lastSendIncomplete = true;
+        chatStatusEl.textContent = '发送失败：' + reason + '；消息已保存，稍候可再点「重发上一条」。';
+        finishChatUi();
+        return;
+      }
+      // 服务器未接受的新消息（400 / 404 / 网络未达）：移除乐观气泡 —— 界面
+      // 上绝不残留假「已发送」；恢复输入；不显示「重发上一条」（消息
+      // 从未持久化，重发=正常发送，直接点发送即可）。
+      if (userTurnEl && userTurnEl.parentNode) {
+        userTurnEl.parentNode.removeChild(userTurnEl);
+      }
+      var guidance = /404|路径不存在/.test(reason)
+        ? '；本机服务可能是旧版本，请重启本地服务后刷新页面'
+        : '';
+      chatStatusEl.textContent = '发送失败：' + reason + guidance + '；内容未发送，已恢复到输入框。';
+      if (!topicEl.value.trim()) { topicEl.value = message; }
+      try { window.localStorage.setItem(TOPIC_DRAFT_KEY, message); } catch (err) { }
+      topicEl.focus();
       finishChatUi();
     });
   }

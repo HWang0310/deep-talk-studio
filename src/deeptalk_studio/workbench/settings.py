@@ -52,20 +52,85 @@ def settings_path(root: Path) -> Path:
     return Path(root) / "config" / "workbench.local.json"
 
 
-def load_settings(root: Path) -> Dict[str, Any]:
-    path = settings_path(root)
+# 用户级稳定配置目录（Owner Key 跨工作树/产品更新持久化，issuecomment-6364369899）。
+# 测试通过注入临时目录隔离，绝不读写真实 ~/.deeptalk。
+USER_SETTINGS_DIR: Optional[Path] = None
+
+
+def user_settings_path() -> Path:
+    base = USER_SETTINGS_DIR if USER_SETTINGS_DIR is not None else Path.home()
+    return Path(base) / ".deeptalk" / "workbench.local.json"
+
+
+def _read_settings_file(path: Path) -> Dict[str, Any]:
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise WorkbenchSettingsError("工作台设置文件损坏，请重新保存设置")
+    if not isinstance(stored, dict):
+        raise WorkbenchSettingsError("工作台设置文件损坏，请重新保存设置")
     data: Dict[str, Any] = dict(DEFAULT_SETTINGS)
-    if path.is_file():
-        try:
-            stored = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            raise WorkbenchSettingsError("工作台设置文件损坏，请重新保存设置")
-        if not isinstance(stored, dict):
-            raise WorkbenchSettingsError("工作台设置文件损坏，请重新保存设置")
-        for key in DEFAULT_SETTINGS:
-            if key in stored:
-                data[key] = stored[key]
+    for key in DEFAULT_SETTINGS:
+        if key in stored:
+            data[key] = stored[key]
     return data
+
+
+def _atomic_write_settings(path: Path, data: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        dir=str(path.parent), prefix=".workbench-settings-", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+        os.chmod(path, 0o600)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _migrate_repo_settings_to_user(repo_path: Path, user_path: Path) -> None:
+    """一次性向后兼容迁移：把仓库级配置复制到用户级（0600），原文件保留。
+
+    迁移是尽力而为：失败时本次回退读仓库级配置，下次加载再试；
+    用户级文件一旦存在即优先，所有工作树共用同一份已保存 Key。
+    """
+
+    try:
+        data = json.loads(repo_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return
+        _atomic_write_settings(user_path, {
+            key: data[key] for key in DEFAULT_SETTINGS if key in data
+        })
+    except (OSError, ValueError):
+        return
+
+
+def load_settings(root: Path) -> Dict[str, Any]:
+    """Owner Key 持久化：用户级配置优先，任何工作树/产品更新共用同一份。
+
+    首次发现仓库级 config 且用户级尚不存在时，一次性迁移到用户级
+    （原文件保留作为旧版本 fallback），此后保存/清除都只写用户级。
+    """
+
+    user_path = user_settings_path()
+    if user_path.is_file():
+        return _read_settings_file(user_path)
+    repo_path = settings_path(root)
+    if repo_path.is_file():
+        data = _read_settings_file(repo_path)
+        _migrate_repo_settings_to_user(repo_path, user_path)
+        return data
+    return dict(DEFAULT_SETTINGS)
 
 
 def _clean_url(value: Any, field: str, *, allow_empty: bool = True) -> str:
@@ -186,26 +251,19 @@ def is_configured(data: Dict[str, Any]) -> bool:
 
 
 def save_settings(root: Path, data: Dict[str, Any]) -> None:
-    path = settings_path(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
     validate_settings(data)
-    fd, tmp = tempfile.mkstemp(
-        dir=str(path.parent), prefix=".workbench-settings-", suffix=".tmp"
-    )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(data, handle, ensure_ascii=False, indent=2)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp, path)
-        os.chmod(path, 0o600)
-    except BaseException:
+    _atomic_write_settings(user_settings_path(), data)
+    # 显式清除 Key 时同步清掉仓库级旧文件里的 Key：旧版本 fallback 不会
+    # 让已清除的 Key 复活，也不在磁盘上残留明文（其余字段保留不动）。
+    repo_path = settings_path(root)
+    if not data.get("api_key") and repo_path.is_file():
         try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+            stored = json.loads(repo_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            stored = None
+        if isinstance(stored, dict) and stored.get("api_key"):
+            stored["api_key"] = ""
+            _atomic_write_settings(repo_path, stored)
 
 
 def masked_view(data: Dict[str, Any]) -> Dict[str, Any]:

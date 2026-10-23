@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-10-23 — Issue #44 — Nexus 收尾修复：U1 失败事务性气泡 + U2 视口遮挡核验 + Owner Key 跨工作树用户级持久化（review #5628192126）
+
+- **U1/P0 失败请求不再残留假「已发送」气泡（事务性发送）**：`sendChatMessage` 引入 `accepted` 前哨（SSE `start` 事件 = 服务器已校验并持久化）——未接受的新消息（400 在飞拒绝 / 404 / 网络未达）在 catch 中**移除乐观 user 气泡**、恢复输入框内容并回写 localStorage 草稿、如实提示（404 附「本机服务可能是旧版本，请重启本地服务后刷新页面」），且**不显示「重发上一条」**（消息从未持久化，直接再点发送即可，绝不静默重发）；SSE 开始后的网络中断 = 消息已保存，保留幂等重发；停止后与服务器**对账**（refresh 后按磁盘真实状态判定 lastTurn 是否本条消息）决定「重发」语义——已持久化则设置 turn id 供幂等复用，未送达则恢复输入；幂等重发被 400（停止后预约尚未释放的短窗口）拒绝时保留重发按钮（消息已在记录中），不误入「未发送」路径。浏览器实测：404/400 拦截下线程气泡数不变、磁盘零污染、输入恢复、无误导重发；stop→对账→retry→一问一答（磁盘仅一条该消息）。
+- **U2/P1 底部 composer 遮挡核验（真实视口，非 fullPage 伪影）**：Review 指出的 31/32 全页截图中输入框「覆盖」确系 Playwright fullPage 截图对 sticky 元素的渲染伪影——真实视口实测（桌面 1280×800 与 375px）：滚动到底时最后一条 turn 完全位于 dock 上方（`lastTurnBottomAboveDockTop=true`）、中段滚动 dock 贴视口底且背景渐变正常、375px 横向溢出 0px、safe-area padding 12px、输入框无文字穿透。设计零改动（无需调整），以普通视口截图 + bounding-rect 证据取代全页截图判定。
+- **Owner Key 跨工作树用户级持久化（不再要求重复输入）**：新增用户级稳定配置 `~/.deeptalk/workbench.local.json`（0600）——`load_settings` 用户级优先，首次发现仓库级 `config/workbench.local.json` 且用户级不存在时一次性迁移（原文件保留作旧版本 fallback，迁移尽力而为失败不阻断）；`save_settings` 只写用户级；显式清除 Key 时同步清掉仓库级旧文件中的 Key（防复活、防明文残留）。任何工作树/产品更新加载同一份：实测 8321 重启即完成真实迁移（用户级 0600 创建、`/state` 掩码 `sk-f…8d17` 不变、repo 原文件保留），任意其他 root 进程（`/tmp/a-completely-different-worktree`）加载同一已存 Key；8322 演示环境注入独立用户目录（demo fixture 配置与 Owner 真实 Key 完全隔离互不污染）。pytest：autouse fixture 按测试隔离用户目录（绝不触碰真实 `~/.deeptalk`），新增 2 项测试——跨工作树共享与「产品更新」复用（repo config 不再被写）、仓库级一次性迁移 + 0600 + 清除 Key 同步清理。
+- 测试：focused 138 passed（+2 设置持久化）；全量见对应轮记录；U1/U2 全部使用本地 mock/拦截完成（零真实付费调用——真实 DeepSeek 端到端已于上一轮以 5 次调用完成并获 Nexus 确认，无需重复）；截图 33–37（404 恢复/停止对账/视口底部/中段 sticky/375px 视口）。
+
 ## Unreleased — 2026-10-23 — Issue #44 — Owner UX：一体化对话工作区 + 8321 运行时修复 + Owner Key 持久化验证 + 限额真实模型端到端（issuecomment-6364369899）
 
 - **一体化聊天工作区（Owner UX 验收契约 1–6 逐项）**：移除「顶部巨型 hero + 下方独立对话面板」的双区结构，改为 ChatGPT/Claude Code 式单一连续工作区——空态为安静居中欢迎（`#welcome-pane`：标记 + 标题 + 一句计费说明 + 灵感 chips，设置在右上角）+ 贴底 composer（`#composer-dock`，sticky bottom）；首次发送后 welcome 隐藏，user/assistant turns 与草稿卡/旧集折叠入口（`#conversation`）共享同一滚动流，composer 始终贴在视口底部，后续消息在同一输入框键入，绝不需要滚回顶部。滚动跟随策略：新消息（显式发送）滚到最新，流式增量只在用户靠近底部（`nearBottom()`，90px 阈值）时跟随，向上翻阅历史不被强行拉回，实测 scrollY 37 保持顶部、回到底部恢复跟随。空态内容不足一屏时由 `fitCreatorHeight()` 按实测顶栏高度撑满视口使 composer 恰好贴底（不猜测 header 高度，resize 重算）。

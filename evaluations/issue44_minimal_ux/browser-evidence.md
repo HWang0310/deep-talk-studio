@@ -334,3 +334,43 @@ Nexus 在 2597fc7 上确认 B1/B3/B4 通过，B2 遗留 P0：`_handle_chat_strea
 - 30-real-deepseek-stopped.png（8321 真实停止态）
 - 31-real-deepseek-conversation-full.png（8321 真实模型对话全页：真实回复标注 + v1/v2/v3 + 无明文 Key）
 - 32-real-deepseek-mobile-375.png（真实数据 375px）
+
+## Nexus 收尾修复轮：U1 + U2 + Key 跨工作树（2026-10-23，review #5628192126）
+
+### U1/P0：失败请求事务性 —— 假「已发送」气泡零残留
+
+`sendChatMessage` 引入 `accepted` 前哨（SSE start = 服务器已持久化）。三种失败路径各自正确：
+
+| 场景 | UI 气泡 | 输入框 | 「重发上一条」 | 磁盘 turns | 模型调用 |
+| --- | --- | --- | --- | --- | --- |
+| 404 拦截（模拟旧版本服务） | 乐观气泡**已移除**（10→10） | 恢复原文 | **不显示** | 10 不变、消息零出现 | 0 |
+| 400 在飞拒绝（B2 单飞语义） | **已移除**（10→10） | 恢复原文 | **不显示** | 10 不变、零污染 | 0 |
+| 新消息网络未达 | 同 404 路径 | 恢复 + localStorage 回写 | 不显示 | 零污染 | 0 |
+| SSE 开始后中断（accepted） | 保留（已持久化） | — | 显示（幂等） | 已保存 | 已消耗 |
+| stop → 对账 → retry | 半截 assistant 清除；refresh 对账后 lastTurn==message → 幂等 retry | — | 对账后显示 | 仅一条该 user turn | stop 尽力中断 + retry 各一次 |
+| retry 撞上预约未释放 400 窗口 | 保留（消息已在记录中） | 不误恢复 | **保留按钮**（「消息已保存，稍候可再点」） | 已保存 | 0（被拒） |
+
+完整链路实测（8322）：baseline 11 → 发送 → stop → 对账（12 turns，retry 可见）→ 立即 retry → 400「稍候可再点」+ 按钮保留 → 1.6s 后再点 → 回复完成 13 turns、roles `uauauauauauua`（一问一答，磁盘仅一条该消息）。绝不静默重发。
+
+状态文案如实：404 →「发送失败：路径不存在；本机服务可能是旧版本，请重启本地服务后刷新页面；内容未发送，已恢复到输入框。」（截图 33）；停止对账 →「已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单。可点「重发上一条」。」（截图 34）。
+
+### U2/P1：真实视口核验 —— fullPage「遮挡」确系截图伪影，零设计改动
+
+| 视口位置 | 测量 | 结论 |
+| --- | --- | --- |
+| 桌面 1280×800 滚到底 | `lastTurnBottomAboveDockTop=true`；dock 贴底（gap 14px 含 smooth 滚动） | 最后一条 turn 完全可读，无遮挡（截图 35） |
+| 桌面中段滚动 | `dockStickyAtViewportBottom=true`、宽度 760、背景渐变正常 | sticky 形态正常，无文字穿透（截图 36） |
+| 375px 滚到底 | 横向溢出 0px、`lastTurnBottomAboveDockTop=true`、safe-area padding 12px | 无遮挡（截图 37） |
+
+Review 所指 31/32 全页截图中输入框「盖住」长回复为 **Playwright fullPage 截图对 sticky 元素的渲染伪影**（sticky 元素被画在流内位置）——真实视口（普通截图 + bounding-rect）证明无任何用户可见遮挡；按「do not blindly redesign」要求设计零改动。
+
+### Owner Key 跨工作树用户级持久化（一次保存，处处复用）
+
+- 新解析顺序：`~/.deeptalk/workbench.local.json`（0600，用户级）优先 → 仓库级 `config/workbench.local.json` 仅作向后兼容 fallback，首次发现即一次性迁移到用户级（原文件保留）；保存只写用户级；显式清除 Key 同步清掉仓库级旧 Key（不复活、无明文残留）。
+- **真实迁移实测（8321）**：重启后 `~/.deeptalk/workbench.local.json` 创建（权限 600，未打印任何内容）、`/state` 掩码 `sk-f…8d17` 不变、repo 原文件保留（600）。
+- **跨工作树实测**：`/tmp/a-completely-different-worktree` 与 `/tmp/yet-another-root` 两个无关 root 的进程加载同一份已保存 Key（只输出模式与布尔，不打印值）；8322 演示环境注入独立用户目录（`.temp/issue44-demo-root/user-settings-home/`），fixture 配置 `sk-p…ey-2` 与 Owner 真实 Key 完全隔离互不污染。
+- **pytest**：autouse fixture 按测试隔离用户目录（`~/.deeptalk` 全程零触碰，运行后确认 home clean）；新增 `test_saved_key_is_shared_across_worktrees_and_survives_updates`（两 root 共享 + 「产品更新」复用 + repo config 不再被写）与 `test_repo_settings_migrate_once_to_user_level_and_stay_0600`（一次性迁移 + 0600 + 原文件保留 + 清除同步清理）。
+
+### 调用预算
+
+本轮 U1/U2 全部经 8322 本地 mock（8931）与浏览器路由拦截完成——**零真实付费调用**；真实 DeepSeek 端到端已于上一轮以 5 次调用（≤8）完成并获 Nexus 确认，未重复。

@@ -41,6 +41,8 @@ from deeptalk_studio.workbench.settings import (
     load_settings,
     masked_view,
     save_settings,
+    settings_path,
+    user_settings_path,
 )
 
 REPO = Path(__file__).resolve().parents[1]
@@ -676,6 +678,58 @@ class SettingsTests(unittest.TestCase):
             cleared = apply_settings_update(updated, {"api_key": ""})
             self.assertEqual(cleared["api_key"], "")
             self.assertFalse(is_configured(cleared))
+
+    def test_saved_key_is_shared_across_worktrees_and_survives_updates(self):
+        """Owner Key 持久化（issuecomment-6364369899）：一次保存后，
+        不同工作树 root / 产品更新加载同一份用户级配置，绝不要求
+        Owner 重新输入 Key；仓库级 config 不再被写入。"""
+        with tempfile.TemporaryDirectory() as raw_a, tempfile.TemporaryDirectory() as raw_b:
+            root_a = Path(raw_a)
+            root_b = Path(raw_b)
+            save_settings(root_a, apply_settings_update(load_settings(root_a), {
+                "provider_mode": "deepseek",
+                "api_key": "sk-owner-shared-key-9876abcd",
+            }))
+            # 另一个工作树（不同 root）加载同一份已保存 Key
+            shared = load_settings(root_b)
+            self.assertEqual(shared["api_key"], "sk-owner-shared-key-9876abcd")
+            self.assertEqual(shared["provider_mode"], "deepseek")
+            # 「产品更新」视角：新 root 上继续修改，旧 root 也能读到新值
+            save_settings(root_b, apply_settings_update(load_settings(root_b), {
+                "model": "deepseek-flash",
+            }))
+            reloaded = load_settings(root_a)
+            self.assertEqual(reloaded["api_key"], "sk-owner-shared-key-9876abcd")
+            self.assertEqual(reloaded["model"], "deepseek-flash")
+            # 仓库级 config 不再被写入（用户级是唯一真源）
+            self.assertFalse(settings_path(root_a).exists())
+            self.assertFalse(settings_path(root_b).exists())
+
+    def test_repo_settings_migrate_once_to_user_level_and_stay_0600(self):
+        """向后兼容迁移：已有仓库级配置在首次加载时一次性复制到用户级
+        （0600），原文件保留（旧版本 fallback）；显式清除 Key 时同步
+        清掉仓库级旧 Key，不复活、不残留明文。"""
+        with tempfile.TemporaryDirectory() as raw, tempfile.TemporaryDirectory() as raw_b:
+            root = Path(raw)
+            repo_cfg = settings_path(root)
+            repo_cfg.parent.mkdir(parents=True, exist_ok=True)
+            repo_cfg.write_text(json.dumps({
+                "provider_mode": "deepseek",
+                "api_key": "sk-migrate-me-998877",
+                "model": "deepseek-flash",
+            }, ensure_ascii=False), encoding="utf-8")
+            data = load_settings(root)  # 首次加载触发迁移
+            self.assertEqual(data["api_key"], "sk-migrate-me-998877")
+            user_path = user_settings_path()
+            self.assertTrue(user_path.is_file())
+            self.assertEqual(user_path.stat().st_mode & 0o777, 0o600)
+            self.assertTrue(repo_cfg.is_file())  # 原文件保留（旧版本 fallback）
+            # 用户级成为唯一真源：另一工作树直接读到迁移结果
+            self.assertEqual(load_settings(Path(raw_b))["api_key"], "sk-migrate-me-998877")
+            # 显式清除 Key：用户级与仓库级旧 Key 一起清掉
+            save_settings(root, apply_settings_update(load_settings(root), {"api_key": ""}))
+            self.assertEqual(load_settings(root)["api_key"], "")
+            self.assertEqual(json.loads(repo_cfg.read_text(encoding="utf-8"))["api_key"], "")
 
     def test_settings_rejects_nonexistent_downloads_dir(self):
         with tempfile.TemporaryDirectory() as raw:

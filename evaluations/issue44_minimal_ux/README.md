@@ -1,6 +1,6 @@
 # Issue #44 / PR #45 — 极简创作页与独立模型设置页
 
-> **状态：READY_FOR_NEXUS_OWNER_UX_RUNTIME_REVIEW（第六轮：Owner UX 一体化对话工作区 + 8321 运行时修复 + Owner Key 持久化 + 限额真实模型端到端）。** 前五轮完成两页极简 UX、DeepSeek 设置体验、paste→Test 修复、Chat-first MVP 与 Nexus B1–B4/B2-P0 阻断修复；本轮按 Owner 派工（issuecomment-6364369899）将「顶部 hero + 下方对话面板」重构为 ChatGPT 式单一连续对话工作区（贴底 composer、滚动不强制跟随、失败不丢输入、404 服务版本真实指引），修复 8321 陈旧进程 404、验证 Owner Key 重启持久化，并在产品内用 Owner Key 完成 5 次（≤8 上限）真实 DeepSeek 端到端。PR 保持打开，未合并。
+> **状态：READY_FOR_NEXUS_OWNER_UX_FINAL_REVIEW（第七轮：Nexus 收尾修复 U1/U2 + Key 跨工作树）。** 前六轮完成两页极简 UX、DeepSeek 设置体验、paste→Test 修复、Chat-first MVP、B1–B4/B2-P0 阻断修复与一体化对话工作区 + 限额真实模型端到端（Nexus 已确认真实 E2E 证据）；本轮按 review #5628192126 完成：U1 失败请求事务性（乐观气泡零残留 + 停止后对账 + 幂等重发语义三态）、U2 真实视口核验（fullPage 遮挡系截图伪影，零设计改动）、Owner Key 升级为用户级 `~/.deeptalk`（0600）跨工作树持久化 + 一次性向后兼容迁移。PR 保持打开，未合并。
 
 ## 视觉与交互交付
 
@@ -150,8 +150,8 @@
 
 ## 测试结果
 
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **135 passed**（第五轮新增：B2 交错/并发 2 项、B3 幂等重发/拒绝 2 项、B4 持久化 1 项 flow 测试，B1 静态断言 + B2 单飞 400 + B3 retry_turn_id HTTP 3 项；前四轮累计 127 项保持全过）
-- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1115 passed, 7 skipped**（第五轮全量，退出码 0）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests/test_webui.py tests/test_workbench.py -q' → **138 passed**（第七轮新增：Key 跨工作树共享 + 迁移/清除 2 项；U1 静态断言增强；前六轮累计 136 项保持全过）
+- 'PYTHONPATH=src .venv/bin/python -m pytest tests -q' → **1118 passed, 7 skipped**（第七轮全量，退出码 0）
 - 内联 JavaScript：'node --check'（提取 `<script>` 块）→ **通过**
 - 'git diff --check' → **通过**
 - 未修改无关后端、模型门禁、SSRF 防护或生产工作流；未提交本地密钥、模型输出、缓存或临时会话。
