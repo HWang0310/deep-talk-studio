@@ -283,3 +283,54 @@ Nexus 在 2597fc7 上确认 B1/B3/B4 通过，B2 遗留 P0：`_handle_chat_strea
 - `test_second_stream_while_first_in_flight_returns_400` 按 review 四步增强：②B 400 + 存储恰 `[user A]` + B 零出现 + 零额外调用 → ③A 完成恰 `[user A, assistant A]` + B 仍零出现 → ④预约释放后 C 正常发送（A+C 各一次显式调用，最终四 turns）。
 - 新增 `test_concurrent_first_sends_admit_exactly_one`：Barrier 对齐两线程并发首次发送（尚无会话）→ 恰 `[200, 400]`，存储只有被放行方一问一答，被拒方不创建会话不写 turn，模型恰一次调用。
 - focused 136 passed；全量见提交记录。
+
+## Owner UX 一体化对话工作区轮（2026-10-23，issuecomment-6364369899）
+
+### 8321 运行时 404 修复（same-process 路由验证先行）
+
+- 现象复现：重启前 `POST /api/workbench/chat/stream` → `{"error": "路径不存在"}`（404）；服务器日志含 Owner 尝试的 4 次 404。
+- 根因：LaunchAgent 进程（pid 19938，17:28 启动）早于 chat MVP 代码落地（18:00 后），一直未重启；`scripts/deeptalk` 的 `PYTHONPATH=$REPO/src` 模块解析本身正确。
+- 修复：`launchctl kickstart -k gui/$(id -u)/com.hwang.deeptalk-studio.pr45-ui`（新 pid 37066）；同进程验证 `{"message":"   "}` → 400「消息内容不能为空」（路由存在，零模型调用）。未在路由验证前做任何模型失败诊断。
+
+### Owner Key 持久化（零重新输入）
+
+- `config/workbench.local.json` 由仓库 `.gitignore:43` 覆盖：git 操作/分支切换/升级不触碰该文件；
+- 重启后 `/api/workbench/state`：`api_key_masked: "sk-f…8d17"`、`connection_kind: "real"`、官方端点 `https://api.deepseek.com/chat/completions`、模型 `deepseek-flash`；响应中无明文 Key（`api_key` 字段不存在，仅掩码）；
+- 设置页徽章「已连接」；截图/日志/提交零密钥（diff 扫描过）。
+
+### 一体化工作区验收（8322 夹具 + 8321 真实，Playwright Chromium）
+
+| 契约 | 实测 |
+| --- | --- |
+| 1 空态安静居中 + 单 composer + 设置角落 | welcome 居中、无巨型 hero、无「对话」面板；dock 贴底 gap 0；旧集折叠入口空态也可见且在 dock 上方 |
+| 2 首次发送转对话态、composer 贴底 | 发送即 welcome 消失、turns 流渲染；流式中/4 turns/6 turns 下 dock 均在视口底（gap 0–14px 含 smooth 滚动进行时），最后 turn 不被遮挡 |
+| 3 历史/重载 + 滚动不强制跳 | 重载后 4→6 turns 与 v1/v2/v3 精确恢复；流式中上翻 4 个 delta 后 scrollY=37 保持顶部，回到底部恢复跟随（nearBottom 90px 阈值） |
+| 4 草稿集成 + 旧集微妙入口 | 草稿卡在对话流内、gate-note 收进默认收起 details；v1→v2→v3 不可变链 + 复制/导出/未审核标注保留；旧集折叠入口独立于对话流，B1 防护不变 |
+| 5 移动 + 失败不丢输入 | 375px 溢出 0px、safe-area padding 12px、composer 无需回顶可达；retry 撞上未释放预约被 400 → 状态如实「上一条回复还在进行中…输入已恢复」+ 输入框内容完整恢复 + localStorage 回写；404 场景提示「本机服务可能是旧版本，请重启本地服务后刷新页面」 |
+| 6 单列干净工作区 | 全页截图（26/31）：对话→草稿→贴底输入一个纵向流，无侧边栏/仪表盘/巨型 landing |
+
+### 限额真实模型端到端（8321，Owner Key，产品内）
+
+| 步骤 | 真实调用 | 结果 |
+| --- | --- | --- |
+| ① 真实流式聊天 | #1 | 2.6s 完成；标注「deepseek-flash · 真实模型回复」 |
+| ② follow-up（带完整上下文） | #2 | 2.4s；钩子「深夜自习室的灯，没人敢先关。」+ 标题《谁都不肯先关的那盏灯》 |
+| ③ 草稿生成 | #3 | 3.9s；meta「真实模型回复」；v1 |
+| ④ 本地编辑 ×2 | 0 | v2/v3（零调用） |
+| ⑤ 重载恢复 | 0 | 6 turns + v1/v2/v3 + 编辑内容逐字符一致 |
+| ⑥ 真实 stop | #4（尽力中断） | 计费诚实文案、半截气泡清除、turns=5（uauau） |
+| ⑦ 幂等 retry | #5 | 5.8s 完整 60 秒口播稿；turns 5→6 只增 assistant（uauaua） |
+| ⑧ 设置往返 | 0 | 徽章「已连接」；返回创作 6 turns + 3 revisions 零丢失 |
+
+服务器日志精确计数（/tmp/deeptalk-studio-pr45-ui.log）：`chat/stream 200` ×4 + `chat/draft 200` ×1 = **5 次真实模型调用（≤ 8 上限）**；`chat/stream 404` ×4（Owner 旧进程故障，零调用）、`chat/stream 400` ×1（空消息路由验证，零调用）、`draft/edit 200` ×2（本地，零调用）。夹具回归不作为真实模型 PASS 依据。
+
+### 本轮截图（evaluations/issue44_minimal_ux/screenshots/）
+
+- 25-unified-empty-state.png（新一体化空态；与 19 旧「hero + 双区」布局形成新旧对比）
+- 26-unified-conversation-full.png（8322 对话全页：turns + 草稿 + 贴底 composer 单一流）
+- 27-unified-streaming.png（流式中 + 诚实夹具标注）
+- 28-unified-stopped-retry.png（停止态：计费诚实文案 + 重发按钮）
+- 29-unified-mobile-375.png（375px 全页：零溢出）
+- 30-real-deepseek-stopped.png（8321 真实停止态）
+- 31-real-deepseek-conversation-full.png（8321 真实模型对话全页：真实回复标注 + v1/v2/v3 + 无明文 Key）
+- 32-real-deepseek-mobile-375.png（真实数据 375px）

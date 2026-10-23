@@ -1,6 +1,6 @@
 # Issue #44 / PR #45 — 极简创作页与独立模型设置页
 
-> **状态：READY_FOR_NEXUS_MVP_REREVIEW（第五轮：Nexus B1–B4 阻断修复）。** 本分支保留 PR #45 的工作流和后端门禁，完成参考截图导向的首页 / 设置页重设计与 Nexus Review B1/B2/B3 修复；第二轮按 Owner 六点要求完成「DeepSeek 默认只需填 API Key」的设置体验；第三轮修复 paste→Test 旅程；第四轮按 Owner 批准的 Option A 实现 Chat-first Creative Draft MVP；第五轮按 Nexus MVP Review #5626927896 修复 B1（旧集工作流与聊天首页明确分离）、B2（陈旧快照写入防护）、B3（重发幂等 + 计费诚实）、B4（草稿来源标注持久化）。PR 保持打开，未合并。
+> **状态：READY_FOR_NEXUS_OWNER_UX_RUNTIME_REVIEW（第六轮：Owner UX 一体化对话工作区 + 8321 运行时修复 + Owner Key 持久化 + 限额真实模型端到端）。** 前五轮完成两页极简 UX、DeepSeek 设置体验、paste→Test 修复、Chat-first MVP 与 Nexus B1–B4/B2-P0 阻断修复；本轮按 Owner 派工（issuecomment-6364369899）将「顶部 hero + 下方对话面板」重构为 ChatGPT 式单一连续对话工作区（贴底 composer、滚动不强制跟随、失败不丢输入、404 服务版本真实指引），修复 8321 陈旧进程 404、验证 Owner Key 重启持久化，并在产品内用 Owner Key 完成 5 次（≤8 上限）真实 DeepSeek 端到端。PR 保持打开，未合并。
 
 ## 视觉与交互交付
 
@@ -140,6 +140,11 @@
 | B3 重发后：零重复 user 消息 | 通过；12→13 只增加 assistant 气泡，存储中 user 消息仅一条，mock 恰两次显式流式调用 | [20-desktop-chat-streaming.png](screenshots/20-desktop-chat-streaming.png) |
 | B4 草稿来源标注重载保留 | 通过；新草稿 v4 重载后 provider_kind=fixture 仍在（21 内可见「本地夹具回复（非真实模型）」） | [21-desktop-draft-revisions.png](screenshots/21-desktop-draft-revisions.png) |
 | 375px 手机聊天页（B1 后重拍） | 通过；无横向溢出，折叠入口/草稿版本按钮完整显示 | [22-mobile-375-chat.png](screenshots/22-mobile-375-chat.png) |
+| Owner UX：一体化空态（居中欢迎 + 贴底 composer） | 通过；无巨型 hero/对话面板，与 19 旧布局形成新旧对比 | [25-unified-empty-state.png](screenshots/25-unified-empty-state.png) |
+| Owner UX：对话全页单一流（turns+草稿+贴底输入） | 通过；composer 始终贴底，最后 turn 不遮挡 | [26-unified-conversation-full.png](screenshots/26-unified-conversation-full.png) |
+| Owner UX：流式与停止态（夹具诚实标注/计费诚实文案） | 通过；滚动跟随不强制（上翻保持 scrollY 37） | [27](screenshots/27-unified-streaming.png) / [28](screenshots/28-unified-stopped-retry.png) |
+| Owner UX：375px 一体化 | 通过；溢出 0px，safe-area 适配 | [29-unified-mobile-375.png](screenshots/29-unified-mobile-375.png) |
+| 真实 DeepSeek：停止态 + 完整对话（产品内 Owner Key，共 5 次 ≤8） | 通过；真实回复诚实标注、v1/v2/v3、无明文 Key | [30](screenshots/30-real-deepseek-stopped.png) / [31](screenshots/31-real-deepseek-conversation-full.png) / [32](screenshots/32-real-deepseek-mobile-375.png) |
 
 完整的 B1/B2 断言、设置体验流与浏览器输出见 [browser-evidence.md](browser-evidence.md)。
 

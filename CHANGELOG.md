@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — 2026-10-23 — Issue #44 — Owner UX：一体化对话工作区 + 8321 运行时修复 + Owner Key 持久化验证 + 限额真实模型端到端（issuecomment-6364369899）
+
+- **一体化聊天工作区（Owner UX 验收契约 1–6 逐项）**：移除「顶部巨型 hero + 下方独立对话面板」的双区结构，改为 ChatGPT/Claude Code 式单一连续工作区——空态为安静居中欢迎（`#welcome-pane`：标记 + 标题 + 一句计费说明 + 灵感 chips，设置在右上角）+ 贴底 composer（`#composer-dock`，sticky bottom）；首次发送后 welcome 隐藏，user/assistant turns 与草稿卡/旧集折叠入口（`#conversation`）共享同一滚动流，composer 始终贴在视口底部，后续消息在同一输入框键入，绝不需要滚回顶部。滚动跟随策略：新消息（显式发送）滚到最新，流式增量只在用户靠近底部（`nearBottom()`，90px 阈值）时跟随，向上翻阅历史不被强行拉回，实测 scrollY 37 保持顶部、回到底部恢复跟随。空态内容不足一屏时由 `fitCreatorHeight()` 按实测顶栏高度撑满视口使 composer 恰好贴底（不猜测 header 高度，resize 重算）。
+- **失败不丢输入 + 服务版本真实指引**：发送失败/400/404 时未发送内容恢复到输入框并回写 localStorage 草稿；错误信息含 404/「路径不存在」时如实提示「本机服务可能是旧版本，请重启本地服务后刷新页面」，绝无乐观假「已发送」。
+- **草稿集成紧凑化**：草稿卡保留在同一对话流内（turns 之后），「草稿与正式审核的关系」长说明收进默认收起的 `<details class="gate-details">`；不可变 revisions/编辑/复制/导出/「未审核」诚实来源标注全部保留。旧集正式工作流折叠入口移出对话流、独立显示（无聊天时也可访问），B1 防护不变。
+- **8321 运行时故障修复（mutation 前 same-process 路由验证）**：Owner 遇到 `POST /api/workbench/chat/stream` 返回 JSON 404「路径不存在」——根因是 LaunchAgent 8321 进程（pid 19938，17:28 启动）加载的是 chat MVP 落地**之前**的陈旧代码（`scripts/deeptalk` 的 `PYTHONPATH=src` 模块解析本身正确，无需诊断模型问题）；`launchctl kickstart -k` 重启后同进程验证：空消息返回 400「消息内容不能为空」（路由存在、零模型调用），服务器日志中 Owner 的 4 次 404 均为旧进程产物。
+- **Owner DeepSeek API Key 持久化（已验证，零重新输入）**：`config/workbench.local.json` 被仓库 `.gitignore:43` 覆盖（git 操作/分支切换/升级不动该文件），8321 重启后掩码 `sk-f…8d17` 完整保留、`/api/workbench/state` 仅暴露掩码字段（无明文 Key）、设置页徽章「已连接」（官方端点 + deepseek-flash）；浏览器截图/日志/提交零密钥泄漏（diff 扫描过）。
+- **限额真实模型端到端（Owner 授权，产品内使用 Owner Key，共 5 次 ≤ 8 上限）**：真实流式聊天（2.6s，「deepseek-flash · 真实模型回复」诚实标注）→ 带完整上下文 follow-up（2.4s）→ 真实草稿生成（3.9s，meta「真实模型回复」）→ 本地编辑两次 v2/v3（零调用）→ 刷新精确恢复（6 turns + v1/v2/v3 + 编辑内容）→ 真实 stop（计费诚实文案 + 半截清除）→ 幂等 retry（5.8s 完整 60 秒口播稿，turns 5→6 只增 assistant）→ 设置往返（「已连接」徽章、返回创作零丢失）。服务器日志精确计数：stream 200 ×4 + draft 200 ×1 = **5 次真实模型调用**；404 ×4（旧进程）、400 ×1（空消息校验）均为零调用；本地编辑 2 次零调用。夹具测试不作为真实模型 PASS 依据，本轮为产品内真实调用。
+- **375px 移动端**：横向溢出 0px、composer 全宽适配视口且不被安全区遮挡、最后一条 turn 不被 composer 遮挡、无需回顶即可继续输入。
+- 测试：静态断言按新结构更新（welcome-pane/conversation/composer-dock/sticky/nearBottom/updateWelcomeVisibility/失败恢复/版本指引）；focused 136 passed；全量见对应轮记录；8322 夹具验收 + 8321 真实模型验收截图 25–32（新旧布局对比：19 为旧 hero+双区结构、25 为新一体化空态）。
+
 ## Unreleased — 2026-10-23 — Issue #44 — B2/P0 修正：重叠消息拒绝先于持久化（Nexus exact-head review #5627594838）
 
 - **修复 mutation-before-rejection**：`_handle_chat_stream` 的单飞准入检查+预约（`chat_in_flight`）前移到任何 `chat_send_start` 存储变更**之前**——此前重叠的 B 消息会先被持久化再收到 400，留下 `[user A, user B(被拒), assistant A]` 污染会话与后续模型上下文。预约检查+注册在 `chat_flight_lock` 内原子完成（check-and-reserve race-safe），并发首次发送（尚无会话）与稳态重叠同路径覆盖；flight key 改为固定 `"chat"`（聊天为单会话设计，不依赖 `chat_send_start` 结果）；预约在所有失败/断开路径（含 `chat_send_start` 抛错）经 finally 释放；等待模型期间不持有任何全局锁；retry-by-turn-ID 与 Key/空消息防护不变。

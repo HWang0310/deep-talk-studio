@@ -233,7 +233,16 @@ class StaticPageTests(LocalWebUITestCase):
     def test_creator_home_has_one_primary_topic_action_and_no_inline_settings_form(self):
         status, _, body = self.get("/")
         self.assertEqual(status, 200)
-        self.assertIn('class="card hero"', body)
+        # Owner UX（issuecomment-6364369899）：单一连续对话工作区 ——
+        # 空态是安静居中的欢迎（welcome-pane），不再有巨型 hero 卡；
+        # 有对话后 turns/草稿/旧集入口都在同一滚动流（conversation）里，
+        # composer 始终 sticky 贴在视口底部，绝不需要回到顶部发下一条。
+        self.assertIn('id="welcome-pane"', body)
+        self.assertIn('id="conversation"', body)
+        self.assertIn('id="composer-dock"', body)
+        self.assertIn("position: sticky", body)
+        self.assertIn("function updateWelcomeVisibility", body)
+        self.assertIn("function nearBottom", body)
         self.assertIn('id="settings-link"', body)
         # Chat-first：唯一主操作是发送聊天（明确付费动作），一次说明计费而非每轮打断
         self.assertIn("你想聊什么？", body)
@@ -241,8 +250,10 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn('id="search-btn"', body)
         self.assertIn('id="chat-stop"', body)
         self.assertIn('id="chat-retry"', body)
-        self.assertIn('id="chat-card"', body)
         self.assertIn('id="draft-card"', body)
+        # 失败不丢输入：404/路由不匹配给出真实服务版本指引并恢复未发送内容
+        self.assertIn("本机服务可能是旧版本", body)
+        self.assertIn("输入已恢复", body)
         # 草稿门禁说明卡：解释正式路径但不自动转换
         self.assertIn("进入正式审核", body)
         self.assertIn("不会自动转换", body)

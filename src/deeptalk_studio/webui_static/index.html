@@ -177,21 +177,19 @@
     word-break: break-word;
   }
 
-  /* ---- minimal creator hero ---- */
-  .hero {
-    width: min(820px, 100%);
-    margin: auto;
-    padding: 74px 20px 64px;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
+  /* ---- Owner UX（issuecomment-6364369899）：单一连续对话工作区 ---- */
+  /* 空态：安静居中的欢迎；对话态：welcome 隐藏，turns/草稿/旧集入口在
+     同一滚动流里，composer 始终 sticky 贴在视口底部，无需回到顶部。 */
+  .welcome-pane {
+    width: min(680px, 100%);
+    margin: 0 auto;
+    padding: clamp(28px, 9vh, 88px) 20px 20px;
     text-align: center;
   }
   .hero-mark {
-    width: 58px;
-    height: 58px;
-    margin: 0 auto 26px;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 20px;
     position: relative;
     color: var(--coral);
   }
@@ -229,20 +227,20 @@
     background: currentColor;
     transform: translate(-50%, -50%);
   }
-  .hero-kicker { margin: 0 0 13px; color: var(--coral-deep); font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
-  .hero h2 {
+  .hero-kicker { margin: 0 0 11px; color: var(--coral-deep); font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+  .welcome-pane h2 {
     margin: 0;
     color: var(--ink);
     font-family: "Iowan Old Style", "Baskerville", "Songti SC", Georgia, serif;
-    font-size: clamp(38px, 5.2vw, 61px);
+    font-size: clamp(30px, 4.6vw, 44px);
     font-weight: 500;
-    line-height: 1.14;
-    letter-spacing: -.035em;
+    line-height: 1.16;
+    letter-spacing: -.03em;
   }
-  .hero h2::after {
+  .welcome-pane h2::after {
     content: "";
     display: block;
-    width: 86px;
+    width: 72px;
     height: 9px;
     margin: -1px auto 0;
     border-bottom: 2px solid var(--coral);
@@ -250,23 +248,35 @@
     transform: rotate(-2deg);
     opacity: .92;
   }
-  .hero-copy {
-    max-width: 510px;
-    margin: 17px auto 29px;
+  .welcome-copy {
+    max-width: 500px;
+    margin: 15px auto 0;
     color: var(--muted);
-    font-size: 14px;
-    line-height: 1.75;
+    font-size: 13.5px;
+    line-height: 1.72;
   }
-  .hero-composer {
-    width: min(720px, 100%);
+  .conversation {
+    width: min(760px, 100%);
+    margin: 14px auto 0;
+    padding-bottom: 6px;
+  }
+  /* Owner UX：空态内容不足一屏时，creator-view 由 JS 按实测顶栏高度撑满
+     视口并把 composer 推到底部；内容超屏时 composer 依然 sticky 贴底。 */
+  #creator-view { display: flex; flex-direction: column; }
+  #creator-view > #composer-dock { margin-top: auto; }
+  .composer-dock {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    width: min(760px, 100%);
     margin: 0 auto;
-    padding: 14px 14px 10px;
-    border: 1px solid rgba(48,47,43,.15);
-    border-radius: 19px;
-    background: rgba(255,255,255,.96);
-    box-shadow: 0 12px 34px rgba(85,76,61,.12), 0 2px 6px rgba(85,76,61,.055);
-    text-align: left;
+    padding: 10px 10px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, rgba(250,250,246,0) 0%, var(--ivory) 30%, var(--ivory) 100%);
   }
+  .composer-dock .hero-new-note { margin: 0 0 7px; padding: 0 6px; }
+  .composer-dock .chat-status { min-height: 18px; margin: 0 4px 7px; font-size: 12.5px; }
+  .composer-dock .hero-composer { margin: 0 auto; }
+  .composer-dock #ref-list { padding: 0 4px; }
   .hero-composer #topic {
     display: block;
     min-height: 104px;
@@ -297,7 +307,10 @@
   #search-btn .button-icon { display: inline-block; font-size: 20px; font-weight: 400; transform: translateY(-1px); }
   #ref-list { margin-top: 10px; }
   #add-ref { white-space: nowrap; }
-  #chat-card, #draft-card { margin-top: 18px; }
+  #draft-card, .legacy-entry { margin-top: 16px; }
+  .gate-details { margin-top: 14px; }
+  .gate-details summary { cursor: pointer; color: var(--ink-soft); font-size: 12.5px; }
+  .gate-details .gate-note { margin-top: 10px; }
   .chat-thread { display: flex; flex-direction: column; gap: 14px; margin: 14px 0 10px; }
   .chat-msg { max-width: 86%; border-radius: 14px; padding: 12px 15px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
   .chat-msg.user { align-self: flex-end; background: #f3ece2; border: 1px solid #e8ddd0; }
@@ -431,9 +444,10 @@
     header .sub { display: none; }
     main { padding: 0 16px 28px; }
     #creator-view { min-height: calc(100vh - 75px); }
-    .hero { padding: 70px 0 48px; }
-    .hero-mark { margin-bottom: 22px; }
-    .hero-copy { max-width: 430px; margin-bottom: 24px; }
+    .welcome-pane { padding: 46px 0 24px; }
+    .hero-mark { margin-bottom: 18px; }
+    .welcome-copy { max-width: 430px; margin-bottom: 4px; font-size: 13px; }
+    .conversation { margin-top: 12px; }
     .settings-page { padding-top: 18px; }
     .settings-card { padding: 34px 24px 27px; border-radius: 20px; }
     .settings-form-grid { grid-template-columns: 1fr; }
@@ -448,9 +462,9 @@
   @media (max-width: 520px) {
     header { padding-inline: 16px; }
     .top-link { padding-inline: 8px; }
-    .hero { padding-top: 48px; }
-    .hero h2 { font-size: clamp(36px, 10vw, 48px); }
-    .hero-copy { padding: 0 6px; font-size: 13.5px; }
+    .welcome-pane { padding-top: 34px; }
+    .welcome-pane h2 { font-size: clamp(27px, 8.6vw, 36px); }
+    .welcome-copy { padding: 0 6px; font-size: 13px; }
     .hero-composer { border-radius: 17px; padding: 12px 12px 9px; }
     .hero-composer #topic { min-height: 116px; font-size: 15.5px; }
     .composer-hint { display: none; }
@@ -556,66 +570,54 @@
   </div>
 
   <div id="creator-view">
-    <section id="hero" class="card hero" aria-labelledby="form-title">
+    <!-- Owner UX（issuecomment-6364369899）：单一连续对话工作区。
+         空态 = 安静居中欢迎 + 贴底 composer；有对话后 welcome 隐藏，
+         turns / 草稿 / 旧集入口都在同一个滚动流里，composer 永远
+         贴在视口底部 —— 绝不需要滚回顶部发下一条消息。 -->
+    <div id="welcome-pane" class="welcome-pane">
       <div class="hero-mark" aria-hidden="true"><span></span><i></i></div>
       <p class="hero-kicker">自由聊天创作</p>
       <h2 id="form-title">你想聊什么？</h2>
-      <p class="hero-copy">像和朋友聊天一样讨论选题：发一段话题、你的观点、想法或参考链接，模型会流式回应。聊到满意后，一键把对话整理成可自由修改的原创草稿。<strong>发送会调用你在「设置」里配置的模型服务并按其计费</strong>；草稿未经研究与事实核查，不是正式口播稿。</p>
-      <div class="hero-composer">
-        <label class="visually-hidden" for="topic">聊天输入，最多 200 字</label>
-        <textarea id="topic" name="topic" maxlength="200" autocomplete="off" rows="3"
-                  placeholder="聊聊你想做的选题、你的观点，或直接粘贴问题…"></textarea>
-        <div class="composer-toolbar">
-          <div class="composer-left">
-            <button id="add-ref" type="button" class="quiet-btn" aria-label="添加参考链接">＋ <span>添加参考</span></button>
-            <span class="composer-hint">⌘ / Ctrl + Enter 发送</span>
-          </div>
-          <div class="composer-right">
-            <button id="chat-retry" type="button" class="quiet-btn" hidden>重发上一条</button>
-            <button id="chat-stop" type="button" class="quiet-btn" hidden>停止</button>
-            <button id="search-btn" type="button" class="primary" aria-label="发送消息"><span class="button-label">发送</span><span class="button-icon" aria-hidden="true">↑</span></button>
-          </div>
-        </div>
-      </div>
-      <div id="ref-list" aria-label="已有参考链接"></div>
+      <p class="welcome-copy">像和朋友聊天一样讨论选题、观点或参考链接，聊到满意后一键把对话整理成可自由修改的原创草稿。<strong>发送会调用你在「设置」里配置的模型服务并按其计费</strong>；草稿未经研究与事实核查，不是正式口播稿。</p>
       <p class="prompt-hints" aria-label="创作方向提示"><span>聊一个选题</span><span>说说你的观点</span><span>粘贴一个参考链接</span></p>
-      <p id="hero-new-note" class="hero-new-note" hidden><strong>新一集</strong>：上一集仍然保留，确认主题后才会开启新的工作流。<button id="cancel-new-episode" class="quiet-btn" type="button">取消</button></p>
-    </section>
+    </div>
 
-    <section id="chat-card" class="card" hidden aria-labelledby="chat-title">
-      <h2 id="chat-title">对话</h2>
-      <p class="muted">多轮对话会完整保留在本机；刷新后可精确恢复。夹具/真实连接均如实标注，绝不冒充。</p>
+    <div id="conversation" class="conversation" hidden>
       <div id="chat-thread" class="chat-thread" role="log" aria-live="polite"></div>
-      <p id="chat-status" class="muted" role="status"></p>
-    </section>
 
+      <section id="draft-card" class="card draft-card" hidden aria-labelledby="draft-title">
+        <h2 id="draft-title">原创草稿（未审核）</h2>
+        <p class="muted">草稿区别于正式口播稿：<strong>未经研究与事实核查</strong>，由你自由编辑；每次修改保存为新的不可变版本，可随时回看。</p>
+        <div class="actions" style="margin-top:6px">
+          <button id="draft-generate" type="button" class="primary">把对话整理为草稿（调用模型，可能计费）</button>
+          <span id="draft-status" class="muted" role="status"></span>
+        </div>
+        <div id="draft-workspace" hidden>
+          <div id="draft-revisions" class="draft-revisions" role="tablist" aria-label="草稿历史版本"></div>
+          <label class="visually-hidden" for="draft-editor">草稿编辑区</label>
+          <textarea id="draft-editor" class="draft-editor" rows="14" aria-label="草稿正文，可自由编辑"></textarea>
+          <div class="actions">
+            <button id="draft-save" type="button" class="primary">保存修改（新版本）</button>
+            <button id="draft-copy" type="button">复制全文</button>
+            <button id="draft-export" type="button">导出 .md</button>
+            <span id="draft-meta" class="muted" role="status"></span>
+          </div>
+          <details class="gate-details">
+            <summary>草稿与正式审核的关系</summary>
+            <div class="gate-note" role="note">
+              <strong>进入正式审核：</strong>正式口播稿需要经过现有的「视频参考 → 独立研究与事实核查 → 选题卡 → 口播稿审核」门禁，全部保留不变；这篇草稿不会自动转换或替代任何正式审核步骤。需要正式成稿时，请走原有流程并使用你自己的模型 Key。
+            </div>
+          </details>
+        </div>
+      </section>
+    </div>
+
+    <!-- 旧集正式工作流的独立可选入口：无论是否已有聊天，都可展开查看，
+         但内容绝不混进聊天（B1 防护不变）。 -->
     <details id="legacy-workbench-entry" class="card legacy-entry" hidden>
       <summary>📂 查看既有正式工作流（与聊天相互独立）<span id="legacy-topic" class="muted"></span></summary>
       <p class="muted">正式口播稿流程（视频参考 → 独立研究与事实核查 → 选题卡 → 审核成稿）与这里的自由聊天/草稿是两条独立路径，正式门禁保持不变；聊天内容不会混入正式工作流。</p>
     </details>
-
-    <section id="draft-card" class="card" hidden aria-labelledby="draft-title">
-      <h2 id="draft-title">原创草稿（未审核）</h2>
-      <p class="muted">草稿区别于正式口播稿：<strong>未经研究与事实核查</strong>，由你自由编辑与修改；每次修改保存为新的不可变版本，可随时回看历史版本。草稿不会自动进入正式审核，也不解锁成品制作。</p>
-      <div class="actions" style="margin-top:6px">
-        <button id="draft-generate" type="button" class="primary">把对话整理为草稿（调用模型，可能计费）</button>
-        <span id="draft-status" class="muted" role="status"></span>
-      </div>
-      <div id="draft-workspace" hidden>
-        <div id="draft-revisions" class="draft-revisions" role="tablist" aria-label="草稿历史版本"></div>
-        <label class="visually-hidden" for="draft-editor">草稿编辑区</label>
-        <textarea id="draft-editor" class="draft-editor" rows="14" aria-label="草稿正文，可自由编辑"></textarea>
-        <div class="actions">
-          <button id="draft-save" type="button" class="primary">保存修改（新版本）</button>
-          <button id="draft-copy" type="button">复制全文</button>
-          <button id="draft-export" type="button">导出 .md</button>
-          <span id="draft-meta" class="muted" role="status"></span>
-        </div>
-        <div class="gate-note" role="note">
-          <strong>进入正式审核：</strong>正式口播稿需要经过现有的「视频参考 → 独立研究与事实核查 → 选题卡 → 口播稿审核」门禁，全部保留不变；这篇草稿不会自动转换或替代任何正式审核步骤。需要正式成稿时，请走原有流程并使用你自己的模型 Key。
-        </div>
-      </div>
-    </section>
 
     <div id="run-notice">
       <span id="run-status" role="status"></span>
@@ -783,6 +785,30 @@
       <h3>交付工件</h3>
       <ul id="audio-artifacts" class="artifact-list"></ul>
     </section>
+
+    <!-- 贴底 composer（Owner UX）：空态与对话态共用同一输入区，
+         sticky 在视口底部；发送失败/404 时未发送内容恢复到这里。 -->
+    <div id="composer-dock" class="composer-dock">
+      <p id="hero-new-note" class="hero-new-note" hidden><strong>新一集</strong>：上一集仍然保留，确认主题后才会开启新的工作流。<button id="cancel-new-episode" class="quiet-btn" type="button">取消</button></p>
+      <p id="chat-status" class="muted chat-status" role="status"></p>
+      <div class="hero-composer">
+        <label class="visually-hidden" for="topic">聊天输入，最多 200 字</label>
+        <textarea id="topic" name="topic" maxlength="200" autocomplete="off" rows="3"
+                  placeholder="聊聊你想做的选题、你的观点，或直接粘贴问题…"></textarea>
+        <div class="composer-toolbar">
+          <div class="composer-left">
+            <button id="add-ref" type="button" class="quiet-btn" aria-label="添加参考链接">＋ <span>添加参考</span></button>
+            <span class="composer-hint">⌘ / Ctrl + Enter 发送</span>
+          </div>
+          <div class="composer-right">
+            <button id="chat-retry" type="button" class="quiet-btn" hidden>重发上一条</button>
+            <button id="chat-stop" type="button" class="quiet-btn" hidden>停止</button>
+            <button id="search-btn" type="button" class="primary" aria-label="发送消息"><span class="button-label">发送</span><span class="button-icon" aria-hidden="true">↑</span></button>
+          </div>
+        </div>
+      </div>
+      <div id="ref-list" aria-label="已有参考链接"></div>
+    </div>
   </div>
 </main>
 
@@ -805,7 +831,8 @@
   var searchBtn = document.getElementById('search-btn');
   var runStatus = document.getElementById('run-status');
   var errorBox = document.getElementById('error-box');
-  var heroCard = document.getElementById('hero');
+  var welcomePane = document.getElementById('welcome-pane');
+  var conversationEl = document.getElementById('conversation');
   var stageBar = document.getElementById('stage-bar');
   var sessionTopic = document.getElementById('session-topic');
   var newEpisodeBtn = document.getElementById('new-episode');
@@ -983,6 +1010,17 @@
     return getState().then(renderState);
   }
 
+  // Owner UX（issuecomment-6364369899）：空态内容不足一屏时 creator-view
+  // 精确撑满「视口 − 顶栏」，让贴底 composer 恰好落在视口底部（不猜测
+  // header 高度，加载/resize 时按实测重算；等效移动端动态视口语义）。
+  function fitCreatorHeight() {
+    var headerEl = document.querySelector('header');
+    var headerH = headerEl ? headerEl.getBoundingClientRect().height : 0;
+    creatorView.style.minHeight = Math.max(120, window.innerHeight - headerH) + 'px';
+  }
+  fitCreatorHeight();
+  window.addEventListener('resize', fitCreatorHeight);
+
   // ---- 两页导航（同一文档内切换，不刷新页面，创作进度不丢） ----
 
   function applyView() {
@@ -1040,17 +1078,17 @@
     if (sessionChanged) { clearScriptResult(); }
     currentSession = incomingSession;
     if (newEpisodeMode) {
-      heroCard.hidden = false;
       stageBar.hidden = true;
       STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
       heroNewNote.hidden = false;
       legacyEntry.hidden = true;
       return;
     }
-    // Chat-first（Nexus B1）：hero 永远是首页主体；即使存在历史正式会话，
-    // 其 stage-bar/表单也**默认隐藏**，只显示一个明确分离的折叠入口，
-    // 避免旧集的参考视频/授权表单混进当前聊天首页。
-    heroCard.hidden = false;
+    // Owner UX（issuecomment-6364369899）：单一对话工作区 —— welcome/
+    // conversation 的显隐由聊天 turns 驱动（renderChat → updateWelcomeVisibility），
+    // 这里只负责 canonical 阶段区。Chat-first（Nexus B1）：即使存在历史
+    // 正式会话，其 stage-bar/表单也**默认隐藏**，只显示一个明确分离的
+    // 折叠入口，绝不混进当前聊天。
     if (!currentSession) {
       stageBar.hidden = true;
       heroNewNote.hidden = true;
@@ -1148,7 +1186,6 @@
     previousTopicDraft = topicEl.value;
     newEpisodeMode = true;
     clearRequestError();
-    heroCard.hidden = false;
     stageBar.hidden = true;
     STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
     heroNewNote.hidden = false;
@@ -1166,13 +1203,12 @@
     topicEl.value = previousTopicDraft;
     previousTopicDraft = '';
     heroNewNote.hidden = true;
+    updateWelcomeVisibility();
     if (!currentSession) {
-      heroCard.hidden = false;
       stageBar.hidden = true;
       STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
       return;
     }
-    heroCard.hidden = false;
     stageBar.hidden = false;
     sessionTopic.textContent = '本集：' + currentSession.topic;
     renderReferences(currentSession);
@@ -2206,7 +2242,6 @@
 
   // ---- 自由聊天 + 原创草稿（Issue #44 chat-first MVP） ----
 
-  var chatCard = document.getElementById('chat-card');
   var chatThread = document.getElementById('chat-thread');
   var chatStatusEl = document.getElementById('chat-status');
   var chatStopBtn = document.getElementById('chat-stop');
@@ -2237,6 +2272,24 @@
   // 状态 —— 重发永远复用已保存的那条 user turn，不复制用户消息。
   function updateRetryBtn() {
     chatRetryBtn.hidden = !(lastUserMessage && !chatInFlight && lastSendIncomplete);
+  }
+
+  // Owner UX（issuecomment-6364369899）：单一对话工作区的空态/对话态切换
+  // —— welcome 只在没有对话（且无在飞流）时出现；一旦有 turns，
+  // 对话/草稿/旧集入口就都在同一个滚动流里，composer 始终贴底。
+  function updateWelcomeVisibility() {
+    var hasTurns = !!(chatStateCache && chatStateCache.turns && chatStateCache.turns.length) || chatInFlight;
+    welcomePane.hidden = hasTurns;
+    conversationEl.hidden = !hasTurns;
+  }
+
+  // 滚动跟随策略：只有当视口已接近底部（用户没有向上翻阅历史）时，
+  // 新增量/新消息才自动滚动跟随；用户上翻时不强行打断阅读位置。
+  function nearBottom() {
+    return window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 90;
+  }
+  function scrollToEndOfConversation() {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
   }
 
   // B1：旧集正式工作流与聊天首页明确分离 —— 展开时才渲染其阶段内容，
@@ -2333,12 +2386,12 @@
 
   function renderChat(chat) {
     chatStateCache = chat;
-    chatCard.hidden = !(chat && chat.turns && chat.turns.length);
     chatThread.textContent = '';
     if (chat && chat.turns) {
       chat.turns.forEach(function (turn) { appendChatTurnEl(turn, false); });
     }
     renderDrafts(chat);
+    updateWelcomeVisibility();
     updateRetryBtn();
   }
 
@@ -2371,7 +2424,7 @@
     chatStatusEl.textContent = retryTurnId
       ? '重发上一条…（复用已保存的消息，不会重复发送）'
       : '发送中…（调用你配置的模型服务）';
-    chatCard.hidden = false;
+    updateWelcomeVisibility();
     var userTurnEl = null;
     if (!retryTurnId) {
       // B3：只有新消息才本地显示用户气泡；幂等重试复用已保存的那条，
@@ -2383,11 +2436,8 @@
         if (node.parentNode) { node.parentNode.removeChild(node); }
       });
     }
-    if (userTurnEl) {
-      userTurnEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    } else if (chatThread.lastElementChild) {
-      chatThread.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
+    // 发送是显式动作：滚到最新消息；之后流式增量只在用户仍靠近底部时跟随
+    if (userTurnEl || chatThread.lastElementChild) { scrollToEndOfConversation(); }
     var assistantEl = null;
     chatAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var payload = { message: message, links: links };
@@ -2419,11 +2469,13 @@
           }
           chatStatusEl.textContent = kindLabel(event.provider_kind) + ' 流式输出中…';
         } else if (event.type === 'delta') {
+          var wasNearBottom = nearBottom();
           if (!assistantEl) {
             assistantEl = appendChatTurnEl({ role: 'assistant', content: '' }, true);
           }
           assistantEl.firstChild.textContent += event.text;
-          assistantEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          // 滚动跟随只在用户仍靠近底部时进行；向上翻阅历史时不强行打断
+          if (wasNearBottom) { scrollToEndOfConversation(); }
         } else if (event.type === 'done') {
           lastSendIncomplete = false;
           chatStatusEl.textContent = '回复完成，已保存到本机。';
@@ -2459,7 +2511,16 @@
         }
         chatStatusEl.textContent = '已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单。可点「重发上一条」。';
       } else {
-        chatStatusEl.textContent = '发送失败：' + ((error && error.message) || '网络错误') + '；可点「重发上一条」。';
+        // Owner UX：失败不丢输入 —— 未发送的消息恢复到输入框，
+        // 404/路径不存在时如实提示服务版本问题（本机服务可能是旧版本）。
+        var reason = ((error && error.message) || '网络错误');
+        var guidance = /404|路径不存在/.test(reason)
+          ? '；本机服务可能是旧版本，请重启本地服务后刷新页面'
+          : '';
+        chatStatusEl.textContent = '发送失败：' + reason + guidance + '；输入已恢复，可修改后重试。';
+        if (!topicEl.value.trim()) { topicEl.value = message; }
+        try { window.localStorage.setItem(TOPIC_DRAFT_KEY, message); } catch (err) { }
+        topicEl.focus();
       }
       finishChatUi();
     });
