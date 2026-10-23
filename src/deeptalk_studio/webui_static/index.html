@@ -4,421 +4,919 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,">
-<title>DeepTalk 创作工作台</title>
+<title>DeepTalk · 创作</title>
 <style>
   :root {
-    --brand: #b3261e;
-    --brand-dark: #7f1d1b;
-    --bg: #f6f6f4;
-    --card: #ffffff;
-    --text: #222222;
-    --muted: #6b6b6b;
-    --line: #e6e3de;
-    --ok: #2c6e49;
+    --ivory: #fafaf6;
+    --paper: #ffffff;
+    --ink: #302f2b;
+    --ink-soft: #5f5d57;
+    --muted: #8b8982;
+    --line: #e7e5df;
+    --line-strong: #d9d6ce;
+    --coral: #df7a66;
+    --coral-deep: #c96856;
+    --coral-pale: #f9e0d9;
+    --coral-wash: #fff4f1;
+    --ok: #2c7452;
+    --ok-soft: #eaf5ee;
     --warn: #9a6700;
-    --bad: #b3261e;
+    --warn-soft: #fff5df;
+    --bad: #b84d42;
+    --bad-soft: #fff0ed;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { min-width: 320px; background: var(--ivory); }
   body {
     margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-    line-height: 1.6;
     min-height: 100vh;
+    background:
+      radial-gradient(circle at 50% 24%, rgba(255,255,255,.86), transparent 34rem),
+      var(--ivory);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
     display: flex;
     flex-direction: column;
   }
   header {
-    background: var(--brand);
-    color: #fff;
-    padding: 14px 20px;
+    width: min(1180px, 100%);
+    margin: 0 auto;
+    padding: 24px 32px 14px;
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: 16px;
+    position: relative;
+    z-index: 2;
   }
-  header h1 { margin: 0; font-size: 20px; font-weight: 700; }
-  header .sub { font-size: 12px; opacity: .85; margin-top: 2px; }
-  #settings-panel > summary { cursor: pointer; color: #fff; list-style: none; padding: 4px 12px; border: 1px solid rgba(255,255,255,.5); border-radius: 8px; }
-  main { max-width: 980px; margin: 0 auto; padding: 20px 16px 64px; width: 100%; flex: 1 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  header h1 {
+    margin: 0;
+    color: var(--ink);
+    font-size: 18px;
+    line-height: 1;
+    letter-spacing: -.035em;
+    font-weight: 760;
+  }
+  header .sub {
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: .01em;
+  }
+  .top-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 38px;
+    padding: 7px 11px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background .18s ease, border-color .18s ease, color .18s ease;
+  }
+  .top-link:hover { background: rgba(255,255,255,.76); border-color: var(--line); color: var(--ink); }
+  .top-link:focus-visible { outline: 2px solid var(--coral); outline-offset: 3px; }
+  main {
+    width: min(1160px, 100%);
+    margin: 0 auto;
+    padding: 0 28px 14px;
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  #creator-view { min-height: calc(100vh - 94px); display: flex; flex-direction: column; }
   .card {
-    background: var(--card);
-    border-radius: 12px;
-    padding: 18px 18px 14px;
-    box-shadow: 0 1px 5px rgba(0,0,0,.07);
-    flex: 0 0 auto;
     width: 100%;
+    flex: 0 0 auto;
+    border: 1px solid rgba(48,47,43,.075);
+    border-radius: 22px;
+    background: var(--paper);
+    box-shadow: 0 18px 50px rgba(78,70,55,.065);
+    padding: 34px 38px 30px;
     text-align: left;
   }
-  h2 { font-size: 16px; margin: 0 0 8px; }
-  h3 { font-size: 14px; margin: 14px 0 6px; }
-  label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
-  label .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
-  input[type="text"], input[type="password"], textarea, select {
+  h2 { margin: 0 0 10px; font-size: 22px; line-height: 1.25; letter-spacing: -.02em; }
+  h3 { margin: 20px 0 8px; font-size: 14px; line-height: 1.4; }
+  label { display: block; margin: 15px 0 7px; color: var(--ink-soft); font-size: 13px; font-weight: 650; }
+  label .hint { color: var(--muted); font-size: 12px; font-weight: 400; }
+  input[type="text"], input[type="password"], input[type="number"], textarea, select {
     width: 100%;
-    padding: 10px 12px;
     border: 1px solid var(--line);
-    border-radius: 8px;
-    font-size: 15px;
-    font-family: inherit;
+    border-radius: 12px;
+    padding: 12px 14px;
     background: #fff;
-    color: var(--text);
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    transition: border-color .18s ease, box-shadow .18s ease;
   }
-  textarea { min-height: 64px; resize: vertical; }
+  input[type="text"], input[type="password"], input[type="number"], select { min-height: 48px; }
+  textarea { min-height: 88px; resize: vertical; }
+  input::placeholder, textarea::placeholder { color: #aaa8a1; }
   input:focus-visible, button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline: 2px solid var(--brand); outline-offset: 1px;
+    outline: 2px solid var(--coral);
+    outline-offset: 2px;
   }
+  input:focus, textarea:focus, select:focus { border-color: rgba(223,122,102,.7); box-shadow: 0 0 0 4px rgba(223,122,102,.1); }
   button {
-    font-family: inherit;
-    font-size: 14px;
+    min-height: 42px;
     border: 1px solid var(--line);
-    background: #faf9f7;
-    color: var(--text);
-    border-radius: 8px;
-    padding: 8px 14px;
+    border-radius: 11px;
+    padding: 8px 15px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13.5px;
     cursor: pointer;
+    transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
   }
-  button:hover { background: #f0efec; }
-  button[disabled] { opacity: .5; cursor: not-allowed; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  button:hover { background: #fdfcf9; border-color: var(--line-strong); }
+  button:active { transform: translateY(1px); }
+  button[disabled] { opacity: .48; cursor: not-allowed; transform: none; }
   button.primary {
-    background: var(--brand); border-color: var(--brand); color: #fff;
-    font-size: 15px; padding: 10px 22px; font-weight: 600;
+    border-color: var(--coral);
+    background: var(--coral);
+    color: #fff;
+    font-weight: 650;
   }
-  button.primary:hover { background: var(--brand-dark); }
+  button.primary:hover { background: var(--coral-deep); border-color: var(--coral-deep); }
+  .quiet-btn {
+    min-height: 36px;
+    border-color: transparent;
+    border-radius: 999px;
+    padding: 6px 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .quiet-btn:hover { color: var(--ink); background: rgba(255,255,255,.72); border-color: var(--line); text-decoration: none; }
   .ref-row { display: flex; gap: 8px; margin-bottom: 8px; }
-  .ref-row input { flex: 1; }
+  .ref-row input { flex: 1; min-width: 0; }
   .ref-row button { white-space: nowrap; }
-  .actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
-  #run-status { font-size: 13px; color: var(--muted); }
-  .status-line { font-size: 14px; margin: 6px 0; }
-  .status-ok { color: var(--ok); font-weight: 600; }
-  .status-degraded { color: var(--warn); font-weight: 600; }
-  .status-blocked { color: var(--bad); font-weight: 600; }
+  .actions { display: flex; align-items: center; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  #run-notice { min-height: 4px; }
+  #run-status { display: block; min-height: 22px; color: var(--muted); font-size: 12.5px; }
+  .status-line { margin: 7px 0; font-size: 14px; }
+  .status-ok { color: var(--ok); font-weight: 650; }
+  .status-degraded { color: var(--warn); font-weight: 650; }
+  .status-blocked { color: var(--bad); font-weight: 650; }
   .muted {
     color: var(--muted);
     font-size: 12.5px;
-    /* Hashes and local paths are unbroken strings; keep the workbench usable
-       on narrow phones instead of allowing status text to widen the page. */
+    line-height: 1.65;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  .meta-line { margin: 4px 0; }
-  .candidate { border-top: 1px solid var(--line); padding: 14px 0 10px; }
-  .candidate:first-child { border-top: none; }
-  .badge {
-    display: inline-block; font-size: 12px; border-radius: 6px;
-    padding: 1px 8px; margin-right: 8px; vertical-align: 2px; font-weight: 600;
+
+  /* ---- Owner UX（issuecomment-6364369899）：单一连续对话工作区 ---- */
+  /* 空态：安静居中的欢迎；对话态：welcome 隐藏，turns/草稿/旧集入口在
+     同一滚动流里，composer 始终 sticky 贴在视口底部，无需回到顶部。 */
+  .welcome-pane {
+    width: min(680px, 100%);
+    margin: 0 auto;
+    padding: clamp(28px, 9vh, 88px) 20px 20px;
+    text-align: center;
   }
-  .badge-user { background: #e8f0fe; color: #1a56db; }
-  .badge-search { background: #e7f4ea; color: var(--ok); }
-  .badge-wait { background: #f2efe8; color: var(--muted); }
-  .badge-analyzed { background: #e7f4ea; color: var(--ok); }
-  .badge-failed { background: #fdecea; color: var(--bad); }
-  .badge-progress { background: #fdf3e0; color: var(--warn); }
-  .title-link { color: var(--brand); text-decoration: none; font-weight: 600; font-size: 15px; }
+  .hero-mark {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 20px;
+    position: relative;
+    color: var(--coral);
+  }
+  .hero-mark::before, .hero-mark::after {
+    content: "";
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 19px; height: 32px;
+    border: 2px solid currentColor;
+    border-radius: 58% 42% 58% 42%;
+    transform-origin: 50% 88%;
+    opacity: .95;
+  }
+  .hero-mark::before { transform: translate(-50%, -88%) rotate(24deg); }
+  .hero-mark::after { transform: translate(-50%, -88%) rotate(-54deg); }
+  .hero-mark span, .hero-mark span::before, .hero-mark span::after {
+    content: "";
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 17px; height: 29px;
+    border: 2px solid currentColor;
+    border-radius: 58% 42% 58% 42%;
+    transform-origin: 50% 88%;
+    opacity: .9;
+  }
+  .hero-mark span { transform: translate(-50%, -88%) rotate(84deg); }
+  .hero-mark span::before { transform: translate(-50%, -6%) rotate(60deg); }
+  .hero-mark span::after { transform: translate(-50%, -6%) rotate(-120deg); }
+  .hero-mark i {
+    display: block;
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: currentColor;
+    transform: translate(-50%, -50%);
+  }
+  .hero-kicker { margin: 0 0 11px; color: var(--coral-deep); font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+  .welcome-pane h2 {
+    margin: 0;
+    color: var(--ink);
+    font-family: "Iowan Old Style", "Baskerville", "Songti SC", Georgia, serif;
+    font-size: clamp(30px, 4.6vw, 44px);
+    font-weight: 500;
+    line-height: 1.16;
+    letter-spacing: -.03em;
+  }
+  .welcome-pane h2::after {
+    content: "";
+    display: block;
+    width: 72px;
+    height: 9px;
+    margin: -1px auto 0;
+    border-bottom: 2px solid var(--coral);
+    border-radius: 50%;
+    transform: rotate(-2deg);
+    opacity: .92;
+  }
+  .welcome-copy {
+    max-width: 500px;
+    margin: 15px auto 0;
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.72;
+  }
+  .conversation {
+    width: min(760px, 100%);
+    margin: 14px auto 0;
+    padding-bottom: 6px;
+  }
+  /* Owner UX（issuecomment-6366157284）：ChatGPT 式左侧历史会话 */
+  #chat-layout { display: flex; align-items: stretch; }
+  .chat-sidebar {
+    width: 244px;
+    flex: 0 0 auto;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 16px 12px 20px;
+    border-right: 1px solid var(--line);
+    background: rgba(255,255,255,.42);
+    scrollbar-width: thin;
+  }
+  .chat-sidebar.collapsed { display: none; }
+  .sidebar-head { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 10px; }
+  .sidebar-title { color: var(--ink-soft); font-size: 12px; font-weight: 700; letter-spacing: .14em; }
+  .sidebar-new-chat { width: 100%; justify-content: center; min-height: 40px; }
+  .chat-session-list { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+  .chat-session-list button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.45;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .chat-session-list button:hover { background: rgba(255,255,255,.75); color: var(--ink); }
+  .chat-session-list button.active { background: var(--coral-wash); color: var(--coral-deep); font-weight: 650; }
+  .chat-session-list .session-meta { display: block; color: var(--muted); font-size: 11px; font-weight: 400; margin-top: 2px; }
+  .sidebar-open-btn { display: none; margin-bottom: 10px; }
+  /* B5（review 5630859051）：桌面收起侧栏后 ☰ 重新展开入口 —— 此前只有
+     移动端媒体查询显示该按钮，桌面一旦收起就再也打不开。 */
+  .sidebar-open-btn.sidebar-shown { display: inline-flex; }
+  .sidebar-backdrop { display: none; }
+  .chat-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  /* 草稿小入口（不再常驻大表单）*/
+  .draft-entry-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding: 8px 4px 0;
+  }
+  .draft-entry-btn { font-weight: 650; color: var(--coral-deep); }
+  .draft-generate-btn { font-size: 12.5px; color: var(--ink-soft); }
+  .draft-drawer { margin-top: 10px; }
+  /* 收起时只保留一个小入口（review 5630859051）：details 的 summary 头
+     不作为第二个大空白卡常驻在对话下方；点开抽屉才显示为编辑器头。 */
+  .draft-drawer:not([open]) { display: none; }
+  .draft-drawer summary { cursor: pointer; font-weight: 650; color: var(--ink); }
+  .draft-drawer summary .muted { font-weight: 400; margin-left: 8px; font-size: 12px; }
+  .draft-drawer[open] summary { margin-bottom: 8px; }
+  /* Owner UX：空态内容不足一屏时，creator-view 由 JS 按实测顶栏高度撑满
+     视口并把 composer 推到底部；内容超屏时 composer 依然 sticky 贴底。 */
+  #creator-view { display: flex; flex-direction: column; }
+  #creator-view > #composer-dock { margin-top: auto; }
+  #chat-main > #composer-dock { margin-top: auto; }
+  .composer-dock {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    width: min(760px, 100%);
+    margin: 0 auto;
+    padding: 10px 10px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, rgba(250,250,246,0) 0%, var(--ivory) 30%, var(--ivory) 100%);
+  }
+  .composer-dock .hero-new-note { margin: 0 0 7px; padding: 0 6px; }
+  .composer-dock .chat-status { min-height: 18px; margin: 0 4px 7px; font-size: 12.5px; }
+  .composer-dock .hero-composer { margin: 0 auto; }
+  .composer-dock #ref-list { padding: 0 4px; }
+  .hero-composer #topic {
+    display: block;
+    min-height: 104px;
+    padding: 3px 2px 0;
+    border: 0;
+    border-radius: 10px;
+    box-shadow: none;
+    resize: none;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .hero-composer #topic:focus { box-shadow: none; }
+  .composer-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+  .composer-left, .composer-right { display: flex; align-items: center; gap: 8px; }
+  .composer-left .quiet-btn { padding-left: 6px; }
+  .composer-hint { color: #aaa8a1; font-size: 12px; }
+  #search-btn {
+    width: 43px;
+    height: 43px;
+    min-height: 43px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+    line-height: 1;
+    box-shadow: 0 4px 10px rgba(223,122,102,.2);
+  }
+  #search-btn .button-label { display: none; }
+  #search-btn .button-icon { display: inline-block; font-size: 20px; font-weight: 400; transform: translateY(-1px); }
+  #ref-list { margin-top: 10px; }
+  #add-ref { white-space: nowrap; }
+  #draft-card, .legacy-entry { margin-top: 16px; }
+  .gate-details { margin-top: 14px; }
+  .gate-details summary { cursor: pointer; color: var(--ink-soft); font-size: 12.5px; }
+  .gate-details .gate-note { margin-top: 10px; }
+  .chat-thread { display: flex; flex-direction: column; gap: 14px; margin: 14px 0 10px; }
+  .chat-msg { max-width: 86%; border-radius: 14px; padding: 12px 15px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .chat-msg.user { align-self: flex-end; background: #f3ece2; border: 1px solid #e8ddd0; }
+  .chat-msg.assistant { align-self: flex-start; background: #fff; border: 1px solid var(--line); }
+  .chat-msg .chat-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chat-msg .chat-links .link-chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: #fbfaf7; }
+  .chat-msg .chat-kind { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .chat-msg.streaming::after { content: '▋'; margin-left: 2px; animation: chat-blink 1s steps(2) infinite; }
+  @keyframes chat-blink { 50% { opacity: 0; } }
+  .draft-revisions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .draft-revisions button { min-height: 34px; padding: 5px 13px; font-size: 12.5px; }
+  .draft-editor { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; font: inherit; line-height: 1.7; resize: vertical; }
+  .gate-note { margin-top: 16px; padding: 12px 15px; border: 1px solid #e8ddd0; border-radius: 11px; background: #fbf6ee; color: #6b5d4b; font-size: 13px; line-height: 1.7; }
+  .legacy-entry { padding: 14px 18px; }
+  .legacy-entry summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+  .legacy-entry summary .muted { font-weight: 400; margin-left: 8px; }
+  .prompt-hints { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .prompt-hints span { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); background: rgba(255,255,255,.45); font-size: 12px; }
+  .hero-new-note { margin: 17px 0 0; color: var(--muted); font-size: 12px; }
+  .hero-new-note strong { color: var(--ink-soft); font-weight: 600; }
+  .visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  /* ---- focused creator stages ---- */
+  .stage-bar { display: flex; flex-direction: column; gap: 11px; padding: 20px 4px 2px; }
+  .stage-meta { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .session-topic { color: var(--ink); font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+  .stage-nav { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .stage-nav button { min-height: 36px; padding: 6px 13px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--muted); font-size: 13px; }
+  .stage-nav button:hover { background: rgba(255,255,255,.7); border-color: var(--line); color: var(--ink); }
+  .stage-nav button.active { border-color: #efc7bd; background: var(--coral-pale); color: var(--coral-deep); font-weight: 700; }
+  .stage-nav button.done { color: var(--ok); }
+  .stage-card { scroll-margin-top: 24px; }
+  .stage-card > h2 { font-size: 21px; }
+  .ref-card { padding: 16px 9px 12px; border-top: 1px solid var(--line); border-radius: 10px; }
+  .ref-card:first-child { padding-top: 4px; border-top: 0; }
+  .ref-card:hover { background: rgba(250,249,245,.8); }
+  .ref-card .title-link { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .auth-textarea { min-height: 96px; border-color: var(--line-strong); }
+  .badge { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 650; vertical-align: 2px; }
+  .badge-user { background: #edf2ff; color: #385fb1; }
+  .badge-search, .badge-analyzed { background: var(--ok-soft); color: var(--ok); }
+  .badge-wait { background: #f1f0eb; color: var(--muted); }
+  .badge-failed { background: var(--bad-soft); color: var(--bad); }
+  .badge-progress { background: var(--warn-soft); color: var(--warn); }
+  .title-link { color: var(--coral-deep); text-decoration: none; font-size: 15px; font-weight: 650; }
   .title-link:hover { text-decoration: underline; }
-  .meta-grid { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 4px; }
-  .meta-grid .item { font-size: 13px; color: var(--muted); }
-  .views-verified { color: var(--text); font-weight: 600; }
-  .views-unknown { color: var(--muted); }
-  .via { font-size: 12px; color: var(--muted); margin-top: 4px; }
-  .rejection { font-size: 13px; color: var(--warn); margin: 2px 0; }
-  details { margin-top: 12px; font-size: 13px; }
-  details summary { cursor: pointer; color: var(--muted); }
+  .ref-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 5px; color: var(--muted); font-size: 13px; }
+  .ref-details { margin-top: 9px; }
+  .ref-details summary, details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  .meta-grid { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 8px; }
+  .meta-grid .item { color: var(--muted); font-size: 13px; }
+  .rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px 14px; margin-top: 8px; }
+  .kv { padding: 7px 12px; border-radius: 9px; background: #f7f6f1; font-size: 13.5px; }
+  details { margin-top: 11px; font-size: 13px; }
   details ul { margin: 6px 0 0; padding-left: 20px; color: var(--muted); }
-  .error-box {
-    background: #fdecea; border: 1px solid #f5c6c0; color: var(--bad);
-    padding: 10px 12px; border-radius: 8px; margin-top: 12px; font-size: 14px;
-  }
-  .coverage { background: #f7f5f0; border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
-  footer.site { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 30px; margin-top: auto; }
-  #result.stale { opacity: .55; }
-  .steps { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
-  .step {
-    font-size: 12.5px; padding: 3px 10px; border-radius: 999px;
-    background: #efece6; color: var(--muted); white-space: nowrap;
-  }
-  .step.current { background: #ffffff; color: var(--brand); font-weight: 700; }
-  .step.done { background: #e7f4ea; color: var(--ok); }
-  .rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px 14px; }
-  .kv { font-size: 13.5px; padding: 6px 10px; background: #f7f5f0; border-radius: 8px; }
-  .src-list { margin-top: 8px; }
-  .src-item { border-top: 1px dashed var(--line); padding: 8px 0 4px; font-size: 13.5px; }
-  .src-item:first-child { border-top: none; }
-  .tool-box { background: #fffaf0; border: 1px solid #ead9ae; border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
-  .tool-result { border-top: 1px dashed #ead9ae; padding: 8px 0 4px; }
-  .tool-result:first-child { border-top: none; }
-  .tool-result .title-link { font-size: 14px; }
-  .checks-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
-  .checks-table td, .checks-table th { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
-  .checks-table th { color: var(--muted); font-weight: 600; }
-  .check-pass { color: var(--ok); font-weight: 600; }
-  .check-fail { color: var(--bad); font-weight: 600; }
-  .script-box {
-    background: #fbfaf7; border: 1px solid var(--line); border-radius: 10px;
-    padding: 14px 16px; margin-top: 10px; font-size: 15px; line-height: 1.9;
-    max-height: 480px; overflow: auto; white-space: pre-wrap;
-  }
-  .issue { border-left: 3px solid var(--bad); background: #fdf7f6; padding: 6px 10px; margin-top: 8px; font-size: 13.5px; border-radius: 0 8px 8px 0; }
+  .error-box { margin-top: 10px; padding: 10px 12px; border: 1px solid #f0c2ba; border-radius: 11px; background: var(--bad-soft); color: var(--bad); font-size: 14px; }
+  .card.stale { opacity: .55; }
   .gate-reasons { margin: 6px 0 0; padding-left: 18px; color: var(--warn); font-size: 13.5px; }
-  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; color: var(--text); }
+  .issue { margin-top: 8px; padding: 7px 10px; border-left: 3px solid var(--bad); border-radius: 0 9px 9px 0; background: #fff7f5; font-size: 13.5px; }
+  .checks-table { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 13px; }
+  .checks-table td, .checks-table th { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .checks-table th { color: var(--muted); font-weight: 650; }
+  .check-pass { color: var(--ok); font-weight: 650; }
+  .check-fail { color: var(--bad); font-weight: 650; }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; color: var(--ink); }
+  .src-list { margin-top: 8px; }
+  .src-item { padding: 9px 0 5px; border-top: 1px dashed var(--line); font-size: 13.5px; }
+  .src-item:first-child { border-top: 0; }
+  .tool-box { margin-top: 14px; padding: 12px 14px; border: 1px solid #ecdcae; border-radius: 12px; background: #fffaf0; }
+  .tool-box summary { color: var(--ink); font-weight: 650; }
+  .tool-result { padding: 8px 0 4px; border-top: 1px dashed #ead9ae; }
+  .tool-result .title-link { font-size: 14px; }
+  .script-box { max-height: 560px; margin-top: 17px; padding: 32px 54px; overflow: auto; border: 1px solid #dfdad0; border-radius: 15px; background: #fffefa; font-family: "Iowan Old Style", "Songti SC", Georgia, serif; font-size: 18px; line-height: 2.05; white-space: pre-wrap; }
+  #script-summary p { margin: 6px 0 0; }
+  #script-issues { margin-top: 8px; }
+  #script-next-actions { margin-top: 20px; }
+  .req-note { color: #aaa79f; }
+  #refs-readiness { text-wrap: pretty; }
+  .script-archive { margin-top: 3px; }
+  .script-archive summary { color: var(--muted); font-size: 12.5px; }
   .audio-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .65fr); gap: 10px 14px; align-items: end; }
   .timeline-list, .gap-list, .artifact-list { margin: 8px 0 0; padding-left: 20px; }
   .timeline-list li, .gap-list li, .artifact-list li { margin: 3px 0; font-size: 13px; }
-  .audio-warning { color: var(--warn); background: #fffaf0; border: 1px solid #ead9ae; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
-  .audio-error { color: var(--bad); background: #fdecea; border: 1px solid #f5c6c0; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
-  .artifact-list a { color: var(--brand); }
-  @media (max-width: 700px) { .field-grid { grid-template-columns: 1fr; } }
-  @media (max-width: 700px) { .audio-grid { grid-template-columns: 1fr; } }
-  @media (max-width: 600px) {
-    main { padding: 14px 10px 40px; }
-    .card { padding: 14px 12px 10px; }
+  .audio-warning, .audio-error { margin-top: 9px; padding: 9px 11px; border-radius: 11px; }
+  .audio-warning { border: 1px solid #ead9ae; background: var(--warn-soft); color: var(--warn); }
+  .audio-error { border: 1px solid #f5c6c0; background: var(--bad-soft); color: var(--bad); }
+  .artifact-list a { color: var(--coral-deep); }
+
+  /* ---- dedicated settings screen ---- */
+  .settings-page { width: min(960px, 100%); margin: 0 auto; padding: 32px 0 72px; }
+  .settings-page > .top-link { margin-bottom: 14px; padding-left: 0; }
+  .settings-card { padding: 54px 64px 42px; border-radius: 24px; }
+  .settings-head { max-width: 620px; margin-bottom: 26px; }
+  .settings-title { margin: 0 0 8px; color: var(--ink); font-family: "Iowan Old Style", "Baskerville", "Songti SC", Georgia, serif; font-size: clamp(34px, 5vw, 48px); font-weight: 500; letter-spacing: -.035em; }
+  .settings-intro { max-width: 600px; margin: 0; color: var(--muted); font-size: 14px; }
+  .settings-status-block { display: flex; align-items: center; gap: 13px; margin: 0 0 28px; padding: 13px 15px; border-radius: 13px; background: #fbfaf7; }
+  .conn-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+  .conn-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .8; }
+  .conn-chip.state-neutral { background: #f1f0eb; color: var(--muted); }
+  .conn-chip.state-ok { background: var(--ok-soft); color: var(--ok); }
+  .conn-chip.state-warn { background: var(--warn-soft); color: var(--warn); }
+  .conn-chip.state-bad { background: var(--bad-soft); color: var(--bad); }
+  .conn-hint { margin: 0; color: var(--muted); font-size: 12.5px; }
+  .settings-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
+  .settings-field.full { grid-column: 1 / -1; }
+  .settings-field label { color: var(--ink-soft); }
+  .deepseek-auto {
+    grid-column: 1 / -1; margin: 4px 0 2px; padding: 10px 14px;
+    background: #f4f2ec; border-radius: 10px; font-size: 13px; color: var(--ink-soft);
+  }
+  .deepseek-auto strong { color: var(--text); }
+  .key-field { display: flex; align-items: stretch; gap: 8px; }
+  .key-field input { flex: 1; min-width: 0; }
+  .key-toggle { min-width: 72px; padding: 6px 10px; color: var(--muted); background: #fbfaf8; }
+  .settings-page .advanced, .settings-page .downloads-box { margin-top: 26px; padding-top: 17px; border-top: 1px solid var(--line); }
+  .settings-page .advanced summary, .settings-page .downloads-box summary { color: var(--ink-soft); font-size: 13.5px; font-weight: 650; }
+  .settings-page .advanced .field-grid { margin-top: 9px; }
+  .settings-actions { display: flex; align-items: center; gap: 10px; margin-top: 31px; padding-top: 23px; border-top: 1px solid var(--line); }
+  .settings-actions .spacer { flex: 1; }
+  .settings-actions .danger-quiet { color: var(--muted); border-color: transparent; background: transparent; }
+  .settings-actions .danger-quiet:hover { color: var(--bad); background: var(--bad-soft); }
+  #settings-status { flex: 1 1 180px; min-width: 150px; padding-left: 10px; }
+  #settings-connection { margin: 20px 0 0; word-break: keep-all; }
+  footer.site { margin-top: auto; padding: 12px 20px 28px; color: #aaa8a1; text-align: center; font-size: 11.5px; }
+  /* The blank creator landing should read as one calm viewport; keep the
+     workflow disclaimer available once the stage view is active. */
+  body:has(#creator-view:not([hidden])) footer.site { display: none; }
+
+  @media (max-width: 720px) {
+    header { padding: 20px 18px 10px; }
+    header .sub { display: none; }
+    main { padding: 0 16px 28px; }
+    #creator-view { min-height: calc(100vh - 75px); }
+    .welcome-pane { padding: 46px 0 24px; }
+    .hero-mark { margin-bottom: 18px; }
+    .welcome-copy { max-width: 430px; margin-bottom: 4px; font-size: 13px; }
+    .conversation { margin-top: 12px; }
+    /* 375px：侧栏变为抽屉，选择后自动收起，不产生横向溢出 */
+    .chat-sidebar {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      width: min(300px, 84vw);
+      height: auto;
+      z-index: 70;
+      transform: translateX(-105%);
+      transition: transform .18s ease-out;
+      background: var(--ivory);
+      box-shadow: 14px 0 40px rgba(70,62,48,.16);
+    }
+    .chat-sidebar.drawer-open { transform: translateX(0); }
+    .chat-sidebar.collapsed { display: block; transform: translateX(-105%); }
+    .sidebar-open-btn { display: inline-flex; }
+    .sidebar-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 65;
+      background: rgba(40,36,28,.32);
+    }
+    .settings-page { padding-top: 18px; }
+    .settings-card { padding: 34px 24px 27px; border-radius: 20px; }
+    .settings-form-grid { grid-template-columns: 1fr; }
+    .settings-field.full { grid-column: auto; }
+    .settings-status-block { align-items: flex-start; flex-direction: column; gap: 7px; }
+    .settings-actions { align-items: stretch; flex-wrap: wrap; }
+    .settings-actions .spacer { display: none; }
+    .settings-actions #settings-status { order: 3; flex-basis: 100%; padding-left: 0; }
+    .stage-card { padding: 26px 20px 23px; border-radius: 18px; }
+    .script-box { padding: 23px 20px; font-size: 17px; }
+  }
+  @media (max-width: 520px) {
+    header { padding-inline: 16px; }
+    .top-link { padding-inline: 8px; }
+    .welcome-pane { padding-top: 34px; }
+    .welcome-pane h2 { font-size: clamp(27px, 8.6vw, 36px); }
+    .welcome-copy { padding: 0 6px; font-size: 13px; }
+    .hero-composer { border-radius: 17px; padding: 12px 12px 9px; }
+    .hero-composer #topic { min-height: 116px; font-size: 15.5px; }
+    .composer-hint { display: none; }
+    #add-ref { font-size: 12.5px; }
+    .prompt-hints { gap: 6px; }
+    .prompt-hints span { padding: 5px 9px; font-size: 11.5px; }
+    .stage-bar { padding-top: 13px; }
+    .stage-nav { gap: 4px; }
+    .stage-nav button { padding-inline: 9px; font-size: 12px; }
     .ref-row { flex-wrap: wrap; }
     .ref-row input { flex: 1 1 100%; }
-    .ref-row button { margin-left: auto; min-height: 40px; min-width: 88px; }
-    #search-btn { width: 100%; }
+    .ref-row button { margin-left: auto; }
+    #search-btn { width: 42px; height: 42px; }
+    .script-box { padding: 20px 16px; font-family: inherit; font-size: 16px; }
   }
+  @media (max-width: 600px) {
+    .ref-row { flex-wrap: wrap; }
+    .ref-row button { min-height: 40px; }
+  }
+  /* Responsive contract retained for the legacy reference-link rows:
+     @media (max-width: 600px) { .ref-row { flex-wrap: wrap; }
+     #search-btn { width: 100%; } } remains the expanded-composer fallback;
+     the compact primary action above stays circular like the reference UI. */
 </style>
 </head>
 <body>
 <header>
   <div>
-    <h1>DeepTalk 创作工作台</h1>
-    <div class="sub">本机 127.0.0.1 · 匿名访问 · 只分析公开元数据与你授权的材料</div>
+    <h1>DeepTalk</h1>
+    <div class="sub">从一个选题，走到一篇经审核的原创口播稿</div>
   </div>
-  <details id="settings-panel">
-    <summary>设置</summary>
-    <div class="card" style="margin-top:10px">
-      <div class="field-grid">
-        <div>
-          <label for="st-mode">提供方式</label>
-          <select id="st-mode">
-            <option value="deepseek">DeepSeek（默认，Chat 兼容）</option>
-            <option value="responses">OpenAI Responses（支持联网研究）</option>
-            <option value="chat">通用 Chat 兼容（仅用你提供的来源）</option>
-          </select>
-        </div>
-        <div>
-          <label for="st-model">模型名 <span class="hint">如 gpt-5.6</span></label>
-          <input id="st-model" type="text" maxlength="200" placeholder="模型 ID">
-        </div>
-        <div>
-          <label for="st-base">Responses 端点</label>
-          <input id="st-base" type="text" placeholder="https://api.openai.com/v1/responses">
-        </div>
-        <div>
-          <label for="st-chat">Chat 兼容地址 <span class="hint">如 https://host/v1</span></label>
-          <input id="st-chat" type="text" placeholder="https://你的服务/v1">
-        </div>
-        <div>
-          <label for="st-endpoint">实际请求端点</label>
-          <input id="st-endpoint" type="text" readonly aria-readonly="true">
-        </div>
-        <div>
-          <label for="st-key">API Key <span class="hint" id="st-key-hint">保存后仅显示掩码</span></label>
-          <input id="st-key" type="password" autocomplete="off" placeholder="仅保存在本机">
-        </div>
-        <div>
-          <label for="st-dir">参考视频下载文件夹 <span class="hint">绝对路径，须已存在</span></label>
-          <input id="st-dir" type="text" placeholder="/Users/你/Movies/DeepTalk参考视频">
-        </div>
-      </div>
-      <div class="actions">
-        <button id="settings-save" type="button">保存设置</button>
-        <button id="settings-test" type="button">测试连接</button>
-        <button id="settings-clear-key" type="button">清除 API Key</button>
-        <span id="settings-status" class="muted" role="status"></span>
-      </div>
-      <p id="settings-connection" class="muted" role="status">连接状态：尚未测试</p>
-    </div>
-  </details>
+  <a id="settings-link" class="top-link" href="/settings" aria-label="打开大模型设置">⚙ 设置</a>
 </header>
 
 <main>
-  <section class="card" aria-labelledby="form-title">
-    <div class="steps" id="flow-steps">
-      <span class="step current" data-step="references">① 选题与参考</span>
-      <span class="step" data-step="analysis">② 参考分析</span>
-      <span class="step" data-step="research">③ 独立研究</span>
-      <span class="step" data-step="thesis">④ 选题卡</span>
-      <span class="step" data-step="script">⑤ 口播稿</span>
-      <span class="step" data-step="audio">⑥ 音频与素材交付</span>
+  <div id="settings-view" class="settings-page" hidden>
+    <a id="back-to-creator" class="top-link" href="/" aria-label="返回创作页">← 返回创作</a>
+    <section class="card settings-card" aria-labelledby="settings-title">
+      <div class="settings-head">
+        <h2 id="settings-title" class="settings-title">大模型设置</h2>
+        <p class="settings-intro">连接你自己的模型服务。Key 只保存在本机，页面永远只显示掩码。</p>
+      </div>
+      <div class="settings-status-block">
+        <div id="settings-chip" class="conn-chip state-neutral" role="status">未配置</div>
+        <p id="settings-chip-hint" class="conn-hint" role="status"></p>
+      </div>
+      <div class="settings-form-grid">
+        <div class="settings-field">
+          <label for="st-mode">服务商</label>
+          <select id="st-mode">
+            <option value="deepseek">DeepSeek（默认）</option>
+            <option value="responses">OpenAI Responses（支持联网研究）</option>
+            <option value="chat">通用 Chat 兼容</option>
+          </select>
+        </div>
+        <p id="st-deepseek-auto" class="deepseek-auto" hidden>模型与官方 API 地址已自动配置（<span id="st-auto-model">deepseek-flash</span>），<strong>只需填写 API Key</strong>。</p>
+        <div class="settings-field" id="st-model-field" hidden>
+          <label for="st-model">模型名称</label>
+          <input id="st-model" type="text" maxlength="200" placeholder="deepseek-flash">
+        </div>
+        <div class="settings-field">
+          <label for="st-key">API Key <span class="hint" id="st-key-hint">保存后仅显示掩码</span></label>
+          <div class="key-field">
+            <input id="st-key" type="password" autocomplete="off" placeholder="粘贴你的 Key">
+            <button id="toggle-key" class="key-toggle" type="button" aria-pressed="false">显示</button>
+          </div>
+        </div>
+        <div class="settings-field" id="st-chat-field" hidden>
+          <label for="st-chat">API 地址 <span id="st-chat-hint" class="hint">DeepSeek Chat Completions</span></label>
+          <input id="st-chat" type="text" placeholder="https://api.deepseek.com">
+        </div>
+      </div>
+      <details class="advanced">
+        <summary>高级设置</summary>
+        <div class="field-grid" style="margin-top:8px">
+          <div>
+            <label for="st-base">Responses 端点</label>
+            <input id="st-base" type="text" placeholder="https://api.openai.com/v1/responses">
+          </div>
+          <div>
+            <label for="st-endpoint">实际请求端点</label>
+            <input id="st-endpoint" type="text" readonly aria-readonly="true">
+          </div>
+        </div>
+      </details>
+      <details class="downloads-box">
+        <summary>下载位置</summary>
+        <div style="margin-top:6px">
+          <label for="st-dir">参考视频下载文件夹 <span class="hint">绝对路径，须已存在；留空表示暂不下载</span></label>
+          <input id="st-dir" type="text" placeholder="/Users/你/Movies/DeepTalk参考视频">
+        </div>
+      </details>
+      <div class="settings-actions">
+        <button id="settings-cancel" type="button">取消</button>
+        <button id="settings-test" type="button">测试连接</button>
+        <button id="settings-clear-key" class="danger-quiet" type="button">清除 API Key</button>
+        <span class="spacer"></span>
+        <button id="settings-save" type="button" class="primary">保存设置</button>
+        <span id="settings-status" class="muted" role="status"></span>
+      </div>
+      <p id="settings-connection" class="muted" role="status"></p>
+    </section>
+  </div>
+
+  <div id="creator-view">
+    <!-- Owner UX（issuecomment-6366157284）：ChatGPT 式多会话。
+         左侧历史会话侧栏（桌面常驻可收起，375px 抽屉）+ 右侧单一
+         连续对话工作区；「新建对话」零服务端调用，首次发送才创建会话。 -->
+    <div id="chat-layout" class="chat-layout">
+      <aside id="chat-sidebar" class="chat-sidebar" aria-label="历史会话">
+        <div class="sidebar-head">
+          <span class="sidebar-title">对话</span>
+          <button id="sidebar-close" class="quiet-btn" type="button" aria-label="收起侧栏">‹</button>
+        </div>
+        <button id="new-chat-btn" class="primary sidebar-new-chat" type="button">＋ 新建对话</button>
+        <nav id="chat-session-list" class="chat-session-list" aria-label="历史会话列表"></nav>
+      </aside>
+      <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
+      <div id="chat-main" class="chat-main">
+    <!-- Owner UX（issuecomment-6364369899）：单一连续对话工作区。
+         空态 = 安静居中欢迎 + 贴底 composer；有对话后 welcome 隐藏，
+         turns / 草稿 / 旧集入口都在同一个滚动流里，composer 永远
+         贴在视口底部 —— 绝不需要滚回顶部发下一条消息。 -->
+    <button id="sidebar-open" class="quiet-btn sidebar-open-btn" type="button" aria-label="打开历史会话侧栏">☰ 历史</button>
+    <div id="welcome-pane" class="welcome-pane">
+      <div class="hero-mark" aria-hidden="true"><span></span><i></i></div>
+      <p class="hero-kicker">自由聊天创作</p>
+      <h2 id="form-title">你想聊什么？</h2>
+      <p class="welcome-copy">像和朋友聊天一样讨论选题、观点或参考链接，聊到满意后一键把对话整理成可自由修改的原创草稿。<strong>发送会调用你在「设置」里配置的模型服务并按其计费</strong>；草稿未经研究与事实核查，不是正式口播稿。</p>
+      <p class="prompt-hints" aria-label="创作方向提示"><span>聊一个选题</span><span>说说你的观点</span><span>粘贴一个参考链接</span></p>
     </div>
-    <h2 id="form-title" style="margin-top:12px">① 输入选题，开启本集创作</h2>
-    <label for="topic">视频主题 <span class="hint">必填，最多 200 字</span></label>
-    <input id="topic" name="topic" type="text" maxlength="200" autocomplete="off"
-           placeholder="例如：莫斯科大学留学生旭日旗事件">
-    <label id="refs-label">B 站参考链接 <span class="hint">可选 0–5 条；用户链接优先保留，与搜索结果按 BV 号去重</span></label>
-    <div id="ref-list" aria-labelledby="refs-label"></div>
-    <button id="add-ref" type="button" aria-controls="ref-list">+ 添加参考链接</button>
-    <div class="actions">
-      <button id="search-btn" type="button" class="primary">开始本集创作</button>
+
+    <div id="conversation" class="conversation" hidden>
+      <div id="chat-thread" class="chat-thread" role="log" aria-live="polite"></div>
+
+      <!-- 草稿不再常驻占据阅读面（issuecomment-6366157284）：仅显示一个
+           小入口「草稿 vN · 未审核」，点击才展开编辑器/版本链；无草稿时
+           只留一个小的「整理为草稿」动作。刷新后默认收起。 -->
+      <div id="draft-entry-row" class="draft-entry-row" hidden>
+        <button id="draft-entry-btn" type="button" class="quiet-btn draft-entry-btn" hidden>📝 草稿</button>
+        <button id="draft-generate" type="button" class="quiet-btn draft-generate-btn">把对话整理为草稿（调用模型，可能计费）</button>
+        <span id="draft-status" class="muted" role="status"></span>
+      </div>
+      <details id="draft-drawer" class="card draft-drawer" hidden>
+        <summary>原创草稿（未审核）<span id="draft-drawer-meta" class="muted"></span></summary>
+        <p class="muted">草稿区别于正式口播稿：<strong>未经研究与事实核查</strong>，由你自由编辑；每次修改保存为新的不可变版本，可随时回看。</p>
+        <div id="draft-workspace">
+          <div id="draft-revisions" class="draft-revisions" role="tablist" aria-label="草稿历史版本"></div>
+          <label class="visually-hidden" for="draft-editor">草稿编辑区</label>
+          <textarea id="draft-editor" class="draft-editor" rows="14" aria-label="草稿正文，可自由编辑"></textarea>
+          <div class="actions">
+            <button id="draft-save" type="button" class="primary">保存修改（新版本）</button>
+            <button id="draft-copy" type="button">复制全文</button>
+            <button id="draft-export" type="button">导出 .md</button>
+            <span id="draft-meta" class="muted" role="status"></span>
+          </div>
+          <details class="gate-details">
+            <summary>草稿与正式审核的关系</summary>
+            <div class="gate-note" role="note">
+              <strong>进入正式审核：</strong>正式口播稿需要经过现有的「视频参考 → 独立研究与事实核查 → 选题卡 → 口播稿审核」门禁，全部保留不变；这篇草稿不会自动转换或替代任何正式审核步骤。需要正式成稿时，请走原有流程并使用你自己的模型 Key。
+            </div>
+          </details>
+        </div>
+      </details>
+    </div>
+
+    <!-- 旧集正式工作流的独立可选入口：无论是否已有聊天，都可展开查看，
+         但内容绝不混进聊天（B1 防护不变）。 -->
+    <details id="legacy-workbench-entry" class="card legacy-entry" hidden>
+      <summary>📂 查看既有正式工作流（与聊天相互独立）<span id="legacy-topic" class="muted"></span></summary>
+      <p class="muted">正式口播稿流程（视频参考 → 独立研究与事实核查 → 选题卡 → 审核成稿）与这里的自由聊天/草稿是两条独立路径，正式门禁保持不变；聊天内容不会混入正式工作流。</p>
+    </details>
+
+    <div id="run-notice">
       <span id="run-status" role="status"></span>
+      <div id="error-box" class="error-box" hidden></div>
     </div>
-    <div id="error-box" class="error-box" hidden></div>
-    <p class="muted" style="margin:10px 0 0">
-      点击后：自动检索最多 5 条相关高播放量 B 站参考 →（你授权后）本地下载分析 → 独立研究与事实核查 → 原创口播稿与独立审核。
-    </p>
-  </section>
 
-  <section id="result" class="card" hidden aria-live="polite" aria-labelledby="result-title">
-    <h2 id="result-title">本集参考候选</h2>
-    <p id="run-meta" class="muted meta-line"></p>
-    <p id="run-note" class="status-line"></p>
-    <div id="coverage" class="coverage muted" hidden></div>
-    <div id="rejections"></div>
-    <div id="candidates"></div>
-    <details id="limitations-wrap">
-      <summary>数据说明与限制</summary>
-      <ul id="limitations"></ul>
-    </details>
-  </section>
-
-  <section id="analysis" class="card" hidden aria-labelledby="analysis-title">
-    <h2 id="analysis-title">② 参考分析（合法授权范围内）</h2>
-    <p class="muted">
-      下载只在你明确授权后进行：文件保存到你设置的文件夹，仅供本地叙事分析（转写 + 手法提炼）。
-      参考视频永远不会被当作事实来源，也不会进入任何正式素材包。平台拒绝访问时会如实失败，不做绕过。
-    </p>
-    <div id="analysis-status" class="muted" role="status"></div>
-    <div id="analysis-list"></div>
-  </section>
-
-  <section id="research" class="card" hidden aria-labelledby="research-title">
-    <h2 id="research-title">③ 独立研究与事实核查</h2>
-    <p class="muted">
-      参考视频的叙事分析只用于启发结构。主张、证据与核查全部来自下面这些你提供的独立来源，
-      以及（responses 模式下）模型自己联网检索到的公开材料；事实核查会重新抓取来源原文并逐字核对引用。
-    </p>
-    <label for="research-question">研究问题 <span class="hint">可选，引导研究方向</span></label>
-    <input id="research-question" type="text" maxlength="300" placeholder="例如：这件事的证据层级是什么？公共讨论应该关注什么？">
-    <h3>研究来源（至少 1 条）</h3>
-    <div class="ref-row">
-      <input id="source-url" type="text" maxlength="500" placeholder="https://新闻/公告/原始材料链接">
-      <button id="source-add" type="button">抓取添加</button>
-    </div>
-    <details>
-      <summary>页面抓不到？粘贴正文代替</summary>
-      <div style="margin-top:8px">
-        <input id="source-title" type="text" maxlength="200" placeholder="来源标题（必填）">
-        <input id="source-orig-url" type="text" maxlength="500" placeholder="原链接（可选）" style="margin-top:8px">
-        <textarea id="source-text" maxlength="200000" placeholder="粘贴来源正文（至少 50 字）" style="margin-top:8px"></textarea>
-        <button id="source-add-text" type="button" style="margin-top:8px">保存粘贴来源</button>
+    <div id="stage-bar" class="stage-bar" hidden>
+      <div class="stage-meta">
+        <span id="session-topic" class="session-topic"></span>
+        <button id="new-episode" type="button" class="quiet-btn">＋ 新一集</button>
       </div>
-    </details>
-    <div id="source-list" class="src-list"></div>
-    <div class="tool-box" aria-labelledby="deepseek-tools-title">
-      <h3 id="deepseek-tools-title">可选：DeepSeek Search / Fetch</h3>
-      <p class="muted">这是一项可能产生计费的联网工具。只有你明确勾选并设置本集请求上限后才会调用；搜索摘要只是候选线索，搜索结果不是事实证据，选中的页面仍需作为来源保存并独立核查。</p>
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" id="deepseek-opt-in">
-        我明确同意本集使用 DeepSeek Search/Fetch（按下方上限计数）
-      </label>
-      <div class="field-grid">
+      <nav id="stage-nav" class="stage-nav" aria-label="本集阶段"></nav>
+    </div>
+
+    <section id="stage-references" class="card stage-card" hidden aria-labelledby="refs-title">
+      <h2 id="refs-title">① 视频参考</h2>
+      <p id="refs-readiness" class="muted" role="status"></p>
+      <div id="acquire-box"></div>
+      <div id="ref-cards"></div>
+    </section>
+
+    <section id="stage-research" class="card stage-card" hidden aria-labelledby="research-title">
+      <h2 id="research-title">② 观点与资料</h2>
+      <p class="muted">参考视频只用于启发叙事结构；下面的主张、证据与核查全部来自你提供的独立来源，事实核查会重抓原文逐字核对引用。</p>
+      <label for="research-question">研究问题 <span class="hint">可选，引导研究方向</span></label>
+      <input id="research-question" type="text" maxlength="300" placeholder="例如：这件事的证据层级是什么？公共讨论应该关注什么？">
+      <h3>研究来源（至少 1 条）</h3>
+      <div class="ref-row">
+        <input id="source-url" type="text" maxlength="500" placeholder="https://新闻/公告/原始材料链接">
+        <button id="source-add" type="button">抓取添加</button>
+      </div>
+      <details>
+        <summary>页面抓不到？粘贴正文代替</summary>
+        <div style="margin-top:8px">
+          <input id="source-title" type="text" maxlength="200" placeholder="来源标题（必填）">
+          <input id="source-orig-url" type="text" maxlength="500" placeholder="原链接（可选）" style="margin-top:8px">
+          <textarea id="source-text" maxlength="200000" placeholder="粘贴来源正文（至少 50 字）" style="margin-top:8px"></textarea>
+          <button id="source-add-text" type="button" style="margin-top:8px">保存粘贴来源</button>
+        </div>
+      </details>
+      <div id="source-list" class="src-list"></div>
+      <details class="tool-box" aria-labelledby="deepseek-tools-title">
+        <summary id="deepseek-tools-title">可选：联网搜索线索（DeepSeek Search / Fetch，可能产生计费）</summary>
+        <div style="margin-top:8px">
+          <p class="muted">这是一项可能产生计费的联网工具。只有你明确勾选并设置本集请求上限后才会调用；搜索结果不是事实证据，选中的页面仍需保存为来源并独立核查。</p>
+          <label style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="deepseek-opt-in">
+            我明确同意本集使用 DeepSeek Search/Fetch（按下方上限计数）
+          </label>
+          <div class="field-grid">
+            <div>
+              <label for="deepseek-query">Search 问题</label>
+              <input id="deepseek-query" type="text" maxlength="500" placeholder="例如：官方公告与预算原文">
+            </div>
+            <div>
+              <label for="deepseek-cap">本集请求上限（1–20）</label>
+              <input id="deepseek-cap" type="number" min="1" max="20" value="5" inputmode="numeric">
+            </div>
+          </div>
+          <div class="actions" style="margin-top:10px">
+            <button id="deepseek-search" type="button">搜索（可能计费）</button>
+            <span id="deepseek-budget" class="muted" role="status">本集尚未启用 DeepSeek Search</span>
+          </div>
+          <div id="deepseek-results" class="src-list"></div>
+        </div>
+      </details>
+      <div id="research-readiness" class="muted" role="status" style="margin-top:12px"></div>
+      <div id="partial-override-box" hidden style="margin-top:10px;padding:10px;border:1px solid #d9d9d9;border-radius:8px">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="partial-allow">
+          允许部分分析（将如实记录为部分分析，不等同完整五方对比）
+        </label>
+        <textarea id="partial-reason" maxlength="500" placeholder="说明理由（至少 10 字，将逐字存档），例如：本地转写耗时过长，先基于已完成的 3 条参考继续研究" style="margin-top:8px"></textarea>
+      </div>
+      <div class="actions">
+        <button id="research-generate" type="button" class="primary">生成研究草稿</button>
+        <button id="fact-check-run" type="button">执行独立核查</button>
+        <span id="research-status" class="muted" role="status"></span>
+      </div>
+      <div id="research-summary"></div>
+      <div id="research-approve-box" hidden>
+        <label for="research-confirmation">批准进入写稿（需你的明确说明）</label>
+        <textarea id="research-confirmation" maxlength="2000" placeholder="我确认已阅读本研究的质量摘要与事实核查结论，批准进入写稿。"></textarea>
+        <button id="research-approve" type="button" class="primary" style="margin-top:8px">批准研究</button>
+      </div>
+    </section>
+
+    <section id="stage-script" class="card stage-card" hidden aria-labelledby="script-title">
+      <h2 id="script-title">③ 原创口播稿</h2>
+      <div id="thesis-area">
+        <p id="thesis-wait" class="muted">完成②的研究批准后，在这里生成选题卡。</p>
+        <div id="thesis-controls" hidden>
+          <h3>选题卡（本期内容方向）</h3>
+          <p class="muted">选题卡是本集的写作纲领：核心问题、核心论点、差异化角度与钩子承诺，先独立审核，再由你确认进入写稿。</p>
+          <div class="actions" style="margin-top:4px">
+            <button id="thesis-generate" type="button" class="primary">生成选题卡</button>
+            <button id="thesis-review" type="button">独立审核选题卡</button>
+            <span id="thesis-status" class="muted" role="status"></span>
+          </div>
+          <div id="thesis-summary"></div>
+          <div id="thesis-approve-box" hidden>
+            <label for="thesis-confirmation">人工确认（需包含「确认」与「进入写稿」）</label>
+            <textarea id="thesis-confirmation" maxlength="2000" placeholder="我确认本期内容方向与选题卡一致，确认进入写稿。"></textarea>
+            <button id="thesis-approve" type="button" class="primary" style="margin-top:8px">确认进入写稿</button>
+          </div>
+        </div>
+      </div>
+      <div id="script-area">
+        <p id="script-wait" class="muted">选题卡确认后，在这里生成口播稿。</p>
+        <div id="script-controls" hidden>
+          <h3>口播稿</h3>
+          <p class="muted">模型基于已批准的选题卡独立写稿，经独立审核 Gate 校验，通过后全文交付；未通过时不会交付。</p>
+          <div class="actions" style="margin-top:4px">
+            <button id="script-copy" type="button" hidden>复制全文</button>
+            <button id="script-generate" type="button" class="primary">生成并审核口播稿</button>
+            <span id="script-status" class="muted" role="status"></span>
+          </div>
+          <div id="script-summary"></div>
+          <div id="script-issues"></div>
+          <div id="script-body" class="script-box" hidden></div>
+          <details id="script-archive" class="script-archive" hidden>
+            <summary>文稿存档位置（本地文件）</summary>
+            <p id="script-meta" class="muted"></p>
+          </details>
+          <div class="actions" id="script-next-actions" hidden>
+            <button id="audio-continue" type="button">继续做音频与素材 →</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="stage-audio" class="card stage-card" hidden aria-labelledby="audio-title">
+      <h2 id="audio-title">音频与素材</h2>
+      <p class="muted">
+        导入你本人录制或已获授权的口播音频/视频。交付使用真实本地 ASR 与对齐，生成时间轴与 Edit Map；
+        不会自动剪辑、伪造人物画面或生成成片。
+      </p>
+      <div class="audio-grid">
         <div>
-          <label for="deepseek-query">Search 问题</label>
-          <input id="deepseek-query" type="text" maxlength="500" placeholder="例如：官方公告与预算原文">
+          <label for="audio-file">口播文件（WAV / MP3 / M4A / AAC / FLAC / MP4 / MOV）</label>
+          <input id="audio-file" type="file" accept=".wav,.mp3,.m4a,.aac,.flac,.mp4,.mov,.m4v,audio/*,video/*">
         </div>
         <div>
-          <label for="deepseek-cap">本集请求上限（1–20）</label>
-          <input id="deepseek-cap" type="number" min="1" max="20" value="5" inputmode="numeric">
+          <label for="audio-origin">来源声明</label>
+          <select id="audio-origin">
+            <option value="owner_made">我本人录制</option>
+            <option value="external_voice_authorized">外部配音，已获授权</option>
+            <option value="unknown">来源未知（仅保留并等待审核）</option>
+          </select>
         </div>
       </div>
-      <div class="actions" style="margin-top:10px">
-        <button id="deepseek-search" type="button">搜索（可能计费）</button>
-        <span id="deepseek-budget" class="muted" role="status">本集尚未启用 DeepSeek Search</span>
+      <div class="actions">
+        <button id="audio-import" type="button" class="primary">导入本地口播</button>
+        <button id="audio-deliver" type="button">运行 ASR / 对齐并生成 Edit Map</button>
+        <span id="audio-status" class="muted" role="status"></span>
       </div>
-      <div id="deepseek-results" class="src-list"></div>
-    </div>
-    <div id="research-readiness" class="muted" role="status"></div>
-    <div id="partial-override-box" hidden style="margin-top:10px;padding:10px;border:1px solid #d9d9d9;border-radius:8px">
-      <label style="display:flex;align-items:center;gap:6px">
-        <input type="checkbox" id="partial-allow">
-        允许部分分析（将如实记录为部分分析，不等同完整五方对比）
-      </label>
-      <textarea id="partial-reason" maxlength="500" placeholder="说明理由（至少 10 字，将逐字存档），例如：本地转写耗时过长，先基于已完成的 3 条参考继续研究" style="margin-top:8px"></textarea>
-    </div>
-    <div class="actions">
-      <button id="research-generate" type="button" class="primary">生成研究草稿</button>
-      <button id="fact-check-run" type="button">执行独立核查</button>
-      <span id="research-status" class="muted" role="status"></span>
-    </div>
-    <div id="research-summary"></div>
-    <div id="research-approve-box" hidden>
-      <label for="research-confirmation">批准进入写稿（需你的明确说明）</label>
-      <textarea id="research-confirmation" maxlength="2000" placeholder="我确认已阅读本研究的质量摘要与事实核查结论，批准进入写稿。"></textarea>
-      <button id="research-approve" type="button" class="primary" style="margin-top:8px">批准研究</button>
-    </div>
-  </section>
+      <div id="audio-import-summary" class="muted"></div>
+      <audio id="audio-preview" controls preload="metadata" hidden style="width:100%;margin-top:8px"></audio>
+      <div id="audio-error" class="audio-error" hidden></div>
+      <div id="audio-warning" class="audio-warning" hidden></div>
+      <h3>时间轴与视觉缺口</h3>
+      <div id="audio-timeline-empty" class="muted">尚未交付时间轴。</div>
+      <ul id="audio-timeline" class="timeline-list"></ul>
+      <ul id="audio-gaps" class="gap-list"></ul>
+      <h3>交付工件</h3>
+      <ul id="audio-artifacts" class="artifact-list"></ul>
+    </section>
 
-  <section id="thesis" class="card" hidden aria-labelledby="thesis-title">
-    <h2 id="thesis-title">④ 选题卡（本期内容方向）</h2>
-    <div class="actions" style="margin-top:4px">
-      <button id="thesis-generate" type="button" class="primary">生成选题卡</button>
-      <button id="thesis-review" type="button">独立审核选题卡</button>
-      <span id="thesis-status" class="muted" role="status"></span>
-    </div>
-    <div id="thesis-summary"></div>
-    <div id="thesis-approve-box" hidden>
-      <label for="thesis-confirmation">人工确认（需包含「确认」与「进入写稿」）</label>
-      <textarea id="thesis-confirmation" maxlength="2000" placeholder="我确认本期内容方向与选题卡一致，确认进入写稿。"></textarea>
-      <button id="thesis-approve" type="button" class="primary" style="margin-top:8px">确认进入写稿</button>
-    </div>
-  </section>
-
-  <section id="script" class="card" hidden aria-labelledby="script-title">
-    <h2 id="script-title">⑤ 原创口播稿（独立审核）</h2>
-    <div class="actions" style="margin-top:4px">
-      <button id="script-generate" type="button" class="primary">生成并审核口播稿</button>
-      <button id="script-copy" type="button" hidden>复制全文</button>
-      <span id="script-status" class="muted" role="status"></span>
-    </div>
-    <div id="script-summary"></div>
-    <div id="script-issues"></div>
-    <div id="script-body" class="script-box" hidden></div>
-    <p id="script-meta" class="muted"></p>
-  </section>
-
-  <section id="audio-delivery" class="card" hidden aria-labelledby="audio-delivery-title">
-    <h2 id="audio-delivery-title">⑥ 音频与素材时间轴交付</h2>
-    <p class="muted">
-      选择你已录制或已获授权的本地口播音频/视频。服务器只保存到本集私有目录，并记录来源、大小与 SHA-256。
-      点击交付后使用真实本地 ASR、对齐和现有 Asset Pack / Edit Map 引擎；不会自动剪辑、伪造人物画面或生成成片。
-    </p>
-    <div class="audio-grid">
-      <div>
-        <label for="audio-file">口播文件（WAV / MP3 / M4A / AAC / FLAC / MP4 / MOV）</label>
-        <input id="audio-file" type="file" accept=".wav,.mp3,.m4a,.aac,.flac,.mp4,.mov,.m4v,audio/*,video/*">
+    <!-- 贴底 composer（Owner UX）：空态与对话态共用同一输入区，
+         sticky 在视口底部；发送失败/404 时未发送内容恢复到这里。 -->
+    <div id="composer-dock" class="composer-dock">
+      <p id="hero-new-note" class="hero-new-note" hidden><strong>新一集</strong>：上一集仍然保留，确认主题后才会开启新的工作流。<button id="cancel-new-episode" class="quiet-btn" type="button">取消</button></p>
+      <p id="chat-status" class="muted chat-status" role="status"></p>
+      <div class="hero-composer">
+        <label class="visually-hidden" for="topic">聊天输入，最多 200 字</label>
+        <textarea id="topic" name="topic" maxlength="200" autocomplete="off" rows="3"
+                  placeholder="聊聊你想做的选题、你的观点，或直接粘贴问题…"></textarea>
+        <div class="composer-toolbar">
+          <div class="composer-left">
+            <button id="add-ref" type="button" class="quiet-btn" aria-label="添加参考链接">＋ <span>添加参考</span></button>
+            <span class="composer-hint">⌘ / Ctrl + Enter 发送</span>
+          </div>
+          <div class="composer-right">
+            <button id="chat-retry" type="button" class="quiet-btn" hidden>重发上一条</button>
+            <button id="chat-stop" type="button" class="quiet-btn" hidden>停止</button>
+            <button id="search-btn" type="button" class="primary" aria-label="发送消息"><span class="button-label">发送</span><span class="button-icon" aria-hidden="true">↑</span></button>
+          </div>
+        </div>
       </div>
-      <div>
-        <label for="audio-origin">来源声明</label>
-        <select id="audio-origin">
-          <option value="owner_made">我本人录制</option>
-          <option value="external_voice_authorized">外部配音，已获授权</option>
-          <option value="unknown">来源未知（仅保留并等待审核）</option>
-        </select>
-      </div>
+      <div id="ref-list" aria-label="已有参考链接"></div>
     </div>
-    <div class="actions">
-      <button id="audio-import" type="button" class="primary">导入本地口播</button>
-      <button id="audio-deliver" type="button">运行 ASR / 对齐并生成 Edit Map</button>
-      <span id="audio-status" class="muted" role="status"></span>
     </div>
-    <div id="audio-import-summary" class="muted"></div>
-    <audio id="audio-preview" controls preload="metadata" hidden style="width:100%;margin-top:8px"></audio>
-    <div id="audio-error" class="audio-error" hidden></div>
-    <div id="audio-warning" class="audio-warning" hidden></div>
-    <h3>时间轴与视觉缺口</h3>
-    <div id="audio-timeline-empty" class="muted">尚未交付时间轴。</div>
-    <ul id="audio-timeline" class="timeline-list"></ul>
-    <ul id="audio-gaps" class="gap-list"></ul>
-    <h3>交付工件</h3>
-    <ul id="audio-artifacts" class="artifact-list"></ul>
-  </section>
+    </div>
+  </div>
 </main>
-
 <footer class="site">DeepTalk Studio · 参考视频仅用于研究叙事结构，不作为事实来源 · 排序不等同于站内整体排名</footer>
 
 <script>
@@ -426,17 +924,12 @@
 
 (function () {
   var MAX_REFS = 5;
-  var REASON_TEXT = {
-    malformed_reference: "格式无法识别",
-    not_bilibili_url: "不是 B 站链接",
-    short_link_unsupported: "暂不支持 b23.tv 短链，请粘贴完整链接",
-    duplicate_bvid: "与前面某条重复",
-    exceeds_max_candidates: "超出最多 5 条上限",
-    video_invalid: "视频无效",
-    video_unavailable: "视频已失效或不可见",
-    video_restricted: "视频受限，无法访问"
-  };
   var DEFAULT_AUTHORIZATION = "我授权仅在本地对你下载研究使用本集所选参考视频，文件仅保存在我指定的文件夹，不重新分发；我确认拥有这些视频的合法观看权限。";
+  var TOPIC_DRAFT_KEY = 'deeptalk.topic-draft';
+  var SELECTED_CHAT_KEY = 'deeptalk.chat-session';
+  var STAGES = ['stage-references', 'stage-research', 'stage-script', 'stage-audio'];
+  var CREATOR_TITLE = 'DeepTalk · 创作';
+  var SETTINGS_TITLE = '大模型设置 · DeepTalk';
 
   var topicEl = document.getElementById('topic');
   var addBtn = document.getElementById('add-ref');
@@ -444,25 +937,39 @@
   var searchBtn = document.getElementById('search-btn');
   var runStatus = document.getElementById('run-status');
   var errorBox = document.getElementById('error-box');
-  var resultCard = document.getElementById('result');
-  var runMeta = document.getElementById('run-meta');
-  var runNote = document.getElementById('run-note');
-  var coverage = document.getElementById('coverage');
-  var rejectionsEl = document.getElementById('rejections');
-  var candidatesEl = document.getElementById('candidates');
-  var limitationsEl = document.getElementById('limitations');
-  var analysisCard = document.getElementById('analysis');
-  var researchCard = document.getElementById('research');
-  var thesisCard = document.getElementById('thesis');
-  var scriptCard = document.getElementById('script');
-  var audioCard = document.getElementById('audio-delivery');
+  var welcomePane = document.getElementById('welcome-pane');
+  var conversationEl = document.getElementById('conversation');
+  var stageBar = document.getElementById('stage-bar');
+  var sessionTopic = document.getElementById('session-topic');
+  var newEpisodeBtn = document.getElementById('new-episode');
+  var stageNav = document.getElementById('stage-nav');
+  var refsReadiness = document.getElementById('refs-readiness');
+  var acquireBox = document.getElementById('acquire-box');
+  var refCards = document.getElementById('ref-cards');
+  var creatorView = document.getElementById('creator-view');
+  var settingsView = document.getElementById('settings-view');
+  var settingsLink = document.getElementById('settings-link');
+  var backLink = document.getElementById('back-to-creator');
+  var settingsCancel = document.getElementById('settings-cancel');
+  var toggleKeyButton = document.getElementById('toggle-key');
+  var heroNewNote = document.getElementById('hero-new-note');
+  var cancelNewEpisodeButton = document.getElementById('cancel-new-episode');
   var audioFile = document.getElementById('audio-file');
   var audioOrigin = document.getElementById('audio-origin');
   var audioImportButton = document.getElementById('audio-import');
   var audioDeliverButton = document.getElementById('audio-deliver');
-  var baseTitle = document.title;
+  var audioContinueButton = document.getElementById('audio-continue');
   var busyTimer = null;
   var currentSession = null;
+  var focusedStage = null;
+  var lastAuthorization = DEFAULT_AUTHORIZATION;
+  var renderedScriptKey = null;
+  var scriptResultSessionId = null;
+  var newEpisodeMode = false;
+  var previousSessionForNewEpisode = null;
+  var previousFocusedStage = null;
+  var previousTopicDraft = '';
+  var settingsPage = window.location.pathname === '/settings';
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -476,7 +983,7 @@
   function syncAddButton() {
     addBtn.disabled = refCount() >= MAX_REFS;
     addBtn.textContent = refCount() >= MAX_REFS
-      ? '已到 5 条上限' : '+ 添加参考链接';
+      ? '已到 5 条上限' : '＋ 添加参考';
   }
 
   function addRefInput() {
@@ -522,13 +1029,29 @@
 
   function isBusy() { return busyTimer !== null; }
 
+  function currentTitle() { return settingsPage ? SETTINGS_TITLE : CREATOR_TITLE; }
+
+  function clearScriptResult() {
+    renderedScriptKey = null;
+    scriptResultSessionId = null;
+    document.getElementById('script-summary').textContent = '';
+    document.getElementById('script-issues').textContent = '';
+    document.getElementById('script-status').textContent = '';
+    document.getElementById('script-body').textContent = '';
+    document.getElementById('script-body').hidden = true;
+    document.getElementById('script-copy').hidden = true;
+    document.getElementById('script-archive').hidden = true;
+    document.getElementById('script-next-actions').hidden = true;
+  }
+
   function setBusy(busy, message) {
     searchBtn.disabled = busy;
     topicEl.disabled = busy;
     var actionControls = document.querySelectorAll(
-      '#analysis button, #analysis textarea, #research button, #research input, #research textarea, ' +
-      '#thesis button, #thesis textarea, #script button, #audio-delivery button, ' +
-      '#audio-delivery input, #audio-delivery select'
+      '#stage-references button, #stage-references textarea, ' +
+      '#stage-research button, #stage-research input, #stage-research textarea, ' +
+      '#stage-script button, #stage-script textarea, ' +
+      '#stage-audio button, #stage-audio input, #stage-audio select'
     );
     actionControls.forEach(function (node) { node.disabled = busy; });
     if (busy) {
@@ -536,21 +1059,23 @@
       document.querySelectorAll('.card').forEach(function (card) {
         if (!card.hidden) { card.classList.add('stale'); }
       });
-      document.getElementById('settings-panel').setAttribute('inert', 'inert');
+      if (settingsLink) { settingsLink.setAttribute('inert', 'inert'); }
       var startedAt = Date.now();
       var renderProgress = function () {
         var seconds = Math.floor((Date.now() - startedAt) / 1000);
         runStatus.textContent = (message || '处理中…') +
           ' 已用 ' + seconds + ' 秒（本机/模型服务逐条执行，可能需要 1–10 分钟，请勿重复提交）';
       };
-      document.title = '处理中… · ' + baseTitle;
+      document.title = '处理中… · ' + currentTitle();
       renderProgress();
       busyTimer = window.setInterval(renderProgress, 1000);
     } else {
       if (busyTimer !== null) { window.clearInterval(busyTimer); busyTimer = null; }
-      document.querySelectorAll('.card').forEach(function (card) { card.classList.remove('stale'); });
-      document.getElementById('settings-panel').removeAttribute('inert');
-      document.title = baseTitle;
+      document.querySelectorAll('.card').forEach(function (card) {
+        card.classList.remove('stale');
+      });
+      if (settingsLink) { settingsLink.removeAttribute('inert'); }
+      document.title = currentTitle();
       runStatus.textContent = message || '';
     }
   }
@@ -584,202 +1109,417 @@
   }
 
   function getState() {
-    return fetch('/api/workbench/state').then(function (resp) { return resp.json(); });
+    var url = '/api/workbench/state';
+    // 多会话：?chat=<id> 返回显式选中会话（后端绝不静默回落 latest）。
+    // 「新建对话」模式（尚未发送）不携带选中 id，chat 区由本地渲染空态。
+    if (!newChatMode && selectedSessionId) {
+      url += '?chat=' + encodeURIComponent(selectedSessionId);
+    }
+    return fetch(url).then(function (resp) { return resp.json(); });
   }
 
   function refresh() {
-    return getState().then(renderState);
+    // P1（review 5629701467）：每次发起 refresh 代际 +1，被更新请求超越的
+    // 迟到响应直接丢弃 —— 先点 A（慢响应）再点 B（快响应）时，A 的迟到
+    // 响应绝不能把选中会话静默翻回 A，后续发送永远作用于当前选中会话。
+    var gen = ++refreshGeneration;
+    return getState().then(function (state) {
+      if (gen !== refreshGeneration) { return; }
+      renderState(state);
+    });
   }
 
-  // ---- state rendering ----
+  // Owner UX（issuecomment-6364369899）：空态内容不足一屏时 creator-view
+  // 精确撑满「视口 − 顶栏」，让贴底 composer 恰好落在视口底部（不猜测
+  // header 高度，加载/resize 时按实测重算；等效移动端动态视口语义）。
+  function fitCreatorHeight() {
+    var headerEl = document.querySelector('header');
+    var headerH = headerEl ? headerEl.getBoundingClientRect().height : 0;
+    creatorView.style.minHeight = Math.max(120, window.innerHeight - headerH) + 'px';
+  }
+  fitCreatorHeight();
+  window.addEventListener('resize', fitCreatorHeight);
+
+  // ---- 两页导航（同一文档内切换，不刷新页面，创作进度不丢） ----
+
+  function applyView() {
+    settingsPage = window.location.pathname === '/settings';
+    creatorView.hidden = settingsPage;
+    settingsView.hidden = !settingsPage;
+    if (settingsLink) { settingsLink.hidden = settingsPage; }
+    document.title = currentTitle();
+  }
+
+  function navigate(path) {
+    if (window.location.pathname === path) { applyView(); return; }
+    window.history.pushState({}, '', path);
+    applyView();
+  }
+
+  settingsLink.addEventListener('click', function (event) {
+    event.preventDefault();
+    navigate('/settings');
+  });
+  backLink.addEventListener('click', function (event) {
+    event.preventDefault();
+    navigate('/');
+  });
+  settingsCancel.addEventListener('click', function () { navigate('/'); });
+  window.addEventListener('popstate', applyView);
+
+  toggleKeyButton.addEventListener('click', function () {
+    var keyInput = document.getElementById('st-key');
+    var visible = keyInput.type === 'text';
+    keyInput.type = visible ? 'password' : 'text';
+    toggleKeyButton.textContent = visible ? '显示' : '隐藏';
+    toggleKeyButton.setAttribute('aria-pressed', visible ? 'false' : 'true');
+  });
+
+  // ---- 选题草稿：切换页面/刷新后不丢已输入的主题 ----
+
+  try { topicEl.value = window.localStorage.getItem(TOPIC_DRAFT_KEY) || ''; } catch (err) { }
+  topicEl.addEventListener('input', function () {
+    try { window.localStorage.setItem(TOPIC_DRAFT_KEY, topicEl.value); } catch (err) { }
+  });
+  function clearTopicDraft() {
+    try { window.localStorage.removeItem(TOPIC_DRAFT_KEY); } catch (err) { }
+    topicEl.value = '';
+  }
+
+  // ---- 状态渲染 ----
 
   function renderState(state) {
     renderSettings(state.settings || {});
-    currentSession = state.session || null;
-    var step = currentSession ? currentSession.status : 'references';
-    if (currentSession && currentSession.audio_delivery &&
-        currentSession.audio_delivery.status !== 'not_started') {
-      step = 'audio';
-    } else if (currentSession && currentSession.audio && currentSession.audio.status === 'imported') {
-      step = 'audio';
-    }
-    renderSteps(step);
-    if (!currentSession) {
-      renderAudioDelivery(null);
+    renderSessions(state.sessions || []);
+    // 新建对话模式下 chat 区为本地空态（零服务端副作用）；否则渲染
+    // ?chat=<id> 返回的显式选中会话
+    renderChat(newChatMode ? null : (state.chat || null));
+    var incomingSession = state.session || null;
+    var sessionChanged = currentSession && incomingSession &&
+      currentSession.session_id !== incomingSession.session_id;
+    if (sessionChanged) { clearScriptResult(); }
+    currentSession = incomingSession;
+    if (newEpisodeMode) {
+      stageBar.hidden = true;
+      STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
+      heroNewNote.hidden = false;
+      legacyEntry.hidden = true;
       return;
     }
-    renderCandidates(currentSession);
-    renderAnalysis(currentSession);
+    // Owner UX（issuecomment-6364369899）：单一对话工作区 —— welcome/
+    // conversation 的显隐由聊天 turns 驱动（renderChat → updateWelcomeVisibility），
+    // 这里只负责 canonical 阶段区。Chat-first（Nexus B1）：即使存在历史
+    // 正式会话，其 stage-bar/表单也**默认隐藏**，只显示一个明确分离的
+    // 折叠入口，绝不混进当前聊天。
+    if (!currentSession) {
+      stageBar.hidden = true;
+      heroNewNote.hidden = true;
+      focusedStage = null;
+      STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
+      legacyEntry.hidden = true;
+      return;
+    }
+    heroNewNote.hidden = true;
+    legacyTopic.textContent = '本集：' + currentSession.topic;
+    if (!legacyEntry.open) {
+      stageBar.hidden = true;
+      STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
+      legacyEntry.hidden = false;
+      return;
+    }
+    sessionTopic.textContent = '本集：' + currentSession.topic;
+    renderReferences(currentSession);
     renderResearch(currentSession);
     renderThesis(currentSession);
     renderScript(currentSession);
     renderAudioDelivery(currentSession);
+    renderStageTabs();
+    focusStage(focusedStage || stageForSession(currentSession), false);
   }
 
-  function renderSteps(status) {
-    var order = ['references', 'analysis', 'research', 'thesis', 'script', 'audio'];
-    var index = order.indexOf(status);
-    if (index === -1) { index = 0; }
-    document.querySelectorAll('#flow-steps .step').forEach(function (step) {
-      var at = order.indexOf(step.getAttribute('data-step'));
-      step.className = 'step' + (at === index ? ' current' : (at < index ? ' done' : ''));
+  function stageForSession(session) {
+    if (!session) { return 'stage-references'; }
+    var status = session.status;
+    if (status === 'research') { return 'stage-research'; }
+    if (status === 'thesis' || status === 'script') { return 'stage-script'; }
+    if (audioActive(session)) { return 'stage-audio'; }
+    return 'stage-references';
+  }
+
+  function researchApproved(session) {
+    return ((session.research || {}).status === 'ready_for_script');
+  }
+
+  function thesisApproved(session) {
+    return ((session.thesis || {}).status === 'approved_for_script');
+  }
+
+  function scriptReviewed(session) {
+    return ((session.script || {}).status === 'reviewed');
+  }
+
+  function audioActive(session) {
+    var audio = session.audio || {};
+    var delivery = session.audio_delivery || {};
+    return audio.status === 'imported' ||
+      (delivery.status && delivery.status !== 'not_started');
+  }
+
+  function focusStage(stageId, scroll) {
+    focusedStage = stageId;
+    STAGES.forEach(function (id) {
+      var node = document.getElementById(id);
+      if (node) { node.hidden = id !== stageId; }
+    });
+    stageNav.querySelectorAll('button').forEach(function (button) {
+      button.classList.toggle('active', button.getAttribute('data-stage') === stageId);
+    });
+    if (scroll && !creatorView.hidden) {
+      var target = document.getElementById(stageId);
+      if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    }
+  }
+
+  function renderStageTabs() {
+    stageNav.textContent = '';
+    var readiness = currentSession.references_readiness || {};
+    var refsDone = (readiness.eligible || 0) > 0 && (readiness.unresolved || 0) === 0;
+    var tabs = [
+      ['stage-references', '① 视频参考', refsDone],
+      ['stage-research', '② 观点与资料', researchApproved(currentSession)],
+      ['stage-script', '③ 原创口播稿', scriptReviewed(currentSession)]
+    ];
+    if (audioActive(currentSession)) {
+      tabs.push(['stage-audio', '音频与素材',
+        ((currentSession.audio_delivery || {}).status === 'delivered')]);
+    }
+    tabs.forEach(function (entry) {
+      var button = el('button', entry[2] ? 'done' : null, (entry[2] ? '✓ ' : '') + entry[1]);
+      button.type = 'button';
+      button.setAttribute('data-stage', entry[0]);
+      button.addEventListener('click', function () { focusStage(entry[0], true); });
+      stageNav.appendChild(button);
     });
   }
 
-  function renderCandidates(session) {
-    var first = !resultCard.hidden;
-    resultCard.hidden = false;
-    runMeta.textContent = '';
-    runNote.textContent = '';
-    rejectionsEl.textContent = '';
-    candidatesEl.textContent = '';
-    coverage.hidden = false;
-    coverage.textContent = '本集主题：' + session.topic + ' · 参考 ' + session.references.length + ' 条';
-    session.references.forEach(function (c) {
-      var item = el('div', 'candidate');
-      var head = el('div');
-      head.appendChild(el('span', 'badge ' + (c.user_supplied ? 'badge-user' : 'badge-search'),
-          c.user_supplied ? '用户链接' : '搜索发现'));
-      var link = el('a', 'title-link', c.title || '（标题不可用）');
-      link.href = c.url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      head.appendChild(link);
-      item.appendChild(head);
-      var grid = el('div', 'meta-grid');
-      if (c.view_count_status === 'verified' && typeof c.view_count === 'number') {
-        grid.appendChild(el('span', 'item views-verified', c.view_count.toLocaleString('zh-CN') + ' 播放（已核验）'));
-      } else if (c.view_count_status === 'unavailable') {
-        grid.appendChild(el('span', 'item views-unknown', '播放量不可用（元数据获取受限）'));
-      } else {
-        grid.appendChild(el('span', 'item views-unknown', '播放量未知（未核验，不采用搜索页数字）'));
+  function enterNewEpisode() {
+    previousSessionForNewEpisode = currentSession;
+    previousFocusedStage = focusedStage;
+    previousTopicDraft = topicEl.value;
+    newEpisodeMode = true;
+    clearRequestError();
+    stageBar.hidden = true;
+    STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
+    heroNewNote.hidden = false;
+    topicEl.value = '';
+    try { window.localStorage.removeItem(TOPIC_DRAFT_KEY); } catch (err) { }
+    topicEl.focus();
+    topicEl.select();
+  }
+
+  function cancelNewEpisode() {
+    if (!newEpisodeMode) { return; }
+    newEpisodeMode = false;
+    currentSession = previousSessionForNewEpisode;
+    previousSessionForNewEpisode = null;
+    topicEl.value = previousTopicDraft;
+    previousTopicDraft = '';
+    heroNewNote.hidden = true;
+    updateWelcomeVisibility();
+    if (!currentSession) {
+      stageBar.hidden = true;
+      STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
+      return;
+    }
+    stageBar.hidden = false;
+    sessionTopic.textContent = '本集：' + currentSession.topic;
+    renderReferences(currentSession);
+    renderResearch(currentSession);
+    renderThesis(currentSession);
+    renderScript(currentSession);
+    renderAudioDelivery(currentSession);
+    renderStageTabs();
+    focusStage(previousFocusedStage || stageForSession(currentSession), false);
+    previousFocusedStage = null;
+  }
+
+  newEpisodeBtn.addEventListener('click', enterNewEpisode);
+  cancelNewEpisodeButton.addEventListener('click', cancelNewEpisode);
+
+  /* The old session is not replaced until the new start request succeeds. */
+  function clearNewEpisodeModeAfterStart() {
+    newEpisodeMode = false;
+    previousSessionForNewEpisode = null;
+    previousFocusedStage = null;
+    previousTopicDraft = '';
+    heroNewNote.hidden = true;
+  }
+
+  // ---- ① 视频参考（候选 + 授权分析合一） ----
+
+  function referenceStatusBadge(status) {
+    return {
+      not_analyzed: ['badge-wait', '未分析'],
+      downloaded: ['badge-progress', '已下载待分析'],
+      analyzed: ['badge-analyzed', '已分析'],
+      failed: ['badge-failed', '下载失败'],
+      unverified: ['badge-progress', '转写完成，模型未验证'],
+      analysis_failed: ['badge-failed', '分析失败，可重试'],
+      transcribing: ['badge-progress', '转写中']
+    }[status] || ['badge-wait', '未分析'];
+  }
+
+  function referenceCard(c) {
+    var item = el('div', 'ref-card');
+    var status = c.study_status || 'not_analyzed';
+    var badge = referenceStatusBadge(status);
+    var head = el('div');
+    head.appendChild(el('span', 'badge ' + badge[0], badge[1]));
+    if (c.user_supplied) { head.appendChild(el('span', 'badge badge-user', '用户链接')); }
+    var link = el('a', 'title-link', c.title || '（标题不可用）');
+    link.href = c.url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.title = c.title || '';
+    head.appendChild(link);
+    item.appendChild(head);
+
+    var meta = el('div', 'ref-meta');
+    if (c.view_count_status === 'verified' && typeof c.view_count === 'number') {
+      var views = el('span', null);
+      views.appendChild(document.createTextNode(c.view_count.toLocaleString('zh-CN') + ' 播放 '));
+      views.appendChild(el('span', 'req-note', '（已核验）'));
+      meta.appendChild(views);
+    } else if (c.view_count_status === 'unavailable') {
+      var unavailable = el('span', null);
+      unavailable.appendChild(document.createTextNode('播放量不可用 '));
+      unavailable.appendChild(el('span', 'req-note', '（元数据获取受限）'));
+      meta.appendChild(unavailable);
+    } else {
+      var unknown = el('span', null);
+      unknown.appendChild(document.createTextNode('播放量未知 '));
+      unknown.appendChild(el('span', 'req-note', '（未核验，不采用搜索页数字）'));
+      meta.appendChild(unknown);
+    }
+    meta.appendChild(el('span', null, 'UP：' + (c.uploader || '—')));
+    item.appendChild(meta);
+
+    if (status === 'failed' && c.study_error) {
+      item.appendChild(el('p', 'status-blocked', '下载失败（可重试）：' + String(c.study_error)));
+    }
+    if ((status === 'unverified' || status === 'analysis_failed') && c.study_error) {
+      item.appendChild(el('p', 'status-degraded', '分析未完成：' + String(c.study_error)));
+    }
+
+    var details = document.createElement('details');
+    details.className = 'ref-details';
+    var summary = el('summary', null, '详情：来源、数据与本地转写');
+    details.appendChild(summary);
+    var grid = el('div', 'meta-grid');
+    grid.appendChild(el('span', 'item', 'BV 号：' + (c.bvid || '—')));
+    grid.appendChild(el('span', 'item', '来源：' + (c.user_supplied ? '用户提供' : '自动搜索')));
+    grid.appendChild(el('span', 'item', '发布：' + formatDateTime(c.published_at)));
+    grid.appendChild(el('span', 'item', '抓取：' + formatDateTime(c.fetched_at)));
+    details.appendChild(grid);
+
+    if (c.study) {
+      var rows = el('div', 'rows');
+      rows.appendChild(el('div', 'kv', '时长 ' + (c.study.duration_seconds || '—') + ' 秒 · 语速 ' + (c.study.cps || '—') + ' 字/秒'));
+      rows.appendChild(el('div', 'kv', '问题句 ' + (c.study.question_count || 0) + ' · 分段 ' + (c.study.segment_count || 0)));
+      details.appendChild(rows);
+      if (c.study.hook_text) {
+        details.appendChild(el('p', 'muted', '开场（前两段）：' + String(c.study.hook_text).slice(0, 120) + '…'));
       }
-      grid.appendChild(el('span', 'item', 'UP：' + (c.uploader || '—')));
-      grid.appendChild(el('span', 'item', '发布：' + formatDateTime(c.published_at)));
-      grid.appendChild(el('span', 'item', '抓取：' + formatDateTime(c.fetched_at)));
-      item.appendChild(grid);
-      item.appendChild(el('div', 'via', '来源：' + (c.user_supplied ? '用户提供' : '自动搜索') + ' · ' + (c.bvid || '')));
-      candidatesEl.appendChild(item);
-    });
-    if (!first) { resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+      if (c.study.creator_viewpoint) {
+        details.appendChild(el('p', null, '可归因观点：' + String(c.study.creator_viewpoint)));
+      }
+      if (c.study.narrative_summary) {
+        details.appendChild(el('p', null, '叙事手法：' + c.study.narrative_summary));
+      }
+      if (c.study.analysis_status === 'unverified') {
+        details.appendChild(el('p', 'status-degraded', '模型分析未验证：' + (c.study.analysis_error || '模型不可用') + '；仅保留本地转写，不计入研究就绪度。'));
+      }
+      if (c.study.takeaways && c.study.takeaways.length) {
+        var ul = el('ul', 'muted');
+        c.study.takeaways.slice(0, 3).forEach(function (t) { ul.appendChild(el('li', null, t)); });
+        details.appendChild(ul);
+      }
+      if (c.study.transcript_segments && c.study.transcript_segments.length) {
+        var transcriptDetails = document.createElement('details');
+        transcriptDetails.appendChild(el('summary', null,
+          '查看本地转写时间段（' + c.study.transcript_segments.length + ' 段）'));
+        var transcriptList = document.createElement('ul');
+        c.study.transcript_segments.slice(0, 20).forEach(function (segment) {
+          transcriptList.appendChild(el('li', 'muted',
+            '[' + segment.start_seconds + '–' + segment.end_seconds + ' 秒] ' + segment.text));
+        });
+        transcriptDetails.appendChild(transcriptList);
+        details.appendChild(transcriptDetails);
+      }
+      if (c.study.media_path) {
+        details.appendChild(el('p', 'muted', '文件：' + c.study.media_path));
+      }
+    }
+    item.appendChild(details);
+
+    if ((status === 'unverified' || status === 'analysis_failed') && c.study_error) {
+      var retry = el('button', null, '重新分析');
+      retry.type = 'button';
+      retry.addEventListener('click', function () {
+        api('/api/workbench/references/reanalyze', {
+          session_id: currentSession.session_id, bvid: c.bvid
+        }, { message: '重试模型参考分析（复用已保存转写）…' }).then(refresh).catch(function () { refresh(); });
+      });
+      item.appendChild(retry);
+    }
+    return item;
   }
 
-  function renderAnalysis(session) {
-    var list = document.getElementById('analysis-list');
-    list.textContent = '';
-    var anyReference = session.references.length > 0;
-    analysisCard.hidden = !anyReference;
-    if (!anyReference) { return; }
-    // Issue #23 B3: visible analyzed-N / eligible-M readiness.
+  function renderReferences(session) {
     var readiness = session.references_readiness || {};
-    var statusEl = document.getElementById('analysis-status');
-    var total = session.references.length;
     var downloadPending = readiness.download_pending !== undefined
       ? readiness.download_pending
       : Math.max(0, (readiness.eligible || 0) - (readiness.analyzed || 0));
-    var failedCount = readiness.failed || 0;
-    statusEl.textContent = '就绪度：已分析 ' + (readiness.analyzed || 0)
-      + ' · 已下载待分析 ' + downloadPending + ' · 失败待重试 ' + failedCount
+    refsReadiness.textContent = '';
+    refsReadiness.appendChild(el('span', null, '就绪度：已分析 ' + (readiness.analyzed || 0)
+      + ' · 已下载待分析 ' + downloadPending
+      + ' · 失败待重试 ' + (readiness.failed || 0)
       + ' · 模型未验证 ' + (readiness.unverified || 0)
-      + ' · 本集候选 ' + total
-      + '（研究要求：所有已授权参考完成分析，或明确选择部分分析）';
+      + ' · 本集候选 ' + session.references.length + ' '));
+    refsReadiness.appendChild(el('span', 'req-note', '（研究要求：所有已授权参考完成分析，或明确选择部分分析）'));
+
     var targets = session.references.filter(function (c) {
       return (c.study_status || 'not_analyzed') !== 'analyzed';
     });
-    var control = el('div');
-    var label = el('label', null, '授权声明（必填，下载前逐字存档）');
-    var authArea = el('textarea');
-    authArea.id = 'authorization-text';
-    authArea.maxLength = 2000;
-    authArea.value = DEFAULT_AUTHORIZATION;
-    control.appendChild(label);
-    control.appendChild(authArea);
-    var buttonRow = el('div', 'actions');
-    var acquireAll = el('button', 'primary');
-    acquireAll.type = 'button';
-    acquireAll.textContent = (readiness.failed || 0) > 0
-      ? '授权重试并分析未完成的参考（' + targets.length + ' 条）'
-      : '授权获取并分析未完成的参考（' + targets.length + ' 条）';
-    acquireAll.addEventListener('click', function () { runAcquisition(targets, authArea.value); });
-    buttonRow.appendChild(acquireAll);
-    if (targets.length === 0) {
-      acquireAll.disabled = true;
-      acquireAll.textContent = '全部参考已完成分析';
+    acquireBox.textContent = '';
+    if (targets.length) {
+      var note = el('p', 'muted',
+        '下载只在你明确授权后进行：文件保存到你设置的文件夹，仅供本地叙事分析（转写 + 手法提炼）；参考视频永远不会被当作事实来源。平台拒绝访问时如实失败，不做绕过。');
+      acquireBox.appendChild(note);
+      var label = el('label', null, '授权声明（必填，下载前逐字存档）');
+      var authArea = el('textarea');
+      authArea.id = 'authorization-text';
+      authArea.className = 'auth-textarea';
+      authArea.maxLength = 2000;
+      authArea.value = lastAuthorization;
+      authArea.addEventListener('input', function () { lastAuthorization = authArea.value; });
+      var buttonRow = el('div', 'actions');
+      var acquireAll = el('button', 'primary');
+      acquireAll.type = 'button';
+      acquireAll.textContent = (readiness.failed || 0) > 0
+        ? '授权重试并分析未完成的参考（' + targets.length + ' 条）'
+        : '授权获取并分析未完成的参考（' + targets.length + ' 条）';
+      acquireAll.addEventListener('click', function () { runAcquisition(targets, authArea.value); });
+      buttonRow.appendChild(acquireAll);
+      acquireBox.appendChild(label);
+      acquireBox.appendChild(authArea);
+      acquireBox.appendChild(buttonRow);
     }
-    control.appendChild(buttonRow);
 
+    refCards.textContent = '';
     session.references.forEach(function (c) {
-      var item = el('div', 'candidate');
-      var head = el('div');
-      var status = c.study_status || 'not_analyzed';
-      var badge = {
-        not_analyzed: ['badge-wait', '未分析'],
-        downloaded: ['badge-progress', '已下载待分析'],
-        analyzed: ['badge-analyzed', '已分析'],
-        failed: ['badge-failed', '下载失败'],
-        unverified: ['badge-progress', '转写完成，模型未验证'],
-        analysis_failed: ['badge-failed', '分析失败，可重试'],
-        transcribing: ['badge-progress', '转写中']
-      }[status] || ['badge-wait', '未分析'];
-      head.appendChild(el('span', 'badge ' + badge[0], badge[1]));
-      var link = el('a', 'title-link', c.title || c.bvid);
-      link.href = c.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
-      head.appendChild(link);
-      item.appendChild(head);
-      if (c.study) {
-        var rows = el('div', 'rows');
-        rows.appendChild(el('div', 'kv', '时长 ' + (c.study.duration_seconds || '—') + ' 秒 · 语速 ' + (c.study.cps || '—') + ' 字/秒'));
-        rows.appendChild(el('div', 'kv', '问题句 ' + (c.study.question_count || 0) + ' · 分段 ' + (c.study.segment_count || 0)));
-        item.appendChild(rows);
-        if (c.study.hook_text) {
-          item.appendChild(el('p', 'muted', '开场（前两段）：' + String(c.study.hook_text).slice(0, 120) + '…'));
-        }
-        if (c.study.creator_viewpoint) {
-          item.appendChild(el('p', null, '可归因观点：' + String(c.study.creator_viewpoint)));
-        }
-        if (c.study.narrative_summary) {
-          item.appendChild(el('p', null, '叙事手法：' + c.study.narrative_summary));
-        }
-        if (c.study.analysis_status === 'unverified') {
-          item.appendChild(el('p', 'status-degraded', '模型分析未验证：' + (c.study.analysis_error || '模型不可用') + '；仅保留本地转写，不计入研究就绪度。'));
-        }
-        if (c.study.transcript_segments && c.study.transcript_segments.length) {
-          var transcriptDetails = document.createElement('details');
-          var transcriptSummary = document.createElement('summary');
-          transcriptSummary.textContent = '查看本地转写时间段（' + c.study.transcript_segments.length + ' 段）';
-          transcriptDetails.appendChild(transcriptSummary);
-          var transcriptList = document.createElement('ul');
-          c.study.transcript_segments.slice(0, 20).forEach(function (segment) {
-            transcriptList.appendChild(el('li', 'muted', '[' + segment.start_seconds + '–' + segment.end_seconds + ' 秒] ' + segment.text));
-          });
-          transcriptDetails.appendChild(transcriptList);
-          item.appendChild(transcriptDetails);
-        }
-        if (c.study.takeaways && c.study.takeaways.length) {
-          var ul = el('ul', 'muted');
-          c.study.takeaways.slice(0, 3).forEach(function (t) { ul.appendChild(el('li', null, t)); });
-          item.appendChild(ul);
-        }
-        if (c.study.media_path) {
-          item.appendChild(el('p', 'muted', '文件：' + c.study.media_path));
-        }
-      }
-      if (status === 'failed' && c.study_error) {
-        item.appendChild(el('p', 'status-blocked', '下载失败（可重试）：' + String(c.study_error)));
-      }
-      if ((status === 'unverified' || status === 'analysis_failed') && c.study_error) {
-        var retry = el('button', null, '重新分析');
-        retry.type = 'button';
-        retry.addEventListener('click', function () {
-          api('/api/workbench/references/reanalyze', {
-            session_id: currentSession.session_id, bvid: c.bvid
-          }, { message: '重试模型参考分析（复用已保存转写）…' }).then(refresh).catch(function () { refresh(); });
-        });
-        item.appendChild(retry);
-      }
-      list.appendChild(item);
+      refCards.appendChild(referenceCard(c));
     });
-    list.insertBefore(control, list.firstChild);
   }
 
   function runAcquisition(targets, authorizationText) {
@@ -832,45 +1572,141 @@
     }, { message: '授权下载参考视频…' }).then(finish).catch(function () { refresh(); });
   }
 
-  // ---- settings ----
+  // ---- 大模型设置 ----
+
+  function isDevTestConnection(settings) {
+    // 开发/夹具连接的诚实判定：注入的测试夹具，或指向本机回环地址的端点。
+    // 这类连接绝不冒充真实成功，呈现为独立的「开发测试环境」状态；
+    // 普通用户界面不出现 mock / localhost 字样。
+    var sources = [settings.endpoint, settings.chat_base_url, settings.base_url];
+    for (var i = 0; i < sources.length; i++) {
+      if (/\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/)/i.test(String(sources[i] || ''))) {
+        return true;
+      }
+    }
+    return settings.connection_kind === 'fixture';
+  }
+
+  function renderConnectionChip(settings) {
+    var chip = document.getElementById('settings-chip');
+    var hint = document.getElementById('settings-chip-hint');
+    var label, cls, tip;
+    if (!settings.configured) {
+      label = '未配置'; cls = 'state-warn';
+      tip = '粘贴你的 DeepSeek API Key 并保存，然后点「测试连接」验证服务。';
+    } else if (settings.connection_status === 'passed' && isDevTestConnection(settings)) {
+      label = '开发测试环境'; cls = 'state-warn';
+      tip = '当前连接指向本地测试服务，仅用于开发验证，不代表真实的 DeepSeek 连接；正式创作请在「高级设置」改回官方地址并使用你自己的 Key。';
+    } else if (settings.connection_status === 'passed') {
+      label = '已连接'; cls = 'state-ok';
+      tip = '模型服务连接正常，可以回到创作页开始创作。';
+    } else if (settings.connection_status === 'failed') {
+      label = '连接失败'; cls = 'state-bad';
+      tip = '上次测试没有成功' +
+        (settings.connection_error ? '：' + String(settings.connection_error).slice(0, 160) : '') +
+        '。请核对 API Key 后重试。';
+    } else {
+      label = '已保存未验证'; cls = 'state-warn';
+      tip = '设置已保存在本机，还没有验证。点「测试连接」确认服务可用。';
+    }
+    chip.textContent = label;
+    chip.className = 'conn-chip ' + cls;
+    if (hint) { hint.textContent = tip; }
+  }
 
   function renderSettings(settings) {
-    document.getElementById('st-mode').value = settings.provider_mode || 'responses';
-    document.getElementById('st-model').value = settings.model || '';
+    lastRenderedSettings = settings;
+    var firstVisit = !settings.api_key_masked && settings.connection_status === 'not_tested' && !settings.model;
+    var mode = settings.provider_mode || 'deepseek';
+    if (firstVisit) { mode = 'deepseek'; }
+    document.getElementById('st-mode').value = mode;
+    document.getElementById('st-model').value = settings.model || (firstVisit ? 'deepseek-flash' : '');
     document.getElementById('st-base').value = settings.base_url || '';
-    document.getElementById('st-chat').value = settings.chat_base_url || '';
+    document.getElementById('st-chat').value = settings.chat_base_url || (firstVisit ? 'https://api.deepseek.com' : '');
+    syncManualFields(mode);
+    syncChatHint(mode);
+    document.getElementById('st-auto-model').textContent = settings.model || 'deepseek-flash';
     document.getElementById('st-endpoint').value = settings.endpoint || '';
     document.getElementById('st-dir').value = settings.downloads_dir || '';
     document.getElementById('st-key').value = '';
     var hint = document.getElementById('st-key-hint');
     hint.textContent = settings.api_key_masked
-      ? '当前：' + settings.api_key_masked + '（留空保持不变）'
+      ? '当前：' + settings.api_key_masked + '（留空保持不变；粘贴新 Key 可替换）'
       : '未设置';
+    renderConnectionChip(settings);
     var statusText = {
       not_tested: '尚未测试',
-      waiting_for_api_key: '等待填写 API Key',
-      passed: '真实连接成功',
-      failed: '连接失败'
+      waiting_for_api_key: '还没有填写 API Key',
+      passed: '上次测试连接成功',
+      failed: '上次测试连接失败'
     }[settings.connection_status] || settings.connection_status || '尚未测试';
-    var kindText = settings.connection_kind === 'fixture' ? '测试夹具' : '真实连接';
-    document.getElementById('settings-connection').textContent =
-      '连接状态：' + statusText + ' · ' + kindText + ' · 提供方：' +
-      (settings.provider_label || settings.provider_mode || '—') + ' · 模型：' +
-      (settings.model || '—') + ' · 端点：' + (settings.endpoint || '—');
+    var firstUse = !settings.configured && !settings.model && !settings.api_key_masked;
+    document.getElementById('settings-connection').textContent = firstUse
+      ? '连接状态：尚未测试 · 还没有保存过设置；保存后这里会显示当前服务与模型。'
+      : ('连接状态：' + statusText + ' · 当前服务：' +
+        (settings.provider_label || settings.provider_mode || '—') + ' · 模型：' +
+        (settings.model || '—'));
+  }
+
+  var lastRenderedSettings = null;
+
+  function fitKeyPlaceholder() {
+    // 窄屏降级：完整占位符放不下时去掉「DeepSeek」修饰，避免占位符被截断。
+    var input = document.getElementById('st-key');
+    var longText = input.getAttribute('data-placeholder-long')
+      || (input.placeholder || '');
+    input.setAttribute('data-placeholder-long', longText);
+    var shortText = longText.replace(' DeepSeek', '');
+    var cs = getComputedStyle(input);
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d');
+    ctx.font = cs.fontSize + ' ' + cs.fontFamily;
+    var innerWidth = input.clientWidth
+      - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    input.placeholder = ctx.measureText(longText).width <= innerWidth
+      ? longText
+      : shortText;
+  }
+
+  function syncManualFields(mode) {
+    // DeepSeek：模型与官方地址自动配置，普通用户只需填写 API Key；
+    // 其他服务商才显示模型（与 Chat 地址）字段。
+    var autoNote = document.getElementById('st-deepseek-auto');
+    var modelField = document.getElementById('st-model-field');
+    var chatField = document.getElementById('st-chat-field');
+    var deepseek = mode === 'deepseek';
+    autoNote.hidden = !deepseek;
+    modelField.hidden = deepseek;
+    chatField.hidden = !(mode === 'chat');
+    document.getElementById('st-key').placeholder = deepseek
+      ? '粘贴你的 DeepSeek API Key'
+      : '粘贴你的 Key';
+    fitKeyPlaceholder();
+  }
+
+  function syncChatHint(mode) {
+    var hint = document.getElementById('st-chat-hint');
+    if (!hint) { return; }
+    hint.textContent = mode === 'deepseek' ? 'DeepSeek Chat Completions'
+      : (mode === 'responses' ? 'Responses 端点由高级设置管理' : '兼容 Chat Completions');
   }
 
   document.getElementById('st-mode').addEventListener('change', function () {
+    syncManualFields(this.value);
+    syncChatHint(this.value);
+    // Nexus P0（PR #45 review 5625537364）：从自定义 Chat 切换到 DeepSeek 时，
+    // 无条件重置模型与 Chat 地址为官方默认，丢弃隐藏字段里残留的自定义值，
+    // 绝不让新粘贴的 DeepSeek Key 路由到先前的自定义端点。
+    // （服务端 apply_settings_update 同样强制官方值，双保险）
     if (this.value === 'deepseek') {
-      if (!document.getElementById('st-chat').value) {
-        document.getElementById('st-chat').value = 'https://api.deepseek.com';
-      }
-      if (!document.getElementById('st-model').value) {
-        document.getElementById('st-model').value = 'deepseek-flash';
-      }
+      document.getElementById('st-chat').value = 'https://api.deepseek.com';
+      document.getElementById('st-model').value = 'deepseek-flash';
     }
   });
 
-  document.getElementById('settings-save').addEventListener('click', function () {
+  window.addEventListener('resize', fitKeyPlaceholder);
+
+  function settingsFormPayload() {
     var payload = {
       provider_mode: document.getElementById('st-mode').value,
       base_url: document.getElementById('st-base').value,
@@ -879,14 +1715,22 @@
       downloads_dir: document.getElementById('st-dir').value
     };
     var key = document.getElementById('st-key').value;
-    if (key) { payload.api_key = key; }
-    var statusEl = document.getElementById('settings-status');
-    statusEl.textContent = '保存中…';
-    fetch('/api/workbench/settings', {
+    if (key) { payload.api_key = key; }  // 空输入 = 保留已保存 Key（不覆盖）
+    return payload;
+  }
+
+  function persistSettings() {
+    return fetch('/api/workbench/settings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
+      body: JSON.stringify(settingsFormPayload())
+    }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); });
+  }
+
+  document.getElementById('settings-save').addEventListener('click', function () {
+    var statusEl = document.getElementById('settings-status');
+    statusEl.textContent = '保存中…';
+    persistSettings()
       .then(function (result) {
         if (!result.ok) { statusEl.textContent = result.data.error || '保存失败'; return; }
         renderSettings(result.data);
@@ -895,21 +1739,50 @@
       .catch(function () { statusEl.textContent = '网络错误'; });
   });
 
+  // 显式点「测试连接」：先安全保存当前表单（含刚粘贴的 Key），
+  // 保存失败必须阻止网络测试并给出中文错误；成功后只测试刚保存的配置。
+  // （Nexus delta：paste → Test 旅程；Key 只经 POST JSON 走本机 loopback）
+  // 在飞防抖（Nexus P0）：一次点击未完成前忽略重复点击，不重复发起付费 ping。
+  var settingsTestInFlight = false;
   document.getElementById('settings-test').addEventListener('click', function () {
+    var btn = this;
+    if (settingsTestInFlight) { return; }
+    settingsTestInFlight = true;
+    btn.disabled = true;
+    var release = function () { settingsTestInFlight = false; btn.disabled = false; };
     var statusEl = document.getElementById('settings-status');
-    statusEl.textContent = '测试中…';
-    fetch('/api/workbench/settings/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}'
-    }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
-      .then(function (result) {
-        statusEl.textContent = result.ok
-          ? '真实连接正常（' + (result.data.provider || '') + ' / ' + (result.data.model || '') + '）'
-          : (result.data.error || '连接失败');
-        return refresh();
+    statusEl.textContent = '保存中…';
+    persistSettings()
+      .then(function (saveResult) {
+        if (!saveResult.ok) {
+          statusEl.textContent = (saveResult.data.error || '保存失败') + '，未连接测试。';
+          release();
+          return;
+        }
+        statusEl.textContent = '已保存，测试中…';
+        return fetch('/api/workbench/settings/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        }).then(function (resp) { return resp.json().then(function (d) { return { ok: resp.ok, data: d }; }); })
+          .then(function (result) {
+            if (result.ok) {
+              var providerNames = { deepseek: 'DeepSeek', responses: 'OpenAI Responses', chat: 'Chat 兼容服务' };
+              var devTest = result.data.connection_kind === 'fixture' ||
+                /\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/)/i.test(String(result.data.endpoint || ''));
+              statusEl.textContent = devTest
+                ? '开发测试连接通过：这是本地测试服务，不代表真实的 DeepSeek 连接。'
+                : '连接正常：' + (providerNames[result.data.provider] || result.data.provider || '') +
+                  ' · ' + (result.data.model || '') + ' 已连通，可以开始创作。';
+            } else {
+              statusEl.textContent = result.data.error || '连接失败，请检查后重试。';
+            }
+            release();
+            return refresh();
+          })
+          .catch(function () { statusEl.textContent = '网络错误'; release(); });
       })
-      .catch(function () { statusEl.textContent = '网络错误'; });
+      .catch(function () { statusEl.textContent = '网络错误'; release(); });
   });
 
   document.getElementById('settings-clear-key').addEventListener('click', function () {
@@ -927,7 +1800,21 @@
     }).catch(function () { statusEl.textContent = '网络错误'; });
   });
 
-  // ---- research ----
+  // 已输入 vs 已持久化：输入框里有新 Key 时，徽章显示「已输入未保存」，
+  // 避免误导显示「未配置」；清空输入后恢复持久化状态。
+  document.getElementById('st-key').addEventListener('input', function () {
+    var chip = document.getElementById('settings-chip');
+    var hint = document.getElementById('settings-chip-hint');
+    if (this.value && this.value.trim()) {
+      chip.textContent = '已输入未保存';
+      chip.className = 'conn-chip state-warn';
+      if (hint) { hint.textContent = 'Key 已输入但尚未保存；点「测试连接」会先自动保存并验证，或点「保存设置」仅保存。'; }
+    } else if (lastRenderedSettings) {
+      renderConnectionChip(lastRenderedSettings);
+    }
+  });
+
+  // ---- ② 观点与资料 ----
 
   function renderDeepSeekTools(session) {
     var budget = session.search_budget || { opt_in: false, max_requests: 0, used: 0, results: [] };
@@ -969,10 +1856,14 @@
   }
 
   function renderResearch(session) {
-    researchCard.hidden = !currentSession;
-    if (!currentSession) { return; }
     var list = document.getElementById('source-list');
     list.textContent = '';
+    var hasFixtureSources = (session.sources || []).some(function (s) {
+      return String(s.title || '').indexOf('【离线演示夹具】') === 0;
+    });
+    if (session.evidence_mode === 'offline_fixture' || hasFixtureSources) {
+      list.appendChild(el('p', 'status-degraded', '离线演示夹具：仅用于验证页面流程，不代表真实独立研究来源。'));
+    }
     (session.sources || []).forEach(function (s) {
       var item = el('div', 'src-item');
       item.appendChild(el('div', null, s.sid + ' · ' + s.title));
@@ -982,8 +1873,8 @@
       list.appendChild(item);
     });
     renderDeepSeekTools(session);
-    // Issue #23 B3: visible analyzed-N / eligible-M readiness + explicit
-    // partial-analysis override control (never silently label partial as full).
+    // visible analyzed-N / eligible-M readiness + explicit partial-analysis
+    // override control (never silently label partial as full).
     var readiness = session.references_readiness || { analyzed: 0, eligible: 0 };
     var readinessEl = document.getElementById('research-readiness');
     var pending = Math.max(0, (readiness.eligible || 0) - (readiness.analyzed || 0));
@@ -999,7 +1890,7 @@
       readinessEl.textContent += ' · 上次研究注入对比：' + comparison.analyzed + '/' + comparison.eligible
         + ' 条（观点 ' + (comparison.viewpoint_count || 0) + ' 条' + (comparison.partial ? '，部分分析' : '') + '）';
     }
-    document.getElementById('research-approve-box').hidden = !(research.status === 'reviewed' || research.status === 'ready_for_script');
+    document.getElementById('research-approve-box').hidden = !(research.status === 'reviewed');
     var statusEl = document.getElementById('research-status');
     var states = {
       not_started: '尚未生成研究草稿',
@@ -1071,6 +1962,7 @@
     }
     api('/api/workbench/research/generate', payload, { message: '生成研究草稿（调用你的模型服务）…' }).then(function (result) {
       var summary = document.getElementById('research-summary');
+      summary.textContent = '';
       summary.appendChild(el('p', 'status-line', '研究草稿 r' + result.revision + '：' + result.claim_count + ' 条主张 · ' + result.source_count + ' 个来源 · 质量 Gate：' + result.gate_status));
       if (result.reference_comparison) {
         var cmp = result.reference_comparison;
@@ -1093,6 +1985,7 @@
       session_id: currentSession.session_id
     }, { message: '独立事实核查（重抓来源原文 + 逐字引用核对）…' }).then(function (result) {
       var summary = document.getElementById('research-summary');
+      summary.textContent = '';
       summary.appendChild(el('p', 'status-line', '核查完成：' + result.checked_claims + ' 条主张已核查 · 高风险未解决 ' + result.unresolved_high_risk + ' · 质量 Gate：' + result.gate_status));
       if (result.gate_reasons && result.gate_reasons.length) {
         var ul = el('ul', 'gate-reasons');
@@ -1108,20 +2001,26 @@
     api('/api/workbench/research/approve', {
       session_id: currentSession.session_id,
       confirmation: document.getElementById('research-confirmation').value
-    }, { message: '记录研究批准…' }).then(refresh).catch(function () {});
+    }, { message: '记录研究批准…' }).then(function () {
+      return refresh();
+    }).then(function () {
+      focusStage('stage-script', true);
+    }).catch(function () {});
   });
 
-  // ---- thesis ----
+  // ---- ③ 原创口播稿（选题卡 + 口播稿） ----
 
   function renderThesis(session) {
     var thesis = session.thesis || {};
-    // The thesis card area becomes reachable as soon as the research is
+    // The thesis controls become reachable as soon as the research is
     // approved (ready_for_script) — otherwise a fresh user would have no way
     // to start the thesis step. Any explicit thesis status also implies it.
-    var researchReady = ((session.research || {}).status === 'ready_for_script');
+    var researchReady = researchApproved(session);
     var thesisActive = (thesis.status && thesis.status !== 'not_started');
-    thesisCard.hidden = !(researchReady || thesisActive);
-    if (thesisCard.hidden) { return; }
+    var reachable = researchReady || thesisActive;
+    document.getElementById('thesis-wait').hidden = reachable;
+    document.getElementById('thesis-controls').hidden = !reachable;
+    if (!reachable) { return; }
     if (thesis.status && thesis.status !== 'not_started') {
       var text = {
         draft: '选题卡草稿已生成，待独立审核',
@@ -1131,6 +2030,14 @@
       document.getElementById('thesis-status').textContent = '状态：' + text;
     }
     document.getElementById('thesis-approve-box').hidden = thesis.status !== 'reviewed';
+    // 选题卡已确认/待人工确认后，「生成」不再是主操作：降为次级按钮；
+    // 避免与当前阶段的真正主操作争夺注意力。审核完成后审核按钮也停用，
+    // 重新生成时再恢复。
+    var thesisDone = thesis.status === 'approved_for_script' || thesis.status === 'reviewed';
+    var thesisGenerateBtn = document.getElementById('thesis-generate');
+    thesisGenerateBtn.classList.toggle('primary', !thesisDone);
+    thesisGenerateBtn.textContent = thesisDone ? '重新生成选题卡' : '生成选题卡';
+    document.getElementById('thesis-review').disabled = thesisDone;
   }
 
   document.getElementById('thesis-generate').addEventListener('click', function () {
@@ -1139,6 +2046,7 @@
       session_id: currentSession.session_id
     }, { message: '生成选题卡…' }).then(function (t) {
       var summary = document.getElementById('thesis-summary');
+      summary.textContent = '';
       summary.appendChild(el('h3', null, '本期方向（' + t.card_id + ' r' + t.revision + '）'));
       summary.appendChild(el('p', null, '核心问题：' + t.core_question));
       summary.appendChild(el('p', null, '核心论点：' + t.core_thesis));
@@ -1154,6 +2062,7 @@
       session_id: currentSession.session_id
     }, { message: '独立审核选题卡…' }).then(function (result) {
       var summary = document.getElementById('thesis-summary');
+      summary.textContent = '';
       var table = el('table', 'checks-table');
       var head = el('tr');
       ['检查项', '结果', '理由'].forEach(function (name) { head.appendChild(el('th', null, name)); });
@@ -1176,37 +2085,73 @@
     api('/api/workbench/thesis/approve', {
       session_id: currentSession.session_id,
       confirmation: document.getElementById('thesis-confirmation').value
-    }, { message: '记录选题确认…' }).then(refresh).catch(function () {});
+    }, { message: '记录选题确认…' }).then(function () {
+      return refresh();
+    }).then(function () {
+      focusStage('stage-script', true);
+    }).catch(function () {});
   });
-
-  // ---- script ----
 
   function renderScript(session) {
     var script = session.script || {};
-    // The script area becomes reachable as soon as the thesis card is
+    if (!scriptReviewed(session)) {
+      /* A thesis approval makes the controls reachable, but it never makes
+         the previous episode's manuscript valid for this episode. */
+      clearScriptResult();
+    }
+    // The script controls become reachable as soon as the thesis card is
     // confirmed for writing (approved_for_script) — not only after a script
     // already exists.
-    var thesisApproved = ((session.thesis || {}).status === 'approved_for_script');
-    var scriptActive = (script.status && script.status !== 'not_started');
-    scriptCard.hidden = !(thesisApproved || scriptActive);
-    if (scriptCard.hidden) { return; }
+    var reachable = thesisApproved(session) ||
+      (script.status && script.status !== 'not_started');
+    document.getElementById('script-wait').hidden = reachable;
+    document.getElementById('script-controls').hidden = !reachable;
+    if (!reachable) { return; }
     if (script.status && script.status !== 'not_started') {
       var text = {
         draft: '初稿已生成，待审核',
         needs_revision: '审核未通过；可调整后重新生成',
-        reviewed: '审核通过：原创口播稿已交付'
+        reviewed: '审核通过，原创口播稿已交付'
       }[script.status] || script.status;
       document.getElementById('script-status').textContent = '状态：' + text;
     }
-    // Issue #23 B3: synthesis honesty on the delivery view — how many
-    // analyzed references actually informed this session's comparison.
-    var synthesis = (session.research || {}).reference_comparison;
-    if (synthesis && synthesis.analyzed !== undefined && script.status === 'reviewed') {
-      var failedSynthesis = (synthesis.failed_bvids || []).length;
-      document.getElementById('script-status').textContent += 
-        ' · 参考综合：' + synthesis.analyzed + '/' + synthesis.eligible + ' 条已分析参考进入对比'
-        + (synthesis.partial ? '（部分分析，不等同完整五方对比'
-          + (failedSynthesis ? '，失败待重试 ' + failedSynthesis + ' 条' : '') + '）' : '');
+    // 参考综合（5/5 注入对比）只在交付摘要里出现一次，避免与状态行重复。
+    document.getElementById('script-next-actions').hidden = !scriptReviewed(session);
+    // 交付后主操作从「重新生成」移交给「继续做音频与素材」：
+    // 已交付时重新生成降为次级按钮，下一步引导成为唯一的红色主按钮。
+    var generateBtn = document.getElementById('script-generate');
+    var continueBtn = document.getElementById('audio-continue');
+    var delivered = scriptReviewed(session);
+    generateBtn.classList.toggle('primary', !delivered);
+    generateBtn.textContent = delivered ? '重新生成口播稿' : '生成并审核口播稿';
+    continueBtn.classList.toggle('primary', delivered);
+    // A delivered manuscript must be readable after a page reload too, not
+    // only in the same page session that generated it: pull the canonical
+    // final script once per (session, revision) and render the full text.
+    if (scriptReviewed(session) && script.reviewed_path) {
+      var scriptKey = session.session_id + ':' + script.script_id + ':r' + script.revision;
+      if (renderedScriptKey !== scriptKey) {
+        var expectedSessionId = session.session_id;
+        var expectedScriptId = script.script_id;
+        var expectedRevision = script.revision;
+        fetch('/api/workbench/script/final').then(function (resp) { return resp.json(); })
+          .then(function (result) {
+            var latestScript = currentSession && currentSession.script || {};
+            if (!newEpisodeMode && currentSession &&
+                currentSession.session_id === expectedSessionId &&
+                latestScript.status === 'reviewed' &&
+                latestScript.script_id === expectedScriptId &&
+                String(latestScript.revision) === String(expectedRevision) &&
+                result && result.status === 'reviewed' &&
+                result.script_id === expectedScriptId &&
+                String(result.revision) === String(expectedRevision) &&
+                result.teleprompter_text) {
+              renderedScriptKey = scriptKey;
+              renderScriptResult(result, expectedSessionId);
+            }
+          })
+          .catch(function () { /* 状态行已如实说明交付情况，正文拉取失败时不打断界面 */ });
+      }
     }
   }
 
@@ -1215,21 +2160,26 @@
     api('/api/workbench/script/generate', {
       session_id: currentSession.session_id
     }, { message: '写稿 + 独立审核（模型生成，引擎门禁校验）…' }).then(function (result) {
-      renderScriptResult(result);
+      renderScriptResult(result, currentSession.session_id);
+      renderedScriptKey = currentSession.session_id + ':' +
+        (result.script_id || '') + ':r' + (result.revision || '');
       return refresh();
     }).catch(function () { refresh(); });
   });
 
-  function renderScriptResult(result) {
+  function renderScriptResult(result, resultSessionId) {
     var summary = document.getElementById('script-summary');
     var issuesEl = document.getElementById('script-issues');
     var bodyEl = document.getElementById('script-body');
     var metaEl = document.getElementById('script-meta');
     var copyBtn = document.getElementById('script-copy');
     summary.textContent = ''; issuesEl.textContent = ''; metaEl.textContent = '';
+    scriptResultSessionId = resultSessionId || result.session_id ||
+      (currentSession && currentSession.session_id) || null;
     summary.appendChild(el('p', 'status-line', '《' + (result.working_title || '未命名') + '》· ' +
       (result.character_count || 0) + ' 字 · 预计 ' + (result.estimated_duration_minutes || '—') + ' 分钟 · ' +
-      (result.beat_count || 0) + ' 段 · 审核 Gate：' + (result.gate_status || '—')));
+      (result.beat_count || 0) + ' 段 · 审核状态：' +
+      (result.gate_status === 'pass' ? '已通过' : (result.gate_status || '待复核'))));
     if (result.reference_synthesis && result.reference_synthesis.analyzed !== undefined) {
       var failedSynthesis = (result.reference_synthesis.failed_bvids || []).length;
       summary.appendChild(el('p', 'muted', '参考综合：' + result.reference_synthesis.analyzed + '/' +
@@ -1246,19 +2196,36 @@
       bodyEl.hidden = false;
       bodyEl.textContent = result.teleprompter_text;
       copyBtn.hidden = false;
+      document.getElementById('script-archive').hidden = false;
       metaEl.textContent = '口播稿文件：' + result.teleprompter_path + ' · 选题：' + (result.topic || '');
     } else {
       bodyEl.hidden = true;
       copyBtn.hidden = true;
+      document.getElementById('script-archive').hidden = true;
       metaEl.textContent = '审核未通过时不会交付口播稿；可调整研究/选题后重新生成。';
     }
   }
 
+  document.getElementById('script-copy').addEventListener('click', function () {
+    var text = document.getElementById('script-body').textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        document.getElementById('script-status').textContent = '已复制全文到剪贴板';
+      }, function () {
+        document.getElementById('script-status').textContent = '复制失败，请手动全选复制';
+      });
+    } else {
+      document.getElementById('script-status').textContent = '浏览器不支持自动复制，请手动全选复制';
+    }
+  });
+
+  audioContinueButton.addEventListener('click', function () {
+    focusStage('stage-audio', true);
+  });
+
+  // ---- 音频与素材 ----
+
   function renderAudioDelivery(session) {
-    audioCard.hidden = !currentSession;
-    if (!currentSession) { return; }
-    var audio = session.audio || {};
-    var delivery = session.audio_delivery || {};
     var statusEl = document.getElementById('audio-status');
     var importSummary = document.getElementById('audio-import-summary');
     var previewEl = document.getElementById('audio-preview');
@@ -1268,6 +2235,9 @@
     var timelineEl = document.getElementById('audio-timeline');
     var gapsEl = document.getElementById('audio-gaps');
     var artifactsEl = document.getElementById('audio-artifacts');
+    if (!session) { return; }
+    var audio = session.audio || {};
+    var delivery = session.audio_delivery || {};
     var statusText = {
       not_started: '尚未导入口播文件',
       imported: '文件已导入，等待运行本地 ASR / 对齐',
@@ -1392,52 +2362,688 @@
     }).then(refresh).catch(function () { refresh(); });
   });
 
-  document.getElementById('script-copy').addEventListener('click', function () {
-    var text = document.getElementById('script-body').textContent;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () {
-        document.getElementById('script-status').textContent = '已复制全文到剪贴板';
-      }, function () {
-        document.getElementById('script-status').textContent = '复制失败，请手动全选复制';
-      });
+  // ---- 自由聊天 + 原创草稿（Issue #44 chat-first MVP） ----
+
+  var chatThread = document.getElementById('chat-thread');
+  var chatStatusEl = document.getElementById('chat-status');
+  var chatStopBtn = document.getElementById('chat-stop');
+  var chatRetryBtn = document.getElementById('chat-retry');
+  var draftEntryRow = document.getElementById('draft-entry-row');
+  var draftEntryBtn = document.getElementById('draft-entry-btn');
+  var draftDrawer = document.getElementById('draft-drawer');
+  var draftDrawerMeta = document.getElementById('draft-drawer-meta');
+  var draftStatusEl = document.getElementById('draft-status');
+  var draftGenerateBtn = document.getElementById('draft-generate');
+  var draftWorkspace = document.getElementById('draft-workspace');
+  var draftRevisionsEl = document.getElementById('draft-revisions');
+  var draftEditor = document.getElementById('draft-editor');
+  var draftSaveBtn = document.getElementById('draft-save');
+  var draftCopyBtn = document.getElementById('draft-copy');
+  var draftExportBtn = document.getElementById('draft-export');
+  var draftMetaEl = document.getElementById('draft-meta');
+  var sidebarEl = document.getElementById('chat-sidebar');
+  var sidebarOpenBtn = document.getElementById('sidebar-open');
+  var sidebarCloseBtn = document.getElementById('sidebar-close');
+  var sidebarBackdrop = document.getElementById('sidebar-backdrop');
+  var newChatBtn = document.getElementById('new-chat-btn');
+  var sessionListEl = document.getElementById('chat-session-list');
+  var chatStateCache = null;
+  var currentSessionsCache = [];
+  var chatInFlight = false;
+  var chatAbort = null;
+  var lastUserMessage = '';
+  var lastUserLinks = [];
+  var lastUserTurnId = '';
+  var lastSendIncomplete = false;
+  var selectedDraftRevision = 0;
+  // 多会话（issuecomment-6366157284）：选中的会话 id（非机密，仅本机
+  // localStorage）；newChatMode = 点了「新建对话」但首次发送尚未完成 ——
+  // 此时零服务端调用，首次发送才创建新会话。
+  var selectedSessionId = '';
+  var newChatMode = false;
+  // P0/P1（review 5629701467）：视图代际 —— 选中会话每次实际变化时 +1；
+  // 草稿操作发起时捕获代际，完成时若已被超越则只更新列表元数据，
+  // 绝不改写当前视图的编辑器/缓存/状态（迟到结果不得污染其他会话）。
+  var chatViewToken = 0;
+  // P1（review 5629701467）：refresh 单调代际 —— 乱序到达的 state 响应
+  // 被更新的 refresh 超越即丢弃，绝不把选中会话静默翻回旧目标。
+  var refreshGeneration = 0;
+  // P0（review 5629701467）：草稿操作在飞按会话追踪 —— 按钮的 disabled
+  // 属于当前视图，跨视图的迟到完成只清理自己的记录后按当前视图重算，
+  // 既不误改其他会话的在飞语义，也不误恢复当前会话的按钮。
+  var draftGenBusySessions = {};
+  var draftSaveBusySessions = {};
+  try { selectedSessionId = window.localStorage.getItem(SELECTED_CHAT_KEY) || ''; } catch (err) { }
+  var legacyEntry = document.getElementById('legacy-workbench-entry');
+  var legacyTopic = document.getElementById('legacy-topic');
+
+  // B3（Nexus review 5626927896）：重试按钮只在「上一条发送未完成」
+  // （停止 / 失败 / 中断）时出现；已有完整回复的上一条不再是待重试
+  // 状态 —— 重发永远复用已保存的那条 user turn，不复制用户消息。
+  // 多会话：新建对话/切换会话后旧会话的重发状态一并失效，绝不跨会话误重发。
+  function updateRetryBtn() {
+    chatRetryBtn.hidden = !(lastUserMessage && !chatInFlight && lastSendIncomplete && !newChatMode);
+  }
+
+  // ---- 多会话侧栏（issuecomment-6366157284）----
+
+  function renderSessions(sessions) {
+    currentSessionsCache = sessions || [];
+    sessionListEl.textContent = '';
+    currentSessionsCache.forEach(function (meta) {
+      var active = !newChatMode && meta.session_id === selectedSessionId;
+      var btn = el('button', active ? 'active' : null);
+      btn.type = 'button';
+      btn.title = meta.title || '';
+      btn.appendChild(el('span', null, meta.title || '新对话'));
+      var updated = String(meta.updated_at || '').replace('T', ' ').slice(5, 16);
+      btn.appendChild(el('span', 'session-meta',
+        updated + ' · ' + (meta.turns || 0) + ' 条消息' +
+        (meta.drafts ? ' · 草稿 v' + meta.drafts : '')));
+      btn.addEventListener('click', function () { selectSession(String(meta.session_id || '')); });
+      sessionListEl.appendChild(btn);
+    });
+  }
+
+  function closeSidebarDrawer() {
+    sidebarEl.classList.remove('drawer-open');
+    sidebarBackdrop.hidden = true;
+  }
+
+  function selectSession(sessionId) {
+    if (chatInFlight) {
+      // 流式中切换保护：绝不产生跨会话迟到 SSE/陈旧覆盖
+      chatStatusEl.textContent = '当前回复还在进行中，请先停止或等待完成后再切换会话。';
+      return;
+    }
+    closeSidebarDrawer();
+    if (!sessionId || (!newChatMode && sessionId === selectedSessionId)) { return; }
+    newChatMode = false;
+    selectedSessionId = sessionId;
+    chatViewToken += 1;  // 选中会话实际变化 → 视图代际 +1（迟到回调据此丢弃）
+    syncDraftButtons();
+    syncDraftViewStatus();
+    try { window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId); } catch (err) { }
+    // 旧会话的重发/未完成状态一并失效，绝不跨会话误重发
+    lastUserMessage = '';
+    lastUserTurnId = '';
+    lastSendIncomplete = false;
+    chatStatusEl.textContent = '';
+    refresh().catch(function () { });
+  }
+
+  function startNewChat() {
+    if (chatInFlight) {
+      chatStatusEl.textContent = '当前回复还在进行中，请先停止或等待完成后再新建对话。';
+      return;
+    }
+    closeSidebarDrawer();
+    newChatMode = true;
+    chatViewToken += 1;  // 视图切换到新建空态 → 代际 +1
+    selectedDraftRevision = 0;
+    syncDraftButtons();
+    syncDraftViewStatus();
+    lastUserMessage = '';
+    lastUserTurnId = '';
+    lastSendIncomplete = false;
+    chatStatusEl.textContent = '';
+    renderChat(null);
+    renderSessions(currentSessionsCache);
+    clearTopicDraft();
+    topicEl.focus();
+  }
+
+  newChatBtn.addEventListener('click', startNewChat);
+  sidebarCloseBtn.addEventListener('click', function () {
+    var collapsed = sidebarEl.classList.toggle('collapsed');
+    sidebarOpenBtn.classList.toggle('sidebar-shown', collapsed);
+  });
+  sidebarOpenBtn.addEventListener('click', function () {
+    if (window.matchMedia('(max-width: 720px)').matches) {
+      sidebarEl.classList.add('drawer-open');
+      sidebarBackdrop.hidden = false;
     } else {
-      document.getElementById('script-status').textContent = '浏览器不支持自动复制，请手动全选复制';
+      sidebarEl.classList.remove('collapsed');
+      sidebarOpenBtn.classList.remove('sidebar-shown');
+    }
+  });
+  sidebarBackdrop.addEventListener('click', closeSidebarDrawer);
+
+  // Owner UX（issuecomment-6364369899）：单一对话工作区的空态/对话态切换
+  // —— welcome 只在没有对话（且无在飞流）时出现；一旦有 turns，
+  // 对话/草稿/旧集入口就都在同一个滚动流里，composer 始终贴底。
+  function updateWelcomeVisibility() {
+    var hasTurns = !!(chatStateCache && chatStateCache.turns && chatStateCache.turns.length) || chatInFlight;
+    welcomePane.hidden = hasTurns;
+    conversationEl.hidden = !hasTurns;
+  }
+
+  // 滚动跟随策略：只有当视口已接近底部（用户没有向上翻阅历史）时，
+  // 新增量/新消息才自动滚动跟随；用户上翻时不强行打断阅读位置。
+  function nearBottom() {
+    return window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 90;
+  }
+  function scrollToEndOfConversation() {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+  }
+
+  // B1：旧集正式工作流与聊天首页明确分离 —— 展开时才渲染其阶段内容，
+  // 收起时彻底隐藏，绝不把旧集的参考/表单混进当前聊天。
+  legacyEntry.addEventListener('toggle', function () {
+    if (!currentSession) { legacyEntry.open = false; return; }
+    if (legacyEntry.open) {
+      stageBar.hidden = false;
+      sessionTopic.textContent = '本集：' + currentSession.topic;
+      renderReferences(currentSession);
+      renderResearch(currentSession);
+      renderThesis(currentSession);
+      renderScript(currentSession);
+      renderAudioDelivery(currentSession);
+      renderStageTabs();
+      focusStage(focusedStage || stageForSession(currentSession), false);
+      stageBar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      stageBar.hidden = true;
+      STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
     }
   });
 
-  // ---- session start -------------------------------------------------------
+  function kindLabel(kind) {
+    return kind === 'fixture' ? '本地夹具回复（非真实模型）' : '真实模型回复';
+  }
 
-  function startCreation() {
-    if (searchBtn.disabled) { return; }
-    clearRequestError();
-    var topic = topicEl.value.trim();
-    var urls = [];
+  function chatLinksFromInputs(message) {
+    var links = [];
     refList.querySelectorAll('input').forEach(function (input) {
       var v = input.value.trim();
-      if (v) { urls.push(v); }
+      if (v) { links.push({ url: v }); }
     });
-    if (!topic) {
-      showRequestError('请先输入视频主题。');
+    var found = String(message || '').match(/https?:\/\/[^\s，。；、）)]+/g) || [];
+    found.forEach(function (url) { links.push({ url: url }); });
+    return links;
+  }
+
+  function appendChatTurnEl(turn, streaming) {
+    var item = el('div', 'chat-msg ' + (turn.role === 'user' ? 'user' : 'assistant') +
+      (streaming ? ' streaming' : ''));
+    item.dataset.turnId = turn.turn_id || '';
+    item.appendChild(el('div', null, turn.content || ''));
+    var links = turn.links || [];
+    if (links.length) {
+      var chips = el('div', 'chat-links');
+      links.forEach(function (link) {
+        chips.appendChild(el('span', 'link-chip', (link.url || '') + ' · ' + (link.status === 'unknown' ? '未读取' : (link.status || '未知'))));
+      });
+      item.appendChild(chips);
+    }
+    if (turn.role === 'assistant') {
+      item.appendChild(el('div', 'chat-kind',
+        (turn.model ? turn.model + ' · ' : '') + kindLabel(turn.provider_kind)));
+    }
+    chatThread.appendChild(item);
+    return item;
+  }
+
+  function renderDrafts(chat) {
+    // 草稿不再常驻大表单（issuecomment-6366157284）：只显示一个小入口
+    // 「草稿 vN · 未审核」，点击才展开 drawer；无草稿时仅留「整理为草稿」
+    // 小动作；刷新后默认收起，生成动作后自动展开（直接后果）。
+    var drafts = (chat && chat.drafts) || [];
+    var hasTurns = !!(chat && chat.turns && chat.turns.length);
+    draftEntryRow.hidden = !hasTurns;
+    draftEntryBtn.hidden = !drafts.length;
+    draftGenerateBtn.hidden = !(!drafts.length && hasTurns);
+    draftDrawer.hidden = !drafts.length;
+    if (!drafts.length) {
+      draftDrawer.open = false;
+      draftRevisionsEl.textContent = '';
+      return;
+    }
+    var latest = drafts[drafts.length - 1];
+    draftEntryBtn.textContent = '📝 草稿 v' + latest.revision + ' · 未审核';
+    draftDrawerMeta.textContent = 'v' + latest.revision + ' · 未审核';
+    draftRevisionsEl.textContent = '';
+    if (selectedDraftRevision < 1 || selectedDraftRevision > drafts.length) {
+      selectedDraftRevision = drafts.length;
+    }
+    drafts.forEach(function (draft) {
+      var btn = el('button', draft.revision === selectedDraftRevision ? 'primary' : null,
+        'v' + draft.revision + (draft.origin === 'user_edit' ? '（你的修改）' : ''));
+      btn.type = 'button';
+      btn.addEventListener('click', function () {
+        selectedDraftRevision = draft.revision;
+        renderDrafts(chatStateCache);
+      });
+      draftRevisionsEl.appendChild(btn);
+    });
+    var draft = drafts[selectedDraftRevision - 1];
+    if (document.activeElement !== draftEditor || draftEditor.value !== draft.content) {
+      draftEditor.value = draft.content;
+    }
+    draftEditor.dataset.revision = String(draft.revision);
+    draftMetaEl.textContent = '版本 v' + draft.revision +
+      (draft.origin === 'user_edit' ? ' · 你的修改' : ' · 模型整理') +
+      ' · ' + (draft.created_at || '') + ' · 状态：未审核（未做研究与事实核查）' +
+      (draft.provider_kind ? ' · ' + kindLabel(draft.provider_kind) : '');
+  }
+
+  function renderChat(chat) {
+    chatStateCache = chat;
+    chatThread.textContent = '';
+    if (newChatMode) {
+      // 「新建对话」：干净的空 composer / 空草稿态，绝不抹除其他会话
+      renderDrafts(null);
+      updateWelcomeVisibility();
+      updateRetryBtn();
+      return;
+    }
+    if (chat && chat.session_id) {
+      selectedSessionId = String(chat.session_id);
+      try { window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId); } catch (err) { }
+    }
+    if (chat && chat.turns) {
+      chat.turns.forEach(function (turn) { appendChatTurnEl(turn, false); });
+    }
+    renderDrafts(chat);
+    updateWelcomeVisibility();
+    updateRetryBtn();
+  }
+
+  function finishChatUi() {
+    chatInFlight = false;
+    searchBtn.disabled = false;
+    chatStopBtn.hidden = true;
+    updateRetryBtn();
+  }
+
+  function sendChatMessage(message, links, retryTurnId) {
+    if (chatInFlight) { return; }
+    clearRequestError();
+    if (!message) {
+      showRequestError('请先输入要聊的内容。');
       topicEl.focus();
       return;
     }
-    api('/api/workbench/session/start', { topic: topic, urls: urls },
-      { message: '正在检索本集参考视频（匿名访问，有界请求）…' })
-      .then(function (state) {
-        renderState(state);
-        return state;
-      })
-      .catch(function () {});
+    lastUserMessage = message;
+    lastUserLinks = links;
+    if (!retryTurnId) {
+      // 新消息开始：旧 turn id 不再适用，收到 start 事件后再记录新的
+      lastUserTurnId = '';
+    }
+    lastSendIncomplete = false;
+    chatInFlight = true;
+    searchBtn.disabled = true;
+    chatStopBtn.hidden = false;
+    chatRetryBtn.hidden = true;
+    chatStatusEl.textContent = retryTurnId
+      ? '重发上一条…（复用已保存的消息，不会重复发送）'
+      : '发送中…（调用你配置的模型服务）';
+    updateWelcomeVisibility();
+    var userTurnEl = null;
+    if (!retryTurnId) {
+      // B3：只有新消息才本地显示用户气泡；幂等重试复用已保存的那条，
+      // 绝不再次 append 相同内容（Nexus review：retry 不得复制 user prompt）
+      userTurnEl = appendChatTurnEl({ role: 'user', content: message, links: links }, false);
+    } else {
+      // 清掉上次停止遗留的半截流式气泡，避免视觉残留误导
+      chatThread.querySelectorAll('.chat-msg.streaming').forEach(function (node) {
+        if (node.parentNode) { node.parentNode.removeChild(node); }
+      });
+    }
+    // 发送是显式动作：滚到最新消息；之后流式增量只在用户仍靠近底部时跟随
+    if (userTurnEl || chatThread.lastElementChild) { scrollToEndOfConversation(); }
+    var assistantEl = null;
+    // U1（5628192126）：乐观气泡只在服务器接受（SSE start）前存在 ——
+    // 被拒/未送达的请求绝不留下假「已发送」气泡，也不提供误导的「重发」。
+    var accepted = false;
+    chatAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var payload = { message: message, links: links };
+    // 多会话：所有操作作用于显式选中会话；newChatMode 首发送才建新会话
+    if (!newChatMode && selectedSessionId) { payload.session_id = selectedSessionId; }
+    if (!retryTurnId && newChatMode) { payload.new_session = true; }
+    if (retryTurnId) { payload.retry_turn_id = retryTurnId; }
+    fetch('/api/workbench/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: chatAbort ? chatAbort.signal : undefined
+    }).then(function (resp) {
+      if (!resp.ok) {
+        return resp.json().then(function (data) {
+          throw new Error((data && data.error) || '发送失败，请重试。');
+        }, function () { throw new Error('发送失败，请重试。'); });
+      }
+      var reader = resp.body.getReader();
+      var decoder = new TextDecoder('utf-8');
+      var buffer = '';
+      function handleBlock(block) {
+        var line = block.trim();
+        if (!line || line.indexOf('data:') !== 0) { return; }
+        var event;
+        try { event = JSON.parse(line.slice(5).trim()); } catch (err) { return; }
+        if (event.type === 'start') {
+          accepted = true; // 服务器已校验并持久化本条 user turn
+          if (event.session_id) {
+            // 多会话：锁定服务器持久化的会话 id；新建对话的首发送在
+            // 此刻退出 newChatMode，后续 refresh/follow-up 都作用于它。
+            // P0（review 5629701467）：会话实际变化（含新建首发送）时
+            // 视图代际 +1 —— 此前发起的草稿操作属于旧会话，完成时按
+            // 代际丢弃，绝不改写新会话的编辑器。
+            if (String(event.session_id) !== selectedSessionId || newChatMode) {
+              chatViewToken += 1;
+            }
+            selectedSessionId = String(event.session_id);
+            newChatMode = false;
+            syncDraftButtons();
+            syncDraftViewStatus();
+            try { window.localStorage.setItem(SELECTED_CHAT_KEY, selectedSessionId); } catch (err) { }
+          }
+          if (event.user_turn && event.user_turn.turn_id) {
+            // B3：记录服务器持久化的 user turn id，停止后重试按 ID 幂等复用
+            lastUserTurnId = event.user_turn.turn_id;
+            if (userTurnEl) { userTurnEl.dataset.turnId = event.user_turn.turn_id; }
+          }
+          chatStatusEl.textContent = kindLabel(event.provider_kind) + ' 流式输出中…';
+        } else if (event.type === 'delta') {
+          var wasNearBottom = nearBottom();
+          if (!assistantEl) {
+            assistantEl = appendChatTurnEl({ role: 'assistant', content: '' }, true);
+          }
+          assistantEl.firstChild.textContent += event.text;
+          // 滚动跟随只在用户仍靠近底部时进行；向上翻阅历史时不强行打断
+          if (wasNearBottom) { scrollToEndOfConversation(); }
+        } else if (event.type === 'done') {
+          lastSendIncomplete = false;
+          chatStatusEl.textContent = '回复完成，已保存到本机。';
+        } else if (event.type === 'error') {
+          lastSendIncomplete = true;
+          chatStatusEl.textContent = '回复中断：' + (event.error || '请重试。');
+        }
+      }
+      function pump() {
+        return reader.read().then(function (chunk) {
+          if (chunk.done) { return; }
+          buffer += decoder.decode(chunk.value, { stream: true });
+          var blocks = buffer.split('\n\n');
+          buffer = blocks.pop();
+          blocks.forEach(handleBlock);
+          return pump();
+        });
+      }
+      return pump().then(function () {
+        if (buffer) { handleBlock(buffer); buffer = ''; }
+      });
+    }).then(function () {
+      finishChatUi();
+      return refresh();
+    }).catch(function (error) {
+      var aborted = chatAbort && chatAbort.signal && chatAbort.signal.aborted;
+      if (aborted) {
+        // B3：停止 = 停止显示 + 尽力中断上游请求；半截回复既不保存也不留在
+        // 界面上。计费诚实 —— 已产生的费用可能仍会计入账单，不做取消承诺。
+        if (assistantEl && assistantEl.parentNode) {
+          assistantEl.parentNode.removeChild(assistantEl);
+        }
+        chatStatusEl.textContent = '已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单。';
+        finishChatUi();
+        // U1：停止后与服务器对账 —— 消息是否已持久化决定「重发」语义；
+        // 绝不猜测，也绝不静默重发。
+        refresh().then(function () {
+          var turns = (chatStateCache && chatStateCache.turns) || [];
+          var lastTurn = turns[turns.length - 1];
+          if (lastTurn && lastTurn.role === 'user' && lastTurn.content === message) {
+            lastUserTurnId = lastTurn.turn_id;
+            lastSendIncomplete = true;
+            chatStatusEl.textContent += '可点「重发上一条」。';
+            updateRetryBtn();
+          } else {
+            // 未送达：恢复输入，由用户决定是否重发（不自动重发）
+            if (!topicEl.value.trim()) { topicEl.value = message; }
+            try { window.localStorage.setItem(TOPIC_DRAFT_KEY, message); } catch (err) { }
+            chatStatusEl.textContent += '内容未送达，已恢复到输入框。';
+          }
+        });
+        return;
+      }
+      var reason = ((error && error.message) || '网络错误');
+      if (accepted) {
+        // SSE 已开始后网络中断：消息已持久化，可幂等重发（B3 语义）
+        lastSendIncomplete = true;
+        chatStatusEl.textContent = '发送中断：' + reason + '；消息已保存，可点「重发上一条」。';
+        finishChatUi();
+        return;
+      }
+      if (retryTurnId) {
+        // 幂等重发的目标 turn 早已持久化；被 400（停止后预约尚未释放）
+        // 或其他服务端错误拒绝时，不转入「未发送」路径 —— 消息仍在
+        // 记录中，保留重发按钮，稍候再点即可。
+        lastSendIncomplete = true;
+        chatStatusEl.textContent = '发送失败：' + reason + '；消息已保存，稍候可再点「重发上一条」。';
+        finishChatUi();
+        return;
+      }
+      // 服务器未接受的新消息（400 / 404 / 网络未达）：移除乐观气泡 —— 界面
+      // 上绝不残留假「已发送」；恢复输入；不显示「重发上一条」（消息
+      // 从未持久化，重发=正常发送，直接点发送即可）。
+      if (userTurnEl && userTurnEl.parentNode) {
+        userTurnEl.parentNode.removeChild(userTurnEl);
+      }
+      var guidance = /404|路径不存在/.test(reason)
+        ? '；本机服务可能是旧版本，请重启本地服务后刷新页面'
+        : '';
+      chatStatusEl.textContent = '发送失败：' + reason + guidance + '；内容未发送，已恢复到输入框。';
+      if (!topicEl.value.trim()) { topicEl.value = message; }
+      try { window.localStorage.setItem(TOPIC_DRAFT_KEY, message); } catch (err) { }
+      topicEl.focus();
+      finishChatUi();
+    });
   }
 
+  function sendChat() {
+    if (searchBtn.disabled) { return; }
+    var message = topicEl.value.trim();
+    var links = chatLinksFromInputs(message);
+    if (!message) {
+      showRequestError('请先输入要聊的内容。');
+      topicEl.focus();
+      return;
+    }
+    topicEl.value = '';
+    try { window.localStorage.removeItem(TOPIC_DRAFT_KEY); } catch (err) { }
+    sendChatMessage(message, links, '');
+  }
+
+  chatStopBtn.addEventListener('click', function () {
+    if (chatAbort) { chatAbort.abort(); }
+  });
+
+  chatRetryBtn.addEventListener('click', function () {
+    if (chatInFlight || !lastUserMessage) { return; }
+    // B3：有已保存的 turn id 走幂等重试（服务器复用原消息，不重复 append）；
+    // 之前发送未到达服务器（没有 turn id）则按新消息正常发送。
+    sendChatMessage(lastUserMessage, lastUserLinks, lastUserTurnId);
+  });
+
+  // P0（review 5629701467）：迟到草稿结果的唯一落点 —— 只刷新会话列表
+  // 元数据（消息/草稿计数），绝不触碰当前视图的编辑器/缓存/状态文案；
+  // 自身失败静默（元数据由下一次正常 refresh 兜底）。
+  function refreshSessionsQuietly() {
+    getState().then(function (state) {
+      if (state && state.sessions) { renderSessions(state.sessions); }
+    }).catch(function () { });
+  }
+
+  // P0（review 5629701467）：按钮 disabled 跟随「当前选中会话」的在飞
+  // 草稿操作；切换会话/新会话锁定时重算，跨会话迟到完成不误改。
+  function syncDraftButtons() {
+    draftGenerateBtn.disabled = !!draftGenBusySessions[selectedSessionId];
+    draftSaveBtn.disabled = !!draftSaveBusySessions[selectedSessionId];
+  }
+
+  // P0（review 5629701467）：状态文案属于视图 —— 切换会话后旧会话的在飞
+  // 提示不得残留；若目标会话自身有草稿操作在飞，给出真实提示（诚实
+  // 说明按钮为何禁用），否则清空。
+  function syncDraftViewStatus() {
+    var busy = !!(draftGenBusySessions[selectedSessionId] || draftSaveBusySessions[selectedSessionId]);
+    draftStatusEl.textContent = busy ? '该会话的草稿操作仍在进行中，完成后会显示在这里。' : '';
+  }
+
+  draftGenerateBtn.addEventListener('click', function () {
+    if (draftGenerateBtn.disabled || newChatMode) { return; }
+    // P0（review 5629701467）：捕获动作发起时的会话身份与视图代际 ——
+    // 完成时若选中会话已变（如已切到 B），A 的草稿绝不渲染进当前
+    // 编辑器，绝不污染 chatStateCache/状态文案，只静默更新列表元数据；
+    // 保存亦同理，A 的内容永远不会被存为 B 的修订。
+    var opSessionId = selectedSessionId;
+    var opViewToken = chatViewToken;
+    draftGenBusySessions[opSessionId] = true;
+    syncDraftButtons();
+    draftStatusEl.textContent = '正在把对话整理为草稿（调用你的模型服务）…';
+    fetch('/api/workbench/chat/draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: opSessionId })
+    }).then(function (resp) {
+      return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+    }).then(function (result) {
+      delete draftGenBusySessions[opSessionId];
+      syncDraftButtons();
+      var stillSameView = chatViewToken === opViewToken && selectedSessionId === opSessionId && !newChatMode;
+      if (!stillSameView && !newChatMode && selectedSessionId === opSessionId) {
+        // 迟到结果，但用户已切回发起会话（视图代际已变）：如实提示并
+        // 刷新当前会话 —— 同一会话无跨会话污染，结果直接可见，不残留
+        // “仍在进行中”的误导状态。
+        if (result.ok) { selectedDraftRevision = result.data.draft.revision; }
+        draftStatusEl.textContent = result.ok
+          ? '草稿已生成（未审核）。可自由编辑后保存为新版本。'
+          : (result.data.error || '草稿生成失败，请重试。');
+        refresh().catch(function () { });
+        return;
+      }
+      if (!stillSameView) {
+        refreshSessionsQuietly();  // 迟到结果：仅更新未选中会话的列表元数据
+        return;
+      }
+      if (!result.ok) {
+        draftStatusEl.textContent = result.data.error || '草稿生成失败，请重试。';
+        return;
+      }
+      draftStatusEl.textContent = '草稿已生成（未审核）。可自由编辑后保存为新版本。';
+      selectedDraftRevision = result.data.draft.revision;
+      chatStateCache = result.data.chat;
+      renderDrafts(result.data.chat);
+      // 生成是显式用户动作的直接后果：轻量确认 + 自动展开编辑器；
+      // 下次返回/刷新默认收起（renderDrafts 不主动 open）。
+      draftDrawer.open = true;
+      draftDrawer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }).catch(function () {
+      delete draftGenBusySessions[opSessionId];
+      syncDraftButtons();
+      if (!newChatMode && selectedSessionId === opSessionId) {
+        draftStatusEl.textContent = '草稿生成失败：网络错误，请重试。';
+      }
+    });
+  });
+
+  draftEntryBtn.addEventListener('click', function () {
+    if (draftDrawer.hidden) { return; }
+    draftDrawer.open = !draftDrawer.open;
+    if (draftDrawer.open) { draftDrawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  });
+
+  draftSaveBtn.addEventListener('click', function () {
+    var content = draftEditor.value;
+    if (!content.trim()) {
+      draftStatusEl.textContent = '草稿内容不能为空。';
+      return;
+    }
+    // P0（review 5629701467）：保存同样按发起时会话作用域 —— 内容与
+    // session_id 都在点击时捕获，期间切换会话不会把 A 的内容写进 B；
+    // 迟到响应绝不改写当前视图，只静默更新列表元数据。
+    var opSessionId = selectedSessionId;
+    var opViewToken = chatViewToken;
+    draftSaveBusySessions[opSessionId] = true;
+    syncDraftButtons();
+    draftStatusEl.textContent = '正在保存新版本…';
+    fetch('/api/workbench/chat/draft/edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: content, session_id: opSessionId })
+    }).then(function (resp) {
+      return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+    }).then(function (result) {
+      delete draftSaveBusySessions[opSessionId];
+      syncDraftButtons();
+      var stillSameView = chatViewToken === opViewToken && selectedSessionId === opSessionId && !newChatMode;
+      if (!stillSameView && !newChatMode && selectedSessionId === opSessionId) {
+        // 迟到结果但已切回发起会话：如实提示并刷新当前会话（同一会话
+        // 无跨会话污染），不残留误导状态。
+        if (result.ok) { selectedDraftRevision = result.data.draft.revision; }
+        draftStatusEl.textContent = result.ok
+          ? '已保存为版本 v' + result.data.draft.revision + '（旧版本仍可回看）。'
+          : (result.data.error || '保存失败，请重试。');
+        refresh().catch(function () { });
+        return;
+      }
+      if (!stillSameView) {
+        refreshSessionsQuietly();  // 迟到结果：仅更新未选中会话的列表元数据
+        return;
+      }
+      if (!result.ok) {
+        draftStatusEl.textContent = result.data.error || '保存失败，请重试。';
+        return;
+      }
+      draftStatusEl.textContent = '已保存为版本 v' + result.data.draft.revision + '（旧版本仍可回看）。';
+      selectedDraftRevision = result.data.draft.revision;
+      chatStateCache = result.data.chat;
+      renderDrafts(result.data.chat);
+    }).catch(function () {
+      delete draftSaveBusySessions[opSessionId];
+      syncDraftButtons();
+      if (!newChatMode && selectedSessionId === opSessionId) {
+        draftStatusEl.textContent = '保存失败：网络错误，请重试。';
+      }
+    });
+  });
+
+  draftCopyBtn.addEventListener('click', function () {
+    var text = draftEditor.value;
+    var done = function () { draftStatusEl.textContent = '已复制到剪贴板。'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {
+        draftStatusEl.textContent = '复制失败，请手动全选复制。';
+      });
+    } else {
+      draftEditor.select();
+      document.execCommand('copy');
+      done();
+    }
+  });
+
+  draftExportBtn.addEventListener('click', function () {
+    var blob = new Blob([draftEditor.value], { type: 'text/markdown;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var link = el('a');
+    link.href = url;
+    var stamp = (chatStateCache && chatStateCache.updated_at || '').replace(/[:+]/g, '-').slice(0, 19);
+    link.download = 'deeptalk-草稿-v' + (draftEditor.dataset.revision || '1') + (stamp ? '-' + stamp : '') + '.md';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    draftStatusEl.textContent = '已导出到本地下载。';
+  });
+
   addBtn.addEventListener('click', addRefInput);
-  searchBtn.addEventListener('click', startCreation);
+  searchBtn.addEventListener('click', sendChat);
   topicEl.addEventListener('keydown', function (event) {
-    if (event.key === 'Enter') { event.preventDefault(); startCreation(); }
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      sendChat();
+    }
   });
   syncAddButton();
-
-  renderSteps('references');
+  applyView();
   refresh().catch(function () {});
 })();
 </script>

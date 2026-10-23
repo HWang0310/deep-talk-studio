@@ -56,6 +56,7 @@ from .reference_discovery import (
 )
 from .script_validation import ScriptValidationError
 from .validation import ReportValidationError
+from .workbench.creative_chat import CreativeChatError
 from .workbench.flow import WorkbenchFlowError
 from .workbench.llm import WorkbenchLLMError
 
@@ -72,6 +73,9 @@ MAX_AUDIO_UPLOAD_BYTES = 512 * 1024 * 1024
 WORKBENCH_ROUTE_CAPS = {
     "/api/workbench/settings": 32 * 1024,
     "/api/workbench/settings/test": 2048,
+    "/api/workbench/chat/stream": 64 * 1024,
+    "/api/workbench/chat/draft": 2048,
+    "/api/workbench/chat/draft/edit": 128 * 1024,
     "/api/workbench/session/start": 32 * 1024,
     "/api/workbench/references/acquire": 64 * 1024,
     "/api/workbench/references/analyze": 2048,
@@ -260,7 +264,7 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             _send_json(self, 403, {"error": rejection})
             return
         path = urllib.parse.urlparse(self.path).path
-        if path == "/":
+        if path in {"/", "/settings"}:
             try:
                 body = INDEX_HTML_PATH.read_bytes()
             except OSError:
@@ -273,6 +277,14 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/workbench/state":
             self._handle_workbench_get_state()
+            return
+        if path == "/api/workbench/chat/sessions":
+            flow = self._workbench_flow()
+            result, error = self._workbench_call(flow.chat_sessions)
+            if error:
+                _send_json(self, error[0], error[1])
+                return
+            _send_json(self, 200, result)
             return
         if path == "/api/workbench/script/final":
             self._handle_workbench_final_script()
@@ -397,14 +409,149 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         except Exception as exc:  # never kill the local server on one step
             return None, (500, {"error": f"这一步执行失败：{type(exc).__name__}：{str(exc)[:300]}"})
 
+    def _handle_chat_stream(self, flow, payload: Dict[str, object]) -> None:
+        """真实流式聊天：SSE 增量转发；停止/断开尝试中断上游请求。
+
+        - **准入预约先于任何存储变更**（B2/P0，5627594838）：同一时刻只允许
+          一个在飞流，重叠发送在持久化 user turn **之前**被 400 拒绝——被拒
+          绝的消息绝不进入聊天记录，也不会污染后续模型上下文；预约检查+注册
+          在 ``chat_flight_lock`` 内原子完成，并发首次发送（尚无会话）与稳态
+          重叠都 race-safe；
+        - 预约在所有失败/断开路径释放（finally）；等待模型期间不持有任何
+          全局锁；
+        - 通过预约后才校验并持久化用户消息（Key/空消息防护不变），助手回复
+          只在流完成后原子写入最新会话；停止/断开不写半截回复；
+        - 计费诚实（B3）：停止尽力中断上游请求，但不承诺已产生费用
+          不计入账单；重试永远是用户显式幂等动作。
+        """
+
+        server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment]
+        # B2 单飞按会话隔离（多会话，issuecomment-6366157284）：同一会话
+        # 同时只允许一个在飞流；「新建对话」共享 'chat:new' 槽。预约仍在
+        # **任何存储变更之前**原子完成（5627594838），重叠发送 400。
+        raw_session_id = str(payload.get("session_id", "") or "")
+        new_session_flag = str(payload.get("new_session", "")) not in ("", "false", False)
+        # Legacy/latest 别名规范化（review 5629701467）：legacy（不带 id）
+        # 发送与显式 id 发送可能指向同一会话，却占用不同的 flight key，
+        # 绕过 per-session 单飞。规范化规则（预约前只读解析，零持久化变更；
+        # 不同会话绝不互斥，无全局锁）：
+        #   - legacy 请求同时持有 "chat:latest" 槽与解析出的最近会话 id
+        #     （存在时）——先到者占住 latest 槽，后到的 legacy 重叠在任
+        #     一 key 上冲突；首个 legacy 发送（尚无会话）仅占 latest 槽；
+        #   - 显式 id 请求除自身 id 外，若 "chat:latest" 在飞且解析出的
+        #     最近会话恰为该 id（含 legacy 首发送在飞途中刚创建的会话），
+        #     同样冲突 —— 两个方向都不能互相绕过；
+        #   - new_session 独占 "chat:new" 槽。
+        try:
+            resolved_latest = flow.creative.latest_session_id()
+        except Exception:
+            resolved_latest = None
+        if new_session_flag:
+            flight_keys = {"chat:new"}
+        elif raw_session_id:
+            flight_keys = {raw_session_id}
+        else:
+            flight_keys = {"chat:latest"}
+            if resolved_latest:
+                flight_keys.add(resolved_latest)
+        with server.chat_flight_lock:
+            # 显式 id 的别名冲突检查在锁内完成（读到的在飞集合与解析结果
+            # 一致，无 check-then-act 竞态）：legacy 首发送在飞途中刚创建
+            # 的最近会话尚未出现在其持有 key 里，显式请求指向它时靠此
+            # 检查拒绝。
+            alias_conflict = (
+                bool(raw_session_id) and not new_session_flag
+                and "chat:latest" in server.chat_in_flight
+                and resolved_latest == raw_session_id
+            )
+            if alias_conflict or (flight_keys & server.chat_in_flight):
+                _send_json(self, 400, {
+                    "error": "上一条回复还在进行中，请先停止或等待完成后再发送",
+                })
+                return
+            server.chat_in_flight |= flight_keys
+        try:
+            try:
+                context = flow.chat_send_start(
+                    str(payload.get("message", "")),
+                    payload.get("links", []) or [],
+                    retry_turn_id=str(payload.get("retry_turn_id", "") or ""),
+                    session_id=raw_session_id,
+                    new_session=new_session_flag,
+                )
+            except WorkbenchFlowError as exc:
+                body = {"error": str(exc)}
+                body.update(getattr(exc, "payload", {}) or {})
+                _send_json(self, 400, body)
+                return
+            except (WorkbenchLLMError, CreativeChatError) as exc:
+                _send_json(self, 400, {"error": str(exc)})
+                return
+            except Exception as exc:  # never kill the local server
+                _send_json(self, 500, {"error": f"发送失败：{type(exc).__name__}，请重试"})
+                return
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Connection", "close")
+                self.close_connection = True
+                self.end_headers()
+
+                def send_event(obj) -> None:
+                    data = json.dumps(obj, ensure_ascii=False)
+                    self.wfile.write(("data: " + data + "\n\n").encode("utf-8"))
+                    self.wfile.flush()
+
+                send_event({
+                    "type": "start",
+                    "session_id": context["session"].get("session_id", ""),
+                    "user_turn": context["user_turn"],
+                    "provider_kind": context.get("provider_kind", ""),
+                    "model": context["settings"].get("model", ""),
+                })
+                events = flow.chat_stream_reply(context)
+                try:
+                    for event in events:
+                        send_event(event)
+                except WorkbenchFlowError as exc:
+                    send_event({"type": "error", "error": str(exc)})
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                    # 用户停止或浏览器断开：尝试中断上游请求，不写助手回复
+                    events.close()
+                    return
+                except Exception as exc:  # never kill the local server mid-stream
+                    send_event({"type": "error", "error": f"流式输出中断：{type(exc).__name__}，请重试"})
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                return
+        finally:
+            # B2 单飞：预约在任何退出路径（含 chat_send_start 失败、流中异常、
+            # 用户停止/断开）都释放，会话可继续发送；legacy 持有的全部
+            # key（latest 槽 + 解析 id）一并释放。
+            with server.chat_flight_lock:
+                server.chat_in_flight -= flight_keys
+
     def _handle_workbench_get_state(self) -> None:
         flow = self._workbench_flow()
+        # 多会话（issuecomment-6366157284）：?chat=<session_id> 返回显式
+        # 选中会话（绝不静默回落 latest）；无参数保持旧行为（latest）。
+        # 同时附上侧栏元数据列表（ID/标题/更新时间/计数，无任何机密）。
+        query = urllib.parse.parse_qs(
+            urllib.parse.urlparse(self.path).query, keep_blank_values=True
+        )
+        chat_id = ""
+        values = query.get("chat", [])
+        if len(values) == 1 and str(values[0]).strip():
+            chat_id = str(values[0]).strip()
 
         def _read():
             settings = flow.get_settings()
             session = flow.store.load_latest()
             view = flow.view(session["session_id"]) if session else None
-            return {"settings": settings, "session": view}
+            chat = flow.chat_state(chat_id)
+            sessions = flow.chat_sessions()
+            return {"settings": settings, "session": view, **chat, **sessions}
 
         result, error = self._workbench_call(_read)
         if error:
@@ -602,7 +749,22 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return
         server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment"]
         session_id = str(payload.get("session_id", "") or "")
-        if path == "/api/workbench/settings":
+        if path == "/api/workbench/chat/stream":
+            # 流式聊天走专用 SSE 响应，不走统一 JSON 尾部
+            self._handle_chat_stream(flow, payload)
+            return
+        if path == "/api/workbench/chat/draft":
+            result, error = self._workbench_call(
+                lambda: flow.chat_draft_generate(str(payload.get("session_id", "") or ""))
+            )
+        elif path == "/api/workbench/chat/draft/edit":
+            result, error = self._workbench_call(
+                lambda: flow.chat_draft_save(
+                    str(payload.get("content", "")),
+                    str(payload.get("session_id", "") or ""),
+                )
+            )
+        elif path == "/api/workbench/settings":
             result, error = self._workbench_call(lambda: flow.save_settings(payload))
         elif path == "/api/workbench/settings/test":
             result, error = self._workbench_call(flow.test_settings)
@@ -793,6 +955,10 @@ class _DeepTalkWebUIServer(ThreadingHTTPServer):
         self.discovery_lock = threading.Lock()
         self.workbench_lock = threading.Lock()
         self.flow = flow
+        # Nexus B2：同一聊天会话同时只允许一个在飞流（单飞），
+        # 重叠发送返回 400，避免并发流互相竞争与隐藏重复计费。
+        self.chat_in_flight = set()
+        self.chat_flight_lock = threading.Lock()
 
 
 def _default_repo_root() -> Path:

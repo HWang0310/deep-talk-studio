@@ -28,6 +28,7 @@ from deeptalk_studio.schema import (
 )
 from deeptalk_studio.validation import validate_json_schema
 from deeptalk_studio.workbench import acquisition
+from deeptalk_studio.workbench.creative_chat import CreativeChatStore, CreativeChatError
 from deeptalk_studio.workbench.flow import WorkbenchFlow, WorkbenchFlowError
 from deeptalk_studio.workbench.llm import (
     ChatCompletionsProvider,
@@ -41,7 +42,56 @@ from deeptalk_studio.workbench.settings import (
     load_settings,
     masked_view,
     save_settings,
+    settings_path,
+    user_settings_path,
 )
+
+# ---- 测试凭据与会话数据安全（P0，review 5628439637 + 6366157284）-------
+# pytest 与直接 `PYTHONPATH=src python3 -m unittest discover -s tests -v`
+# （AGENTS.md/README.md 文档命令）都必须与真实 ~/.deeptalk 完全隔离：
+# 绝不读取、覆盖或清除 Owner 已保存的 DeepSeek Key 与聊天历史。
+#
+# 本模块级兑底在本文件被任何 runner（pytest / unittest / IDE / CI）加载时
+# 先于任何 settings/chat 读/写执行——用户级配置与聊天历史目录都指向
+# 一次性临时目录，不解析真实 Path.home()；下方基类再为每个测试提供独立
+# 目录，防止测试间串扰。生产运行不导入本文件，用户级 ~/.deeptalk 行为
+# 保持不变。
+import atexit as _atexit
+import shutil as _shutil
+import tempfile as _tempfile
+
+from deeptalk_studio.workbench import settings as _settings_module
+from deeptalk_studio.workbench import creative_chat as _creative_chat_module
+
+if _settings_module.USER_SETTINGS_DIR is None:
+    _SESSION_USER_DIR = Path(_tempfile.mkdtemp(prefix="deeptalk-tests-user-"))
+    _atexit.register(_shutil.rmtree, _SESSION_USER_DIR, ignore_errors=True)
+    _settings_module.USER_SETTINGS_DIR = _SESSION_USER_DIR
+if _creative_chat_module.USER_CHAT_DIR is None:
+    _SESSION_CHAT_DIR = Path(_tempfile.mkdtemp(prefix="deeptalk-tests-chat-"))
+    _atexit.register(_shutil.rmtree, _SESSION_CHAT_DIR, ignore_errors=True)
+    _creative_chat_module.USER_CHAT_DIR = _SESSION_CHAT_DIR
+
+
+class _UserSettingsIsolatedTestCase(unittest.TestCase):
+    """每个测试独享用户级配置与聊天历史目录（pytest 与 unittest 双入口均生效）。"""
+
+    def setUp(self):
+        super().setUp()
+        settings_dir = Path(
+            _tempfile.mkdtemp(prefix="deeptalk-user-%s-" % self.id()[:60])
+        )
+        self.addCleanup(_shutil.rmtree, settings_dir, ignore_errors=True)
+        previous_settings = _settings_module.USER_SETTINGS_DIR
+        _settings_module.USER_SETTINGS_DIR = settings_dir
+        self.addCleanup(setattr, _settings_module, "USER_SETTINGS_DIR", previous_settings)
+        chat_dir = Path(
+            _tempfile.mkdtemp(prefix="deeptalk-chat-%s-" % self.id()[:60])
+        )
+        self.addCleanup(_shutil.rmtree, chat_dir, ignore_errors=True)
+        previous_chat = _creative_chat_module.USER_CHAT_DIR
+        _creative_chat_module.USER_CHAT_DIR = chat_dir
+        self.addCleanup(setattr, _creative_chat_module, "USER_CHAT_DIR", previous_chat)
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -535,7 +585,7 @@ def _fake_acquirer(reference, downloads_dir, authorization_text, *, runner=None,
     return record
 
 
-class SettingsTests(unittest.TestCase):
+class SettingsTests(_UserSettingsIsolatedTestCase):
     def test_deepseek_preset_uses_official_defaults_and_single_endpoint_suffix(self):
         data = apply_settings_update(load_settings(Path(tempfile.mkdtemp())), {
             "provider_mode": "deepseek",
@@ -570,6 +620,41 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(switched["downloads_dir"], raw)
             self.assertEqual(switched["connection_status"], "not_tested")
             self.assertEqual(switched["model"], "deepseek-flash")
+
+    def test_deepseek_mode_discards_stale_custom_endpoint_and_model(self):
+        """Nexus P0（PR #45 review 5625537364）：切换到 DeepSeek 预设后，
+        服务端无条件强制官方端点与官方模型，丢弃残留的自定义值；
+        显式提交的旧 Chat 端点/模型名同样被覆盖，绝不把新粘贴的
+        DeepSeek Key 路由到先前的自定义端点。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "chat",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "custom-model",
+                "api_key": "sk-old",
+            }))
+            # 切换 payload 不带端点/模型：残留 custom 值必须被丢弃
+            switched = apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+                "api_key": "sk-newly-pasted",
+            })
+            self.assertEqual(switched["chat_base_url"], "https://api.deepseek.com")
+            self.assertEqual(switched["model"], "deepseek-flash")
+            self.assertEqual(switched["api_key"], "sk-newly-pasted")
+            # 即使 payload 显式带上旧/自定义端点，deepseek 模式仍强制官方值
+            hostile = apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+                "chat_base_url": "http://127.0.0.1:8931/v1",
+                "model": "attacker-model",
+            })
+            self.assertEqual(hostile["chat_base_url"], "https://api.deepseek.com")
+            self.assertEqual(hostile["model"], "deepseek-flash")
+            # 凭证路由终点必须是官方 chat/completions 端点
+            self.assertEqual(
+                effective_chat_endpoint(hostile),
+                "https://api.deepseek.com/chat/completions",
+            )
 
     def test_connection_status_view_is_masked_and_clear_is_explicit(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -642,6 +727,58 @@ class SettingsTests(unittest.TestCase):
             self.assertEqual(cleared["api_key"], "")
             self.assertFalse(is_configured(cleared))
 
+    def test_saved_key_is_shared_across_worktrees_and_survives_updates(self):
+        """Owner Key 持久化（issuecomment-6364369899）：一次保存后，
+        不同工作树 root / 产品更新加载同一份用户级配置，绝不要求
+        Owner 重新输入 Key；仓库级 config 不再被写入。"""
+        with tempfile.TemporaryDirectory() as raw_a, tempfile.TemporaryDirectory() as raw_b:
+            root_a = Path(raw_a)
+            root_b = Path(raw_b)
+            save_settings(root_a, apply_settings_update(load_settings(root_a), {
+                "provider_mode": "deepseek",
+                "api_key": "sk-owner-shared-key-9876abcd",
+            }))
+            # 另一个工作树（不同 root）加载同一份已保存 Key
+            shared = load_settings(root_b)
+            self.assertEqual(shared["api_key"], "sk-owner-shared-key-9876abcd")
+            self.assertEqual(shared["provider_mode"], "deepseek")
+            # 「产品更新」视角：新 root 上继续修改，旧 root 也能读到新值
+            save_settings(root_b, apply_settings_update(load_settings(root_b), {
+                "model": "deepseek-flash",
+            }))
+            reloaded = load_settings(root_a)
+            self.assertEqual(reloaded["api_key"], "sk-owner-shared-key-9876abcd")
+            self.assertEqual(reloaded["model"], "deepseek-flash")
+            # 仓库级 config 不再被写入（用户级是唯一真源）
+            self.assertFalse(settings_path(root_a).exists())
+            self.assertFalse(settings_path(root_b).exists())
+
+    def test_repo_settings_migrate_once_to_user_level_and_stay_0600(self):
+        """向后兼容迁移：已有仓库级配置在首次加载时一次性复制到用户级
+        （0600），原文件保留（旧版本 fallback）；显式清除 Key 时同步
+        清掉仓库级旧 Key，不复活、不残留明文。"""
+        with tempfile.TemporaryDirectory() as raw, tempfile.TemporaryDirectory() as raw_b:
+            root = Path(raw)
+            repo_cfg = settings_path(root)
+            repo_cfg.parent.mkdir(parents=True, exist_ok=True)
+            repo_cfg.write_text(json.dumps({
+                "provider_mode": "deepseek",
+                "api_key": "sk-migrate-me-998877",
+                "model": "deepseek-flash",
+            }, ensure_ascii=False), encoding="utf-8")
+            data = load_settings(root)  # 首次加载触发迁移
+            self.assertEqual(data["api_key"], "sk-migrate-me-998877")
+            user_path = user_settings_path()
+            self.assertTrue(user_path.is_file())
+            self.assertEqual(user_path.stat().st_mode & 0o777, 0o600)
+            self.assertTrue(repo_cfg.is_file())  # 原文件保留（旧版本 fallback）
+            # 用户级成为唯一真源：另一工作树直接读到迁移结果
+            self.assertEqual(load_settings(Path(raw_b))["api_key"], "sk-migrate-me-998877")
+            # 显式清除 Key：用户级与仓库级旧 Key 一起清掉
+            save_settings(root, apply_settings_update(load_settings(root), {"api_key": ""}))
+            self.assertEqual(load_settings(root)["api_key"], "")
+            self.assertEqual(json.loads(repo_cfg.read_text(encoding="utf-8"))["api_key"], "")
+
     def test_settings_rejects_nonexistent_downloads_dir(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -656,7 +793,12 @@ class SettingsTests(unittest.TestCase):
             flow = WorkbenchFlow(root, provider_factory=lambda settings: None)
             with self.assertRaises(WorkbenchFlowError) as ctx:
                 flow.test_settings()
-            self.assertIn("WAITING_FOR_OWNER_API_KEY", str(ctx.exception))
+            # Issue #44 settings UX: the user-facing message must be natural
+            # Chinese naming what is missing — never the internal status code.
+            message = str(ctx.exception)
+            self.assertIn("设置尚未完成", message)
+            self.assertIn("API Key", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
             view = flow.get_settings()
             self.assertEqual(view["connection_status"], "waiting_for_api_key")
             self.assertEqual(view["connection_kind"], "fixture")
@@ -676,13 +818,67 @@ class SettingsTests(unittest.TestCase):
             }))
             result = flow.test_settings()
             self.assertEqual(result["status"], "passed")
+            # Issue #44 settings UX: a fixture connection must carry its kind
+            # so the UI can render a dev-test state instead of real success.
             self.assertEqual(result["connection_kind"], "fixture")
             view = flow.get_settings()
             self.assertEqual(view["connection_status"], "passed")
             self.assertNotIn("sk-private-fixture", json.dumps(view))
 
+    def test_test_settings_missing_field_message_names_each_gap_in_chinese(self):
+        """Issue #44 settings UX: the not-configured message lists the exact
+        missing pieces in natural Chinese (key / model / address) depending
+        on the provider mode, with no internal status codes."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow = WorkbenchFlow(root, provider_factory=lambda settings: None)
+            # DeepSeek preset after a keyless save: model + address are
+            # auto-configured, so only the API Key should be named.
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+            }))
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.test_settings()
+            message = str(ctx.exception)
+            self.assertIn("API Key", message)
+            self.assertNotIn("模型名称", message)
+            self.assertNotIn("API 地址", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
+            # A chat config missing only the model names the model in the
+            # message (an empty chat URL cannot be saved at all).
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "chat",
+                "api_key": "sk-test-half-configured",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "",
+            }))
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.test_settings()
+            message = str(ctx.exception)
+            self.assertIn("模型名称", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
 
-class AcquisitionTests(unittest.TestCase):
+    def test_deepseek_tools_gate_message_is_friendly_without_codes(self):
+        """Issue #44 settings UX: the DeepSeek Search/Fetch gate reports the
+        missing fields in natural Chinese, not WAITING_FOR_OWNER_API_KEY."""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow = WorkbenchFlow(root, provider_factory=lambda settings: None)
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+            }))
+            session = flow.store.create("本市图书馆夜间开放试点", [], None)
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.search_deepseek(
+                    session["session_id"], "预算", opt_in=True, max_requests=2
+                )
+            message = str(ctx.exception)
+            self.assertIn("设置尚未完成", message)
+            self.assertIn("API Key", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
+
+
+class AcquisitionTests(_UserSettingsIsolatedTestCase):
     def test_authorize_requires_meaningful_attestation(self):
         for bad in ["", "同意", "我同意在本地研究使用这些视频"]:
             with self.assertRaises(acquisition.WorkbenchAcquisitionError):
@@ -724,7 +920,7 @@ class AcquisitionTests(unittest.TestCase):
         self.assertTrue(metrics["top_terms"])
 
 
-class SessionStoreTests(unittest.TestCase):
+class SessionStoreTests(_UserSettingsIsolatedTestCase):
     def test_create_load_update_and_latest(self):
         with tempfile.TemporaryDirectory() as raw:
             store = SessionStore(Path(raw))
@@ -740,7 +936,7 @@ class SessionStoreTests(unittest.TestCase):
             self.assertEqual(store.load_latest()["session_id"], session["session_id"])
 
 
-class DeepSeekWorkbenchTests(unittest.TestCase):
+class DeepSeekWorkbenchTests(_UserSettingsIsolatedTestCase):
     """Issue #36: explicit, capped DeepSeek Search/Fetch stays offline in tests."""
 
     class Client:
@@ -849,12 +1045,17 @@ class DeepSeekWorkbenchTests(unittest.TestCase):
             sid = flow.start_session("本市图书馆夜间开放试点", [])["session_id"]
             with self.assertRaises(WorkbenchFlowError) as ctx:
                 flow.search_deepseek(sid, "证据", opt_in=True, max_requests=1)
-            self.assertIn("WAITING_FOR_OWNER_API_KEY", str(ctx.exception))
+            # Issue #44 settings UX: fail-closed behavior unchanged; the
+            # message is natural Chinese with no internal status code.
+            message = str(ctx.exception)
+            self.assertIn("设置尚未完成", message)
+            self.assertIn("API Key", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
             self.assertEqual(self_calls, [])
             self.assertEqual(flow.store.load(sid)["search_budget"]["used"], 0)
 
 
-class AudioWorkbenchTests(unittest.TestCase):
+class AudioWorkbenchTests(_UserSettingsIsolatedTestCase):
     """Issue #37: safe import/status around the canonical audio delivery core."""
 
     @staticmethod
@@ -941,7 +1142,7 @@ class AudioWorkbenchTests(unittest.TestCase):
             self.assertEqual(state["audio_delivery"]["gaps"][0]["reason"], "AUDIO_ONLY")
             self.assertFalse(state["audio_delivery"].get("preview_path"))
 
-class FullLoopTests(unittest.TestCase):
+class FullLoopTests(_UserSettingsIsolatedTestCase):
     """Ordinary-user acceptance path, engine-real, LLM scripted."""
 
     def _flow(self, root: Path, provider=None):
@@ -1220,7 +1421,7 @@ class FullLoopTests(unittest.TestCase):
             self.assertGreater(bad_result["quote_downgraded_checks"], 0)
 
 
-class AcquisitionFailureFlowTests(unittest.TestCase):
+class AcquisitionFailureFlowTests(_UserSettingsIsolatedTestCase):
     """Round-2 Nexus regression: validly authorized download failures are
     durable unresolved references, not transient response-only errors."""
 
@@ -1360,7 +1561,7 @@ class AcquisitionFailureFlowTests(unittest.TestCase):
             self.assertIn("离线测试拒绝", state["references"][0]["study_error"])
 
 
-class ReferenceAnalysisStateTests(unittest.TestCase):
+class ReferenceAnalysisStateTests(_UserSettingsIsolatedTestCase):
     def _configure(self, root):
         save_settings(root, apply_settings_update(load_settings(root), {
             "provider_mode": "chat",
@@ -1457,7 +1658,7 @@ class ReferenceAnalysisStateTests(unittest.TestCase):
         self.assertIn("segments", html)
 
 
-class ThesisPromptTests(unittest.TestCase):
+class ThesisPromptTests(_UserSettingsIsolatedTestCase):
     """Real prompt builders must work end to end (fakes bypass them, so a
     broken import or rendering would otherwise only surface at runtime)."""
 
@@ -1511,7 +1712,7 @@ class ThesisPromptTests(unittest.TestCase):
         self.assertIn("绝不作为事实来源", prompt)
 
 
-class NetFetchTests(unittest.TestCase):
+class NetFetchTests(_UserSettingsIsolatedTestCase):
     """Issue #23 B2: user-supplied source URLs may only reach public
     HTTP(S) destinations (no loopback/private/link-local SSRF, no rebinding
     window, no proxy bypass, no non-http redirect targets)."""
@@ -1815,7 +2016,7 @@ class NetFetchTests(unittest.TestCase):
                     os.environ[key] = value
 
 
-class TopicConsistencyTests(unittest.TestCase):
+class TopicConsistencyTests(_UserSettingsIsolatedTestCase):
     """Issue #23 B1: off-topic research/thesis/script must fail closed at
     generation AND approval/delivery boundaries — the exact observed E2E
     mismatch was a Moscow University topic with a library-themed payload."""
@@ -2005,7 +2206,7 @@ class TopicConsistencyTests(unittest.TestCase):
             )
 
 
-class ReferenceSynthesisTests(unittest.TestCase):
+class ReferenceSynthesisTests(_UserSettingsIsolatedTestCase):
     """Issue #23 B3: analyzed-N/eligible-M readiness, explicit
     partial-analysis override, and the deterministic five-way viewpoint
     comparison injected into research + thesis."""
@@ -2208,6 +2409,492 @@ class ReferenceSynthesisTests(unittest.TestCase):
             stored = flow.store.load(sid)["research"]["reference_comparison"]
             self.assertEqual(len(stored["bvids"]), 5)
             self.assertFalse(stored["partial"])
+
+
+class StreamChatLLM:
+    """离线流式夹具：记录调用并逐段产出剧本化增量（无任何网络请求）。"""
+
+    def __init__(self, chunks, calls, *, fail_on=None):
+        self.chunks = list(chunks)
+        self.calls = calls
+        self.fail_on = fail_on
+
+    def chat_stream(self, messages):
+        self.calls.append(("chat_stream", [m.get("role") for m in messages]))
+        if self.fail_on:
+            raise WorkbenchLLMError(self.fail_on, category="http_error", http_status=401)
+        for chunk in self.chunks:
+            yield chunk
+
+
+class CreativeChatTests(_UserSettingsIsolatedTestCase):
+    """Issue #44 chat-first MVP：真实流式协议（注入离线 transport）、
+    多轮恢复、Creative Draft 修订与 canonical 门禁隔离。"""
+
+    def _flow(self, root, llm):
+        calls = []
+        llm.calls = calls
+        return WorkbenchFlow(root, provider_factory=lambda settings: llm), calls
+
+    def _configure(self, root):
+        save_settings(root, apply_settings_update(load_settings(root), {
+            "provider_mode": "deepseek",
+            "api_key": "sk-chat-fixture",
+        }))
+
+    def test_chat_stream_persists_turns_and_recovers_after_reload(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, calls = self._flow(root, StreamChatLLM(["晚上", "好，", "聊聊选题。"], []))
+            self._configure(root)
+            context = flow.chat_send_start("你好，想聊聊夜间城市选题", [{"url": "https://example.com/a"}])
+            self.assertEqual(context["user_turn"]["role"], "user")
+            self.assertEqual(context["user_turn"]["links"][0]["status"], "unknown")
+            events = list(flow.chat_stream_reply(context))
+            deltas = [e["text"] for e in events if e["type"] == "delta"]
+            done = [e for e in events if e["type"] == "done"]
+            self.assertEqual(deltas, ["晚上", "好，", "聊聊选题。"])
+            self.assertEqual(len(done), 1)
+            assistant = done[0]["turn"]
+            self.assertEqual(assistant["role"], "assistant")
+            self.assertEqual(assistant["content"], "晚上好，聊聊选题。")
+            self.assertEqual(assistant["model"], "deepseek-flash")
+            self.assertEqual(assistant["provider_kind"], "fixture")
+            # 重载后精确恢复（新 flow 实例读同一存储）
+            reloaded = WorkbenchFlow(root, provider_factory=lambda s: None).chat_state()["chat"]
+            self.assertEqual([t["role"] for t in reloaded["turns"]], ["user", "assistant"])
+            self.assertEqual(reloaded["turns"][0]["links"][0]["url"], "https://example.com/a")
+            # 只有一次模型调用（无隐藏重复计费）
+            self.assertEqual([c[0] for c in calls], ["chat_stream"])
+            # 多轮上下文：第二条消息带上完整历史
+            context2 = flow.chat_send_start("第二轮追问")
+            list(flow.chat_stream_reply(context2))
+            roles = calls[-1][1]
+            self.assertEqual(roles[:3], ["system", "user", "assistant"])
+            self.assertEqual(roles[-1], "user")
+
+    def test_chat_stream_stop_writes_no_assistant_turn_and_never_auto_retries(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, calls = self._flow(root, StreamChatLLM(["第一段", "第二段", "第三段"], []))
+            self._configure(root)
+            context = flow.chat_send_start("聊一半就停")
+            events = flow.chat_stream_reply(context)
+            first = next(events)
+            self.assertEqual(first["type"], "delta")
+            events.close()  # 用户停止/浏览器断开
+            chat = flow.chat_state()["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
+            # 没有自动重试：模型只被调用一次（停止后）
+            self.assertEqual(len(calls), 1)
+
+    def test_chat_requires_configured_model_before_any_model_call(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, calls = self._flow(root, StreamChatLLM(["x"], []))
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.chat_send_start("没有 Key 的消息")
+            message = str(ctx.exception)
+            self.assertIn("API Key", message)
+            self.assertNotIn("WAITING_FOR_OWNER_API_KEY", message)
+            self.assertEqual(calls, [])  # 未配置时绝不发起模型调用
+
+    def test_chat_empty_message_is_rejected(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["x"], []))
+            self._configure(root)
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.chat_send_start("   ")
+            self.assertIn("不能为空", str(ctx.exception))
+
+    def test_draft_generate_edit_and_immutable_revisions(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["草稿正文第一版"], []))
+            self._configure(root)
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.chat_draft_generate()
+            self.assertIn("还没有可整理的对话", str(ctx.exception))
+            context = flow.chat_send_start("请帮我整理个草稿")
+            list(flow.chat_stream_reply(context))
+            result = flow.chat_draft_generate()
+            draft1 = result["draft"]
+            self.assertEqual(draft1["schema"], "creative-draft/1")
+            self.assertEqual(draft1["status"], "unreviewed")
+            self.assertEqual(draft1["revision"], 1)
+            self.assertEqual(draft1["origin"], "model")
+            self.assertEqual(draft1["origin_turn_id"], "t2")
+            # 用户自由编辑 → 追加新 revision，旧 revision 不可变
+            result2 = flow.chat_draft_save("我在草稿上自由修改过的第二版")
+            draft2 = result2["draft"]
+            self.assertEqual(draft2["revision"], 2)
+            self.assertEqual(draft2["origin"], "user_edit")
+            drafts = flow.chat_state()["chat"]["drafts"]
+            self.assertEqual([d["revision"] for d in drafts], [1, 2])
+            self.assertEqual(drafts[0]["content"], "草稿正文第一版")
+            # 没有草稿内容为空
+            with self.assertRaises(WorkbenchFlowError):
+                flow.chat_draft_save("  ")
+
+    def test_draft_is_isolated_from_canonical_gates_and_cannot_masquerade(self):
+        """Nexus 第 4 点：草稿绝不写 canonical approved/reviewed 路径，
+        不解锁正式生产；canonical 门禁保持 fail-closed。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["草稿内容"], []))
+            self._configure(root)
+            context = flow.chat_send_start("选题讨论")
+            list(flow.chat_stream_reply(context))
+            flow.chat_draft_generate()
+            flow.chat_draft_save("人工编辑版")
+            # 聊天/草稿不会创建 canonical workbench 会话
+            self.assertIsNone(flow.store.load_latest())
+            # 草稿存储中不存在任何 canonical 门禁字段
+            chat_file = json.dumps(flow.chat_state()["chat"], ensure_ascii=False)
+            for forbidden in (
+                "reviewed_path",
+                "approved_path",
+                "gate_status",
+                "quality",
+            ):
+                self.assertNotIn(forbidden, chat_file)
+            # canonical 定稿在没有正式会话时依旧 fail-closed
+            with self.assertRaises(Exception) as ctx:
+                flow.final_script("no-such-session")
+            self.assertIn("会话", str(ctx.exception))
+
+    def test_chat_storage_permissions_are_restricted_and_secret_free(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["内容"], []))
+            self._configure(root)
+            context = flow.chat_send_start("包含秘密吗")
+            list(flow.chat_stream_reply(context))
+            # 聊天历史存用户级稳定目录（issuecomment-6366157284，本测试类
+            # 已注入隔离目录）；0600 权限与「无 Key 落盘」不变。
+            chat_dir = flow.creative.directory
+            files = list(chat_dir.glob("*.json"))
+            self.assertEqual(len(files), 1)
+            mode = files[0].stat().st_mode & 0o777
+            self.assertEqual(mode, 0o600)
+            self.assertNotIn("sk-chat-fixture", files[0].read_text(encoding="utf-8"))
+
+    def test_multiple_sessions_are_fully_isolated(self):
+        """多会话（issuecomment-6366157284）：新建会话零污染、选中会话的
+        turns/草稿完全独立、操作绝不静默回落 latest、列表元数据正确、
+        会话间互不覆盖。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            class SequencedChatLLM:
+                def __init__(self, replies):
+                    self.replies = [list(r) for r in replies]
+                    self.calls = []
+
+                def chat_stream(self, messages):
+                    self.calls.append([dict(m) for m in messages])
+                    idx = min(len(self.calls) - 1, len(self.replies) - 1)
+                    for piece in self.replies[idx]:
+                        yield piece
+
+            llm = SequencedChatLLM([
+                ["A 的回复"], ["甲草稿正文"], ["B 的回复"], ["B 的追问回复"],
+            ])
+            flow, _ = self._flow(root, llm)
+            self._configure(root)
+            # 会话 A：发送 + 回复 + 草稿 + 二次编辑
+            ctx_a = flow.chat_send_start("话题甲：城市夜间自习空间")
+            session_a = str(ctx_a["session"]["session_id"])
+            list(flow.chat_stream_reply(ctx_a))
+            flow.chat_draft_generate(session_a)
+            flow.chat_draft_save("甲草稿的第二次修改", session_a)
+            # 「新建对话」首发送才创建新会话（点击新建零服务端调用）
+            ctx_b = flow.chat_send_start("话题乙：通勤路上的观察", new_session=True)
+            session_b = str(ctx_b["session"]["session_id"])
+            self.assertNotEqual(session_a, session_b)
+            list(flow.chat_stream_reply(ctx_b))
+            # B 与 A 完全隔离：B 无 A 的任何内容/草稿
+            chat_b = flow.chat_state(session_b)["chat"]
+            self.assertEqual([t["content"] for t in chat_b["turns"]],
+                             ["话题乙：通勤路上的观察", "B 的回复"])
+            self.assertEqual(chat_b["drafts"], [])
+            chat_a = flow.chat_state(session_a)["chat"]
+            self.assertEqual([t["content"] for t in chat_a["turns"]][0], "话题甲：城市夜间自习空间")
+            self.assertEqual(len(chat_a["drafts"]), 2)
+            # 回退 latest 兼容路径仍指向最近更新的会话 B
+            self.assertEqual(flow.chat_state()["chat"]["session_id"], session_b)
+            # 在 B 继续回复不影响 A
+            ctx_b2 = flow.chat_send_start("继续乙话题", session_id=session_b)
+            list(flow.chat_stream_reply(ctx_b2))
+            self.assertEqual(len(flow.chat_state(session_a)["chat"]["turns"]), 2)
+            self.assertEqual(len(flow.chat_state(session_b)["chat"]["turns"]), 4)
+            # 列表：按最近更新倒序，标题取首条用户消息，计数正确
+            sessions = flow.chat_sessions()["sessions"]
+            self.assertEqual(sessions[0]["session_id"], session_b)
+            self.assertEqual(sessions[0]["title"], "话题乙：通勤路上的观察")
+            self.assertEqual(sessions[0]["turns"], 4)
+            self.assertEqual(sessions[1]["session_id"], session_a)
+            self.assertEqual(sessions[1]["drafts"], 2)
+            # 重载后（新 flow 实例）两会话仍精确恢复
+            fresh = WorkbenchFlow(root, provider_factory=lambda s: None)
+            self.assertEqual(len(fresh.chat_state(session_a)["chat"]["drafts"]), 2)
+            self.assertEqual(fresh.chat_state(session_b)["chat"]["session_id"], session_b)
+            # 未知会话：明确报错，绝不静默回落
+            with self.assertRaises(WorkbenchFlowError):
+                flow.chat_send_start("任意", session_id="deadbeef" * 4)
+
+    def test_chat_history_migrates_once_to_user_level(self):
+        """聊天历史用户级迁移：旧仓库级 workbench/chat 首次加载即复制到
+        用户级（同 ID 不覆盖、原文件保留、幂等、0600）。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            legacy_dir = root / "workbench" / "chat"
+            legacy_dir.mkdir(parents=True)
+            legacy_id = "a" * 32
+            (legacy_dir / f"{legacy_id}.json").write_text(json.dumps({
+                "schema": "creative-chat/1",
+                "session_id": legacy_id,
+                "created_at": "2026-10-01T10:00:00+08:00",
+                "updated_at": "2026-10-01T10:00:00+08:00",
+                "turns": [{"turn_id": "t1", "role": "user", "content": "旧会话内容", "created_at": "2026-10-01T10:00:00+08:00"}],
+                "drafts": [],
+            }, ensure_ascii=False), encoding="utf-8")
+            store = CreativeChatStore(root)
+            user_path = store.directory / f"{legacy_id}.json"
+            self.assertTrue(user_path.is_file())
+            self.assertEqual(user_path.stat().st_mode & 0o777, 0o600)
+            self.assertTrue((legacy_dir / f"{legacy_id}.json").is_file())  # 原文件保留
+            # 幂等：再建一个 store 不破坏、不重复
+            store2 = CreativeChatStore(root)
+            self.assertEqual(
+                store2.list_sessions()[0]["session_id"], legacy_id,
+            )
+            # 用户级已有同名会话时绝不覆盖（用户级是唯一真源）
+            user_path.write_text(json.dumps({"schema": "creative-chat/1",
+                "session_id": legacy_id, "created_at": "", "updated_at": "2026-10-02T00:00:00+08:00",
+                "turns": [], "drafts": []}, ensure_ascii=False), encoding="utf-8")
+            CreativeChatStore(root)
+            self.assertEqual(CreativeChatStore(root).list_sessions()[0]["turns"], 0)
+
+    def test_corrupt_chat_files_do_not_break_other_sessions(self):
+        """B7（review 5630859051）：单个损坏 JSON 绝不拖垮其他会话 ——
+        迁移/列表/最近会话逐文件跳过损坏件、原件零改动、历史目录 0700、
+        显式选中损坏会话如实报错而其他会话照常加载。"""
+        import os
+        import stat as stat_module
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            def session(sid, content, updated):
+                return {
+                    "schema": "creative-chat/1",
+                    "session_id": sid,
+                    "created_at": updated,
+                    "updated_at": updated,
+                    "turns": [{"turn_id": "t1", "role": "user",
+                               "content": content, "created_at": updated}],
+                    "drafts": [],
+                }
+
+            # ── 1) 仓库级：一个损坏 + 两个有效 → 初始化/迁移成功 ──
+            legacy = root / "workbench" / "chat"
+            legacy.mkdir(parents=True)
+            valid_a_id, valid_b_id, corrupt_id = "a" * 32, "c" * 32, "b" * 32
+            (legacy / f"{valid_a_id}.json").write_text(json.dumps(
+                session(valid_a_id, "有效甲", "2026-10-01T10:00:00+08:00"),
+                ensure_ascii=False), encoding="utf-8")
+            (legacy / f"{valid_b_id}.json").write_text(json.dumps(
+                session(valid_b_id, "有效乙", "2026-10-01T11:00:00+08:00"),
+                ensure_ascii=False), encoding="utf-8")
+            corrupt_legacy_path = legacy / f"{corrupt_id}.json"
+            corrupt_text = '{"schema": "creative-chat/1", "session_id": "' + corrupt_id + '", "trun'
+            corrupt_legacy_path.write_text(corrupt_text, encoding="utf-8")
+
+            store = CreativeChatStore(root)  # 此前：损坏件会让 __init__ 直接失败
+            # 历史目录显式私有 0700（文件 0600 之上）
+            self.assertEqual(
+                stat_module.S_IMODE(store.directory.stat().st_mode), 0o700,
+            )
+            # 有效件迁移成功；损坏件被跳过且仓库原件逐字节保留
+            self.assertTrue((store.directory / f"{valid_a_id}.json").is_file())
+            self.assertTrue((store.directory / f"{valid_b_id}.json").is_file())
+            self.assertFalse((store.directory / f"{corrupt_id}.json").exists())
+            self.assertEqual(
+                corrupt_legacy_path.read_text(encoding="utf-8"), corrupt_text,
+            )
+
+            # ── 2) 用户级：一个损坏（mtime 最新）+ 两个有效 → 只含有效件 ──
+            corrupt_user_id = "d" * 32
+            corrupt_user_path = store.directory / f"{corrupt_user_id}.json"
+            corrupt_user_text = '{"schema": "creative-chat/1", "broken'
+            corrupt_user_path.write_text(corrupt_user_text, encoding="utf-8")
+            # 固定 mtime（不依赖迁移拷贝的创建时序）：损坏件最新 → 证明被跳过
+            os.utime(store.directory / f"{valid_a_id}.json", (1_000_000, 1_000_000))
+            os.utime(store.directory / f"{valid_b_id}.json", (2_000_000, 2_000_000))
+            os.utime(corrupt_user_path, (3_000_000, 3_000_000))
+
+            sessions = store.list_sessions()
+            self.assertEqual({s["session_id"] for s in sessions},
+                             {valid_a_id, valid_b_id})
+            self.assertEqual(sessions[0]["session_id"], valid_b_id)  # 按最近更新倒序
+            # 最近会话跳过「最新但损坏」的件，返回最近的「有效」会话
+            self.assertEqual(store.load_latest()["session_id"], valid_b_id)
+            # 显式选中有效会话照常精确加载；选中损坏会话如实报错且不影响其他
+            self.assertEqual(store.load(valid_a_id)["session_id"], valid_a_id)
+            with self.assertRaises(CreativeChatError):
+                store.load(corrupt_user_id)
+            self.assertEqual(store.load_latest()["session_id"], valid_b_id)
+
+            # ── 3) 幂等/零丢失：重建 store 后一切不变、损坏件绝不自动删除 ──
+            store2 = CreativeChatStore(root)
+            self.assertEqual({s["session_id"] for s in store2.list_sessions()},
+                              {valid_a_id, valid_b_id})
+            self.assertEqual(
+                stat_module.S_IMODE(store2.directory.stat().st_mode), 0o700,
+            )
+            self.assertEqual(
+                corrupt_legacy_path.read_text(encoding="utf-8"), corrupt_text,
+            )
+            self.assertEqual(
+                corrupt_user_path.read_text(encoding="utf-8"), corrupt_user_text,
+            )
+            self.assertEqual(
+                len(list(store2.directory.glob("*.json"))), 3,
+            )  # 2 有效迁移 + 1 损坏保留：绝不自动删除任何原件
+
+    def test_loopback_endpoint_is_labeled_fixture_even_without_injected_provider(self):
+        """诚实标注：即使未注入 provider_factory，指向 loopback 的 Chat 端点
+        也必须标记为本地夹具，绝不冒充真实模型连接。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "chat",
+                "chat_base_url": "http://127.0.0.1:9999/v1",
+                "model": "mock-e2e-model",
+                "api_key": "sk-loopback",
+            }))
+            llm = StreamChatLLM(["内容"], [])
+            flow = WorkbenchFlow(root, provider_factory=lambda settings: llm)
+            flow.connection_kind = "real"  # 模拟未注入夹具的真实模式
+            context = flow.chat_send_start("loopback 端点")
+            self.assertEqual(context["provider_kind"], "fixture")
+            # 官方端点则是真实连接
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+                "api_key": "sk-real-endpoint",
+            }))
+            context2 = flow.chat_send_start("官方端点")
+            self.assertEqual(context2["provider_kind"], "real")
+
+    def test_interleaved_replies_reload_latest_and_lose_no_turns(self):
+        """Nexus B2 (5626927896)：两个交错开启的流式回复无论以什么顺序完成，
+        已保存的 turns 绝不丢失 —— 完成时锁内 re-load 最新会话再追加，
+        不允许任何一方用陈旧内存快照整体覆盖存储。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["A 的回复"], []))
+            self._configure(root)
+            context_a = flow.chat_send_start("消息 A")
+            context_b = flow.chat_send_start("消息 B")
+            # 交错完成：B 先完成、A 后完成（A 持有的是最旧的会话快照）
+            list(flow.chat_stream_reply(context_b))
+            list(flow.chat_stream_reply(context_a))
+            reloaded = WorkbenchFlow(root, provider_factory=lambda s: None).chat_state()["chat"]
+            self.assertEqual([t["role"] for t in reloaded["turns"]],
+                             ["user", "user", "assistant", "assistant"])
+            self.assertEqual([t["content"] for t in reloaded["turns"]],
+                             ["消息 A", "消息 B", "A 的回复", "A 的回复"])
+
+    def test_concurrent_draft_edit_during_stream_is_never_overwritten(self):
+        """Nexus B2：流式回复进行中发生的草稿编辑，在回复完成持久化后仍
+        完整保留 —— 助手 turn 追加走锁内 re-load，绝不覆盖并发保存的数据。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["流式回复正文"], []))
+            self._configure(root)
+            context = flow.chat_send_start("会话消息")
+            list(flow.chat_stream_reply(context))
+            flow.chat_draft_generate()
+            context2 = flow.chat_send_start("第二条消息")
+            events = flow.chat_stream_reply(context2)
+            next(events)  # 流式进行中……
+            # 并发路径：流式未完成时保存草稿编辑（旧实现会整体覆盖它）
+            flow.chat_draft_save("流式进行中的并发草稿编辑")
+            rest = list(events)
+            self.assertTrue(any(e["type"] == "done" for e in rest))
+            reloaded = WorkbenchFlow(root, provider_factory=lambda s: None).chat_state()["chat"]
+            self.assertEqual([d["content"] for d in reloaded["drafts"]],
+                             ["流式回复正文", "流式进行中的并发草稿编辑"])
+            self.assertEqual([t["role"] for t in reloaded["turns"]],
+                             ["user", "assistant", "user", "assistant"])
+
+    def test_retry_after_stop_reuses_user_turn_without_duplicating(self):
+        """Nexus B3：停止后的重发按 turn id 幂等复用已保存的 user turn，
+        绝不追加重复的用户消息；完成后一问一答，无重复计费调用。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, calls = self._flow(root, StreamChatLLM(["重发后的完整回复"], []))
+            self._configure(root)
+            context = flow.chat_send_start("聊一半就停的消息")
+            turn_id = context["user_turn"]["turn_id"]
+            events = flow.chat_stream_reply(context)
+            next(events)
+            events.close()  # 用户停止：user turn 已保存、无 assistant 回复
+            chat = flow.chat_state()["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
+            # 幂等重试：复用同一条 user turn（id 相同），线程不出现第二条 user
+            retry_context = flow.chat_send_start(
+                "聊一半就停的消息", [], retry_turn_id=turn_id
+            )
+            self.assertEqual(retry_context["user_turn"]["turn_id"], turn_id)
+            chat = flow.chat_state()["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user"])
+            self.assertEqual([t["content"] for t in chat["turns"]], ["聊一半就停的消息"])
+            list(flow.chat_stream_reply(retry_context))
+            reloaded = WorkbenchFlow(root, provider_factory=lambda s: None).chat_state()["chat"]
+            self.assertEqual([t["role"] for t in reloaded["turns"]], ["user", "assistant"])
+            self.assertEqual([t["content"] for t in reloaded["turns"]],
+                             ["聊一半就停的消息", "重发后的完整回复"])
+            # 两次模型调用都是显式用户动作（首次 + 重发），零隐藏第三次
+            self.assertEqual(len(calls), 2)
+
+    def test_retry_is_rejected_when_turn_already_replied_or_unknown(self):
+        """Nexus B3：重发只针对「仍是最后一条且尚无回复」的 user turn；
+        已有回复或不匹配的 id 一律拒绝且零模型调用，状态保持不变。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, calls = self._flow(root, StreamChatLLM(["回复"], []))
+            self._configure(root)
+            context = flow.chat_send_start("已有回复的消息")
+            turn_id = context["user_turn"]["turn_id"]
+            list(flow.chat_stream_reply(context))
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.chat_send_start("已有回复的消息", [], retry_turn_id=turn_id)
+            self.assertIn("状态已变化", str(ctx.exception))
+            with self.assertRaises(WorkbenchFlowError):
+                flow.chat_send_start("任意内容", [], retry_turn_id="t999")
+            self.assertEqual(len(calls), 1)  # 拒绝路径零模型调用
+            chat = flow.chat_state()["chat"]
+            self.assertEqual([t["role"] for t in chat["turns"]], ["user", "assistant"])
+
+    def test_draft_provider_kind_survives_reload(self):
+        """Nexus B4：草稿来源标注（fixture/real）随 revision 原子持久化，
+        重载后不消失 —— 绝不在 append 之后才在内存里补字段。"""
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow, _ = self._flow(root, StreamChatLLM(["草稿内容"], []))
+            self._configure(root)
+            context = flow.chat_send_start("选题讨论")
+            list(flow.chat_stream_reply(context))
+            generated = flow.chat_draft_generate()["draft"]
+            self.assertEqual(generated["provider_kind"], "fixture")
+            flow.chat_draft_save("用户编辑版")
+            reloaded = WorkbenchFlow(root, provider_factory=lambda s: None).chat_state()["chat"]
+            # 模型整理的 revision 带持久化来源；用户编辑版无模型来源标注
+            self.assertEqual([d.get("provider_kind") for d in reloaded["drafts"]],
+                             ["fixture", ""])
 
 
 if __name__ == "__main__":

@@ -103,6 +103,8 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ./scripts/deeptalk validate examples/sample-research-report.json
 ```
 
+Credential safety: both `unittest discover` and `pytest` are isolated from the real `~/.deeptalk/workbench.local.json` (your saved DeepSeek key) and the real `~/.deeptalk/chat/` chat history — the settings- and flow-touching test modules redirect the user-level settings dir and the user-level chat dir to throwaway temp dirs at import time, with fresh isolated dirs per test, for both runners; production behavior is unchanged.
+
 Task-specific commands and contracts are listed in [AGENTS.md](AGENTS.md) and [docs/INDEX.md](docs/INDEX.md).
 
 ## Privacy and Safety

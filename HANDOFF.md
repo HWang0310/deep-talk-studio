@@ -13,6 +13,12 @@ AIGC:
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-10-22：Issue #44 / PR #45 — 极简 UX 与 Nexus B1/B2/B3 复测
+
+- 在 `agent/issue44-minimal-ux` 上完成参考截图导向的创作首页与独立 `/settings`：奶白留白、居中衬线标题、珊瑚抽象标记、多行 composer、设置入口、双列/单列表单和高级折叠；原有搜索、转写、研究、审核、写稿和音频入口保持不变。
+- B1/B2 已通过真实 Playwright Chromium：新一集只显示新的 hero，取消可恢复上一集；旧定稿 DOM 被清空，延迟的旧 session/script/revision 响应不会污染新会话。B3 证据使用五条同主题离线夹具并在页面显式标注，不再混入图书馆/预算类来源。
+- 截图与浏览器断言：`evaluations/issue44_minimal_ux/`；聚焦 `109` 项通过，全量 `1089 passed, 7 skipped`。没有真实 DeepSeek 或付费调用，PR 保持 OPEN，等待 Nexus UX 复审，不自行合并。
+
 ## 2026-10-22：Creator Workbench Issue #38 — 离线浏览器验收（READY_FOR_NEXUS_REVIEW）
 
 - 新增 `evaluations/issue38_workbench/fixture_server.py`（loopback、无模型、无公网）和 `smoke_playwright.py`，实际通过浏览器完成设置掩码、五条夹具候选、音频导入/本地预览、交付的 `WAITING_FOR_OWNER_REVIEW` 阻断、刷新恢复、Tab 键可达、375px 无横向溢出与 `/healthz` 检查；脱敏截图位于 `evaluations/issue38_workbench/screenshots/`。

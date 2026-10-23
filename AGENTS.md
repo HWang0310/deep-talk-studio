@@ -39,6 +39,7 @@
 - 在原有任务分支/PR 继续单一 Writer 工作；先补可复现的失败测试，再做最小实现。现有用户工作区、未提交更改、Git tag 和 Release 不得被擅自覆盖、重写或清理。跨文件大重构、额外新 Issue/PR 或改 PR base 前，先核对真实依赖并交 Nexus 判定。
 - 需要联网而终端失败时，先诊断系统代理，仅对当前进程临时传递代理；绝不把地址中的机密或凭据写进仓库、Git 配置或日志。
 - 验证按风险选用 `PYTHONPATH=src python3 -m unittest discover -s tests -v`、任务相关 pytest、Skill / Contract 评测、真实浏览器或音频端到端（必须明确 fixture vs real）。可用 `./scripts/deeptalk` 查看命令入口；不得为凑 PASS 降低检查标准。修改 Skill 需运行 Skill Creator `quick_validate.py`。
+- 自动化测试与试用数据必须隔离：`pytest` 与 `unittest discover` 两种入口均应使用临时用户级配置及聊天目录，不得读取或覆盖 Owner 已保存的 DeepSeek Key 或真实历史；测试代码和执行结果应检验此隔离。
 - 交付前做 `git diff --check`、敏感内容排查、必要的回归与真实使用证据。只更新与事实变更有关的 canonical owner；`CHANGELOG.md` 只记录已完成改动，`HANDOFF.md` 只记录值得留存的历史。改变产品定位、主流程、Gate、发布/能力状态时，才协调 PROJECT_STATE / PRD / ROADMAP / ARCHITECTURE / README，避免机械复制。
 - 向 Owner 只报**结果、体验影响与下一步**；向 Nexus 提供 PR、exact SHA、测试/浏览器证据、未解决风险和 `READY_FOR_NEXUS_REVIEW`。PR 被审核前不得自行合并、打 tag 或发布。
 

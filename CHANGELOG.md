@@ -1,5 +1,110 @@
 # Changelog
 
+## Unreleased — 2026-10-24 — Issue #44 — 收尾三修复：桌面侧栏可重新展开 + 损坏会话 JSON 不拖垮其他会话 + 草稿收起单入口（review #5630859051）
+
+- **B5/P0 桌面侧栏收起后可重新展开**：`.sidebar-open-btn` 此前仅移动端媒体查询显示——桌面点「‹」收起后 ☰ 按钮仍 `display:none`，历史侧栏永久不可达（直到刷新）。新增桌面规则 `.sidebar-open-btn.sidebar-shown { display: inline-flex; }`：JS 收起时挂的 `sidebar-shown` 类现在真正让 ☰ 入口出现，点击重新展开并移除类。1280px 浏览器回归：收起 → ☰ 可见 → 重新展开 → 选择旧会话正常；375px 抽屉行为不受影响（媒体查询规则优先级不变）。
+- **B7/P0 单个损坏会话 JSON 不再拖垮其他会话（数据健壮性 + 隐私）**：此前迁移的 `json.loads` 只捕 OSError——半截/损坏 JSON 抛 `JSONDecodeError` 会让 `CreativeChatStore.__init__` 直接失败、聊天功能整体不可用；`list_sessions()`/`load_latest()` 逐文件 `_load_path` 无容错——单个损坏件让 `/sessions` 与 `/state` 对全部健康会话失败。修复：迁移与列表/最近会话均**逐文件跳过**损坏件（原件原地保留待人工恢复，绝不自动删除，错误绝不携带文件内容进日志）；`load_latest` 跳过「最新但损坏」的件返回最近**有效**会话；显式选中损坏会话仍如实报错（不影响其他会话）。历史目录显式 `chmod 0700`（`_ensure_private_directory`，不依赖 umask，已存在/新建同样生效；文件保持 0600）。
+- **草稿收起时只显示一个简洁入口**：收起态下 `<details id="draft-drawer">` 的 summary 卡（「原创草稿（未审核）…」）作为第二个大空白卡常驻在对话下方——新增 `.draft-drawer:not([open]) { display: none; }`，收起时整卡隐藏、只留 `#draft-entry-row` 小入口行（实测 44px），点击才展开为编辑器 + 不可变版本链（v1/v2/v3 页签、复制/导出、来源标注、正式门禁说明全保留，不删任何草稿、不改正式 Gates）。
+- **确定性回归（零真实付费调用，隔离夹具）**：新增 store 级测试——损坏 legacy 件 + 两个有效件（初始化/迁移成功、有效件迁移、损坏件跳过且仓库原件逐字节保留、目录 0700）；损坏用户件（mtime 最新）+ 两个有效件（列表只含有效件、`load_latest` 跳过最新损坏件返回次新有效件、有效会话显式加载正常、损坏会话如实 `CreativeChatError`）；幂等/零丢失（重建 store 一切不变、损坏件绝不自动删除）；静态断言补 `.sidebar-open-btn.sidebar-shown` 与 `.draft-drawer:not([open])` 两条新规则。
+- **浏览器证据（8322 隔离夹具 + 8931 mock，桌面 + 375px，截图 62–67）**：桌面收起 → ☰ 可见 → 重新展开 → 选旧会话（62/63）；草稿收起单入口 44px、抽屉卡 0×0 隐藏、点开编辑器 + v1/v2/v3、再收起恢复（64/65）；向夹具聊天目录注入损坏 JSON 后页面照常加载、侧栏/API 只列 6 个有效会话、latest 返回最新**有效**会话、有效会话照常可选（66，注入件验证后移除）；375px 抽屉/零溢出/草稿单入口不受影响（67）。
+- 测试：focused **145 passed**（+1 损坏件健壮性）；全量与 sentinel 见对应轮记录。真实聊天历史与已保存 DeepSeek Key 全程零触碰（快照证明）。
+
+## Unreleased — 2026-10-23 — Issue #44 — 多会话复审修复：迟到草稿结果跨会话污染 / 乱序 state 响应翻转选中 / legacy latest 单飞别名绕过（review #5629701467）
+
+- **P0 迟到草稿结果不得污染其他会话**：草稿生成/保存此前在响应回调里无条件写 `chatStateCache` 并 `renderDrafts` —— 会话 A 发起草稿生成后切到 B，A 的迟到响应会把 A 的草稿渲染进 B 的编辑器，且此时点保存会把 A 的内容持久化为 B 的修订。修复：所有草稿操作在**发起时捕获会话身份与视图代际**（`opSessionId` + `opViewToken`），选中会话每次实际变化（含新建对话首发送）代际 +1；完成时若已被超越：属于其他会话 → **只静默更新会话列表元数据**（`refreshSessionsQuietly`），绝不改写当前视图的编辑器/缓存/状态文案；用户已切回发起会话 → 如实提示并刷新当前会话（同一会话无跨会话污染，不残留「仍在进行中」误导态）。保存的 content 与 session_id 都在点击时捕获，期间切换会话不会把 A 的内容写进 B；按钮 disabled 按「当前选中会话」的在飞操作映射重算（`draftGenBusySessions`/`draftSaveBusySessions` + `syncDraftButtons`），跨视图迟到完成不误恢复按钮；切换会话时状态文案如实重置（`syncDraftViewStatus`：目标会话在飞则显示真实提示，否则清空，旧会话提示不残留）。
+- **P1 乱序 state 响应不得翻转选中会话**：`refresh()` 此前无请求代际 —— 先点 A（慢响应）再点 B（快响应）时，A 的迟到 `renderState` 会把选中静默翻回 A，后续消息发错会话。修复：refresh 单调代际（`refreshGeneration`），被更新请求超越的迟到响应直接丢弃，绝不 `renderChat`；选中会话/`localStorage` 只被非过期响应或用户动作改变。
+- **Legacy/latest 单飞别名绕过（Additional safety）**：webui 层此前 legacy（不带 id）发送占用 `"chat:latest"` 槽而显式 id 发送占用裸 id —— 两者指向同一最近会话时互不冲突，绕过 per-session 单飞。修复（预约前只读解析、零持久化变更、不同会话绝不互斥）：legacy 请求同时持有 `"chat:latest"` 槽与解析出的最近会话 id（存在时），先到者占住 latest 槽、后到的 legacy 重叠在任一 key 上冲突；显式 id 请求除自身 id 外，若 `"chat:latest"` 在飞且解析出的最近会话恰为该 id（含 legacy 首发送在飞途中刚创建的会话）同样在**锁内**冲突；`new_session` 独占 `"chat:new"`；释放时清理全部持有 key。首版只做单 key 规范化曾漏掉「首个 legacy 发送创建会话期间的 legacy 重叠」，由既有 B2 回归测试捕获后改为双 key + 锁内别名检查。
+- **确定性回归（零真实付费调用，全部 mock/夹具）**：新增 HTTP 测试 2 项——legacy 与显式 id 双向别名冲突（含 legacy 首发送在飞期间两次 legacy 重叠均 400、其他会话显式发送照常放行、最终两会话 turns 序列精确、被拒消息零出现、模型调用恰 6 次）、显式指向 legacy 刚创建的最近会话必须 400（别名检查在锁内、零模型调用、被拒消息零出现）；静态断言 1 项——守卫结构（代际变量、会话/代际捕获、`stillSameView` 判定、迟到仅元数据、切回分支、按会话按钮映射、refresh 代际丢弃）全部在页可断言。
+- **浏览器确定性验收（8322 夹具 + 8931 mock，桌面 + 375px，截图 51–61）**：P0 —— 按住 D 的草稿请求 → 切回 A → 释放迟到响应（网络事件证明送达）：A 编辑器前后逐字节一致、入口/状态不受影响，D 侧栏元数据静默出现「草稿 v1」（poll 6.6s），切到 D 显示 D 自己的草稿，随后 D 编辑保存的 payload `session_id` 作用域 D 且零 A 内容、A 服务端草稿数不变；切回发起会话分支 —— D 保存在飞期间切 A 再切回 D，状态如实显示「仍在进行中」（截图 54）→ 释放后如实提示「已保存为版本 v3」并自动刷新（截图 55）；P1 —— 按住 A 的 state 响应 → 先点 A 再点 D → 释放 A 迟到响应（响应事件已记录=确实送达）：选中保持 D、界面零 A 内容，下一条消息 payload `session_id` 仍为 D（截图 56–58）；375px —— 抽屉/选择自动关闭/草稿抽屉全流程零横向溢出（截图 59–61）。
+- 测试：focused **144 passed**（+3 新用例）；全量与 sentinel 见对应轮记录。UI 结构零重设计（守卫均为行为修复），既有 B1–B4/U1/U2/多会话全部回归保持。
+
+## Unreleased — 2026-10-23 — Issue #44 — 多会话 UX：左侧历史会话列表 + 新建对话 + 草稿收起抽屉 + 聊天历史用户级迁移（issuecomment-6366157284）
+
+- **左侧历史会话 sidebar（桌面 244px / 375px 抽屉）**：`#chat-sidebar`（sticky、可收起、自滚动）列出全部会话——标题取首条真实用户消息截断 40 字（**零额外付费标题调用**）、元数据行「日期 · N 条消息 · 草稿 vN」、按最近更新倒序（`updated_at` 秒级同值以 mtime 次级键稳定排序）、选中高亮；「＋ 新建对话」进入干净空态（欢迎页 + 输入框聚焦），**点击零服务端调用**，首次显式发送才以 `new_session=true` 创建持久化会话 ID；375px 下 sidebar 藏于抽屉（☰ 历史 + 遮罩，选择后自动关闭、零横向溢出、`<button>` 原生键盘可达 + 全局 `:focus-visible` 焦点环）。
+- **会话身份显式化（绝不静默回落 latest）**：前端所有聊天/草稿操作 payload 携带 `session_id`（选中会话）或 `new_session`（新建模式），`start` 事件返回的会话 ID 即锁定并写入 localStorage（非机密 id，刷新/重启保持选择）；后端 `flow.chat_state(session_id)`/`chat_send_start(..., session_id, new_session)`/`chat_draft_generate(session_id)`/`chat_draft_save(content, session_id)` 全部空串=latest 兼容旧调用、非空显式作用域、未知会话明确报错；`GET /api/workbench/chat/sessions` 新端点返回列表元数据（有界 limit=200）；`?chat=<id>` query 选中会话。B2 单飞升级为 per-session flight key 三档（`new_session → "chat:new"`、显式 id → 该 id、都无 → `"chat:latest"`），预约仍先于任何存储变更。
+- **草稿不再常驻聊天下方**：巨型草稿卡改为小入口行 `#draft-entry-row`——有草稿显示「📝 草稿 vN · 未审核」按钮，无草稿显示小「把对话整理为草稿（调用模型，可能计费）」动作，空会话两者全隐藏；点击入口展开 `<details id="draft-drawer">` 抽屉（不可变 v1/v2/v3 版本链、编辑保存新版本、复制/导出、来源标注、正式门禁说明全部保留）；生成是显式可能计费动作，**完成后抽屉自动展开**（直接后果轻确认），下次返回/刷新**默认收起**；不删除任何既有版本。
+- **聊天历史用户级迁移（跨工作树/升级不丢，与 Key 同模式）**：`CreativeChatStore` 存储目录升级为用户级 `~/.deeptalk/chat/`（0600）；仓库级 `workbench/chat/` 仅作首次一次性迁移输入——同 ID 不覆盖、原文件保留、幂等、schema 校验过滤损坏文件、失败静默回退下次再试。实测 8321 重启即完成真实迁移：`~/.deeptalk/chat/20d07fad….json` 与仓库原件 sha256 一致、0600、仓库原文件保留不动，`/api/workbench/chat/sessions` 列出 Owner 真实会话（12 turns + 3 drafts 精确恢复），Owner Key 设置文件（0600）不受影响。
+- **测试隔离扩展为双目录（settings + chat）**：`tests/test_workbench.py` 与 `tests/test_webui.py` 的模块级 session 兜底 + `_UserSettingsIsolatedTestCase` 每测试隔离块同时覆盖 `USER_SETTINGS_DIR` 与 `USER_CHAT_DIR`，任何 runner 入口（pytest / 裸 unittest discover）均不触碰真实 `~/.deeptalk`；8322 演示夹具同步注入独立用户级聊天目录（demo 会话与 Owner 真实历史完全隔离）。**确定性证明**：真实 `~/.deeptalk` 全文件 sha256 快照在 focused 套件（141 passed）运行前后完全一致。开发过程中曾有一次隔离块落地前的中间测试运行把 2 个文件误写入真实 `~/.deeptalk/chat/`（1 个迁移副本被追加 fixture 轮次 + 1 个纯 fixture 会话，均含测试指纹、均非 Owner 真实数据）——已全部移入 `.temp/real-chat-pollution-quarantine/` 隔离保存，随后以仓库原件为准的干净迁移重新完成（指纹 0 处、sha256 与原件一致）；仓库级真实会话文件全程未被测试触碰（指纹 0 处）。
+- 新增测试 3 项：多会话完全隔离（SequencedChatLLM 按调用次序回放：A 发送/草稿/编辑 → 新建 B 隔离断言 → latest 兼容 → 列表元数据/顺序/标题 → 新 flow 实例精确恢复 → 未知会话报错；草稿生成也是一次 LLM 调用计入序列）、聊天历史用户级迁移（迁移/幂等/不覆盖/0600/schema 过滤）、HTTP 作用域操作（sessions 端点/new_session 创建/标题/未知 400/?chat= state/草稿作用域独立/per-session 单飞/模型调用计数）；静态断言按新结构更新（chat-sidebar/new-chat-btn/draft-entry-row/draft-drawer/SELECTED_CHAT_KEY/session_id payload/renderChat 新形态）。
+- 浏览器验收（8322 隔离夹具 + 8931 mock，零真实付费调用）：桌面全流程（既有会话列表 → 新建零调用空态 → 话题甲 A 创建+侧栏标题 → 草稿 v1 生成自动展开 → 编辑 v2/v3 → 收起入口「草稿 v3 · 未审核」→ 新建 B 无 A 内容 → B 创建 → 选 A 精确恢复 4 轮+v1/v2/v3 版本链 → 刷新保持 → **8322 进程重启后仍精确恢复** → B 回复零影响 A → **同步 evaluate 确定性流式切换守卫**（发送后立即点另一会话：守卫文案出现、localStorage 不动、会话不切换）→ /settings Key 掩码无需重输）；375px（☰ 抽屉开/选择后自动关/横向溢出 0/Tab 键盘焦点链 + `:focus-visible` 匹配）。截图 38–50。
+- 测试：focused **141 passed**（+3 新用例）；全量见对应轮记录。
+
+## Unreleased — 2026-10-23 — Issue #44 — P0 测试凭据安全：pytest 与 unittest 双入口隔离 Owner 真实 Key（review #5628439637）
+
+- **修复**：`tests/conftest.py` 是 pytest-only 的 autouse fixture，而 AGENTS.md/README.md 文档推荐 `PYTHONPATH=src python3 -m unittest discover -s tests -v` 直跑——该入口不加载 conftest，`USER_SETTINGS_DIR` 保持 None → `user_settings_path()` 解析真实 `~/.deeptalk/workbench.local.json`，测试的 `save_settings`（合成 Key/清除）会覆盖或清掉 Owner 已保存的 DeepSeek Key，迁移逻辑也会被真实用户级配置干扰。
+- **修复方式（runner 无关，不依赖任何特定入口）**：删除 pytest-only 的 conftest；`tests/test_workbench.py` 与 `tests/test_webui.py`（全仓库仅这两个文件触及 settings/flow）在**模块加载时**（任何 runner 加载即先于任何 settings 读/写执行）把 `USER_SETTINGS_DIR` 指向一次性临时目录（session 级安全网，绝不解析真实 `Path.home()`），并由内联 `_UserSettingsIsolatedTestCase` 基类为**每个测试**提供独立用户级目录 + cleanup 恢复（防测试间串扰）；两个文件全部测试类改继承该基类。生产端用户级 `~/.deeptalk` 行为零改动。
+- **安全证明（Review 要求方式）**：① 一次性 HOME + sentinel `.deeptalk/workbench.local.json`，运行**裸文档命令** `HOME=<sentinel> PYTHONPATH=src python3 -m unittest discover -s tests` → `Ran 1125 tests … OK (skipped=7)`，sentinel 文件 sha256 **前后完全不变**；② pytest 全量在真实 HOME 下运行，真实 `~/.deeptalk/workbench.local.json` sha256/mtime/size 前后不变；③ 跨工作树/迁移/清除测试在每测试独立目录下行为不变（两 root 在同一测试内仍共享同一隔离目录）。
+- 文档：AGENTS.md/README.md 在两条测试命令旁补充凭据隔离说明（两种入口均不触碰真实用户级配置）。
+- 本轮零 UI 改动、零生产代码改动（settings.py 不变）、零付费调用。
+
+## Unreleased — 2026-10-23 — Issue #44 — Nexus 收尾修复：U1 失败事务性气泡 + U2 视口遮挡核验 + Owner Key 跨工作树用户级持久化（review #5628192126）
+
+- **U1/P0 失败请求不再残留假「已发送」气泡（事务性发送）**：`sendChatMessage` 引入 `accepted` 前哨（SSE `start` 事件 = 服务器已校验并持久化）——未接受的新消息（400 在飞拒绝 / 404 / 网络未达）在 catch 中**移除乐观 user 气泡**、恢复输入框内容并回写 localStorage 草稿、如实提示（404 附「本机服务可能是旧版本，请重启本地服务后刷新页面」），且**不显示「重发上一条」**（消息从未持久化，直接再点发送即可，绝不静默重发）；SSE 开始后的网络中断 = 消息已保存，保留幂等重发；停止后与服务器**对账**（refresh 后按磁盘真实状态判定 lastTurn 是否本条消息）决定「重发」语义——已持久化则设置 turn id 供幂等复用，未送达则恢复输入；幂等重发被 400（停止后预约尚未释放的短窗口）拒绝时保留重发按钮（消息已在记录中），不误入「未发送」路径。浏览器实测：404/400 拦截下线程气泡数不变、磁盘零污染、输入恢复、无误导重发；stop→对账→retry→一问一答（磁盘仅一条该消息）。
+- **U2/P1 底部 composer 遮挡核验（真实视口，非 fullPage 伪影）**：Review 指出的 31/32 全页截图中输入框「覆盖」确系 Playwright fullPage 截图对 sticky 元素的渲染伪影——真实视口实测（桌面 1280×800 与 375px）：滚动到底时最后一条 turn 完全位于 dock 上方（`lastTurnBottomAboveDockTop=true`）、中段滚动 dock 贴视口底且背景渐变正常、375px 横向溢出 0px、safe-area padding 12px、输入框无文字穿透。设计零改动（无需调整），以普通视口截图 + bounding-rect 证据取代全页截图判定。
+- **Owner Key 跨工作树用户级持久化（不再要求重复输入）**：新增用户级稳定配置 `~/.deeptalk/workbench.local.json`（0600）——`load_settings` 用户级优先，首次发现仓库级 `config/workbench.local.json` 且用户级不存在时一次性迁移（原文件保留作旧版本 fallback，迁移尽力而为失败不阻断）；`save_settings` 只写用户级；显式清除 Key 时同步清掉仓库级旧文件中的 Key（防复活、防明文残留）。任何工作树/产品更新加载同一份：实测 8321 重启即完成真实迁移（用户级 0600 创建、`/state` 掩码 `sk-f…8d17` 不变、repo 原文件保留），任意其他 root 进程（`/tmp/a-completely-different-worktree`）加载同一已存 Key；8322 演示环境注入独立用户目录（demo fixture 配置与 Owner 真实 Key 完全隔离互不污染）。pytest：autouse fixture 按测试隔离用户目录（绝不触碰真实 `~/.deeptalk`），新增 2 项测试——跨工作树共享与「产品更新」复用（repo config 不再被写）、仓库级一次性迁移 + 0600 + 清除 Key 同步清理。
+- 测试：focused 138 passed（+2 设置持久化）；全量见对应轮记录；U1/U2 全部使用本地 mock/拦截完成（零真实付费调用——真实 DeepSeek 端到端已于上一轮以 5 次调用完成并获 Nexus 确认，无需重复）；截图 33–37（404 恢复/停止对账/视口底部/中段 sticky/375px 视口）。
+
+## Unreleased — 2026-10-23 — Issue #44 — Owner UX：一体化对话工作区 + 8321 运行时修复 + Owner Key 持久化验证 + 限额真实模型端到端（issuecomment-6364369899）
+
+- **一体化聊天工作区（Owner UX 验收契约 1–6 逐项）**：移除「顶部巨型 hero + 下方独立对话面板」的双区结构，改为 ChatGPT/Claude Code 式单一连续工作区——空态为安静居中欢迎（`#welcome-pane`：标记 + 标题 + 一句计费说明 + 灵感 chips，设置在右上角）+ 贴底 composer（`#composer-dock`，sticky bottom）；首次发送后 welcome 隐藏，user/assistant turns 与草稿卡/旧集折叠入口（`#conversation`）共享同一滚动流，composer 始终贴在视口底部，后续消息在同一输入框键入，绝不需要滚回顶部。滚动跟随策略：新消息（显式发送）滚到最新，流式增量只在用户靠近底部（`nearBottom()`，90px 阈值）时跟随，向上翻阅历史不被强行拉回，实测 scrollY 37 保持顶部、回到底部恢复跟随。空态内容不足一屏时由 `fitCreatorHeight()` 按实测顶栏高度撑满视口使 composer 恰好贴底（不猜测 header 高度，resize 重算）。
+- **失败不丢输入 + 服务版本真实指引**：发送失败/400/404 时未发送内容恢复到输入框并回写 localStorage 草稿；错误信息含 404/「路径不存在」时如实提示「本机服务可能是旧版本，请重启本地服务后刷新页面」，绝无乐观假「已发送」。
+- **草稿集成紧凑化**：草稿卡保留在同一对话流内（turns 之后），「草稿与正式审核的关系」长说明收进默认收起的 `<details class="gate-details">`；不可变 revisions/编辑/复制/导出/「未审核」诚实来源标注全部保留。旧集正式工作流折叠入口移出对话流、独立显示（无聊天时也可访问），B1 防护不变。
+- **8321 运行时故障修复（mutation 前 same-process 路由验证）**：Owner 遇到 `POST /api/workbench/chat/stream` 返回 JSON 404「路径不存在」——根因是 LaunchAgent 8321 进程（pid 19938，17:28 启动）加载的是 chat MVP 落地**之前**的陈旧代码（`scripts/deeptalk` 的 `PYTHONPATH=src` 模块解析本身正确，无需诊断模型问题）；`launchctl kickstart -k` 重启后同进程验证：空消息返回 400「消息内容不能为空」（路由存在、零模型调用），服务器日志中 Owner 的 4 次 404 均为旧进程产物。
+- **Owner DeepSeek API Key 持久化（已验证，零重新输入）**：`config/workbench.local.json` 被仓库 `.gitignore:43` 覆盖（git 操作/分支切换/升级不动该文件），8321 重启后掩码 `sk-f…8d17` 完整保留、`/api/workbench/state` 仅暴露掩码字段（无明文 Key）、设置页徽章「已连接」（官方端点 + deepseek-flash）；浏览器截图/日志/提交零密钥泄漏（diff 扫描过）。
+- **限额真实模型端到端（Owner 授权，产品内使用 Owner Key，共 5 次 ≤ 8 上限）**：真实流式聊天（2.6s，「deepseek-flash · 真实模型回复」诚实标注）→ 带完整上下文 follow-up（2.4s）→ 真实草稿生成（3.9s，meta「真实模型回复」）→ 本地编辑两次 v2/v3（零调用）→ 刷新精确恢复（6 turns + v1/v2/v3 + 编辑内容）→ 真实 stop（计费诚实文案 + 半截清除）→ 幂等 retry（5.8s 完整 60 秒口播稿，turns 5→6 只增 assistant）→ 设置往返（「已连接」徽章、返回创作零丢失）。服务器日志精确计数：stream 200 ×4 + draft 200 ×1 = **5 次真实模型调用**；404 ×4（旧进程）、400 ×1（空消息校验）均为零调用；本地编辑 2 次零调用。夹具测试不作为真实模型 PASS 依据，本轮为产品内真实调用。
+- **375px 移动端**：横向溢出 0px、composer 全宽适配视口且不被安全区遮挡、最后一条 turn 不被 composer 遮挡、无需回顶即可继续输入。
+- 测试：静态断言按新结构更新（welcome-pane/conversation/composer-dock/sticky/nearBottom/updateWelcomeVisibility/失败恢复/版本指引）；focused 136 passed；全量见对应轮记录；8322 夹具验收 + 8321 真实模型验收截图 25–32（新旧布局对比：19 为旧 hero+双区结构、25 为新一体化空态）。
+
+## Unreleased — 2026-10-23 — Issue #44 — B2/P0 修正：重叠消息拒绝先于持久化（Nexus exact-head review #5627594838）
+
+- **修复 mutation-before-rejection**：`_handle_chat_stream` 的单飞准入检查+预约（`chat_in_flight`）前移到任何 `chat_send_start` 存储变更**之前**——此前重叠的 B 消息会先被持久化再收到 400，留下 `[user A, user B(被拒), assistant A]` 污染会话与后续模型上下文。预约检查+注册在 `chat_flight_lock` 内原子完成（check-and-reserve race-safe），并发首次发送（尚无会话）与稳态重叠同路径覆盖；flight key 改为固定 `"chat"`（聊天为单会话设计，不依赖 `chat_send_start` 结果）；预约在所有失败/断开路径（含 `chat_send_start` 抛错）经 finally 释放；等待模型期间不持有任何全局锁；retry-by-turn-ID 与 Key/空消息防护不变。
+- **确定性 HTTP 回归**（按 review 四步要求增强/新增）：① A 慢流提交 user A 保持进行；② B 重叠发送 → 400，A 运行期间存储恰 `[user A]` 且 B 内容零出现、零模型调用；③ A 完成 → 存储恰 `[user A, assistant A]`，B 仍零出现；④ 预约释放后 C 正常发送照常可行（A+C 各一次显式调用）。新增并发首发测试：Barrier 对齐两线程同时首次发送 → 恰一个 200 一个 400，存储只有被放行方一问一答，被拒方不创建会话不写 turn。
+- 8322 真实 HTTP 实测：15 条基线完整保留，B 在 mid/final 存储双检零出现，新增恰一问一答，8931 mock 调用恰 +1（B 零调用）。
+- 测试：focused **136 passed**（+1 并发首发用例、单飞用例增强为四步回归）；全量见对应轮记录。
+
+## Unreleased — 2026-10-23 — Issue #44 — Nexus B1–B4 阻断修复（Chat-first MVP delta review #5626927896）
+
+- **B1 旧集工作流与聊天首页明确分离**：hero 永远是首页主体；即使存在历史 canonical 会话，其 stage-bar/参考/授权表单/候选也默认隐藏，只在新增的 `<details id="legacy-workbench-entry">` 折叠入口（「查看既有正式工作流（与聊天相互独立）· 本集：<主题>」）显式展开时才渲染；无会话/新一集模式下折叠入口同样隐藏；legacy sessions 一律保留不删除。8322 隔离夹具（旭日旗旧集 + 图书馆聊天共存）浏览器验证：默认态文本节点级零泄漏（leakCount=0），展开渲染/收起隐藏双向正确。
+- **B2 陈旧快照写入防护（数据不丢）**：`CreativeChatStore` 全部跨请求持久化改为存储锁内 re-load 最新会话后追加（`start_user_turn`/`retry_user_turn`/`append_assistant_turn`/`append_draft_latest`/`latest_session_id`），绝不把内存旧快照整体写回；webui 层增加同会话单飞（`chat_in_flight`，重叠发送 400「上一条回复还在进行中」，finally 释放），等待模型期间不持有任何全局锁。交错场景（A、B 两个流式以任意顺序完成）与「流式中并发草稿编辑」均验证零丢失。
+- **B3 重发幂等 + 计费诚实**：停止后的「重发上一条」携带服务器持久化的 `retry_turn_id`，后端 `retry_user_turn` 验证目标仍是「最后一条且无回复」的 user turn 后原样复用，绝不追加重复用户消息（前端也不再本地重复渲染 user 气泡，并清除停止遗留的半截 streaming 气泡）；已有回复/ID 不匹配一律拒绝且零模型调用。停止文案改为诚实表述「已停止显示并尝试中断模型请求；已产生的费用可能仍会计入账单。」（`llm.py` 注释同步），删除不可能的「不会继续计费」承诺；重发按钮只在「上一条未完成」（停止/失败/中断）时出现。8322 实测停止→重发：12→13 只增加 assistant 气泡、存储中该 user 消息仅一条、mock 调用恰两次显式流式零隐藏。
+- **B4 草稿来源标注持久化**：`provider_kind` 在 `append_draft` 的 revision JSON 内原子持久化（此前只在内存 `draft["provider_kind"]` 赋值、重载即丢）；8322 新生成 v4 重载后 `provider_kind="fixture"` 保留，历史草稿不做迁移。
+- **修复本轮引入的回归**：webui 服务器 `__init__` 曾被批量编辑误删 `output_dir`/`provider_factory`/`discovery_lock`/`workbench_lock` 四行导致 discover/workbench 路由 500，已恢复并保持 B2 单飞字段；静态断言中旧停止文案同步更新为新契约。
+- 测试：新增 flow 级 5 项（交错完成零丢失/流式中并发草稿编辑不覆盖/停止后幂等重发无重复/已回复或未知 ID 拒绝/草稿 provider_kind 重载保留）+ HTTP 级 2 项（在飞流单飞 400/断开后带 retry_turn_id 重发一问一答）+ B1 静态断言 1 项；focused 135 passed；全量见对应轮记录；8322 真实 Chromium 浏览器验收（B1 默认/展开/收起、B3 停止/重发、B4 新草稿重载、375px）；截图 19–22 按当前行为重拍，新增 23（legacy 展开）/24（停止计费诚实）。零付费调用、无 Owner Key、不自行合并。
+
+## Unreleased — 2026-10-23 — Issue #44 — Chat-first Creative Draft MVP（Owner 批准 Option A, issuecomment-6361415259）
+
+- P0 设置加固（先行落地）：`provider_mode=deepseek` 服务端无条件锁定官方端点/模型，丢弃残留 custom 值（显式提交旧端点同样被覆盖），新粘贴 Key 绝不路由到旧自定义端点；前端切换无条件重置隐藏字段；「测试连接」在飞防抖（连点仅一对请求）；官方文档确认 `deepseek-flash` + `stream:true` SSE。
+- 真实流式聊天：`POST /api/workbench/chat/stream`（SSE start/delta/done/error），上游 `stream:true`、浏览器 ReadableStream 增量渲染、AbortController 停止；user turn 流前持久化、assistant turn 流完成才写入——停止/断开不保存半截回复、重连不重复调用；重试为显式动作；输入/刷新零隐式请求。
+- `creative-chat/1` 会话存储：`workbench/chat/*.json` 0600 权限、无秘密、不可变 turns；`/state` 携带完整会话实现刷新精确恢复。
+- `creative-draft/1` 原创草稿（未审核）：显式生成（付费动作）+ 自由编辑产生不可变 revisions（v1/v2/v3 回看）+ 复制/导出 .md；永不写 `research/thesis/script` 的 approved/reviewed 路径或质量门禁字段，不解锁正式生产；「进入正式审核」说明卡解释现有门禁路径，无自动转换；canonical 门禁测试保持 fail-closed。
+- Chat-first 首页：单一自然语言 composer（选题/观点/请求/粘贴 URL → link chips 如实「未读取」）、夹具/真实诚实标注（loopback 即夹具，绝不冒充）、计费说明一次性常驻；仅两个顶级页面（聊天 + /settings）；旧 canonical 阶段工作流对既有会话仍可达，门禁不变。
+- 测试：新增 flow 层 8 项（流式持久化/停止不写半截/未配置阻断/草稿修订不可变/门禁隔离/0600 权限/无秘密/loopback 标注）+ HTTP SSE 3 项（事件契约/恢复/客户端断开）+ 静态断言；focused 127 passed、全量 pytest 见对应轮记录；8322 真实 SSE 夹具浏览器验收（增量实测、停止/重发、两次草稿修改、刷新精确恢复、375px、无 Key 泄漏）；零付费调用、无 Owner Key、不自行合并。
+
+## Unreleased — 2026-10-23 — Issue #44 — paste→Test 旅程修复（Nexus delta, issuecomment-6358124584）
+
+- 「测试连接」点击后先安全持久化当前表单（含刚粘贴的 API Key，POST JSON 走本机 loopback），保存成功后才对刚保存的配置执行连接测试；保存失败立即停止并显示中文错误（含「未连接测试」），绝不发出测试请求。保存与测试共用 `settingsFormPayload()` / `persistSettings()`，消除保存/测试双路径不一致。
+- 已输入 vs 已持久化：输入框粘贴新 Key 时徽章即时「已输入未保存」（琥珀色 state-warn），不再误导显示「未配置」；清空输入恢复持久化徽章；保留「空 Key 保持已存 Key」与显式「清除 API Key」语义，夹具仍为「开发测试环境」徽章，仅显式点击才发起测试，零付费调用。
+- 证据：8322 隔离夹具实测请求顺序「先保存（含新 Key）→ 再测试」、掩码 `sk-p…ey-2` 持久化、开发测试状态诚实；8321 真实配置实测保存先行 + 测试请求中止（零外部调用）+ 重载掩码持久化 + 保存失败（HTTP 500）阻断测试；截图 17/18；`tests.test_webui` + `tests.test_workbench` 113/113、全量 pytest 见对应轮记录；diff 无密钥，真实 DeepSeek 连接质量仍为 `WAITING_FOR_OWNER_API_KEY`，不自行合并。
+
+## Unreleased — 2026-10-23 — Issue #44 — DeepSeek 设置体验：只需填 API Key + 诚实开发夹具标注
+
+- DeepSeek 默认模式下普通用户只需填写 API Key：模型与官方 API 地址自动配置（说明行「模型与官方 API 地址已自动配置（deepseek-flash），只需填写 API Key」），模型名称与 API 地址字段仅在切换其他服务商时出现。
+- 测试连接文案自然语言化：未填 Key 提示「设置尚未完成：请填写API Key后保存，再点「测试连接」」，后端两处用户可见消息不再暴露 `WAITING_FOR_OWNER_API_KEY`（机器状态 `waiting_for_api_key` 等仍完整保留在 API payload，契约不变）。
+- 开发夹具诚实标注：指向本地测试服务的连接显示独立「开发测试环境」琥珀徽章与「开发测试连接通过：这是本地测试服务，不代表真实的 DeepSeek 连接。」文案，绝不冒充「已连接」；移除「（本地服务）」「（模拟服务）」后缀与底部端点显示；修复模式切换提示 `openai`→`responses` 的错误分支。
+- 设置页视觉打磨（评审反馈逐项落地）：未配置徽章改琥珀警示色；徽章提示与自动配置说明去重；说明行括号内只保留模型名；按钮行重排为「取消/测试连接/清除 API Key 靠左、保存设置靠右」；状态文字与保存按钮间距加大；连接状态行 `word-break: keep-all` 防止「模型」等中文标签被拆到两行（375px 实测修复）。
+- Key 占位符窄屏自适应：桌面为「粘贴你的 DeepSeek API Key」，窄屏 canvas 实测放不下（190px > 输入框内宽 168px）时自动降级为「粘贴你的 API Key」，resize 双向切换，避免占位符截断。
+- 配置隔离：真实 `config/workbench.local.json` 重置为 DeepSeek 官方默认（无 Key）；mock 配置仅存在于 8322 隔离演示环境独立根目录。
+- 证据：`evaluations/issue44_minimal_ux/` 新增/重拍截图 12–16（含 03/04 按新行为重拍），`tests.test_webui` + `tests.test_workbench` 112/112、全量 pytest 见对应轮记录；浏览器实测掩码替换、`launchctl` 重启恢复、清除回未配置；图像评审三次误报（按钮换行、deepseek-flash 断行、桌面占位符截断）均用 Range/canvas 确定性测量推翻并记录。真实 DeepSeek 连接质量仍为 `WAITING_FOR_OWNER_API_KEY`，零付费调用，不自行合并。
+
+## Unreleased — 2026-10-22 — Issue #44 — 两页极简 UX：创作页 + 独立大模型设置页
+
+- 创作页收敛为极简两态：全新状态只有大选题输入 + `开始创作`；开集后是阶段条（本集主题 + `＋ 新一集`）与 `① 视频参考 / ② 观点与资料 / ③ 原创口播稿` 三个概念阶段，一次只渲染当前阶段，随时回看不丢会话；无侧边栏、无六步仪表盘。
+- 参考视频改为一页短卡片（标题两行截断、已核验播放、状态徽章），BVID/时间戳/转写/叙事分析收进详情折叠；授权声明与部分分析理由保留在动作现场；音频与素材仅在口播稿审核通过后经 `继续做音频与素材` 成为可选阶段。
+- 新增独立 `大模型设置` 页（`/settings` 路由 + pushState 单文档切换）：服务商（DeepSeek 默认）、模型名称、掩码 API Key、保存与测试连接为主字段；连接状态徽章如实分级 `未配置/已保存未验证/已连接/连接失败/模拟服务` 并自动标注本地端点；服务端点藏进高级设置、下载位置独立折叠；`← 返回创作` 保留选题草稿（localStorage）与会话进度。
+- 修复 Nexus B1/B2：`＋ 新一集` 进入独立空白创作态，阶段条和旧阶段全部隐藏，取消后可恢复上一集；进入新会话时清空旧文稿 DOM，定稿异步请求绑定 session/script/revision，旧响应不能写入新会话。
+- 修复 Nexus B3：离线演示来源统一使用主题一致的五条材料，页面显示固定“离线演示夹具”免责声明；设置页 API 地址标签随服务商同步，避免通用 Chat 连接显示为 DeepSeek 端点。
+- 视觉证据见 `evaluations/issue44_minimal_ux/`（真实 Playwright Chromium 桌面/375px 截图与 B1/B2 浏览器断言）；`tests.test_webui` + `tests.test_workbench` 109/109、全量 pytest 1089 pass / 7 skipped；LLM 为本地诚实 fixture，零付费调用，真实 DeepSeek 质量仍为 `WAITING_FOR_OWNER_API_KEY`。
+
 ## Unreleased — 2026-10-22 — Issue #38 — Creator Workbench 离线浏览器验收
 
 - 增加 `evaluations/issue38_workbench/fixture_server.py` 与可重复的 `smoke_playwright.py`：仅使用 loopback 离线夹具，验证设置掩码、五条参考候选、音频二进制导入/预览、`WAITING_FOR_OWNER_REVIEW`、刷新恢复、Tab 键可达、375px 无横向溢出与健康检查；fixture 状态不会冒充真实模型或真实 Bilibili 结果。
