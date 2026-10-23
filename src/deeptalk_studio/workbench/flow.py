@@ -50,11 +50,16 @@ from .settings import (
     resolve_downloads_dir,
     save_settings,
     apply_settings_update,
+    effective_chat_endpoint,
 )
 
 
 class WorkbenchFlowError(ValueError):
     """Typed user-facing error (UI shows the message verbatim)."""
+
+    def __init__(self, message: str, *, payload: Optional[Mapping[str, Any]] = None) -> None:
+        super().__init__(message)
+        self.payload = dict(payload or {})
 
 
 def _now() -> str:
@@ -288,10 +293,12 @@ class WorkbenchFlow:
         audio_runner=None,
         whisper_runner=None,
         whisper_bootstrap=None,
+        connection_kind: Optional[str] = None,
     ) -> None:
         self.repo_root = Path(repo_root)
         self.store = SessionStore(self.repo_root / "workbench")
         self.provider_factory = provider_factory or (lambda settings: build_llm(settings))
+        self.connection_kind = connection_kind or ("fixture" if provider_factory is not None else "real")
         self.fetcher = fetcher or default_fetcher
         self.acquire_runner = acquire_runner
         self.audio_runner = audio_runner
@@ -318,14 +325,79 @@ class WorkbenchFlow:
 
     def test_settings(self) -> Dict[str, Any]:
         settings = load_settings(self.repo_root)
+        endpoint = (
+            effective_chat_endpoint(settings)
+            if settings.get("provider_mode") in {"chat", "deepseek"}
+            else settings.get("base_url", "")
+        )
+        observation = {
+            "connection_provider": settings.get("provider_mode", ""),
+            "connection_model": settings.get("model", ""),
+            "connection_endpoint": endpoint,
+            "connection_kind": self.connection_kind,
+            "connection_tested_at": _now(),
+        }
         if not is_configured(settings):
-            raise WorkbenchFlowError("设置尚未完成（模型 / API Key / 服务地址）")
+            self._record_connection_observation(
+                {**observation, "connection_status": "waiting_for_api_key", "connection_error": "未配置模型、API Key 或服务地址"}
+            )
+            raise WorkbenchFlowError(
+                "设置尚未完成（WAITING_FOR_OWNER_API_KEY）：请在设置中填写 API Key、模型和服务地址",
+                payload={
+                    "status": "waiting_for_api_key",
+                    "connection_kind": self.connection_kind,
+                },
+            )
         try:
             LLM = self.provider_factory(settings)
             LLM.ping()
         except WorkbenchLLMError as exc:
-            raise WorkbenchFlowError(str(exc)) from None
-        return {"ok": True, "message": "模型服务连接正常"}
+            self._record_connection_observation(
+                {
+                    **observation,
+                    "connection_status": "failed",
+                    "connection_error": str(exc),
+                }
+            )
+            raise WorkbenchFlowError(
+                str(exc),
+                payload={
+                    "status": "failed",
+                    "connection_kind": self.connection_kind,
+                    "error_category": getattr(exc, "category", "provider_error"),
+                    "http_status": getattr(exc, "http_status", None),
+                },
+            ) from None
+        self._record_connection_observation(
+            {**observation, "connection_status": "passed", "connection_error": ""}
+        )
+        return {
+            "ok": True,
+            "message": "模型服务连接正常",
+            "status": "passed",
+            "connection_kind": self.connection_kind,
+            "provider": settings.get("provider_mode", ""),
+            "model": settings.get("model", ""),
+            "endpoint": endpoint,
+        }
+
+    def _record_connection_observation(self, observation: Mapping[str, Any]) -> None:
+        """Persist non-secret connection status without changing credentials."""
+
+        current = load_settings(self.repo_root)
+        updated = dict(current)
+        for key in (
+            "connection_status",
+            "connection_kind",
+            "connection_tested_at",
+            "connection_error",
+            "connection_provider",
+            "connection_model",
+            "connection_endpoint",
+        ):
+            if key in observation:
+                updated[key] = observation[key]
+        save_settings(self.repo_root, updated)
 
     def _llm(self) -> WorkbenchLLM:
         settings = load_settings(self.repo_root)

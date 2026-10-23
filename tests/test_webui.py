@@ -227,6 +227,15 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("min-height: 40px", body)
         self.assertIn("#search-btn { width: 100%; }", body)
 
+    def test_index_exposes_deepseek_preset_and_truthful_connection_indicator(self):
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn('value="deepseek"', body)
+        self.assertIn("api.deepseek.com", body)
+        self.assertIn("connection_kind", body)
+        self.assertIn("真实连接", body)
+        self.assertIn("清除 API Key", body)
+
     def test_healthz(self):
         status, headers, body = self.get("/healthz")
         self.assertEqual(status, 200)

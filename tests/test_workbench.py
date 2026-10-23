@@ -27,10 +27,14 @@ from deeptalk_studio.schema import (
 from deeptalk_studio.validation import validate_json_schema
 from deeptalk_studio.workbench import acquisition
 from deeptalk_studio.workbench.flow import WorkbenchFlow, WorkbenchFlowError
-from deeptalk_studio.workbench.llm import WorkbenchLLMError
+from deeptalk_studio.workbench.llm import (
+    ChatCompletionsProvider,
+    WorkbenchLLMError,
+)
 from deeptalk_studio.workbench.session import SessionStore
 from deeptalk_studio.workbench.settings import (
     apply_settings_update,
+    effective_chat_endpoint,
     is_configured,
     load_settings,
     masked_view,
@@ -530,6 +534,90 @@ def _fake_acquirer(reference, downloads_dir, authorization_text, *, runner=None,
 
 
 class SettingsTests(unittest.TestCase):
+    def test_deepseek_preset_uses_official_defaults_and_single_endpoint_suffix(self):
+        data = apply_settings_update(load_settings(Path(tempfile.mkdtemp())), {
+            "provider_mode": "deepseek",
+        })
+        self.assertEqual(data["chat_base_url"], "https://api.deepseek.com")
+        self.assertEqual(data["model"], "deepseek-flash")
+        self.assertEqual(
+            effective_chat_endpoint(data),
+            "https://api.deepseek.com/chat/completions",
+        )
+        already_endpoint = dict(data, chat_base_url="https://api.deepseek.com/chat/completions")
+        self.assertEqual(
+            effective_chat_endpoint(already_endpoint),
+            "https://api.deepseek.com/chat/completions",
+        )
+
+    def test_deepseek_switch_preserves_key_download_folder_and_connection_observation(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            data = apply_settings_update(load_settings(root), {
+                "provider_mode": "chat",
+                "chat_base_url": "https://llm.example.com/v1",
+                "model": "custom-model",
+                "api_key": "sk-preserve-me",
+                "downloads_dir": raw,
+            })
+            data["connection_status"] = "passed"
+            data["connection_kind"] = "real"
+            save_settings(root, data)
+            switched = apply_settings_update(load_settings(root), {"provider_mode": "deepseek"})
+            self.assertEqual(switched["api_key"], "sk-preserve-me")
+            self.assertEqual(switched["downloads_dir"], raw)
+            self.assertEqual(switched["connection_status"], "not_tested")
+            self.assertEqual(switched["model"], "deepseek-flash")
+
+    def test_connection_status_view_is_masked_and_clear_is_explicit(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            data = apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+                "api_key": "sk-secret-123456",
+            })
+            data["connection_status"] = "failed"
+            data["connection_kind"] = "real"
+            data["connection_error"] = "HTTP 401：请检查 API Key"
+            save_settings(root, data)
+            view = masked_view(load_settings(root))
+            self.assertEqual(view["connection_status"], "failed")
+            self.assertEqual(view["connection_kind"], "real")
+            self.assertNotIn("sk-secret", json.dumps(view))
+            cleared = apply_settings_update(load_settings(root), {"api_key": ""})
+            self.assertEqual(cleared["api_key"], "")
+            self.assertFalse(is_configured(cleared))
+
+    def test_chat_provider_maps_http_failure_without_disclosing_key(self):
+        from urllib.error import HTTPError
+
+        secret = "sk-never-return-this"
+
+        def transport(url, headers, body, timeout):
+            raise HTTPError(url, 401, "unauthorized", {}, None)
+
+        provider = ChatCompletionsProvider(
+            secret, "deepseek-flash", "https://api.deepseek.com", transport=transport
+        )
+        with self.assertRaises(WorkbenchLLMError) as ctx:
+            provider.ping()
+        self.assertEqual(ctx.exception.http_status, 401)
+        self.assertEqual(ctx.exception.category, "unauthorized")
+        self.assertIn("401", str(ctx.exception))
+        self.assertNotIn(secret, str(ctx.exception))
+
+    def test_chat_provider_maps_timeout_as_actionable_error(self):
+        def transport(url, headers, body, timeout):
+            raise TimeoutError("timed out")
+
+        provider = ChatCompletionsProvider(
+            "sk-timeout", "deepseek-flash", "https://api.deepseek.com", transport=transport
+        )
+        with self.assertRaises(WorkbenchLLMError) as ctx:
+            provider.ping()
+        self.assertEqual(ctx.exception.category, "timeout")
+        self.assertIn("超时", str(ctx.exception))
+
     def test_settings_roundtrip_mask_and_partial_key_update(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -559,6 +647,37 @@ class SettingsTests(unittest.TestCase):
                 apply_settings_update(load_settings(root), {
                     "downloads_dir": "/definitely/not/existing/dir/xyz",
                 })
+
+    def test_test_settings_without_key_persists_waiting_status(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            flow = WorkbenchFlow(root, provider_factory=lambda settings: None)
+            with self.assertRaises(WorkbenchFlowError) as ctx:
+                flow.test_settings()
+            self.assertIn("WAITING_FOR_OWNER_API_KEY", str(ctx.exception))
+            view = flow.get_settings()
+            self.assertEqual(view["connection_status"], "waiting_for_api_key")
+            self.assertEqual(view["connection_kind"], "fixture")
+
+    def test_test_settings_persists_fixture_success_without_secret(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+
+            class Provider:
+                def ping(self):
+                    return None
+
+            flow = WorkbenchFlow(root, provider_factory=lambda settings: Provider())
+            save_settings(root, apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek",
+                "api_key": "sk-private-fixture",
+            }))
+            result = flow.test_settings()
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(result["connection_kind"], "fixture")
+            view = flow.get_settings()
+            self.assertEqual(view["connection_status"], "passed")
+            self.assertNotIn("sk-private-fixture", json.dumps(view))
 
 
 class AcquisitionTests(unittest.TestCase):

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-10-22 — Issue #34 — first-class DeepSeek settings
+
+- Added a named DeepSeek preset (`https://api.deepseek.com`, `deepseek-flash`) with one-time `/chat/completions` endpoint composition while retaining Responses and generic Chat modes.
+- Settings now persist only masked connection observations (`not_tested`, `passed`, `failed`, or `waiting_for_api_key`) and distinguish real connections from explicit test fixtures; blank key updates preserve the stored key and an explicit clear removes it.
+- Connection failures expose actionable 401/402/403/429/timeout guidance without secrets; the local UI shows provider, model, endpoint, and truthful real-vs-fixture status.
+- Tests: `tests.test_workbench` + `tests.test_webui` 87/87 pass; no real DeepSeek request was made.
+
 ## Unreleased — 2026-10-22 — Issue #23 — Nexus round-2 hardening (PR #33)
 
 - **B3 — Authorized acquisition failures remain unresolved.** A valid authorization followed by a failed `yt-dlp` attempt is now persisted in both the session and the latest acquisition record with status, reason, timestamps and retry count. Failed authorized references remain visible in `eligible`/`pending`, show their reason in the UI, block research until a retry succeeds, or require the existing explicit reason-bearing partial-analysis override; a successful retry clears the active failure.

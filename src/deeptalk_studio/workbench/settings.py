@@ -16,16 +16,28 @@ from typing import Any, Dict, Mapping, Optional
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "settings_version": 1,
-    "provider_mode": "responses",  # responses | chat
+    "provider_mode": "responses",  # responses | chat | deepseek
     "base_url": "https://api.openai.com/v1/responses",
     "chat_base_url": "",  # e.g. https://host/v1  (endpoint = base + /chat/completions)
     "model": "",
     "api_key": "",
     "downloads_dir": "",  # user-specified folder for authorized reference media
     "timeout_seconds": 600,
+    # Non-secret connection observations.  These are deliberately separate
+    # from the credential so a failed test can be shown after a restart.
+    "connection_status": "not_tested",
+    "connection_kind": "real",
+    "connection_tested_at": "",
+    "connection_error": "",
+    "connection_provider": "",
+    "connection_model": "",
+    "connection_endpoint": "",
 }
 
-PROVIDER_MODES = {"responses", "chat"}
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+DEEPSEEK_DEFAULT_MODEL = "deepseek-flash"
+DEEPSEEK_OPTIONAL_MODEL = "deepseek-v4-pro"
+PROVIDER_MODES = {"responses", "chat", "deepseek"}
 MIN_TIMEOUT_SECONDS = 30
 MAX_TIMEOUT_SECONDS = 1800
 MAX_API_KEY_CHARS = 4096
@@ -89,7 +101,7 @@ def apply_settings_update(current: Dict[str, Any], payload: Mapping[str, Any]) -
     if "provider_mode" in payload:
         mode = payload["provider_mode"]
         if mode not in PROVIDER_MODES:
-            raise WorkbenchSettingsError("提供方式只支持 responses 或 chat")
+            raise WorkbenchSettingsError("提供方式只支持 responses、chat 或 deepseek")
         data["provider_mode"] = mode
     if "base_url" in payload:
         data["base_url"] = _clean_url(payload["base_url"], "Responses 端点")
@@ -119,18 +131,43 @@ def apply_settings_update(current: Dict[str, Any], payload: Mapping[str, Any]) -
                 f"超时需在 {MIN_TIMEOUT_SECONDS}–{MAX_TIMEOUT_SECONDS} 秒之间"
             )
         data["timeout_seconds"] = timeout
+    # Selecting the named preset is an explicit user action.  Fill only the
+    # preset fields the caller did not provide; custom model/base values stay
+    # editable and all unrelated settings (including the key and download
+    # folder) remain untouched.
+    if data["provider_mode"] == "deepseek":
+        if "chat_base_url" not in payload or not data.get("chat_base_url"):
+            data["chat_base_url"] = DEEPSEEK_BASE_URL
+        if "model" not in payload or not str(data.get("model", "")).strip():
+            data["model"] = DEEPSEEK_DEFAULT_MODEL
+    # A changed provider/endpoint/model/key invalidates an older connection
+    # observation.  Do this after normalization so equivalent URLs do not
+    # cause a needless reset.
+    observed_fields = ("provider_mode", "base_url", "chat_base_url", "model", "api_key")
+    if any(data.get(field) != current.get(field) for field in observed_fields):
+        data.update(
+            {
+                "connection_status": "not_tested",
+                "connection_kind": "real",
+                "connection_tested_at": "",
+                "connection_error": "",
+                "connection_provider": "",
+                "connection_model": "",
+                "connection_endpoint": "",
+            }
+        )
     validate_settings(data)
     return data
 
 
 def validate_settings(data: Dict[str, Any]) -> None:
     if data["provider_mode"] not in PROVIDER_MODES:
-        raise WorkbenchSettingsError("提供方式只支持 responses 或 chat")
+        raise WorkbenchSettingsError("提供方式只支持 responses、chat 或 deepseek")
     _clean_url(data["base_url"], "Responses 端点")
     if data["provider_mode"] == "responses" and not data["base_url"]:
         raise WorkbenchSettingsError("responses 模式需要 Responses 端点")
-    if data["provider_mode"] == "chat" and not data["chat_base_url"]:
-        raise WorkbenchSettingsError("chat 模式需要 Chat 兼容地址")
+    if data["provider_mode"] in {"chat", "deepseek"} and not data["chat_base_url"]:
+        raise WorkbenchSettingsError("Chat 兼容模式需要 Chat 兼容地址")
     if data["downloads_dir"]:
         path = Path(data["downloads_dir"]).expanduser()
         if not path.is_absolute():
@@ -142,7 +179,7 @@ def validate_settings(data: Dict[str, Any]) -> None:
 def is_configured(data: Dict[str, Any]) -> bool:
     if not data["model"] or not data["api_key"]:
         return False
-    if data["provider_mode"] == "chat":
+    if data["provider_mode"] in {"chat", "deepseek"}:
         return bool(data["chat_base_url"])
     return bool(data["base_url"])
 
@@ -178,16 +215,38 @@ def masked_view(data: Dict[str, Any]) -> Dict[str, Any]:
         masked = "****"
     else:
         masked = f"{key[:4]}…{key[-4:]}"
+    endpoint = effective_chat_endpoint(data) if data["provider_mode"] in {"chat", "deepseek"} else data["base_url"]
+    provider_label = {
+        "responses": "OpenAI Responses",
+        "chat": "通用 Chat 兼容",
+        "deepseek": "DeepSeek",
+    }.get(data["provider_mode"], data["provider_mode"])
     return {
         "provider_mode": data["provider_mode"],
+        "provider_label": provider_label,
         "base_url": data["base_url"],
         "chat_base_url": data["chat_base_url"],
+        "endpoint": endpoint,
         "model": data["model"],
         "api_key_masked": masked,
         "downloads_dir": data["downloads_dir"],
         "timeout_seconds": data["timeout_seconds"],
         "configured": is_configured(data),
+        "connection_status": data.get("connection_status", "not_tested"),
+        "connection_kind": data.get("connection_kind", "real"),
+        "connection_tested_at": data.get("connection_tested_at", ""),
+        "connection_error": data.get("connection_error", ""),
+        "connection_provider": data.get("connection_provider", ""),
+        "connection_model": data.get("connection_model", ""),
+        "connection_endpoint": data.get("connection_endpoint", ""),
     }
+
+
+def effective_chat_endpoint(data: Mapping[str, Any]) -> str:
+    """Compose an OpenAI-compatible endpoint exactly once."""
+
+    base = str(data.get("chat_base_url", "") or "").strip().rstrip("/")
+    return base if base.endswith("/chat/completions") else base + "/chat/completions"
 
 
 def resolve_downloads_dir(data: Dict[str, Any]) -> Optional[Path]:

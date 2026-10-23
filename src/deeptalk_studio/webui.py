@@ -368,7 +368,9 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         try:
             return action(), None
         except WorkbenchFlowError as exc:
-            return None, (400, {"error": str(exc)})
+            payload = {"error": str(exc)}
+            payload.update(getattr(exc, "payload", {}) or {})
+            return None, (400, payload)
         except WorkbenchLLMError as exc:
             return None, (400, {"error": str(exc)})
         except (ReportValidationError, ScriptValidationError, ContentDirectorValidationError) as exc:
