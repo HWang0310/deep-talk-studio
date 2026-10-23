@@ -13,6 +13,13 @@ AIGC:
 
 > **Historical log, not canonical current truth.** Read [PROJECT_STATE.md](PROJECT_STATE.md) first for current product/release state and [docs/INDEX.md](docs/INDEX.md) for reading order. Use this chronological record only to trace a decision, commit lineage, real-episode validation, bug origin, or architecture evolution.
 
+## 2026-10-22：Creator Workbench Issue #38 — 离线浏览器验收（READY_FOR_NEXUS_REVIEW）
+
+- 新增 `evaluations/issue38_workbench/fixture_server.py`（loopback、无模型、无公网）和 `smoke_playwright.py`，实际通过浏览器完成设置掩码、五条夹具候选、音频导入/本地预览、交付的 `WAITING_FOR_OWNER_REVIEW` 阻断、刷新恢复、Tab 键可达、375px 无横向溢出与 `/healthz` 检查；脱敏截图位于 `evaluations/issue38_workbench/screenshots/`。
+- 浏览器复测发现并修复两项 UI 状态问题：创建会话时返回完整 `settings + session`，不再清空已保存的掩码设置；长 SHA/本地路径状态支持窄屏断词。夹具保存设置后明确保持 `connection_kind=fixture`，不误报真实连接。
+- 回归：`tests.test_workbench` + `tests.test_webui` 101/101，`tests.test_audio_only_delivery` 18/18，`tests.test_deepseek_tools` 4/4，全量 1088 pass/7 skipped；静态 JS、py_compile、diff-check 均通过。
+- 约束：未调用 DeepSeek 或付费 API，未使用 Owner 私人音频，未宣称真实模型创作质量；Owner API Key、真实创作质量及审核/版权决定保持 `WAITING_FOR_OWNER_API_KEY` / `WAITING_FOR_OWNER_REVIEW`。
+
 ## 2026-10-22：Creator Workbench Issue #37 — 本地音频时间轴与 Edit Map UI（待 Nexus 复审）
 
 - 在 `agent/issue37-audio-delivery` 上为六步创作工作台加入会话级本地口播导入：WAV/MP3/M4A/AAC/FLAC/MP4/MOV/M4V，512 MiB 上限，普通文件名、来源声明、SHA-256/大小留痕，临时文件 + exclusive hard-link 原子发布，不覆盖既有文件。

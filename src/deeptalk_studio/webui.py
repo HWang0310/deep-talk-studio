@@ -624,7 +624,13 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                     candidates,
                     None,
                 )
-                return {"session": flow.view(session["session_id"])}
+                # Return the same complete state shape as /state so the
+                # browser's single renderer cannot blank a previously saved
+                # masked API-key/settings view after creating a session.
+                return {
+                    "settings": flow.get_settings(),
+                    "session": flow.view(session["session_id"]),
+                }
 
             result, error = self._workbench_call(_start)
         elif path == "/api/workbench/references/acquire":

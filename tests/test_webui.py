@@ -239,6 +239,13 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("min-height: 40px", body)
         self.assertIn("#search-btn { width: 100%; }", body)
 
+    def test_index_wraps_unbroken_status_values_on_narrow_screens(self):
+        """Issue #38: SHA/path status text must not create horizontal scroll."""
+        status, _, body = self.get("/")
+        self.assertEqual(status, 200)
+        self.assertIn("overflow-wrap: anywhere", body)
+        self.assertIn("word-break: break-word", body)
+
     def test_index_exposes_deepseek_preset_and_truthful_connection_indicator(self):
         status, _, body = self.get("/")
         self.assertEqual(status, 200)
@@ -663,7 +670,10 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
                 "topic": "本市图书馆夜间开放试点", "urls": [],
             })
             self.assertEqual(status, 200, body)
-            sid = json.loads(body)["session"]["session_id"]
+            started = json.loads(body)
+            self.assertIn("settings", started)
+            self.assertIn("api_key_masked", started["settings"])
+            sid = started["session"]["session_id"]
             common = {
                 "X-Workbench-Session": sid,
                 "X-Workbench-Filename": "take.wav",
