@@ -393,6 +393,14 @@ class WorkbenchFlow:
         save_settings(self.repo_root, updated)
         return masked_view(updated)
 
+    def choose_save_folder(self) -> Dict[str, Any]:
+        from .settings import WorkbenchSettingsError, choose_local_directory
+
+        try:
+            return choose_local_directory()
+        except WorkbenchSettingsError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+
     def test_settings(self) -> Dict[str, Any]:
         settings = load_settings(self.repo_root)
         endpoint = (

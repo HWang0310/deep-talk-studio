@@ -787,6 +787,54 @@ class SettingsTests(_UserSettingsIsolatedTestCase):
                     "downloads_dir": "/definitely/not/existing/dir/xyz",
                 })
 
+    def test_settings_rejects_non_writable_save_folder(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            with mock.patch.object(_settings_module.os, "access", return_value=False):
+                with self.assertRaisesRegex(Exception, "不可写"):
+                    apply_settings_update(load_settings(root), {"downloads_dir": raw})
+
+    def test_save_folder_update_preserves_saved_api_key(self):
+        with tempfile.TemporaryDirectory() as raw, tempfile.TemporaryDirectory() as settings_root:
+            previous = _settings_module.USER_SETTINGS_DIR
+            _settings_module.USER_SETTINGS_DIR = Path(settings_root)
+            self.addCleanup(setattr, _settings_module, "USER_SETTINGS_DIR", previous)
+            root = Path(raw)
+            configured = apply_settings_update(load_settings(root), {
+                "provider_mode": "deepseek", "api_key": "sk-keep-save-folder-test"
+            })
+            save_settings(root, configured)
+            updated = apply_settings_update(load_settings(root), {"downloads_dir": raw})
+            save_settings(root, updated)
+            self.assertEqual(load_settings(root)["api_key"], "sk-keep-save-folder-test")
+            self.assertEqual(masked_view(load_settings(root))["downloads_dir"], raw)
+
+    def test_native_folder_picker_is_shell_free_and_handles_cancel(self):
+        chooser = getattr(_settings_module, "choose_local_directory", None)
+        self.assertTrue(callable(chooser), "settings should expose a native folder chooser")
+        with tempfile.TemporaryDirectory() as raw:
+            selected = str(Path(raw) / "")
+            with mock.patch.object(_settings_module.platform, "system", return_value="Darwin"), \
+                 mock.patch.object(_settings_module.subprocess, "run", return_value=subprocess.CompletedProcess(
+                     ["osascript"], 0, stdout=selected + "\n", stderr=""
+                 )) as run:
+                result = chooser()
+            self.assertEqual(result, {"path": selected, "cancelled": False})
+            self.assertEqual(run.call_args.args[0][:2], ["osascript", "-e"])
+            self.assertNotIn("shell", run.call_args.kwargs)
+            with mock.patch.object(_settings_module.platform, "system", return_value="Darwin"), \
+                 mock.patch.object(_settings_module.subprocess, "run", return_value=subprocess.CompletedProcess(
+                     ["osascript"], 1, stdout="", stderr="execution error: User canceled. (-128)"
+                 )):
+                self.assertEqual(chooser(), {"path": "", "cancelled": True})
+
+    def test_native_folder_picker_explains_unsupported_platform(self):
+        chooser = getattr(_settings_module, "choose_local_directory", None)
+        self.assertTrue(callable(chooser), "settings should expose a native folder chooser")
+        with mock.patch.object(_settings_module.platform, "system", return_value="Linux"):
+            with self.assertRaisesRegex(Exception, "填写绝对路径"):
+                chooser()
+
     def test_test_settings_without_key_persists_waiting_status(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

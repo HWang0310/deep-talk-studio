@@ -492,6 +492,9 @@
   .key-toggle { min-width: 72px; padding: 6px 10px; color: var(--muted); background: #fbfaf8; }
   .settings-page .advanced, .settings-page .downloads-box { margin-top: 26px; padding-top: 17px; border-top: 1px solid var(--line); }
   .settings-page .advanced summary, .settings-page .downloads-box summary { color: var(--ink-soft); font-size: 13.5px; font-weight: 650; }
+  .save-folder-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+  .save-folder-row label { margin-top: 8px; }
+  .save-folder-row button { min-height: 44px; white-space: nowrap; }
   .settings-page .advanced .field-grid { margin-top: 9px; }
   .settings-actions { display: flex; align-items: center; gap: 10px; margin-top: 31px; padding-top: 23px; border-top: 1px solid var(--line); }
   .settings-actions .spacer { flex: 1; }
@@ -685,13 +688,17 @@
           </div>
         </div>
       </details>
-      <details class="downloads-box">
-        <summary>下载位置</summary>
-        <div style="margin-top:6px">
-          <label for="st-dir">参考视频下载文件夹 <span class="hint">绝对路径，须已存在；留空表示暂不下载</span></label>
-          <input id="st-dir" type="text" placeholder="/Users/你/Movies/DeepTalk参考视频">
+      <section class="downloads-box" aria-labelledby="save-folder-title">
+        <h3 id="save-folder-title">保存文件夹</h3>
+        <p class="muted">选择一次后，新提取任务会在这里建立独立文件夹，自动保存原视频、完整口播稿和合并参考稿。留空时继续保存在 DeepTalk 会话目录。</p>
+        <div class="save-folder-row">
+          <div>
+            <label for="st-dir">本地文件夹 <span class="hint">必须已存在且可写</span></label>
+            <input id="st-dir" type="text" placeholder="/Users/你/Movies/DeepTalk">
+          </div>
+          <button id="st-dir-choose" type="button">选择文件夹</button>
         </div>
-      </details>
+      </section>
       <div class="settings-actions">
         <button id="settings-cancel" type="button">取消</button>
         <button id="settings-test" type="button">测试连接</button>
@@ -1785,6 +1792,27 @@
     if (key) { payload.api_key = key; }  // 空输入 = 保留已保存 Key（不覆盖）
     return payload;
   }
+
+  document.getElementById('st-dir-choose').addEventListener('click', function () {
+    var button = this;
+    var statusEl = document.getElementById('settings-status');
+    button.disabled = true;
+    statusEl.textContent = '正在打开本机文件夹选择器…';
+    fetch('/api/workbench/settings/folder-picker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    }).then(function (resp) {
+      return resp.json().then(function (data) { return { ok: resp.ok, data: data }; });
+    }).then(function (result) {
+      if (!result.ok) { statusEl.textContent = result.data.error || '选择文件夹失败'; return; }
+      if (result.data.cancelled) { statusEl.textContent = '已取消选择'; return; }
+      document.getElementById('st-dir').value = result.data.path;
+      statusEl.textContent = '已选择文件夹；点击「保存设置」后新任务将自动归档到这里。';
+    }).catch(function () {
+      statusEl.textContent = '无法打开文件夹选择器，请填写一个存在且可写的绝对路径。';
+    }).finally(function () { button.disabled = false; });
+  });
 
   function persistSettings() {
     return fetch('/api/workbench/settings', {

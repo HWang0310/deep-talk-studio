@@ -114,6 +114,8 @@ class FiveTranscriptTests(fixtures._UserSettingsIsolatedTestCase):
             try:
                 html=urllib.request.urlopen(base).read().decode()
                 self.assertIn('五视频口播提取',html);self.assertNotIn('先选热门参考',html)
+                settings_html=urllib.request.urlopen(base+'/settings').read().decode()
+                self.assertIn('保存文件夹',settings_html);self.assertIn('选择文件夹',settings_html)
                 self.assertIn('chat-sidebar',urllib.request.urlopen(base+'/advanced').read().decode())
                 def post(action,data):
                     return json.load(urllib.request.urlopen(urllib.request.Request(base+'/api/workbench/transcripts/'+action,data=json.dumps(data).encode(),headers={'Content-Type':'application/json'})))
@@ -123,6 +125,21 @@ class FiveTranscriptTests(fixtures._UserSettingsIsolatedTestCase):
                 self.assertIn('最后一行绝不能丢失',post('state',{'session_id':result['session_id']})['combined_text'])
                 self.assertEqual(len(post('sessions',{})['sessions']),1)
                 self.assertEqual(self.llm.seen,[])
+            finally:server.shutdown();server.server_close();thread.join()
+
+    def test_folder_picker_http_route_returns_selected_local_directory(self):
+        import threading, urllib.request
+        from deeptalk_studio.webui import make_server
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);flow=self.setup_tool(root)
+            flow.choose_save_folder=lambda:{'path':str(root),'cancelled':False}
+            server=make_server(port=0,output_dir=root,provider_factory=lambda:None,flow=flow)
+            thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+            base='http://127.0.0.1:'+str(server.server_port)
+            try:
+                request=urllib.request.Request(base+'/api/workbench/settings/folder-picker',data=b'{}',headers={'Content-Type':'application/json'})
+                result=json.load(urllib.request.urlopen(request))
+                self.assertEqual(result,{'path':str(root),'cancelled':False})
             finally:server.shutdown();server.server_close();thread.join()
 
     def test_local_transcription_needs_no_model_key_and_rejects_symlinks(self):

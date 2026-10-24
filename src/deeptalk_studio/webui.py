@@ -73,6 +73,7 @@ MAX_AUDIO_UPLOAD_BYTES = 512 * 1024 * 1024
 WORKBENCH_ROUTE_CAPS = {
     **{f"/api/workbench/transcripts/{action}": 16 * 1024 for action in ("start", "state", "process", "fuse", "sessions")},
     "/api/workbench/settings": 32 * 1024,
+    "/api/workbench/settings/folder-picker": 1024,
     "/api/workbench/settings/test": 2048,
     "/api/workbench/chat/stream": 64 * 1024,
     "/api/workbench/chat/manage": 2048,
@@ -879,6 +880,8 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                 lambda: flow.chat_draft_save(str(payload.get("content", "")), str(payload.get("session_id", "") or "")))
         elif path == "/api/workbench/settings":
             result, error = self._workbench_call(lambda: flow.save_settings(payload))
+        elif path == "/api/workbench/settings/folder-picker":
+            result, error = self._workbench_call(flow.choose_save_folder)
         elif path == "/api/workbench/settings/test":
             result, error = self._workbench_call(flow.test_settings)
         elif path == "/api/workbench/session/start":
