@@ -3,7 +3,7 @@
 > **2026-10-24 GitHub-verified integration snapshot, not a live status service.** On every recovery first check remote `main`, relevant Issue/PR exact SHAs and local dirty/worktree state. [PROJECT_STATE.md](PROJECT_STATE.md) owns formal release / accepted capability facts; [AGENTS.md](AGENTS.md) owns guardrails and canonical engineer roster. Historical handoffs and plans are not default next actions.
 
 ## 当前一句话
-**当前唯一开发主线是原 [PR #48](https://github.com/HWang0310/deep-talk-studio/pull/48) 的 Owner 创作流程收口，Codex 单一执行，Nexus 待复审。** 最新验收以 [issuecomment-6383823863](https://github.com/HWang0310/deep-talk-studio/pull/48#issuecomment-6383823863) 为准：输入选题后先出现聊天内进度与选参考按钮，授权并完成转写/分析后才生成视频二创；可以明确跳过参考自由创作。保留原分支，不新建 PR、不合并/发布。
+**当前唯一开发主线是原 [PR #48](https://github.com/HWang0310/deep-talk-studio/pull/48) 的“五视频口播提取工具”，Codex 单一执行，Nexus 待复审。** 最新 Owner 需求以 [issuecomment-6384621479](https://github.com/HWang0310/deep-talk-studio/pull/48#issuecomment-6384621479) 为准，取代旧自动热门搜索/四步创作/三稿默认流程：用户自带1～5链接→显式本批授权→本地下载/FFmpeg/Whisper→逐视频完整TXT+JSON与全文合并导出；可选明确调用模型融合一篇稿。原分支继续，不新开PR、不合并/发布。
 
 ## 已确认状态与产品边界
 - **最新正式发布仍为 [v1.0.0](https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0)**；当前 `main` 已包含 post-release Creator Workbench、DeepSeek 设置、参考视频分析、显式 Search/Fetch、音频交付 UI、浏览器验收、Chat-first 多会话与未审核 Creative Draft。**已合并代码不等于新版本已发布、本机服务已自动升级、真实视频已完成。**
@@ -13,10 +13,10 @@
 - 内嵌 TTS/声音克隆 [#28](https://github.com/HWang0310/deep-talk-studio/issues/28) 与 V2 后续阶段仍 **HOLD**。不要擅自自动发布、复制他人原创表达、伪造事实来源/模型结果/时间对齐。
 
 ## 近期执行顺序
-1. **一个 Writer：Codex；Nexus 审核。** PR #48 原始 topic-first head `ae8e0f2b0fab6872265c4787fc4577524b565bf2` 上继续开发。前轮证据见 [一次性交付证据](evaluations/remix_one_shot/README.md)，当前 Owner UX 复审见 [流程验收](evaluations/owner_flow/README.md)。以远端 PR exact head 和本机服务核验为准。
-2. **娱乐创作优先。** 输入热点→聊天内进度卡→选择热门参考/勾选本批授权→下载/抽音/转写/分析真实进度→三篇口播直接出现在聊天→对话修改及回复导出。分析前不自动生成/付费写长稿，明确跳过才按选题自由创作。编辑器始终默认收起，旧正式流程在设置>高级按需打开。免费草稿无强制新闻核查流程；严重指控不编成事实，原有正式 Gate 保持独立。
-3. 验收同时覆盖全文 ASR 的 TXT/JSON 导出、播放量文件名、历史重命名/软删除/恢复、同聊天 A→B 来源隔离与检索等待/超时。Three.js 选择不启用，保留静态轻量装饰；不新增服务订阅。
-4. Owner Key/历史仍在稳定用户目录。自动化与破坏性试用只用临时目录；真实模型限定最多4次新调用，证据须区分真实公共检索、真实 DeepSeek、合成媒体/Whisper 夹具。最新正式发布仍是 v1.0.0；本 PR 未合并、未发布，Issue #29 真实成片与 #28 TTS 不因本轮自动完成。
+1. 五个粘贴槽支持多行、跟踪参数与BV去重；不自动搜热门，不自动收费。每个视频独立进度、失败重试，已完成记录幂等保留。
+2. 原文完整保存并导出，含末尾段落；合并稿按来源顺序标注标题/URL/BVID，失败如实标记。可选单篇指定字数融合，原文永不因模型窗口裁剪。
+3. 旧聊天、历史管理、正式工作流保留在高级入口；用户级Key和聊天主存储不迁移、不覆盖。所有正式Gate不变。
+4. 浏览器五视频验收使用明确离线工具夹具，不冒称真实平台五视频ASR。真实平台下载需要本批范围授权。最新正式发布仍为v1.0.0。
 
 ## Agent 最短阅读
 远端当前状态 → [AGENTS.md](AGENTS.md) → 本索引 → 按需 [docs/INDEX.md](docs/INDEX.md) 的 canonical Skill/合同、实现和测试。只有涉及正式产品能力与版本时深入 [PROJECT_STATE.md](PROJECT_STATE.md)。GitHub 最新事实优先，遇到冲突向 Nexus 报告。

@@ -11,6 +11,8 @@ AIGC:
 
 # DeepTalk Studio
 
+> PR #48 当前待审默认入口：**五视频口播提取工具**。自带1～5条B站链接，勾选本批授权后提取完整口播；每份TXT/时间码JSON可看、复制、下载，支持全部原文合并导出。AI单篇融合可选且单独授权；旧创作与历史会话从“高级”进入。尚未合并或发布，最新正式版仍为v1.0.0。
+
 > **刚回来，不知道怎么使用？先读 [《从这里开始：创作者使用 + PM 项目管理》](START_HERE.md)。** 先选择“我要创作视频”还是“我要管理项目”，无需重放旧对话。
 
 **Latest Formal Release:** [`v1.0.0`](docs/releases/v1.0.0.md) — GitHub Release [v1.0.0](https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0)

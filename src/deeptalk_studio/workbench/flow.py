@@ -1573,7 +1573,7 @@ class WorkbenchFlow:
             results.append({"bvid": bvid, "ok": True, "media_path": record["media_path"]})
         return {"results": results}
 
-    def analyze_reference(self, session_id: str, bvid: str, *, progress=None) -> Dict[str, Any]:
+    def analyze_reference(self, session_id: str, bvid: str, *, progress=None, local_only=False) -> Dict[str, Any]:
         session, _ = self._reference_path(session_id, bvid)
         state = session["references"].get(bvid, {})
         media_path = state.get("media_path", "")
@@ -1658,6 +1658,12 @@ class WorkbenchFlow:
             "duration_sec": state.get("duration_sec"),
         }
         self.reference_transcript(session_id, bvid)
+        if local_only:
+            from .transcript_export import atomic_text
+            transcript['source_metadata'] = metadata
+            atomic_text(transcript_path, json.dumps(transcript, ensure_ascii=False, indent=2) + '\n')
+            self.store.update(session_id, lambda s: s['references'][bvid].update({'status':'complete'}))
+            return self.reference_transcript(session_id, bvid)
         metrics = acquisition.analyze_transcript(transcript, metadata)
         study = dict(metrics)
         study["transcript_status"] = transcript.get("transcript_status", "complete")

@@ -13,6 +13,16 @@ AIGC:
 
 > **状态：IMPLEMENTED_UNRELEASED（Issue #23，PR 待审）。** 本合同描述统一创作工作台（Web UI 六步流程）的最小可用能力：用户仅通过产品界面，从输入选题一路走到获得**经独立审核通过**的原创口播文稿，并可继续导入自己的口播音频、运行真实本地对齐和领取 Asset Pack / Edit Map。它复用既有 canonical 引擎（Research、Fact-Check、Content Thesis、Script 写稿与审核、Audio-only delivery）与发现合同（`REFERENCE_DISCOVERY_CONTRACT.md`），只做接入编排，不改任何既有合同语义。
 
+## 五视频口播提取补充（PR #48，6384621479，待复审）
+
+本节取代下面历史默认流程。首页是独立提取工具，用户输入1～5个B站URL/BV（支持多行、query tracker、按BV去重），明确勾选本批下载/本地分析授权才开始；不搜索、不调用LLM。逐视频元数据核验后下载→FFmpeg→Whisper，保存完整TXT与含时间码、来源元数据的JSON。任一失败不阻断其余视频，显式单条重试复用已有媒体/转写；原批次和旧文件不覆盖。没有配置下载目录时使用该会话私有media目录，无需模型Key。
+
+`POST /api/workbench/transcripts/{start,state,process,sessions,fuse}` 均有同源/loopback/JSON/body-cap检查；process/fuse共享互斥写锁。state恢复会话与完整原文；TXT复制/下载和JSON下载在浏览器本地生成，合并TXT同时持久落盘。合并稿完整按来源顺序拼接，含失败标记，不制造缺失口播。刷新、进程重启后可恢复。
+
+可选融合须单独同意向已配置模型发送转写及费用，提供目标字数200～10000和简短风格要求，只生成一篇未审核Creative Draft。源文本全部注入模型；超过100000字符透明拒绝并提供完整TXT供外部AI使用，永不裁剪保存原文。每次融合另存新TXT。正式Reviewed Script等原有审批Gate不变。
+
+`/advanced` 保留原聊天、历史重命名/软删除/恢复及旧流程入口；`/settings`复用原用户Key设置。不会迁移/覆盖既有数据。播放量仍仅采用逐视频API核验值，媒体文件扩展名前保留实际整数播放量，无法核验时使用“播放量未知”。
+
 ## Owner 流程收口补充（PR #48，6383823863，待复审）
 
 本节取代下文“输入主题就生成三稿”的默认行为，保留原有数据、模型设置、下载/转写工件和正式 Gate。

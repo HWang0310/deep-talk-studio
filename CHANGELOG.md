@@ -1,5 +1,10 @@
 # Changelog
 
+## PR #48 candidate — 2026-10-24
+
+- 默认入口简化为1～5个自带B站视频的完整口播提取：本批授权、本地下载/抽音/Whisper、独立TXT/JSON、全文复制与合并导出、逐条失败重试。
+- AI单篇指定字数融合独立可选，旧聊天/正式工作流与用户Key/历史保留；五稿fixture浏览器与双入口回归证据见 `evaluations/five_transcripts/README.md`。未合并、未发布。
+
 ## PR #48 Owner flow follow-up (2026-10-24, candidate)
 
 - Consolidate selection, scoped checkbox consent and actual processing progress into the chat. Defer reference-informed scripts until complete ASR/analysis; offer explicit labeled topic-only creation without premature model charges.

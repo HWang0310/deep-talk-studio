@@ -15,6 +15,10 @@ AIGC:
 
 ## Part A — Current Product
 
+### 当前 Owner 默认工具需求（2026-10-24，PR #48）
+
+用户自己选1～5个B站视频，明确授权后一次提取全部完整口播，逐份查看/复制/下载TXT与时间码JSON，并复制全部或下载有来源分节的全文合并TXT。失败不编造，逐条重试。默认不搜索热门、不调用模型；AI指定字数单篇融合可选。旧正式能力与Gate保留于高级入口，Key与历史不迁移覆盖。此默认工具需求按[Owner最终评论](https://github.com/HWang0310/deep-talk-studio/pull/48#issuecomment-6384621479)优先，下文正式生产需求继续约束正式路径。
+
 ### Product purpose
 
 DeepTalk Studio serves creators making human-led, deep spoken videos. It turns a defensible topic into a reviewed script and then prepares evidence-bound visual material with precise placement suggestions against the creator's final clean A-roll.

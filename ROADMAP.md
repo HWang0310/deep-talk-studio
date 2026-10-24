@@ -13,6 +13,10 @@ AIGC:
 
 > **Canonical owner:** delivery-state classification. Read [PROJECT_STATE.md](PROJECT_STATE.md) first. A plan or a branch is not a release; an implementation is not a release.
 
+## 当前候选（PR #48，未合并/未发布）
+
+五视频完整口播提取与合并导出取代默认热门检索/三稿/创作向导。实现与fixture/browser证据见[五稿验收](evaluations/five_transcripts/README.md)，待Nexus独立复审；不表示完成真实平台五视频ASR质量验收或Issue #29成片。
+
 ## Released
 
 ### v1.0.0 — Formal Release

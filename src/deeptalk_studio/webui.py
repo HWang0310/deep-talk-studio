@@ -71,6 +71,7 @@ MAX_AUDIO_UPLOAD_BYTES = 512 * 1024 * 1024
 # Workbench route body caps (bytes): settings may carry a long key; pasted
 # source text is intentionally generous; long-running operations stay small.
 WORKBENCH_ROUTE_CAPS = {
+    **{f"/api/workbench/transcripts/{action}": 16 * 1024 for action in ("start", "state", "process", "fuse", "sessions")},
     "/api/workbench/settings": 32 * 1024,
     "/api/workbench/settings/test": 2048,
     "/api/workbench/chat/stream": 64 * 1024,
@@ -268,9 +269,9 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             _send_json(self, 403, {"error": rejection})
             return
         path = urllib.parse.urlparse(self.path).path
-        if path in {"/", "/settings"}:
+        if path in {"/", "/settings", "/advanced"}:
             try:
-                body = INDEX_HTML_PATH.read_bytes()
+                body = ((_STATIC_DIR / "transcripts.html") if path == "/" else INDEX_HTML_PATH).read_bytes()
             except OSError:
                 _send_json(self, 500, {"error": "页面资源缺失"})
                 return
@@ -830,6 +831,25 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return
         server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment"]
         session_id = str(payload.get("session_id", "") or "")
+        if path.startswith("/api/workbench/transcripts/"):
+            action = path.rsplit("/", 1)[-1]
+            utility = server.transcripts
+            def run():
+                if action == "state": return utility.state(session_id)
+                if action == "sessions": return {"sessions": utility.list_sessions()}
+                if not server.workbench_lock.acquire(blocking=False):
+                    raise WorkbenchFlowError("有提取或融合任务正在运行，请等待完成")
+                try:
+                    if action == "start": return utility.start(payload.get("links", []))
+                    if action == "process": return utility.process(session_id, consent=payload.get("consent"), bvids=payload.get("bvids"))
+                    if action == "fuse": return utility.fuse(session_id, words=payload.get("words", 1000), style=payload.get("style", ""), consent=payload.get("consent"))
+                    raise WorkbenchFlowError("未知转写操作")
+                finally:
+                    server.workbench_lock.release()
+            result, error = self._workbench_call(run)
+            if error: _send_json(self, error[0], error[1])
+            else: _send_json(self, 200, result)
+            return
         if path == "/api/workbench/chat/create":
             self._handle_chat_create(flow, payload)
             return
@@ -1048,6 +1068,8 @@ class _DeepTalkWebUIServer(ThreadingHTTPServer):
         self.discovery_lock = threading.Lock()
         self.workbench_lock = threading.Lock()
         self.flow = flow
+        from .workbench.five_transcripts import FiveTranscripts
+        self.transcripts = FiveTranscripts(flow)
         # Nexus B2：同一聊天会话同时只允许一个在飞流（单飞），
         # 重叠发送返回 400，避免并发流互相竞争与隐藏重复计费。
         self.chat_in_flight = set()

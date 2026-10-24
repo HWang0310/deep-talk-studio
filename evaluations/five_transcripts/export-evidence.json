@@ -1,0 +1,81 @@
+{
+  "fixture": true,
+  "session_id": "WBX-834c7186069061ae",
+  "root": "/tmp/deeptalk-five-browser-v2",
+  "sources": [
+    {
+      "bvid": "BV1usn26NEdp",
+      "text_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/references/BV1usn26NEdp/离线验收来源 BV1usn26NEdp-BV1usn26NEdp-口播转写.txt",
+      "json_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/references/BV1usn26NEdp/transcript.json",
+      "segments": 250,
+      "asr_chars": 11374,
+      "txt_bytes": 26511,
+      "txt_sha256": "75b2feb4dcf135c2b92488cb1ac57016efb8ec519bb72883fd9aa170e4a37aeb",
+      "tail_preserved": true,
+      "browser_download_exact": true,
+      "media_filename": "离线验收来源 BV1usn26NEdp-BV1usn26NEdp-12357播放.mp4"
+    },
+    {
+      "bvid": "BV1fixture02",
+      "text_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/references/BV1fixture02/离线验收来源 BV1fixture02-BV1fixture02-口播转写.txt",
+      "json_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/references/BV1fixture02/transcript.json",
+      "segments": 250,
+      "asr_chars": 11374,
+      "txt_bytes": 26511,
+      "txt_sha256": "2e3819dc95730d91b993672c8049ea834de8ed619087d3aac70e8b7e959bd793",
+      "tail_preserved": true,
+      "browser_download_exact": true,
+      "media_filename": "离线验收来源 BV1fixture02-BV1fixture02-12357播放.mp4"
+    },
+    {
+      "bvid": "BV1fixture03",
+      "text_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/references/BV1fixture03/离线验收来源 BV1fixture03-BV1fixture03-口播转写.txt",
+      "json_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/references/BV1fixture03/transcript.json",
+      "segments": 250,
+      "asr_chars": 11374,
+      "txt_bytes": 26511,
+      "txt_sha256": "97034f659f375040e9a983894134e7712b9070003995c7f8cb82f3569f91b783",
+      "tail_preserved": true,
+      "browser_download_exact": true,
+      "media_filename": "离线验收来源 BV1fixture03-BV1fixture03-12357播放.mp4"
+    },
+    {
+      "bvid": "BV1fixture04",
+      "text_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/references/BV1fixture04/离线验收来源 BV1fixture04-BV1fixture04-口播转写.txt",
+      "json_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/references/BV1fixture04/transcript.json",
+      "segments": 250,
+      "asr_chars": 11374,
+      "txt_bytes": 26511,
+      "txt_sha256": "8262cf48b8f39765adb63b6a1accc3c51b0598640ea6f1ade9b7f0ccd0539a37",
+      "tail_preserved": true,
+      "browser_download_exact": true,
+      "media_filename": "离线验收来源 BV1fixture04-BV1fixture04-12357播放.mp4"
+    },
+    {
+      "bvid": "BV1fixture05",
+      "text_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/references/BV1fixture05/离线验收来源 BV1fixture05-BV1fixture05-口播转写.txt",
+      "json_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/references/BV1fixture05/transcript.json",
+      "segments": 250,
+      "asr_chars": 11374,
+      "txt_bytes": 26511,
+      "txt_sha256": "1a69769d4ca3dfbbe679b26ba5c267ebe3749a8e7e86a8c842d32e111812a138",
+      "tail_preserved": true,
+      "browser_download_exact": true,
+      "media_filename": "离线验收来源 BV1fixture05-BV1fixture05-12357播放.mp4"
+    }
+  ],
+  "combined_path": "/tmp/deeptalk-five-browser-v2/workbench/sessions/WBX-834c7186069061ae/合并参考稿.txt",
+  "combined_chars": 60294,
+  "combined_bytes": 133139,
+  "combined_sha256": "312bcef79d5b2f92099c74e042780d4e026814c2b750ba4fde8677b9f8434980",
+  "combined_browser_download_exact": true,
+  "ordered_full_text": true,
+  "tool_calls": {
+    "yt-dlp": 6,
+    "ffmpeg": 5,
+    "whisper": 5,
+    "model": 1
+  },
+  "model_custom_words": 1234,
+  "model_full_sources_present": true
+}

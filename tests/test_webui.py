@@ -242,7 +242,7 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertEqual(self.server.server_address[0], "127.0.0.1")
 
     def test_index_served_with_chinese_ui_and_nosniff(self):
-        status, headers, body = self.get("/")
+        status, headers, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertTrue(headers.get("Content-Type", "").startswith("text/html"))
         self.assertEqual(headers.get("X-Content-Type-Options"), "nosniff")
@@ -269,7 +269,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_settings_page_navigation_preserves_creator_state_without_reload(self):
         """Issue #44: ⚙ 设置入口走 pushState 单文档切换，不整页刷新；
         选题草稿写入 localStorage，返回创作不丢已输入内容。"""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("history.pushState", body)
         self.assertIn("'popstate'", body)
@@ -278,7 +278,7 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("返回创作", body)
 
     def test_creator_home_has_one_primary_topic_action_and_no_inline_settings_form(self):
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         # Owner UX（issuecomment-6364369899）：单一连续对话工作区 ——
         # 空态是安静居中的欢迎（welcome-pane），不再有巨型 hero 卡；
@@ -365,7 +365,7 @@ class StaticPageTests(LocalWebUITestCase):
         """review 5629701467：迟到的异步结果绝不污染其他会话 —— 草稿
         生成/保存按「发起时会话 + 视图代际」守卫，迟到结果只更新列表
         元数据；refresh 单调代际，乱序 state 响应被更新的请求超越即丢弃。"""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         # P0：视图代际存在，且选中会话实际变化时单调递增
         self.assertIn("var chatViewToken = 0", body)
@@ -411,7 +411,7 @@ class StaticPageTests(LocalWebUITestCase):
         """Issue #44: 概念三阶段 ① 视频参考 → ② 观点与资料 → ③ 原创口播稿；
         音频与素材仅在口播稿审核通过后成为可选入口，不常驻第六步。
         一次只展示当前阶段，用户可随时回看上一阶段而不丢会话。"""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("① 视频参考", body)
         self.assertIn("② 观点与资料", body)
@@ -427,7 +427,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_new_episode_mode_hides_old_session_until_explicit_start_or_cancel(self):
         """Nexus B1: entering a new episode must leave the old session intact
         while the topic hero is the only visible creator surface."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn('id="cancel-new-episode"', body)
         self.assertIn("var newEpisodeMode = false", body)
@@ -440,7 +440,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_legacy_workbench_is_collapsed_entry_never_inline_with_chat(self):
         """Nexus B1 (5626927896)：旧集正式工作流默认折叠、与聊天首页明确
         分离 —— stage-bar/表单/候选绝不混进聊天下方，只有显式展开才渲染。"""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn('id="legacy-workbench-entry"', body)
         self.assertIn("查看既有正式工作流", body)
@@ -458,7 +458,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_script_result_is_cleared_and_async_reload_is_session_bound(self):
         """Nexus B2: a reviewed manuscript from episode A cannot leak into
         episode B while a stale final-script request is still in flight."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("function clearScriptResult", body)
         self.assertIn("renderedScriptKey = null", body)
@@ -469,7 +469,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_reference_guided_visual_contract_is_present(self):
         """The creator and settings surfaces must expose the new hierarchy,
         instead of only swapping the previous card palette."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         for marker in (
             'class="hero-mark"', 'class="hero-composer"',
@@ -482,7 +482,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_offline_fixture_sources_are_explicitly_labeled(self):
         """B3 evidence must never read a mixed fixture source list as live
         independent reporting."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("offline_fixture", body)
         self.assertIn("离线演示夹具：仅用于验证页面流程，不代表真实独立研究来源。", body)
@@ -492,7 +492,7 @@ class StaticPageTests(LocalWebUITestCase):
         elapsed timer with a do-not-resubmit reassurance, previous sections
         are dimmed while a new operation runs (stale class), and the busy
         interval is always cleared when the operation finishes."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         # live elapsed timer + expected-duration reassurance during operation
         self.assertIn("已用", body)
@@ -511,7 +511,7 @@ class StaticPageTests(LocalWebUITestCase):
         """Issue #29 UI-trial responsive invariants: on narrow screens the
         reference-link input wraps to a full row with a tappable remove
         button, and the search button spans the full width."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("@media (max-width: 600px)", body)
         self.assertIn(".ref-row { flex-wrap: wrap; }", body)
@@ -520,13 +520,13 @@ class StaticPageTests(LocalWebUITestCase):
 
     def test_index_wraps_unbroken_status_values_on_narrow_screens(self):
         """Issue #38: SHA/path status text must not create horizontal scroll."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("overflow-wrap: anywhere", body)
         self.assertIn("word-break: break-word", body)
 
     def test_index_exposes_deepseek_preset_and_truthful_connection_indicator(self):
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn('value="deepseek"', body)
         self.assertIn("api.deepseek.com", body)
@@ -612,7 +612,7 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("button:disabled", body)
 
     def test_index_exposes_explicit_deepseek_search_budget_controls(self):
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("/api/workbench/research/search", body)
         self.assertIn("/api/workbench/research/fetch", body)
@@ -620,7 +620,7 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("搜索结果不是事实证据", body)
 
     def test_index_exposes_audio_import_delivery_and_gap_status_controls(self):
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("/api/workbench/audio/import", body)
         self.assertIn("/api/workbench/audio/deliver", body)
@@ -2138,7 +2138,7 @@ class TopicFirstUiStaticTests(LocalWebUITestCase):
         self.start_server()
 
     def test_search_event_handling_and_note_ui(self):
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("event.type === 'search'", body)
         self.assertIn("chat-search-note", body)

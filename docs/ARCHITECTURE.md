@@ -13,6 +13,10 @@ AIGC:
 
 > **Canonical owner:** current technical architecture. Read [PROJECT_STATE.md](../PROJECT_STATE.md) first. The target below is partially implemented through sanitized Phase 5 evidence, but it is not production-enabled.
 
+## PR #48 默认提取入口（候选）
+
+`/`提供独立transcripts.html；`/advanced`保留旧聊天和正式入口，`/settings`继续复用原用户设置。FiveTranscripts编排用户集合及SessionStore，直接复用acquisition和analyze_reference(local_only=True)，本地ASR后即保存全文，不运行手法摘要LLM。转写API与旧Workbench共享HTTP安全边界及写锁，state允许读取逐视频进度；TXT/JSON位于本地workbench/sessions/WBX-*/references/BV*/，合并全文TXT位于同会话根目录。fuse为单独显式模型动作，输出新的未审核TXT，原转写保持完整。
+
 ## Architectural Principles
 
 - Versioned JSON artifacts connect stages; human-readable Markdown is not the machine contract.
