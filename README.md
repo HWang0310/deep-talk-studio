@@ -23,6 +23,14 @@ DeepTalk Studio is a content and visual-asset system for creators making human-l
 
 The creator always owns content judgment, recording, final visual selection, and final NLE aesthetics. DeepTalk 不替用户剪辑最终视频，也不会自动编辑成片。
 
+## 当前创作入口（PR #48 候选，未合并/未发布）
+
+本地 `./scripts/deeptalk ui --port 8321` 的 Chat-first 入口面向 B 站娱乐热点二创：输入选题后先显示进度与“选参考并开始分析”，授权完成视频转写/分析后再写**犀利吐槽 / 搞笑玩梗 / 故事反转**三篇完整口播；也可明确“跳过参考，直接自由创作”。支持普通聊天继续改，回复可直接复制/导出。来源按本轮已核验播放量排序，在“参考灵感”展开查看；聊天内选择和勾选授权后复用下载→ffmpeg→本地 Whisper，全文 ASR 可搜索、复制、导出 TXT/JSON。它是机器转写学习材料，独立于原创稿。
+
+历史行右侧 `···` 可重命名、确认移入回收站、恢复；软删除保留所有草稿及参考文件。新下载使用 `标题-BVID-123456播放.mp4` 或 `播放量未知` 后缀，保留旧文件。Key/历史跨重启复用用户级 `~/.deeptalk`，不需要重新输入。Three.js 未启用，采用静态 CSS 装饰。编辑器默认收起，输入框随文档滚动，不遮挡长稿和按钮；旧流程在设置>高级。详见 [工作台合同](docs/WORKBENCH_CONTRACT.md) 和 [试用证据](evaluations/remix_one_shot/README.md)。
+
+自由创作均为 **Creative Draft / 未审核**，不以新闻核查阻断；下面的正式审核、音频与素材工作流保持独立有效。
+
 ## The Current Product Path
 
 ```text

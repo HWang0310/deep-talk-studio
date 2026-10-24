@@ -24,6 +24,7 @@ AIGC:
 | Canonical Development Branch | `main`（所有六个堆叠 PR 已闭合/merged）。后续开发只能从最新 `main` 单线派工，不应再以旧 #45/旧 #43 基线继续开发。下一步是单 Writer Forge 的本机集成验证及 [Issue #29](https://github.com/HWang0310/deep-talk-studio/issues/29) 首条真实视频。 |
 | Historical V1/V2 visual-asset development（保留证据） | Phases 0–5、插件 pin 和 Phase 6 demo HOLD 仍为历史/未默认启用路径。Issue #28 内嵌 TTS/HOLD；PR #31 WAV/MP3 最终音轨 audio-only CLI 窄适配**已集成，未另行发布**；PR #42 新增音频导入/时间轴/Asset Pack+Edit Map UI **已合入 `main`，尚未用 Owner 最终口播完成真实整集交付验收**。 |
 | Creator Workbench unified UI (Issue #23 / PR #33) | PR #33 和其后 #39–#43、#45 **全部合入 `main`，未正式发新版**。包括 DeepSeek 设置一次保存跨工作树、Chat-first SSE、桌面/手机历史会话、独立聊天与 Creative Draft 版本、草稿按需展开、参考/音频 Workbench；真实用户目录与测试隔离是硬边界。开放式 Creative Draft **始终未审核**，正式 Research/Fact Check/Thesis/Reviewed Script/Rights/Production Gate 独立有效；fixture PASS ≠ 真实付费搜索/真实视频质量 PASS。 |
+| 爆款二创 1.0 (PR #48) | **候选待 Nexus 评审，未合并/未发布**。娱乐优先三篇完整 Creative Draft、按播放量的参考工作区、授权下载/全文ASR导出、历史回收站、跨选题隔离与有界检索；[验证记录](evaluations/remix_one_shot/README.md)。正式Gate独立，真实视频ASR不因合成夹具试用自动视为完成。 |
 | Current product priority (Owner 2026-10-23) | **最高产品目标：首条真实视频 [Issue #29](https://github.com/HWang0310/deep-talk-studio/issues/29)**。2026-10-24 Owner 新反馈要求：直接给时事选题（如「王扁被打」）后，产品应主动检索公开来源、识别具体事件、生成可修改原创内容并推进到需要人审的节点，而非只做泛泛的对话式追问；**这项 topic-to-creation 自动编排尚未实现，不能虚报已具备**。先做合并后主线无损验证，再在原授权/证据/真实音轨/版权门禁下设计单线实现。剪映人工最终编辑/发布；V2 Phase D/E/F 与内嵌 TTS 仍 HOLD。 |
 
 ## Current Product Positioning

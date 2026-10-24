@@ -1,0 +1,83 @@
+{
+  "source": "real free anonymous Bilibili search, no video download or model call",
+  "elapsed_seconds": 7.37,
+  "discovery": {
+    "query": "王扁被打",
+    "status": "ok",
+    "sources": [
+      {
+        "bvid": "BV1zWnV6dEvZ",
+        "view_count": 1159172,
+        "view_count_status": "verified",
+        "view_count_source": "per_video_api",
+        "fetched_at": "2026-10-24T11:05:55.215722+00:00",
+        "duration_sec": 145,
+        "retrieval_note": null,
+        "title": "关于我当事人王扁被打一事的说明与回应",
+        "uploader": "王海澎律师",
+        "published_at": "2026-10-18T15:39:53+00:00",
+        "url": "https://www.bilibili.com/video/BV1zWnV6dEvZ",
+        "description": ""
+      },
+      {
+        "bvid": "BV1JNn56ZEwr",
+        "view_count": 142940,
+        "view_count_status": "verified",
+        "view_count_source": "per_video_api",
+        "fetched_at": "2026-10-24T11:05:55.215722+00:00",
+        "duration_sec": 141,
+        "retrieval_note": null,
+        "title": "最全视频！王扁被打全过程 还是没抗住吗？",
+        "uploader": "卷心菜吃糖豆",
+        "published_at": "2026-10-18T13:46:59+00:00",
+        "url": "https://www.bilibili.com/video/BV1JNn56ZEwr",
+        "description": ""
+      },
+      {
+        "bvid": "BV1sWJo6QEQJ",
+        "view_count": 82777,
+        "view_count_status": "verified",
+        "view_count_source": "per_video_api",
+        "fetched_at": "2026-10-24T11:05:55.215722+00:00",
+        "duration_sec": 66,
+        "retrieval_note": null,
+        "title": "王扁被打全过程 前经纪人疯了，想靠着王扁赚米，没成功就怀恨在心",
+        "uploader": "元元韩立",
+        "published_at": "2026-10-19T18:20:33+00:00",
+        "url": "https://www.bilibili.com/video/BV1sWJo6QEQJ",
+        "description": ""
+      },
+      {
+        "bvid": "BV1W9n36tEDS",
+        "view_count": 50964,
+        "view_count_status": "verified",
+        "view_count_source": "per_video_api",
+        "fetched_at": "2026-10-24T11:05:55.215722+00:00",
+        "duration_sec": 241,
+        "retrieval_note": null,
+        "title": "狂魔哥吃瓜王扁被打：为什么被打的这么惨兄弟们，太夸张了；下一个就是我？谁敢动我直接找刀哥（10月18日）",
+        "uploader": "焦彦红",
+        "published_at": "2026-10-18T09:55:32+00:00",
+        "url": "https://www.bilibili.com/video/BV1W9n36tEDS",
+        "description": ""
+      },
+      {
+        "bvid": "BV1sRJz6qE4i",
+        "view_count": 591,
+        "view_count_status": "verified",
+        "view_count_source": "per_video_api",
+        "fetched_at": "2026-10-24T11:05:55.215722+00:00",
+        "duration_sec": 3192,
+        "retrieval_note": null,
+        "title": "王扁被打事件完整版分享",
+        "uploader": "bili_71220899486",
+        "published_at": "2026-10-17T19:59:58+00:00",
+        "url": "https://www.bilibili.com/video/BV1sRJz6qE4i",
+        "description": ""
+      }
+    ],
+    "note": "",
+    "turn_id": "t1",
+    "created_at": "2026-10-24T19:06:02+08:00"
+  }
+}
