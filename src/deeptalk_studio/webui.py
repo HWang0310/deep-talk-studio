@@ -46,7 +46,7 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from .bilibili_reference_provider import BilibiliReferenceProvider
 from .content_director import ContentDirectorValidationError
@@ -71,9 +71,15 @@ MAX_AUDIO_UPLOAD_BYTES = 512 * 1024 * 1024
 # Workbench route body caps (bytes): settings may carry a long key; pasted
 # source text is intentionally generous; long-running operations stay small.
 WORKBENCH_ROUTE_CAPS = {
+    **{f"/api/workbench/transcripts/{action}": 16 * 1024 for action in ("start", "state", "process", "fuse", "sessions", "archive", "open-folder")},
     "/api/workbench/settings": 32 * 1024,
+    "/api/workbench/settings/folder-picker": 1024,
     "/api/workbench/settings/test": 2048,
     "/api/workbench/chat/stream": 64 * 1024,
+    "/api/workbench/chat/manage": 2048,
+    "/api/workbench/chat/create": 4096,
+    "/api/workbench/chat/references": 2048,
+    "/api/workbench/references/transcript": 2048,
     "/api/workbench/chat/draft": 2048,
     "/api/workbench/chat/draft/edit": 128 * 1024,
     "/api/workbench/session/start": 32 * 1024,
@@ -264,9 +270,9 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             _send_json(self, 403, {"error": rejection})
             return
         path = urllib.parse.urlparse(self.path).path
-        if path in {"/", "/settings"}:
+        if path in {"/", "/settings", "/advanced"}:
             try:
-                body = INDEX_HTML_PATH.read_bytes()
+                body = ((_STATIC_DIR / "transcripts.html") if path == "/" else INDEX_HTML_PATH).read_bytes()
             except OSError:
                 _send_json(self, 500, {"error": "页面资源缺失"})
                 return
@@ -409,6 +415,82 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         except Exception as exc:  # never kill the local server on one step
             return None, (500, {"error": f"这一步执行失败：{type(exc).__name__}：{str(exc)[:300]}"})
 
+    def _chat_mutation(self, flow, session_id, callback):
+        server = self.server
+        resolved = session_id or flow.creative.latest_session_id() or "chat:latest"
+        with server.chat_flight_lock:
+            if resolved in server.chat_in_flight or "chat:latest" in server.chat_in_flight or "chat:new" in server.chat_in_flight:
+                return None, (409, {"error": "会话正在生成回复或草稿，请先停止或等待完成"})
+            server.chat_in_flight.add(resolved)
+        try:
+            return self._workbench_call(callback)
+        finally:
+            with server.chat_flight_lock:
+                server.chat_in_flight.discard(resolved)
+
+    def _handle_chat_create(self, flow, payload):
+        """Progress SSE for one explicit, scoped reference or topic-only action.
+
+        Worker owns the flight reservation until all work ends. Disconnects
+        cancel before the next phase/model request; already-spent cost is not
+        promised refundable. No automatic retry or reconnect.
+        """
+        import queue
+        session_id = str(payload.get("session_id", ""))
+        mode = str(payload.get("mode", "reference"))
+        if mode not in {"reference", "topic_only"} or (mode == "reference" and payload.get("consent") is not True):
+            _send_json(self, 400, {"error": "请先确认授权，或选择跳过参考自由创作"})
+            return
+        _, error = self._workbench_call(lambda: flow.creative.load(session_id))
+        if error:
+            _send_json(self, error[0], error[1]); return
+        server = self.server
+        with server.chat_flight_lock:
+            if {session_id, "chat:latest", "chat:new"} & server.chat_in_flight:
+                _send_json(self, 409, {"error": "当前会话正在处理，请等待完成"}); return
+            server.chat_in_flight.add(session_id)
+        events = queue.Queue()
+        canceled = threading.Event()
+        def progress(event):
+            if canceled.is_set():
+                raise WorkbenchFlowError("处理已停止；已保存的下载和转写可继续使用")
+            events.put({"type": "phase", **event})
+        def worker():
+            try:
+                with server.workbench_lock:
+                    result = flow.chat_create(session_id, str(payload.get("turn_id", "")),
+                        payload.get("bvids") or [], consent=payload.get("consent") is True,
+                        mode=mode, progress=progress)
+                events.put({"type": "done", **result})
+            except (WorkbenchFlowError, CreativeChatError, WorkbenchLLMError) as exc:
+                events.put({"type": "error", "error": str(exc)})
+            except Exception:
+                events.put({"type": "error", "error": "处理失败，请重试或跳过参考"})
+            finally:
+                with server.chat_flight_lock:
+                    server.chat_in_flight.discard(session_id)
+                events.put(None)
+        threading.Thread(target=worker, daemon=True).start()
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Connection", "close")
+            self.close_connection = True
+            self.end_headers()
+            while True:
+                try:
+                    event = events.get(timeout=1)
+                except queue.Empty:
+                    self.wfile.write(b": processing\n\n"); self.wfile.flush(); continue
+                if event is None:
+                    break
+                self.wfile.write(("data: " + json.dumps(event, ensure_ascii=False) + "\n\n").encode())
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            canceled.set()
+
     def _handle_chat_stream(self, flow, payload: Dict[str, object]) -> None:
         """真实流式聊天：SSE 增量转发；停止/断开尝试中断上游请求。
 
@@ -478,6 +560,7 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                     retry_turn_id=str(payload.get("retry_turn_id", "") or ""),
                     session_id=raw_session_id,
                     new_session=new_session_flag,
+                    creation_topic=str(payload.get("creation_topic", "") or ""),
                 )
             except WorkbenchFlowError as exc:
                 body = {"error": str(exc)}
@@ -749,23 +832,58 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return
         server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment"]
         session_id = str(payload.get("session_id", "") or "")
+        if path.startswith("/api/workbench/transcripts/"):
+            action = path.rsplit("/", 1)[-1]
+            utility = server.transcripts
+            def run():
+                if action == "state": return utility.state(session_id)
+                if action == "sessions": return {"sessions": utility.list_sessions()}
+                if action == "open-folder": return utility.open_folder(session_id)
+                if not server.workbench_lock.acquire(blocking=False):
+                    raise WorkbenchFlowError("有提取或融合任务正在运行，请等待完成")
+                try:
+                    if action == "start": return utility.start(payload.get("links", []), label=payload.get("label", ""))
+                    if action == "process": return utility.process(session_id, consent=payload.get("consent"), bvids=payload.get("bvids"))
+                    if action == "fuse": return utility.fuse(session_id, words=payload.get("words", 1000), style=payload.get("style", ""), consent=payload.get("consent"))
+                    if action == "archive": return utility.archive(session_id)
+                    raise WorkbenchFlowError("未知转写操作")
+                finally:
+                    server.workbench_lock.release()
+            result, error = self._workbench_call(run)
+            if error: _send_json(self, error[0], error[1])
+            else: _send_json(self, 200, result)
+            return
+        if path == "/api/workbench/chat/create":
+            self._handle_chat_create(flow, payload)
+            return
         if path == "/api/workbench/chat/stream":
             # 流式聊天走专用 SSE 响应，不走统一 JSON 尾部
             self._handle_chat_stream(flow, payload)
             return
-        if path == "/api/workbench/chat/draft":
-            result, error = self._workbench_call(
-                lambda: flow.chat_draft_generate(str(payload.get("session_id", "") or ""))
-            )
+        if path == "/api/workbench/chat/manage":
+            result, error = self._chat_mutation(
+                flow, str(payload.get("session_id", "")),
+                lambda: flow.chat_manage(str(payload.get("session_id", "")), str(payload.get("action", "")), str(payload.get("title", ""))))
+        elif path == "/api/workbench/chat/references":
+            def _references():
+                with server.workbench_lock:
+                    return flow.chat_references(str(payload.get("session_id", "")), str(payload.get("turn_id", "")))
+            result, error = self._workbench_call(_references)
+        elif path == "/api/workbench/references/transcript":
+            result, error = self._workbench_call(lambda: flow.reference_transcript(
+                str(payload.get("session_id", "")), str(payload.get("bvid", ""))))
+        elif path == "/api/workbench/chat/draft":
+            result, error = self._chat_mutation(
+                flow, str(payload.get("session_id", "") or ""),
+                lambda: flow.chat_draft_generate(str(payload.get("session_id", "") or ""), mode=str(payload.get("mode", ""))))
         elif path == "/api/workbench/chat/draft/edit":
-            result, error = self._workbench_call(
-                lambda: flow.chat_draft_save(
-                    str(payload.get("content", "")),
-                    str(payload.get("session_id", "") or ""),
-                )
-            )
+            result, error = self._chat_mutation(
+                flow, str(payload.get("session_id", "") or ""),
+                lambda: flow.chat_draft_save(str(payload.get("content", "")), str(payload.get("session_id", "") or "")))
         elif path == "/api/workbench/settings":
             result, error = self._workbench_call(lambda: flow.save_settings(payload))
+        elif path == "/api/workbench/settings/folder-picker":
+            result, error = self._workbench_call(flow.choose_save_folder)
         elif path == "/api/workbench/settings/test":
             result, error = self._workbench_call(flow.test_settings)
         elif path == "/api/workbench/session/start":
@@ -955,6 +1073,8 @@ class _DeepTalkWebUIServer(ThreadingHTTPServer):
         self.discovery_lock = threading.Lock()
         self.workbench_lock = threading.Lock()
         self.flow = flow
+        from .workbench.five_transcripts import FiveTranscripts
+        self.transcripts = FiveTranscripts(flow)
         # Nexus B2：同一聊天会话同时只允许一个在飞流（单飞），
         # 重叠发送返回 400，避免并发流互相竞争与隐藏重复计费。
         self.chat_in_flight = set()
@@ -965,6 +1085,29 @@ def _default_repo_root() -> Path:
     """Repository root that owns the canonical engine trees (not the CWD)."""
 
     return Path(__file__).resolve().parents[2]
+
+
+def _default_topic_search(
+    provider_factory: Callable[[], object],
+) -> Callable[[str], Dict[str, Any]]:
+    """适配 server 层的 B 站匿名检索为 flow 的 topic_search 回调。
+
+    Issue #29 选题驱动创作（issuecomment-6369945828）：公开平台检索
+    是免费匿名能力（与 stage-1 参考视频同通道），不引入任何隐藏付费
+    调用；检索异常统一由 flow 防御层兜成 unavailable——检索永远
+    不阻断消息发送，也绝不冒充权威事实核查。
+    """
+
+    def search(topic: str) -> Dict[str, Any]:
+        query = str(topic or "").strip()
+        from .reference_discovery import build_reference_candidate_set
+        artifact = build_reference_candidate_set(query, [], provider=provider_factory())
+        sources = list(artifact.get("candidates") or [])[:5]
+        if not sources:
+            return {"status": "unavailable", "note": "公开来源检索不可用，没有返回可用结果"}
+        return {"status": "ok", "query": query, "sources": sources}
+
+    return search
 
 
 def make_server(
@@ -1000,7 +1143,21 @@ def run_webui(
     def factory():
         return BilibiliReferenceProvider(use_visitor_identity=use_visitor_identity)
 
-    server = make_server(port, output_dir=output_dir, provider_factory=factory)
+    # Issue #29：真实 UI 默认接线公开来源检索（免费匿名 B 站通道）；
+    # make_server(flow=None) 不接线——测试/演示环境自行注入确定性
+    # 夹具，绝不隐式发起网络请求。
+    from .workbench.flow import WorkbenchFlow
+
+    flow = WorkbenchFlow(
+        _default_repo_root(),
+        topic_search=_default_topic_search(factory),
+    )
+    server = make_server(
+        port,
+        output_dir=output_dir,
+        provider_factory=factory,
+        flow=flow,
+    )
     actual_port = server.server_address[1]
     mode = "匿名访客模式" if use_visitor_identity else "已禁用访客标识（--no-visitor-identity）"
     print(f"DeepTalk 参考视频工作台：http://{DEFAULT_HOST}:{actual_port}/")

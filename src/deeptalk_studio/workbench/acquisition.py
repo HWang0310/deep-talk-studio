@@ -43,6 +43,20 @@ PLATFORM_BLOCK_MARKERS = (
     "Too Many Requests",
 )
 
+
+def _proxy_refusal_message(stderr: str) -> Optional[str]:
+    lowered = str(stderr or "").lower()
+    refused = any(token in lowered for token in ("connection refused", "actively refused", "cannot connect to proxy", "failed to connect to proxy"))
+    local_proxy = "127.0.0.1" in lowered and re.search(r"(?:port\s*[=:,]?\s*)?7897\b", lowered)
+    if not refused or not ("proxy" in lowered or local_proxy):
+        return None
+    endpoint = "127.0.0.1:7897" if local_proxy else "已配置代理"
+    return (
+        f"本机代理连接失败：yt-dlp 无法连接到代理服务 {endpoint}（拒绝连接）。"
+        "请检查本机代理程序是否正在运行，以及代理类型和端口是否正确。"
+        "DeepTalk 不会自动关闭或绕过代理。"
+    )
+
 DEFAULT_AUDIO_SAMPLE_RATE = 16000
 
 
@@ -61,7 +75,9 @@ def _sha256_file(path: Path) -> str:
 def sanitize_filename(value: str, limit: int = 60) -> str:
     cleaned = re.sub(r"[\\/:*?\"<>|\n\r\t]+", "_", value).strip(" ._-")
     cleaned = re.sub(r"_+", "_", cleaned)
-    return (cleaned or "reference")[:limit]
+    # Reserve UTF-8 bytes for BVID, collision suffix and play-count/export markers.
+    # A character limit alone lets emoji exceed the filesystem 255-byte limit.
+    return (cleaned or "reference")[:limit].encode("utf-8")[:160].decode("utf-8", "ignore")
 
 
 def authorize(authorization_text: str) -> str:
@@ -89,14 +105,24 @@ def acquire_reference(
         raise WorkbenchAcquisitionError("下载目录不存在，请先在设置中配置已存在的文件夹")
     bvid = str(reference.get("bvid", "")).strip()
     url = str(reference.get("url", "")).strip()
-    if not bvid or not url.startswith("http"):
+    if not re.fullmatch(r"BV[A-Za-z0-9]+", bvid) or url != f"https://www.bilibili.com/video/{bvid}":
         raise WorkbenchAcquisitionError("参考条目缺少 BVID 或链接")
-    out_template = str(
-        target_dir / f"{sanitize_filename(str(reference.get('title', bvid)))}-{bvid}.%(ext)s"
-    )
+    verified = (reference.get("view_count_status") == "verified"
+                and reference.get("view_count_source") == "per_video_api"
+                and type(reference.get("view_count")) is int
+                and reference["view_count"] >= 0)
+    marker = f"{reference['view_count']}播放" if verified else "播放量未知"
+    title = sanitize_filename(str(reference.get("title") or bvid)).replace("%", "_")
+    stem = f"{title}-{bvid}-{marker}"
+    # Keep preexisting downloads intact, including interrupted sidecars.
+    if any(p.name.startswith(stem + ".") for p in target_dir.iterdir()):
+        import uuid
+        stem = f"{title}-{uuid.uuid4().hex[:8]}-{bvid}-{marker}"
+    out_template = str(target_dir / (stem + ".%(ext)s"))
     command = [
         "yt-dlp",
         "--no-playlist",
+        "--no-overwrites",
         "--no-cookies",
         "--no-warnings",
         "-f",
@@ -122,6 +148,9 @@ def acquire_reference(
         raise WorkbenchAcquisitionError("下载超时，请稍后重试或选择更短的参考视频") from None
     if process.returncode != 0:
         stderr = (process.stderr or "").strip()
+        proxy_error = _proxy_refusal_message(stderr)
+        if proxy_error:
+            raise WorkbenchAcquisitionError(proxy_error)
         marker = next((m for m in PLATFORM_BLOCK_MARKERS if m.lower() in stderr.lower()), None)
         if marker:
             raise WorkbenchAcquisitionError(
@@ -138,12 +167,18 @@ def acquire_reference(
         raise WorkbenchAcquisitionError("下载完成但未能定位媒体文件")
     path = Path(media_path)
     if not path.is_file():  # merged containers rename the template's extension
-        matches = sorted(target_dir.glob(f"{sanitize_filename(str(reference.get('title', bvid)))}-{bvid}.*"))
+        matches = sorted(p for p in target_dir.iterdir() if p.name.startswith(stem + "."))
         matches = [m for m in matches if m.suffix.lower() in {".mp4", ".mkv", ".webm", ".m4a", ".mp3"} and not m.name.endswith(".part")]
         if not matches:
             raise WorkbenchAcquisitionError("下载完成但未找到媒体文件，请检查下载目录")
         path = matches[-1]
+    if path.is_symlink() or path.resolve().parent != target_dir.resolve() or path.stem != stem or path.suffix.lower() not in {".mp4", ".mkv", ".webm", ".m4a", ".mp3"}:
+        raise WorkbenchAcquisitionError("下载返回了非预期媒体路径，已停止")
     return {
+        "view_count": reference.get("view_count") if verified else None,
+        "view_count_status": "verified" if verified else "unavailable",
+        "view_count_source": "per_video_api" if verified else "none",
+        "view_count_fetched_at": reference.get("fetched_at", ""),
         "bvid": bvid,
         "url": url,
         "title": str(reference.get("title", "")),
@@ -242,7 +277,12 @@ def transcribe_audio(
     from ..transcription.local_whisper_cpp import WhisperCppBootstrap, WhisperCppBootstrapError
 
     try:
-        installation = (bootstrap or WhisperCppBootstrap()).ensure()
+        local = bootstrap or WhisperCppBootstrap()
+        if bootstrap is None and (not local.runtime_path.is_file() or not local.model_path.is_file()):
+            raise WorkbenchAcquisitionError(
+                f"本地 Whisper 尚未安装完整运行时/large-v3 模型。需要 {local.runtime_path} 与 {local.model_path}；本次不会自动下载，可继续聊天创作。"
+            )
+        installation = local.ensure()
     except WhisperCppBootstrapError as exc:
         raise WorkbenchAcquisitionError(f"本地语音识别准备失败：{exc}") from None
     with tempfile.TemporaryDirectory(prefix="workbench-whisper-") as temp:
@@ -280,8 +320,10 @@ def transcribe_audio(
     segments_raw = raw.get("transcription") or []
     segments = []
     for item in segments_raw:
-        offset = float(item.get("offset", 0) or 0) / 1000.0
-        duration = float(item.get("duration", 0) or 0) / 1000.0
+        offsets = item.get("offsets") or {}
+        offset = float(offsets.get("from", item.get("offset", 0)) or 0) / 1000.0
+        end = float(offsets.get("to", 0) or 0) / 1000.0
+        duration = end - offset if offsets else float(item.get("duration", 0) or 0) / 1000.0
         text = str(item.get("text", "")).strip()
         if text:
             segments.append(

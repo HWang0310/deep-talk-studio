@@ -11,6 +11,8 @@ AIGC:
 
 # DeepTalk Studio
 
+> PR #48 当前待审默认入口：**五视频口播提取工具**。自带1～5条B站链接，勾选本批授权后提取完整口播；每份TXT/时间码JSON可看、复制、下载，支持全部原文合并导出。AI单篇融合可选且单独授权；旧创作与历史会话从“高级”进入。尚未合并或发布，最新正式版仍为v1.0.0。
+
 > **刚回来，不知道怎么使用？先读 [《从这里开始：创作者使用 + PM 项目管理》](START_HERE.md)。** 先选择“我要创作视频”还是“我要管理项目”，无需重放旧对话。
 
 **Latest Formal Release:** [`v1.0.0`](docs/releases/v1.0.0.md) — GitHub Release [v1.0.0](https://github.com/HWang0310/deep-talk-studio/releases/tag/v1.0.0)
@@ -22,6 +24,14 @@ AIGC:
 DeepTalk Studio is a content and visual-asset system for creators making human-led, deep spoken videos. It helps turn a defensible topic into a reviewed script, then prepares evidence-bound visual assets and precise placement suggestions against the creator's final clean A-roll.
 
 The creator always owns content judgment, recording, final visual selection, and final NLE aesthetics. DeepTalk 不替用户剪辑最终视频，也不会自动编辑成片。
+
+## 当前创作入口（PR #48 候选，未合并/未发布）
+
+本地 `./scripts/deeptalk ui --port 8321` 的 Chat-first 入口面向 B 站娱乐热点二创：输入选题后先显示进度与“选参考并开始分析”，授权完成视频转写/分析后再写**犀利吐槽 / 搞笑玩梗 / 故事反转**三篇完整口播；也可明确“跳过参考，直接自由创作”。支持普通聊天继续改，回复可直接复制/导出。来源按本轮已核验播放量排序，在“参考灵感”展开查看；聊天内选择和勾选授权后复用下载→ffmpeg→本地 Whisper，全文 ASR 可搜索、复制、导出 TXT/JSON。它是机器转写学习材料，独立于原创稿。
+
+历史行右侧 `···` 可重命名、确认移入回收站、恢复；软删除保留所有草稿及参考文件。新下载使用 `标题-BVID-123456播放.mp4` 或 `播放量未知` 后缀，保留旧文件。Key/历史跨重启复用用户级 `~/.deeptalk`，不需要重新输入。Three.js 未启用，采用静态 CSS 装饰。编辑器默认收起，输入框随文档滚动，不遮挡长稿和按钮；旧流程在设置>高级。详见 [工作台合同](docs/WORKBENCH_CONTRACT.md) 和 [试用证据](evaluations/remix_one_shot/README.md)。
+
+自由创作均为 **Creative Draft / 未审核**，不以新闻核查阻断；下面的正式审核、音频与素材工作流保持独立有效。
 
 ## The Current Product Path
 

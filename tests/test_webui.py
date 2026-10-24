@@ -242,7 +242,7 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertEqual(self.server.server_address[0], "127.0.0.1")
 
     def test_index_served_with_chinese_ui_and_nosniff(self):
-        status, headers, body = self.get("/")
+        status, headers, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertTrue(headers.get("Content-Type", "").startswith("text/html"))
         self.assertEqual(headers.get("X-Content-Type-Options"), "nosniff")
@@ -269,7 +269,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_settings_page_navigation_preserves_creator_state_without_reload(self):
         """Issue #44: ⚙ 设置入口走 pushState 单文档切换，不整页刷新；
         选题草稿写入 localStorage，返回创作不丢已输入内容。"""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("history.pushState", body)
         self.assertIn("'popstate'", body)
@@ -278,22 +278,22 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("返回创作", body)
 
     def test_creator_home_has_one_primary_topic_action_and_no_inline_settings_form(self):
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         # Owner UX（issuecomment-6364369899）：单一连续对话工作区 ——
         # 空态是安静居中的欢迎（welcome-pane），不再有巨型 hero 卡；
         # 有对话后 turns/草稿/旧集入口都在同一滚动流（conversation）里，
-        # composer 始终 sticky 贴在视口底部，绝不需要回到顶部发下一条。
+        # Composer follows document flow and cannot cover the final lines/buttons.
         self.assertIn('id="welcome-pane"', body)
         self.assertIn('id="conversation"', body)
         self.assertIn('id="composer-dock"', body)
-        self.assertIn("position: sticky", body)
+        self.assertRegex(body, r"\.composer-dock\s*\{[^}]*position: relative;")
         self.assertIn("function updateWelcomeVisibility", body)
         self.assertIn("function nearBottom", body)
         self.assertIn('id="settings-link"', body)
         # Chat-first：唯一主操作是发送聊天（明确付费动作），一次说明计费而非每轮打断
         self.assertIn("你想聊什么？", body)
-        self.assertIn("发送会调用你在「设置」里配置的模型服务并按其计费", body)
+        self.assertIn("找参考免费；聊天、分析和写稿按已配置的模型服务计费", body)
         self.assertIn('id="search-btn"', body)
         self.assertIn('id="chat-stop"', body)
         self.assertIn('id="chat-retry"', body)
@@ -355,7 +355,9 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("function updateRetryBtn", body)
         self.assertIn("stage-nav", body)
         self.assertIn("高级设置", body)
-        self.assertIn("下载位置", body)
+        self.assertIn("保存文件夹", body)
+        self.assertIn("自动保存原视频、完整口播稿和合并参考稿", body)
+        self.assertIn("id=\"st-dir-choose\"", body)
         # 两个视图共享同一份文档，但同一时刻绝不垂直同时渲染：
         # settingsPage 状态直接驱动互斥 hidden。
         self.assertIn("creatorView.hidden = settingsPage", body)
@@ -365,7 +367,7 @@ class StaticPageTests(LocalWebUITestCase):
         """review 5629701467：迟到的异步结果绝不污染其他会话 —— 草稿
         生成/保存按「发起时会话 + 视图代际」守卫，迟到结果只更新列表
         元数据；refresh 单调代际，乱序 state 响应被更新的请求超越即丢弃。"""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         # P0：视图代际存在，且选中会话实际变化时单调递增
         self.assertIn("var chatViewToken = 0", body)
@@ -411,7 +413,7 @@ class StaticPageTests(LocalWebUITestCase):
         """Issue #44: 概念三阶段 ① 视频参考 → ② 观点与资料 → ③ 原创口播稿；
         音频与素材仅在口播稿审核通过后成为可选入口，不常驻第六步。
         一次只展示当前阶段，用户可随时回看上一阶段而不丢会话。"""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("① 视频参考", body)
         self.assertIn("② 观点与资料", body)
@@ -427,7 +429,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_new_episode_mode_hides_old_session_until_explicit_start_or_cancel(self):
         """Nexus B1: entering a new episode must leave the old session intact
         while the topic hero is the only visible creator surface."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn('id="cancel-new-episode"', body)
         self.assertIn("var newEpisodeMode = false", body)
@@ -440,7 +442,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_legacy_workbench_is_collapsed_entry_never_inline_with_chat(self):
         """Nexus B1 (5626927896)：旧集正式工作流默认折叠、与聊天首页明确
         分离 —— stage-bar/表单/候选绝不混进聊天下方，只有显式展开才渲染。"""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn('id="legacy-workbench-entry"', body)
         self.assertIn("查看既有正式工作流", body)
@@ -458,7 +460,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_script_result_is_cleared_and_async_reload_is_session_bound(self):
         """Nexus B2: a reviewed manuscript from episode A cannot leak into
         episode B while a stale final-script request is still in flight."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("function clearScriptResult", body)
         self.assertIn("renderedScriptKey = null", body)
@@ -469,7 +471,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_reference_guided_visual_contract_is_present(self):
         """The creator and settings surfaces must expose the new hierarchy,
         instead of only swapping the previous card palette."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         for marker in (
             'class="hero-mark"', 'class="hero-composer"',
@@ -482,7 +484,7 @@ class StaticPageTests(LocalWebUITestCase):
     def test_offline_fixture_sources_are_explicitly_labeled(self):
         """B3 evidence must never read a mixed fixture source list as live
         independent reporting."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("offline_fixture", body)
         self.assertIn("离线演示夹具：仅用于验证页面流程，不代表真实独立研究来源。", body)
@@ -492,7 +494,7 @@ class StaticPageTests(LocalWebUITestCase):
         elapsed timer with a do-not-resubmit reassurance, previous sections
         are dimmed while a new operation runs (stale class), and the busy
         interval is always cleared when the operation finishes."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         # live elapsed timer + expected-duration reassurance during operation
         self.assertIn("已用", body)
@@ -511,7 +513,7 @@ class StaticPageTests(LocalWebUITestCase):
         """Issue #29 UI-trial responsive invariants: on narrow screens the
         reference-link input wraps to a full row with a tappable remove
         button, and the search button spans the full width."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("@media (max-width: 600px)", body)
         self.assertIn(".ref-row { flex-wrap: wrap; }", body)
@@ -520,13 +522,13 @@ class StaticPageTests(LocalWebUITestCase):
 
     def test_index_wraps_unbroken_status_values_on_narrow_screens(self):
         """Issue #38: SHA/path status text must not create horizontal scroll."""
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("overflow-wrap: anywhere", body)
         self.assertIn("word-break: break-word", body)
 
     def test_index_exposes_deepseek_preset_and_truthful_connection_indicator(self):
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn('value="deepseek"', body)
         self.assertIn("api.deepseek.com", body)
@@ -612,7 +614,7 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("button:disabled", body)
 
     def test_index_exposes_explicit_deepseek_search_budget_controls(self):
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("/api/workbench/research/search", body)
         self.assertIn("/api/workbench/research/fetch", body)
@@ -620,7 +622,7 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("搜索结果不是事实证据", body)
 
     def test_index_exposes_audio_import_delivery_and_gap_status_controls(self):
-        status, _, body = self.get("/")
+        status, _, body = self.get("/advanced")
         self.assertEqual(status, 200)
         self.assertIn("/api/workbench/audio/import", body)
         self.assertIn("/api/workbench/audio/deliver", body)
@@ -1563,9 +1565,62 @@ class ChatStreamHttpTests(LocalWebUITestCase):
             self.assertEqual([t["content"] for t in chat["turns"]][0], "legacy 首发送的消息")
             self.assertNotIn("显式指向 X 的重叠消息", json.dumps(chat, ensure_ascii=False))
 
+    def test_topic_task_streams_search_event_and_persists_discovery(self):
+        """Issue #29：任务消息先触发有界检索，SSE 透明播报 search 事件
+        （先于任何 delta），证据随会话持久化并可精确恢复；检索回调由
+        测试注入的离线夹具提供，零真实网络、零额外模型调用。"""
 
-if __name__ == "__main__":
-    unittest.main()
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            from deeptalk_studio.workbench.flow import WorkbenchFlow
+
+            def topic_search(topic):
+                return {
+                    "status": "ok",
+                    "query": topic,
+                    "sources": [{
+                        "title": "王扁被打事件梳理",
+                        "uploader": "时事观察",
+                        "published_at": "2026-10-19",
+                        "url": "https://www.bilibili.com/video/BV1fixture01",
+                        "description": "来源描述",
+                    }],
+                }
+
+            calls = []
+            llm = self.StreamLLM(["起步", "产出"], calls)
+            flow = WorkbenchFlow(
+                root,
+                provider_factory=lambda settings: llm,
+                topic_search=topic_search,
+            )
+            self.start_server(flow=flow)
+            self._configure_deepseek(root)
+            status, ctype, events = self._sse_post("/api/workbench/chat/stream", {
+                "message": "我想就王扁被打做个视频",
+            })
+            self.assertEqual(status, 200)
+            self.assertIn("text/event-stream", ctype)
+            kinds = [e["type"] for e in events]
+            self.assertEqual(kinds[0], "start")
+            self.assertEqual(kinds[1], "search")  # 检索播报先于任何 delta
+            self.assertEqual(kinds[-1], "done")
+            self.assertEqual(events[1]["query"], "王扁被打")
+            self.assertEqual(events[1]["status"], "ok")
+            self.assertEqual(events[1]["count"], 1)
+            # 刷新恢复：证据随会话回来（UI 透明小字行不丢）
+            status, _, body = self._get_state()
+            self.assertEqual(status, 200)
+            chat = json.loads(body)["chat"]
+            discovery = chat["topic_discovery"]
+            self.assertEqual(discovery["status"], "ok")
+            self.assertEqual(discovery["turn_id"], events[0]["user_turn"]["turn_id"])
+            self.assertEqual(discovery["sources"][0]["url"],
+                             "https://www.bilibili.com/video/BV1fixture01")
+            # 恰好一次模型调用（检索是夹具回调，不产生任何模型调用）
+            self.assertEqual(len(calls), 0)  # Preview is local; paid creation is explicit.
 
 
 class WorkbenchRoutesTests(LocalWebUITestCase):
@@ -2031,3 +2086,70 @@ class WorkbenchRoutesTests(LocalWebUITestCase):
         request = urllib.request.Request(self.base + path)
         with urllib.request.urlopen(request, timeout=10) as response:
             return response.status, dict(response.headers), response.read().decode("utf-8")
+
+
+class TopicSearchAdapterTests(unittest.TestCase):
+    """Issue #29：_default_topic_search 把 server 层 B 站匿名检索适配为
+    flow 的 topic_search 回调 —— 免费公开通道映射为透明来源，不可用/
+    空结果如实返回 unavailable，绝不冒充有证据。"""
+
+    def test_maps_ok_outcome_items_to_sources(self):
+        from deeptalk_studio.webui import _default_topic_search
+
+        provider = FakeProvider(default_search=ok_search(
+            search_item("BV1fixture01", "王扁被打事件梳理", views=100),
+            search_item("BV1fixture02", "王扁被打另一种角度", views=200),
+        ))
+        from tests.test_reference_discovery import ok_metadata
+        provider.metadata_by_bvid = {
+            "BV1fixture01": ok_metadata("BV1fixture01", title="王扁被打事件梳理", views=100),
+            "BV1fixture02": ok_metadata("BV1fixture02", title="王扁被打另一种角度", views=200),
+        }
+        search = _default_topic_search(lambda: provider)
+        outcome = search("王扁被打")
+        self.assertEqual(outcome["status"], "ok")
+        self.assertEqual(outcome["query"], "王扁被打")
+        self.assertEqual([s["url"] for s in outcome["sources"]], [
+            "https://www.bilibili.com/video/BV1fixture02",
+            "https://www.bilibili.com/video/BV1fixture01",
+        ])
+        self.assertEqual(outcome["sources"][0]["title"], "王扁被打另一种角度")
+        self.assertEqual(outcome["sources"][0]["view_count"], 200)
+        self.assertEqual(outcome["sources"][0]["view_count_source"], "per_video_api")
+        self.assertEqual(set(provider.metadata_calls), {"BV1fixture01", "BV1fixture02"})
+
+    def test_blocked_or_empty_outcomes_map_to_unavailable(self):
+        from deeptalk_studio.webui import _default_topic_search
+
+        blocked = FakeProvider(default_search=ok_search(status="blocked"))
+        outcome = _default_topic_search(lambda: blocked)("王扁被打")
+        self.assertEqual(outcome["status"], "unavailable")
+        self.assertIn("不可用", outcome["note"])
+
+        empty = FakeProvider(default_search=ok_search())
+        outcome2 = _default_topic_search(lambda: empty)("王扁被打")
+        self.assertEqual(outcome2["status"], "unavailable")
+        self.assertIn("没有返回", outcome2["note"])
+
+
+class TopicFirstUiStaticTests(LocalWebUITestCase):
+    """Issue #29 静态契约：检索播报事件分支、透明小字行样式、刷新
+    恢复渲染与「未联网核实」诚实文案都在前端就位。"""
+
+    def setUp(self):
+        self.start_server()
+
+    def test_search_event_handling_and_note_ui(self):
+        status, _, body = self.get("/advanced")
+        self.assertEqual(status, 200)
+        self.assertIn("event.type === 'search'", body)
+        self.assertIn("chat-search-note", body)
+        self.assertIn("function appendSearchNoteEl", body)
+        self.assertIn("非权威事实核查", body)
+        self.assertIn("未联网核实", body)
+        # 刷新恢复：renderChat 用会话证据重渲染检索小字行
+        self.assertIn("topic_discovery", body)
+
+
+if __name__ == "__main__":
+    unittest.main()

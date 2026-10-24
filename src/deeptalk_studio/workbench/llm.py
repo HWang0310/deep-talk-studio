@@ -439,7 +439,13 @@ class WorkbenchLLM:
         from ..schema import REFERENCE_NARRATIVE_JSON_SCHEMA
 
         return self._run(
-            _REF_SUMMARY_PROMPT,
+            _REF_SUMMARY_PROMPT + (
+                "\n面向B站娱乐二创，请在narrative_summary概括题材、内容冲突和爆点的呈现方式；"
+                "creator_viewpoint概括该作者的主张与角度（明确归因，不作事实断言）。"
+                "在takeaways提炼梗的机制、笑点触发方式、观众共鸣点及原创可借鉴的节拍；"
+                "在struct_patterns写明开场→铺垫→冲突→反转/收尾。"
+                "不抄具体段子、独特比喻或台词；不要以核查清单代替叙事分析。"
+            ),
             build_reference_summary_prompt(transcript_text, metrics, metadata),
             REFERENCE_NARRATIVE_JSON_SCHEMA,
             "deep_talk_reference_summary",

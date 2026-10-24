@@ -1,0 +1,20 @@
+{
+  "media_origin": "Original test text synthesized locally using installed macOS Tingting; video created locally by ffmpeg. No Bilibili download. BVID/URL are fixture identifiers only.",
+  "real_ffmpeg_and_whisper": true,
+  "model_calls": 0,
+  "expected_script": "这里是原创软件验收音频。今天不追热点，我们观察一个简单的反差：手机一响，注意力就上班了。热闹可以看，情绪不用包年。以上是自行编写的合成语音，不描述任何真实人物事件。",
+  "recognized_text": "这里是原创软件验收音频,今天不追热点,我们观察一个简单的反差,手机一响,注意力就上班了,热闹可以看,情绪不用包年,以上是自行编写的合成语音,不描述任何真实人物事件。",
+  "segments": [
+    {
+      "start_seconds": 0.0,
+      "end_seconds": 18.56,
+      "text": "这里是原创软件验收音频,今天不追热点,我们观察一个简单的反差,手机一响,注意力就上班了,热闹可以看,情绪不用包年,以上是自行编写的合成语音,不描述任何真实人物事件。"
+    }
+  ],
+  "model": "large-v3",
+  "runtime_version": "1.9.2",
+  "source_media_sha256": "a45406fa4fa68812937331774ecd5ff1f14bad073ec4a47ee6680c9a25b23b6f",
+  "txt_path": "/var/folders/8s/_lxwv_9d2x3b0y2wwq2qjrp00000gn/T/deeptalk-real-asr-2iych7oy/workbench/sessions/WBX-290d808dc894d395/references/BV1fixture03/自行生成的原创ASR测试-BV1fixture03-口播转写.txt",
+  "status": "complete",
+  "analysis_status": "unverified"
+}

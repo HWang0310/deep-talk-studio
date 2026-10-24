@@ -9,6 +9,8 @@ Design rules:
 
 import json
 import os
+import platform
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
@@ -146,6 +148,58 @@ def _clean_url(value: Any, field: str, *, allow_empty: bool = True) -> str:
     return cleaned.rstrip("/")
 
 
+def validate_existing_directory(value: str, field: str = "保存文件夹") -> Path:
+    """Resolve an owner-selected directory and require it to be writable."""
+
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        raise WorkbenchSettingsError(f"{field}必须是绝对路径")
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        raise WorkbenchSettingsError(f"{field}不存在或无法访问，请检查路径") from None
+    if not resolved.is_dir():
+        raise WorkbenchSettingsError(f"{field}必须是已存在的文件夹")
+    if not os.access(str(path), os.W_OK | os.X_OK):
+        raise WorkbenchSettingsError(f"{field}不可写，请选择有写入权限的文件夹")
+    # Keep the user's displayed path (including a valid /var alias) stable;
+    # archive writers resolve it before creating any task-owned path.
+    return path
+
+
+def choose_local_directory() -> Dict[str, Any]:
+    """Open a native folder chooser on macOS without invoking a shell."""
+
+    if platform.system() != "Darwin":
+        raise WorkbenchSettingsError(
+            "当前系统不支持原生目录选择器，请在「保存文件夹」中填写绝对路径"
+        )
+    script = 'POSIX path of (choose folder with prompt "选择 DeepTalk 保存文件夹")'
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    except FileNotFoundError:
+        raise WorkbenchSettingsError(
+            "未找到 macOS 目录选择器；请在「保存文件夹」中填写绝对路径"
+        ) from None
+    except subprocess.TimeoutExpired:
+        raise WorkbenchSettingsError("目录选择器超时，请重试或填写绝对路径") from None
+    if result.returncode:
+        message = (result.stderr or "").lower()
+        if "cancel" in message or "-128" in message:
+            return {"path": "", "cancelled": True}
+        raise WorkbenchSettingsError("无法打开目录选择器，请重试或填写绝对路径")
+    selected = (result.stdout or "").strip()
+    if not selected:
+        raise WorkbenchSettingsError("目录选择器未返回文件夹路径")
+    return {"path": str(validate_existing_directory(selected)), "cancelled": False}
+
+
 def apply_settings_update(current: Dict[str, Any], payload: Mapping[str, Any]) -> Dict[str, Any]:
     """Validate a partial settings update and return the new full settings."""
 
@@ -185,8 +239,11 @@ def apply_settings_update(current: Dict[str, Any], payload: Mapping[str, Any]) -
     if "downloads_dir" in payload:
         raw = payload["downloads_dir"]
         if not isinstance(raw, str) or len(raw) > 2048:
-            raise WorkbenchSettingsError("下载目录必须是文本")
-        data["downloads_dir"] = raw.strip()
+            raise WorkbenchSettingsError("保存文件夹必须是文本")
+        cleaned = raw.strip()
+        data["downloads_dir"] = (
+            str(validate_existing_directory(cleaned)) if cleaned else ""
+        )
     if "timeout_seconds" in payload:
         timeout = payload["timeout_seconds"]
         if not isinstance(timeout, int) or isinstance(timeout, bool):
@@ -235,11 +292,7 @@ def validate_settings(data: Dict[str, Any]) -> None:
     if data["provider_mode"] in {"chat", "deepseek"} and not data["chat_base_url"]:
         raise WorkbenchSettingsError("Chat 兼容模式需要 Chat 兼容地址")
     if data["downloads_dir"]:
-        path = Path(data["downloads_dir"]).expanduser()
-        if not path.is_absolute():
-            raise WorkbenchSettingsError("下载目录必须是绝对路径")
-        if not path.is_dir():
-            raise WorkbenchSettingsError("下载目录不存在，请先在本机创建该文件夹")
+        validate_existing_directory(data["downloads_dir"])
 
 
 def is_configured(data: Dict[str, Any]) -> bool:
@@ -312,4 +365,7 @@ def resolve_downloads_dir(data: Dict[str, Any]) -> Optional[Path]:
     if not data["downloads_dir"]:
         return None
     path = Path(data["downloads_dir"]).expanduser()
-    return path if path.is_dir() else None
+    try:
+        return validate_existing_directory(str(path))
+    except WorkbenchSettingsError:
+        return None
