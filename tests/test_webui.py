@@ -355,7 +355,9 @@ class StaticPageTests(LocalWebUITestCase):
         self.assertIn("function updateRetryBtn", body)
         self.assertIn("stage-nav", body)
         self.assertIn("高级设置", body)
-        self.assertIn("下载位置", body)
+        self.assertIn("保存文件夹", body)
+        self.assertIn("自动保存原视频、完整口播稿和合并参考稿", body)
+        self.assertIn("id=\"st-dir-choose\"", body)
         # 两个视图共享同一份文档，但同一时刻绝不垂直同时渲染：
         # settingsPage 状态直接驱动互斥 hidden。
         self.assertIn("creatorView.hidden = settingsPage", body)

@@ -24,6 +24,8 @@
 - Missing, read-only, or replaced save roots and interrupted writes must fail safely while preserving session-local artifacts (Task 1 and Task 2).
 - A failed third item followed by retry must keep successful original media/transcripts byte-identical and update only its own files plus the merged output (Task 2).
 - Historical sessions whose original media lives outside the configured root must be copied only when the source is a valid existing artifact; retrying archival must not duplicate or overwrite output (Task 3).
+- Hand-edited historical TXT and merged reference files must remain byte-identical across state refresh/archive; symlinked per-video directories must never be followed (Task 3).
+- A legacy retry after the save root is configured must receive a unique per-task folder and put any new media inside its `视频/` child (Task 3).
 - Proxy refusal on `127.0.0.1:7897` must be diagnosed as proxy connection failure, without altering proxy state or mislabeling it as Whisper failure (Task 3).
 
 ---
@@ -72,6 +74,7 @@
 **Files:**
 - Modify: `src/deeptalk_studio/workbench/transcript_archive.py`
 - Modify: `src/deeptalk_studio/workbench/five_transcripts.py`
+- Modify: `src/deeptalk_studio/workbench/flow.py`
 - Modify: `src/deeptalk_studio/webui.py`
 - Modify: `src/deeptalk_studio/webui_static/transcripts.html`
 - Test: `tests/test_five_transcripts.py`
@@ -81,7 +84,7 @@
 - Consumes: existing session references plus stored source fingerprints and batch metadata.
 - Produces: explicit copy-only `POST /api/workbench/transcripts/archive`, stored-destination `POST /api/workbench/transcripts/open-folder`, visible paths/open/archive controls, and actionable local-proxy-refused failure text.
 
-- [x] **Step 1: Write failing tests** for historical copy preservation/idempotence, missing or symlinked source rejection, open-folder stored-path validation, and proxy refusal classification with no settings mutation.
+- [x] **Step 1: Write failing tests** for historical copy preservation/idempotence, manual transcript/merge preservation, symlinked transcript and per-video paths, late save-root retry allocation, open-folder stored-path validation, and proxy refusal classification with no settings mutation.
 - [x] **Step 2: Run tests and confirm expected failures.** Expected: missing archive/open actions and proxy diagnostics assertions fail.
 - [x] **Step 3: Implement explicit copy-only archival, platform folder opening of a session-owned destination, per-item path feedback, and proxy-specific actionable text.** Update the canonical Workbench contract to reflect root-folder behavior.
 - [x] **Step 4: Run focused tests.** Expected: old originals remain byte-identical; proxy settings remain unchanged.
@@ -97,8 +100,8 @@
 - Consumes: Tasks 1–3 API/UI behavior.
 - Produces: reproducible browser evidence for configured root, 3rd-item failure and retry, complete files, folder opening action, refresh recovery, explicit historical copy, and narrow/mobile layout.
 
-- [ ] **Step 1: Run full pytest and unittest with temporary user settings/session roots.** Expected: no API Key/session/history access outside the temporary root; full suites pass or failures are reported by name.
-- [ ] **Step 2: Use the Playwright CLI in headed Chromium** at desktop and mobile widths with only offline fixtures; verify actual path and files, byte identity, restart/refresh recovery, and no paid requests.
-- [ ] **Step 3: Record exact commands, counts, fixture boundaries, screenshots, and any remaining limitation in `evaluations/unified_save_folder/README.md`**; update docs only to match observed behavior.
-- [ ] **Step 4: Run `git diff --check`, sensitive-data scan, focused tests, and final diff review.** Expected: clean diff checks and no secrets/user artifacts.
-- [ ] **Step 5: Commit** `test: verify unified save folder in isolated browsers`.
+- [x] **Step 1: Run full pytest and unittest with temporary user settings/session roots.** Expected: no API Key/session/history access outside the temporary root; full suites pass or failures are reported by name.
+- [x] **Step 2: Use the Playwright CLI in headed Chromium** at desktop and mobile widths with only offline fixtures; verify actual path and files, byte identity, restart/refresh recovery, and no paid requests.
+- [x] **Step 3: Record exact commands, counts, fixture boundaries, screenshots, and any remaining limitation in `evaluations/unified_save_folder/README.md`**; update docs only to match observed behavior.
+- [x] **Step 4: Run `git diff --check`, sensitive-data scan, focused tests, and final diff review.** Expected: clean diff checks and no secrets/user artifacts.
+- [x] **Step 5: Commit** `test: verify unified save folder in isolated browsers`.
