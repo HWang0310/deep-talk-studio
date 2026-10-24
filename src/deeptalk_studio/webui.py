@@ -74,6 +74,9 @@ WORKBENCH_ROUTE_CAPS = {
     "/api/workbench/settings": 32 * 1024,
     "/api/workbench/settings/test": 2048,
     "/api/workbench/chat/stream": 64 * 1024,
+    "/api/workbench/chat/manage": 2048,
+    "/api/workbench/chat/references": 2048,
+    "/api/workbench/references/transcript": 2048,
     "/api/workbench/chat/draft": 2048,
     "/api/workbench/chat/draft/edit": 128 * 1024,
     "/api/workbench/session/start": 32 * 1024,
@@ -408,6 +411,19 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return None, (400, {"error": f"引擎校验未通过：{exc}"})
         except Exception as exc:  # never kill the local server on one step
             return None, (500, {"error": f"这一步执行失败：{type(exc).__name__}：{str(exc)[:300]}"})
+
+    def _chat_mutation(self, flow, session_id, callback):
+        server = self.server
+        resolved = session_id or flow.creative.latest_session_id() or "chat:latest"
+        with server.chat_flight_lock:
+            if resolved in server.chat_in_flight or "chat:latest" in server.chat_in_flight or "chat:new" in server.chat_in_flight:
+                return None, (409, {"error": "会话正在生成回复或草稿，请先停止或等待完成"})
+            server.chat_in_flight.add(resolved)
+        try:
+            return self._workbench_call(callback)
+        finally:
+            with server.chat_flight_lock:
+                server.chat_in_flight.discard(resolved)
 
     def _handle_chat_stream(self, flow, payload: Dict[str, object]) -> None:
         """真实流式聊天：SSE 增量转发；停止/断开尝试中断上游请求。
@@ -753,17 +769,26 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             # 流式聊天走专用 SSE 响应，不走统一 JSON 尾部
             self._handle_chat_stream(flow, payload)
             return
-        if path == "/api/workbench/chat/draft":
-            result, error = self._workbench_call(
-                lambda: flow.chat_draft_generate(str(payload.get("session_id", "") or ""))
-            )
+        if path == "/api/workbench/chat/manage":
+            result, error = self._chat_mutation(
+                flow, str(payload.get("session_id", "")),
+                lambda: flow.chat_manage(str(payload.get("session_id", "")), str(payload.get("action", "")), str(payload.get("title", ""))))
+        elif path == "/api/workbench/chat/references":
+            def _references():
+                with server.workbench_lock:
+                    return flow.chat_references(str(payload.get("session_id", "")), str(payload.get("turn_id", "")))
+            result, error = self._workbench_call(_references)
+        elif path == "/api/workbench/references/transcript":
+            result, error = self._workbench_call(lambda: flow.reference_transcript(
+                str(payload.get("session_id", "")), str(payload.get("bvid", ""))))
+        elif path == "/api/workbench/chat/draft":
+            result, error = self._chat_mutation(
+                flow, str(payload.get("session_id", "") or ""),
+                lambda: flow.chat_draft_generate(str(payload.get("session_id", "") or "")))
         elif path == "/api/workbench/chat/draft/edit":
-            result, error = self._workbench_call(
-                lambda: flow.chat_draft_save(
-                    str(payload.get("content", "")),
-                    str(payload.get("session_id", "") or ""),
-                )
-            )
+            result, error = self._chat_mutation(
+                flow, str(payload.get("session_id", "") or ""),
+                lambda: flow.chat_draft_save(str(payload.get("content", "")), str(payload.get("session_id", "") or "")))
         elif path == "/api/workbench/settings":
             result, error = self._workbench_call(lambda: flow.save_settings(payload))
         elif path == "/api/workbench/settings/test":
@@ -980,28 +1005,11 @@ def _default_topic_search(
 
     def search(topic: str) -> Dict[str, Any]:
         query = str(topic or "").strip()
-        provider = provider_factory()
-        outcome = provider.search_videos(query, page=1)
-        if str(getattr(outcome, "status", "")) != "ok":
-            reason = str(getattr(outcome, "status", "failed"))
-            return {
-                "status": "unavailable",
-                "note": f"公开来源检索通道暂不可用（{reason}）",
-            }
-        sources = []
-        for item in tuple(getattr(outcome, "items", ()) or ())[:6]:
-            bvid = str(getattr(item, "bvid", "") or "").strip()
-            if not bvid:
-                continue
-            sources.append({
-                "title": str(getattr(item, "title", "") or ""),
-                "uploader": str(getattr(item, "uploader", "") or ""),
-                "published_at": str(getattr(item, "published_at", "") or ""),
-                "url": f"https://www.bilibili.com/video/{bvid}",
-                "description": str(getattr(item, "description", "") or "")[:200],
-            })
+        from .reference_discovery import build_reference_candidate_set
+        artifact = build_reference_candidate_set(query, [], provider=provider_factory())
+        sources = list(artifact.get("candidates") or [])[:5]
         if not sources:
-            return {"status": "unavailable", "note": "公开来源检索没有返回结果"}
+            return {"status": "unavailable", "note": "公开来源检索不可用，没有返回可用结果"}
         return {"status": "ok", "query": query, "sources": sources}
 
     return search

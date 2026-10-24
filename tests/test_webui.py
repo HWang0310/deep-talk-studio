@@ -2096,19 +2096,25 @@ class TopicSearchAdapterTests(unittest.TestCase):
 
         provider = FakeProvider(default_search=ok_search(
             search_item("BV1fixture01", "王扁被打事件梳理", views=100),
-            search_item("BV1fixture02", "另一条来源", views=200),
+            search_item("BV1fixture02", "王扁被打另一种角度", views=200),
         ))
+        from tests.test_reference_discovery import ok_metadata
+        provider.metadata_by_bvid = {
+            "BV1fixture01": ok_metadata("BV1fixture01", title="王扁被打事件梳理", views=100),
+            "BV1fixture02": ok_metadata("BV1fixture02", title="王扁被打另一种角度", views=200),
+        }
         search = _default_topic_search(lambda: provider)
         outcome = search("王扁被打")
         self.assertEqual(outcome["status"], "ok")
         self.assertEqual(outcome["query"], "王扁被打")
         self.assertEqual([s["url"] for s in outcome["sources"]], [
-            "https://www.bilibili.com/video/BV1fixture01",
             "https://www.bilibili.com/video/BV1fixture02",
+            "https://www.bilibili.com/video/BV1fixture01",
         ])
-        self.assertEqual(outcome["sources"][0]["title"], "王扁被打事件梳理")
-        self.assertEqual(outcome["sources"][0]["uploader"], "UP")
-        self.assertEqual(provider.search_calls, [("王扁被打", 1)])
+        self.assertEqual(outcome["sources"][0]["title"], "王扁被打另一种角度")
+        self.assertEqual(outcome["sources"][0]["view_count"], 200)
+        self.assertEqual(outcome["sources"][0]["view_count_source"], "per_video_api")
+        self.assertEqual(set(provider.metadata_calls), {"BV1fixture01", "BV1fixture02"})
 
     def test_blocked_or_empty_outcomes_map_to_unavailable(self):
         from deeptalk_studio.webui import _default_topic_search

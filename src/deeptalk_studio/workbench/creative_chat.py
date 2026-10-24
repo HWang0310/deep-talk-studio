@@ -129,6 +129,8 @@ class CreativeChatStore:
     # -- load / save ----------------------------------------------------
 
     def _load_path(self, path: Path) -> Optional[Dict[str, Any]]:
+        if path.is_symlink():
+            raise CreativeChatError("不允许符号链接会话文件")
         if not path.is_file():
             return None
         try:
@@ -155,8 +157,29 @@ class CreativeChatStore:
                 pass
             raise CreativeChatError("聊天会话保存失败，请重试") from None
 
-    def load(self, session_id: str) -> Optional[Dict[str, Any]]:
-        return self._load_path(self._session_path(session_id))
+    def load(self, session_id: str, *, include_deleted: bool = False) -> Optional[Dict[str, Any]]:
+        data = self._load_path(self._session_path(session_id))
+        if data and data.get("deleted_at") and not include_deleted:
+            raise CreativeChatError("会话已移入回收站，请先恢复")
+        return data
+
+    def manage_session(self, session_id: str, action: str, title: str = "") -> None:
+        with self._lock:
+            session = self.load(session_id, include_deleted=True)
+            if not session:
+                raise CreativeChatError("聊天会话不存在")
+            if action == "rename":
+                title = str(title).strip()
+                if not title or len(title) > 80 or any(ord(c) < 32 for c in title):
+                    raise CreativeChatError("标题需为 1–80 个可见字符")
+                session["custom_title"] = title
+            elif action == "delete":
+                session["deleted_at"] = _now()
+            elif action == "restore":
+                session.pop("deleted_at", None)
+            else:
+                raise CreativeChatError("未知会话操作")
+            self._touch(session)
 
     def load_latest(self) -> Optional[Dict[str, Any]]:
         if not self.directory.is_dir():
@@ -173,7 +196,7 @@ class CreativeChatStore:
                 data = self._load_path(path)
             except (CreativeChatError, OSError):
                 continue
-            if data:
+            if data and not data.get("deleted_at"):
                 return data
         return None
 
@@ -191,7 +214,7 @@ class CreativeChatStore:
         self.save(session)
         return session
 
-    def list_sessions(self, limit: int = 200) -> List[Dict[str, Any]]:
+    def list_sessions(self, limit: int = 200, *, deleted: bool = False) -> List[Dict[str, Any]]:
         """会话元数据列表（按最近更新倒序）：ID、标题（首条用户消息截断）、
         更新时间、消息/草稿计数。标题绝不做额外模型调用。"""
 
@@ -210,7 +233,7 @@ class CreativeChatStore:
                     mtime = path.stat().st_mtime
                 except (CreativeChatError, OSError):
                     continue
-                if not data:
+                if not data or bool(data.get("deleted_at")) != deleted:
                     continue
                 title = ""
                 for turn in data.get("turns", []):
@@ -219,7 +242,7 @@ class CreativeChatStore:
                         break
                 items.append({
                     "session_id": str(data.get("session_id", path.stem)),
-                    "title": title or "新对话",
+                    "title": data.get("custom_title") or title or "新对话",
                     "updated_at": str(data.get("updated_at", "")),
                     "turns": len(data.get("turns", [])),
                     "drafts": len(data.get("drafts", [])),
@@ -351,26 +374,22 @@ class CreativeChatStore:
     def set_discovery(
         self, session_id: str, discovery: Dict[str, Any]
     ) -> bool:
-        """Atomically attach the session's first topic-discovery record.
-
-        Issue #29 选题驱动创作：会话内**首个**视频任务 turn 的检索证据
-        一次性持久化（幂等——已有 discovery 绝不覆盖、绝不重检），之后
-        同会话的任务 turn 复用同一份证据；与 turns/drafts 一样可精确
-        恢复，浏览器重载后检索来源与未核实声明不丢。检索证据只含公开
-        平台条目，永不包含 API Key 或凭据。
-        """
+        """Persist each topic at its original turn; legacy singleton stays readable."""
 
         with self._lock:
             session = self.load(session_id)
             if session is None:
                 raise CreativeChatError("聊天会话不存在，无法保存检索证据")
-            if session.get("topic_discovery"):
+            records = self.discoveries(session)
+            if any(d.get("query") == discovery.get("query") or
+                   d.get("turn_id") == discovery.get("turn_id") for d in records):
                 return False
-            session["topic_discovery"] = {
+            record = {
                 "query": str(discovery.get("query", ""))[:200],
                 "status": str(discovery.get("status", "unavailable")),
                 "sources": [
                     {
+                        **{key: item[key] for key in ("bvid", "view_count", "view_count_status", "view_count_source", "fetched_at", "duration_sec", "retrieval_note") if key in item},
                         "title": str(item.get("title", ""))[:500],
                         "uploader": str(item.get("uploader", ""))[:200],
                         "published_at": str(item.get("published_at", ""))[:100],
@@ -383,8 +402,34 @@ class CreativeChatStore:
                 "turn_id": str(discovery.get("turn_id", ""))[:40],
                 "created_at": _now(),
             }
+            records.append(record)
+            session["topic_discoveries"] = records
+            session["topic_discovery"] = record
             self._touch(session)
             return True
+
+    @staticmethod
+    def discoveries(session):
+        records = list(session.get("topic_discoveries") or [])
+        legacy = session.get("topic_discovery")
+        if legacy and not any(d.get("turn_id") == legacy.get("turn_id") for d in records):
+            records.insert(0, dict(legacy))
+        return records
+
+    def bind_reference_session(self, session_id: str, turn_id: str, reference_id: str) -> str:
+        with self._lock:
+            session = self.load(session_id)
+            if not session:
+                raise CreativeChatError("聊天会话不存在")
+            records = self.discoveries(session)
+            record = next((d for d in records if d.get("turn_id") == turn_id), None)
+            if not record:
+                raise CreativeChatError("选题来源不存在")
+            record.setdefault("reference_session_id", reference_id)
+            session["topic_discoveries"] = records
+            session["topic_discovery"] = records[-1]
+            self._touch(session)
+            return record["reference_session_id"]
 
     def append_turn(
         self,
@@ -518,4 +563,5 @@ class CreativeChatStore:
             # Issue #29：检索证据（或「未联网核实」声明）随会话恢复，
             # 浏览器刷新后来源小字不丢。
             "topic_discovery": dict(session.get("topic_discovery") or {}),
+            "topic_discoveries": CreativeChatStore.discoveries(session),
         }

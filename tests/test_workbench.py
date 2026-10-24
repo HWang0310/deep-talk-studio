@@ -3155,7 +3155,7 @@ class TopicFirstChatTests(_UserSettingsIsolatedTestCase):
             self.assertEqual(discovery["sources"][0]["url"],
                              "https://www.bilibili.com/video/BV1fixture01")
 
-    def test_set_discovery_first_write_wins(self):
+    def test_set_discovery_per_topic_first_write_wins(self):
         with tempfile.TemporaryDirectory() as raw:
             from deeptalk_studio.workbench.creative_chat import CreativeChatStore
 
@@ -3167,7 +3167,7 @@ class TopicFirstChatTests(_UserSettingsIsolatedTestCase):
                 sid, {"query": "q", "status": "ok", "sources": [], "turn_id": "t1"}
             )
             second = store.set_discovery(
-                sid, {"query": "q2", "status": "unavailable", "turn_id": "t9"}
+                sid, {"query": "q", "status": "unavailable", "turn_id": "t9"}
             )
             self.assertTrue(first)
             self.assertFalse(second)
