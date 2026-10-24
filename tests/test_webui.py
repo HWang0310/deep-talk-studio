@@ -283,17 +283,17 @@ class StaticPageTests(LocalWebUITestCase):
         # Owner UX（issuecomment-6364369899）：单一连续对话工作区 ——
         # 空态是安静居中的欢迎（welcome-pane），不再有巨型 hero 卡；
         # 有对话后 turns/草稿/旧集入口都在同一滚动流（conversation）里，
-        # composer 始终 sticky 贴在视口底部，绝不需要回到顶部发下一条。
+        # Composer follows document flow and cannot cover the final lines/buttons.
         self.assertIn('id="welcome-pane"', body)
         self.assertIn('id="conversation"', body)
         self.assertIn('id="composer-dock"', body)
-        self.assertIn("position: sticky", body)
+        self.assertRegex(body, r"\.composer-dock\s*\{[^}]*position: relative;")
         self.assertIn("function updateWelcomeVisibility", body)
         self.assertIn("function nearBottom", body)
         self.assertIn('id="settings-link"', body)
         # Chat-first：唯一主操作是发送聊天（明确付费动作），一次说明计费而非每轮打断
         self.assertIn("你想聊什么？", body)
-        self.assertIn("发送会调用你在「设置」里配置的模型服务并按其计费", body)
+        self.assertIn("找参考免费；聊天、分析和写稿按已配置的模型服务计费", body)
         self.assertIn('id="search-btn"', body)
         self.assertIn('id="chat-stop"', body)
         self.assertIn('id="chat-retry"', body)
@@ -1618,7 +1618,7 @@ class ChatStreamHttpTests(LocalWebUITestCase):
             self.assertEqual(discovery["sources"][0]["url"],
                              "https://www.bilibili.com/video/BV1fixture01")
             # 恰好一次模型调用（检索是夹具回调，不产生任何模型调用）
-            self.assertEqual(len(calls), 1)
+            self.assertEqual(len(calls), 0)  # Preview is local; paid creation is explicit.
 
 
 class WorkbenchRoutesTests(LocalWebUITestCase):

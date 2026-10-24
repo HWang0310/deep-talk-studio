@@ -75,6 +75,7 @@ WORKBENCH_ROUTE_CAPS = {
     "/api/workbench/settings/test": 2048,
     "/api/workbench/chat/stream": 64 * 1024,
     "/api/workbench/chat/manage": 2048,
+    "/api/workbench/chat/create": 4096,
     "/api/workbench/chat/references": 2048,
     "/api/workbench/references/transcript": 2048,
     "/api/workbench/chat/draft": 2048,
@@ -425,6 +426,69 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             with server.chat_flight_lock:
                 server.chat_in_flight.discard(resolved)
 
+    def _handle_chat_create(self, flow, payload):
+        """Progress SSE for one explicit, scoped reference or topic-only action.
+
+        Worker owns the flight reservation until all work ends. Disconnects
+        cancel before the next phase/model request; already-spent cost is not
+        promised refundable. No automatic retry or reconnect.
+        """
+        import queue
+        session_id = str(payload.get("session_id", ""))
+        mode = str(payload.get("mode", "reference"))
+        if mode not in {"reference", "topic_only"} or (mode == "reference" and payload.get("consent") is not True):
+            _send_json(self, 400, {"error": "请先确认授权，或选择跳过参考自由创作"})
+            return
+        _, error = self._workbench_call(lambda: flow.creative.load(session_id))
+        if error:
+            _send_json(self, error[0], error[1]); return
+        server = self.server
+        with server.chat_flight_lock:
+            if {session_id, "chat:latest", "chat:new"} & server.chat_in_flight:
+                _send_json(self, 409, {"error": "当前会话正在处理，请等待完成"}); return
+            server.chat_in_flight.add(session_id)
+        events = queue.Queue()
+        canceled = threading.Event()
+        def progress(event):
+            if canceled.is_set():
+                raise WorkbenchFlowError("处理已停止；已保存的下载和转写可继续使用")
+            events.put({"type": "phase", **event})
+        def worker():
+            try:
+                with server.workbench_lock:
+                    result = flow.chat_create(session_id, str(payload.get("turn_id", "")),
+                        payload.get("bvids") or [], consent=payload.get("consent") is True,
+                        mode=mode, progress=progress)
+                events.put({"type": "done", **result})
+            except (WorkbenchFlowError, CreativeChatError, WorkbenchLLMError) as exc:
+                events.put({"type": "error", "error": str(exc)})
+            except Exception:
+                events.put({"type": "error", "error": "处理失败，请重试或跳过参考"})
+            finally:
+                with server.chat_flight_lock:
+                    server.chat_in_flight.discard(session_id)
+                events.put(None)
+        threading.Thread(target=worker, daemon=True).start()
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Connection", "close")
+            self.close_connection = True
+            self.end_headers()
+            while True:
+                try:
+                    event = events.get(timeout=1)
+                except queue.Empty:
+                    self.wfile.write(b": processing\n\n"); self.wfile.flush(); continue
+                if event is None:
+                    break
+                self.wfile.write(("data: " + json.dumps(event, ensure_ascii=False) + "\n\n").encode())
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            canceled.set()
+
     def _handle_chat_stream(self, flow, payload: Dict[str, object]) -> None:
         """真实流式聊天：SSE 增量转发；停止/断开尝试中断上游请求。
 
@@ -494,6 +558,7 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                     retry_turn_id=str(payload.get("retry_turn_id", "") or ""),
                     session_id=raw_session_id,
                     new_session=new_session_flag,
+                    creation_topic=str(payload.get("creation_topic", "") or ""),
                 )
             except WorkbenchFlowError as exc:
                 body = {"error": str(exc)}
@@ -765,6 +830,9 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             return
         server: "_DeepTalkWebUIServer" = self.server  # type: ignore[assignment"]
         session_id = str(payload.get("session_id", "") or "")
+        if path == "/api/workbench/chat/create":
+            self._handle_chat_create(flow, payload)
+            return
         if path == "/api/workbench/chat/stream":
             # 流式聊天走专用 SSE 响应，不走统一 JSON 尾部
             self._handle_chat_stream(flow, payload)
@@ -784,7 +852,7 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
         elif path == "/api/workbench/chat/draft":
             result, error = self._chat_mutation(
                 flow, str(payload.get("session_id", "") or ""),
-                lambda: flow.chat_draft_generate(str(payload.get("session_id", "") or "")))
+                lambda: flow.chat_draft_generate(str(payload.get("session_id", "") or ""), mode=str(payload.get("mode", ""))))
         elif path == "/api/workbench/chat/draft/edit":
             result, error = self._chat_mutation(
                 flow, str(payload.get("session_id", "") or ""),

@@ -22,6 +22,7 @@ args = argparse.ArgumentParser()
 args.add_argument('--port', type=int, default=8323)
 args.add_argument('--real-model', action='store_true')
 args.add_argument('--root', type=Path)
+args.add_argument('--phase-delay', type=float, default=0)
 options = args.parse_args()
 root = options.root or Path(tempfile.mkdtemp(prefix='deeptalk-remix-trial-'))
 (root/'downloads').mkdir(exist_ok=True)
@@ -48,7 +49,7 @@ def search(topic):
     (root/'search-count.json').write_text(json.dumps(searches))
     active_topic[0]=topic
     time.sleep(6 if '超时' in topic else 1.5)
-    if '失败' in topic:return {'status':'unavailable','note':'刻意模拟检索失败'}
+    if '无参考' in topic or topic == '检索失败':return {'status':'unavailable','note':'刻意模拟检索失败'}
     outcome=_default_topic_search(Provider)(topic)
     for source in outcome.get('sources',[]):source['retrieval_note']='SYNTHETIC FIXTURE — not real platform metadata'
     return outcome
@@ -68,6 +69,7 @@ class LLM:
         for i in range(0,len(fixture_script),80):
             time.sleep(.01);yield fixture_script[i:i+80]
     def summarize_reference(self,*a):
+        time.sleep(options.phase_delay)
         return ProviderResult(data={'narrative_summary':'合成夹具：开场反差→评论区脑补小剧场→注意力反转收尾。','creator_viewpoint':'围观情绪与流量生产之间的反差','hook_style':'反问与荒诞比喻','pacing':'短句，三段递进','struct_patterns':['钩子','冲突','小剧场','回扣'],'takeaways':['换用原创比喻，避免复述原话']},provenance=ProviderProvenance((),()))
 class BoundedReal:
     def __init__(self, config): self.actual=WorkbenchLLM(config)
@@ -78,11 +80,15 @@ class BoundedReal:
     def chat_stream(self,messages):self.count();return self.actual.chat_stream(messages)
     def summarize_reference(self,*a):self.count();return self.actual.summarize_reference(*a)
 def acquire(cmd,**kwargs):
+    time.sleep(options.phase_delay)
     path=Path(cmd[cmd.index('-o')+1].replace('%(ext)s','mp4'));path.write_bytes(b'SYNTHETIC AUTHORIZED LOCAL MEDIA FIXTURE')
     return subprocess.CompletedProcess(cmd,0,json.dumps({'_filename':str(path),'duration':250}), '')
 def audio(cmd,**kwargs):
+    time.sleep(options.phase_delay)
     Path(cmd[-1]).write_bytes(b'RIFF'+b'0'*100);return subprocess.CompletedProcess(cmd,0,'','')
 def whisper(cmd,**kwargs):
+    time.sleep(options.phase_delay)
+    if '转写失败' in active_topic[0]:return subprocess.CompletedProcess(cmd,1,'','fixture Whisper failed')
     out=Path(cmd[cmd.index('--output-file')+1]+'.json')
     out.write_text(json.dumps({'transcription':[{'offsets':{'from':i*1000,'to':(i+1)*1000},'text':f'第{i+1}句合成转写：围观热点的节奏与荒诞小剧场，只是软件验收夹具，不描述真实事件。'} for i in range(250)]},ensure_ascii=False))
     return subprocess.CompletedProcess(cmd,0,'','')

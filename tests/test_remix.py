@@ -32,7 +32,7 @@ class RemixIsolationTests(_UserSettingsIsolatedTestCase):
             list(flow.chat_stream_reply(a))
             b = flow.chat_send_start('我想就香蕉做个视频', session_id=sid)
             list(flow.chat_stream_reply(b))
-            flow.chat_draft_generate(sid)
+            flow.chat_draft_generate(sid, mode="topic_only")
             context = json.dumps(llm.seen[-1], ensure_ascii=False)
             self.assertIn('香蕉', context)
             self.assertNotIn('苹果', context)
@@ -136,6 +136,7 @@ class RemixReferenceTests(_UserSettingsIsolatedTestCase):
             self.assertEqual(flow.chat_references(sid,'t1')['session_id'], workspace['session_id'])
             refdir=flow.store.references_dir(workspace['session_id'])/'BV1fixture01'
             refdir.mkdir()
+            (refdir/'transcript.json').write_text(json.dumps({'text':'PROTECTED_FULL_TEXT','segments':[]}))
             study=refdir/'study.json'
             study.write_text(json.dumps({'narrative_summary':'先抛反差再反转','creator_viewpoint':'流量焦虑','hook_text':'PROTECTED_FULL_TEXT','analysis_status':'analyzed'}))
             flow.store.update(workspace['session_id'],lambda s:s['references'].update({'BV1fixture01':{'status':'analyzed','study_path':str(study)}}))
@@ -208,8 +209,8 @@ class RemixAdditionalIsolationTests(_UserSettingsIsolatedTestCase):
             events=list(flow.chat_stream_reply(retry))
             self.assertEqual(events[0]['query'],'香蕉')
             self.assertEqual(calls,['苹果','香蕉'])
-            self.assertNotIn('APPLE_ONLY',json.dumps(llm.seen[-1]))
-            flow.chat_draft_generate(sid)
+            self.assertEqual(llm.seen,[])
+            flow.chat_draft_generate(sid, mode="topic_only")
             self.assertNotIn('APPLE_ONLY',json.dumps(llm.seen[-1]))
             self.assertIn('未联网核实',json.dumps(llm.seen[-1],ensure_ascii=False))
             restored=WorkbenchFlow(root).chat_state(sid)['chat']
@@ -242,13 +243,14 @@ class RemixDraftRevisionTests(_UserSettingsIsolatedTestCase):
             llm=helpers.TopicFirstChatTests.CapturingLLM(['三篇完整稿'])
             flow=WorkbenchFlow(root,provider_factory=lambda s:llm)
             ctx=flow.chat_send_start('我想就香蕉做个视频',new_session=True);sid=ctx['session']['session_id'];list(flow.chat_stream_reply(ctx))
-            flow.chat_draft_generate(sid)
+            flow.chat_draft_generate(sid, mode="topic_only")
             flow.chat_draft_save('UNIQUE_SAVED_DRAFT 香蕉吐槽稿',sid)
             change=flow.chat_send_start('把吐槽版改得更损点',session_id=sid)
             list(flow.chat_stream_reply(change))
             self.assertIn('UNIQUE_SAVED_DRAFT',json.dumps(llm.seen[-1]))
             b=flow.chat_send_start('我想就苹果做个视频',session_id=sid)
             list(flow.chat_stream_reply(b))
+            flow.chat_draft_generate(sid, mode='topic_only')
             self.assertNotIn('UNIQUE_SAVED_DRAFT',json.dumps(llm.seen[-1]))
 
 class RemixReanalysisTests(_UserSettingsIsolatedTestCase):

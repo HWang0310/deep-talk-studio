@@ -2982,16 +2982,14 @@ class TopicFirstChatTests(_UserSettingsIsolatedTestCase):
             self.assertEqual(events[0]["query"], "王扁被打")
             self.assertEqual(events[0]["status"], "ok")
             self.assertEqual(events[0]["count"], 1)
-            self.assertEqual([e["type"] for e in events[1:3]], ["delta", "delta"])
-            # 模型上下文注入证据（CHAT prompt 之后、user 之前）
+            self.assertEqual(events[1]["type"], "delta")
+            self.assertEqual(llm.seen, [])  # Owner UX: no title-only automatic script charge.
+            flow.chat_draft_generate(context["session"]["session_id"], mode="topic_only")
             messages = llm.seen[0]
-            self.assertEqual(messages[0]["role"], "system")
-            self.assertIn("选题驱动创作", messages[0]["content"])
-            self.assertEqual(messages[1]["role"], "system")
-            self.assertIn("【主动检索来源】", messages[1]["content"])
-            self.assertIn("BV1fixture01", messages[1]["content"])
-            self.assertIn("不是权威事实核查", messages[1]["content"])
-            self.assertEqual([m["role"] for m in messages[2:]], ["user"])
+            evidence = next(m for m in messages if "【主动检索来源】" in m["content"])
+            self.assertIn("BV1fixture01", evidence["content"])
+            self.assertIn("不是权威事实核查", evidence["content"])
+            self.assertIn("未分析参考视频", str(messages))
 
     def test_search_is_idempotent_within_session(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -3021,10 +3019,8 @@ class TopicFirstChatTests(_UserSettingsIsolatedTestCase):
             self.assertEqual(searches, ["王扁被打"])
             events2 = list(flow.chat_stream_reply(context2))
             self.assertEqual([e for e in events2 if e["type"] == "search"], [])
-            roles2 = [m["role"] for m in llm.seen[1]]
-            # 第二轮上下文 = system + 完整历史（证据仅跟随触发 turn，首轮
-            # assistant 回复已含来源引用，模型可从对话延续）
-            self.assertEqual(roles2, ["system", "user", "assistant", "user"])
+            self.assertEqual(llm.seen, [])
+            self.assertEqual(len(flow.creative.load(session_id)["turns"]), 4)
 
     def test_chat_mode_never_triggers_search(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -3063,7 +3059,9 @@ class TopicFirstChatTests(_UserSettingsIsolatedTestCase):
             search_events = [e for e in events if e["type"] == "search"]
             self.assertEqual(len(search_events), 1)
             self.assertEqual(search_events[0]["status"], "unavailable")
-            self.assertIn("未联网核实", llm.seen[0][1]["content"])
+            self.assertEqual(llm.seen, [])
+            flow.chat_draft_generate(context["session"]["session_id"], mode="topic_only")
+            self.assertIn("未联网核实", str(llm.seen[0]))
 
     def test_search_callback_failure_never_blocks_send(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -3115,15 +3113,14 @@ class TopicFirstChatTests(_UserSettingsIsolatedTestCase):
             self._configure(root)
             context = flow.chat_send_start("我想就王扁被打做个视频")
             list(flow.chat_stream_reply(context))
-            result = flow.chat_draft_generate()
+            result = flow.chat_draft_generate(mode="topic_only")
             self.assertEqual(result["draft"]["revision"], 1)
             # 草稿上下文：DRAFT prompt + 会话证据 + 完整历史
             draft_messages = llm.seen[-1]
             self.assertEqual(draft_messages[0]["role"], "system")
             self.assertIn("参考来源", draft_messages[0]["content"])
-            self.assertEqual(draft_messages[1]["role"], "system")
-            self.assertIn("【主动检索来源】", draft_messages[1]["content"])
-            self.assertEqual([m["role"] for m in draft_messages[2:]], ["user", "assistant"])
+            self.assertIn("【主动检索来源】", str(draft_messages))
+            self.assertEqual([m["role"] for m in draft_messages if m["role"] != "system"], ["user", "assistant"])
 
     def test_discovery_persists_across_reload(self):
         with tempfile.TemporaryDirectory() as raw:

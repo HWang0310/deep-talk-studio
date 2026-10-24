@@ -322,15 +322,15 @@
   .draft-drawer summary { cursor: pointer; font-weight: 650; color: var(--ink); }
   .draft-drawer summary .muted { font-weight: 400; margin-left: 8px; font-size: 12px; }
   .draft-drawer[open] summary { margin-bottom: 8px; }
-  /* Owner UX：空态内容不足一屏时，creator-view 由 JS 按实测顶栏高度撑满
-     视口并把 composer 推到底部；内容超屏时 composer 依然 sticky 贴底。 */
+  /* Empty chat fills the viewport; long content and input share document flow.
+     The composer never covers transcript tails or editor controls. */
   #creator-view { display: flex; flex-direction: column; }
   #creator-view > #composer-dock { margin-top: auto; }
   #chat-main > #composer-dock { margin-top: auto; }
   .composer-dock {
-    position: sticky;
-    bottom: 0;
-    z-index: 20;
+    position: relative;
+    bottom: auto;
+    z-index: 1;
     width: min(760px, 100%);
     margin: 0 auto;
     padding: 10px 10px calc(12px + env(safe-area-inset-bottom, 0px));
@@ -387,7 +387,7 @@
   @keyframes chat-blink { 50% { opacity: 0; } }
   .draft-revisions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
   .draft-revisions button { min-height: 34px; padding: 5px 13px; font-size: 12.5px; }
-  .draft-editor { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; font: inherit; line-height: 1.7; resize: vertical; }
+  .draft-editor { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; font: inherit; line-height: 1.7; resize: none; overflow: hidden; max-height: none; }
   .gate-note { margin-top: 16px; padding: 12px 15px; border: 1px solid #e8ddd0; border-radius: 11px; background: #fbf6ee; color: #6b5d4b; font-size: 13px; line-height: 1.7; }
   .legacy-entry { padding: 14px 18px; }
   .legacy-entry summary { cursor: pointer; font-weight: 600; color: var(--ink); }
@@ -606,6 +606,22 @@
   @media (prefers-reduced-motion: reduce) { .chat-sidebar { transition: none; } }
   @media (hover: none) { .session-actions summary { opacity: 1; } }
   @media (max-width: 600px) { dialog.remix-dialog { padding: 16px; } }
+  .creation-card { width: 100%; max-width: 100%; font-size: 14px; color: var(--ink-soft); overflow-wrap: anywhere; margin: 12px 0 18px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fffdf9; }
+  .creation-progress { padding-left: 22px; margin: 0 0 12px; font-size: 14px; }
+  .creation-progress li { margin: 7px 0; }
+  .creation-progress span { margin-left: 10px; font-size: 12px; }
+  .creation-source { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .creation-source p { margin: 5px 0; }
+  .creation-consent { display: block; margin: 16px 0 12px; font-weight: 500; }
+  .creation-phase-trail { margin: 8px 0; padding-left: 20px; font-size: 12px; color: var(--muted); }
+  .creation-status { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .creation-selection { margin-top: 12px; }
+  .creation-card button { cursor: pointer; }
+  .reply-tools { margin: 8px 0 0; }
+  .reply-tools button { font-size: 12px; padding: 3px 6px; }
+  .creation-card .remix-tools button.primary { background: var(--coral); border-color: var(--coral); color: #fff; }
+  .creation-progress strong { color: var(--ink); }
+  .chat-msg { max-width: 100%; }
 </style>
 </head>
 <body>
@@ -657,6 +673,7 @@
       </div>
       <details class="advanced">
         <summary>高级设置</summary>
+        <button id="open-legacy-workflow" type="button" class="quiet-btn">打开旧版正式工作流</button>
         <div class="field-grid" style="margin-top:8px">
           <div>
             <label for="st-base">Responses 端点</label>
@@ -712,7 +729,7 @@
       <div class="hero-mark" aria-hidden="true"><span></span><i></i></div>
       <p class="hero-kicker">爆款二创 · 自由创作</p>
       <h2 id="form-title">你想聊什么？</h2>
-      <p class="welcome-copy">输入一个娱乐热点，参考本轮高播放视频的叙事灵感，写出吐槽、玩梗、反转三篇完整口播稿，再用聊天继续打磨。<strong>发送会调用你在「设置」里配置的模型服务并按其计费</strong>；草稿未经研究与事实核查，不是正式口播稿。</p>
+      <p class="welcome-copy">输入一个选题，先选热门参考并分析，再写三篇有梗口播。也可跳过参考自由创作。<strong>找参考免费；聊天、分析和写稿按已配置的模型服务计费</strong>；创作草稿可继续编辑。</p>
       <p class="prompt-hints" aria-label="创作方向提示"><span>聊一个选题</span><span>说说你的观点</span><span>粘贴一个参考链接</span></p>
     </div>
 
@@ -995,6 +1012,7 @@
   var audioContinueButton = document.getElementById('audio-continue');
   var busyTimer = null;
   var currentSession = null;
+  var legacyEnabled = false;
   var focusedStage = null;
   var lastAuthorization = DEFAULT_AUTHORIZATION;
   var renderedScriptKey = null;
@@ -1201,6 +1219,11 @@
   settingsCancel.addEventListener('click', function () { navigate('/'); });
   window.addEventListener('popstate', applyView);
 
+  document.getElementById('open-legacy-workflow').addEventListener('click', function () {
+    legacyEnabled = true; legacyEntry.open = true;
+    navigate('/'); refresh().catch(function () {});
+  });
+
   toggleKeyButton.addEventListener('click', function () {
     var keyInput = document.getElementById('st-key');
     var visible = keyInput.type === 'text';
@@ -1234,6 +1257,11 @@
       currentSession.session_id !== incomingSession.session_id;
     if (sessionChanged) { clearScriptResult(); }
     currentSession = incomingSession;
+    if (!legacyEnabled) {
+      legacyEntry.hidden = true; legacyEntry.open = false; stageBar.hidden = true; heroNewNote.hidden = true;
+      STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
+      return;
+    }
     if (newEpisodeMode) {
       stageBar.hidden = true;
       STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
@@ -1256,6 +1284,7 @@
     }
     heroNewNote.hidden = true;
     legacyTopic.textContent = '本集：' + currentSession.topic;
+    legacyEntry.hidden = false;
     if (!legacyEntry.open) {
       stageBar.hidden = true;
       STAGES.forEach(function (id) { document.getElementById(id).hidden = true; });
@@ -2527,7 +2556,7 @@
   }
 
   function manageChat(meta, action) {
-    if (chatInFlight || draftGenBusySessions[meta.session_id] || draftSaveBusySessions[meta.session_id]) {
+    if (chatInFlight || creationInFlight || draftGenBusySessions[meta.session_id] || draftSaveBusySessions[meta.session_id]) {
       chatStatusEl.textContent = '请先停止或等待当前回复/草稿完成。'; return;
     }
     var dialog = remixDialog(action === 'delete' ? '删除对话？' : '重命名对话');
@@ -2589,71 +2618,94 @@
     }).catch(function (err) { status.textContent = err.message; });
   }
 
-  function openReferences(discovery) {
+  var creationInFlight = false;
+  function creationCard(discovery, creation, note) {
     var chatId = selectedSessionId;
-    var dialog = remixDialog('爆款二创 · 参考工作区');
-    dialog.appendChild(el('p', 'muted', '仅在本地学习参考。下载沿用现有授权；每条叙事分析和三稿生成会调用已配置模型，按服务商计费。'));
-    var status = el('p', 'muted remix-status', '读取本选题参考…'); dialog.appendChild(status);
-    var list = el('div'); dialog.appendChild(list);
-    var auth = el('textarea'); auth.rows = 2; auth.placeholder = '填写你的本批授权声明（含“授权”，至少8字）'; auth.setAttribute('aria-label', '本批参考授权声明'); dialog.appendChild(auth);
-    var tools = el('div', 'remix-tools'); dialog.appendChild(tools);
-    var process = el('button', null, '授权下载、转写并生成三稿'); process.type = 'button'; process.disabled = true; tools.appendChild(process);
-    var generate = el('button', null, '用当前参考生成三稿'); generate.type = 'button'; tools.appendChild(generate);
-    var workspace = null; var choices = {}; var running = false;
-    function paint(view) {
-      workspace = view; list.textContent = ''; process.disabled = running || !(view.references || []).length;
-      (view.references || []).forEach(function (ref) {
-        var card = el('div', 'remix-ref');
-        var check = el('input'); check.type = 'checkbox'; check.checked = choices[ref.bvid] !== undefined ? choices[ref.bvid] : Object.keys(choices).length === 0;
-        choices[ref.bvid] = check.checked; check.setAttribute('aria-label', '选择参考 ' + ref.title);
-        check.addEventListener('change', function () { choices[ref.bvid] = check.checked; });
-        var label = el('label'); label.appendChild(check); label.appendChild(document.createTextNode(' ' + ref.title)); card.appendChild(label);
-        var link = el('a', null, '打开 B站视频'); link.href = ref.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
-        card.appendChild(el('p', 'muted', (ref.uploader || '') + ' · ' + (ref.view_count_status === 'verified' ? ref.view_count + '播放 · 逐视频接口核验 ' + (ref.fetched_at || '') : '播放量未知')));
-        card.appendChild(link);
-        var names = {not_analyzed:'尚未授权处理',downloaded:'已下载',transcribing:'转写中',analyzed:'转写与叙事分析完成',unverified:'全文已保留，叙事模型分析未完成',failed:'处理失败'};
-        card.appendChild(el('p', 'muted remix-status', (names[ref.study_status] || ref.study_status) + (ref.study_error ? ' · ' + ref.study_error : '')));
-        if (ref.study) {
-          if (ref.study.media_path) { card.appendChild(el('p', 'muted remix-status', '视频文件：' + ref.study.media_path)); }
-          card.appendChild(el('pre', null, [ref.study.narrative_summary, ref.study.creator_viewpoint, (ref.study.struct_patterns || []).join(' / ')].filter(Boolean).join('\n')));
-          if (ref.study.transcript_status === 'complete') {
-            var transcript = el('button', null, '查看完整转写 / 复制 / 导出'); transcript.type = 'button';
-            transcript.addEventListener('click', function () { openTranscript(view.session_id, ref.bvid); }); card.appendChild(transcript);
+    var hasDraft = creation.has_draft;
+    var free = creation.mode === 'topic_only';
+    var ready = creation.can_generate && !free;
+    note.classList.add('creation-card');
+    var steps = el('ol', 'creation-progress'); steps.setAttribute('aria-label', '创作进度');
+    [
+      ['找热门参考', discovery.status === 'ok' ? '已找到 ' + discovery.sources.length + ' 条' : '暂未找到，可直接自由创作'],
+      ['选视频并分析', free ? '已跳过参考' : (ready ? '分析完成' : '下一步：选择参考')],
+      ['生成三篇二创稿', hasDraft && creation.mode !== 'pending' ? '已保存' : '等待' + (free ? '生成' : '分析')],
+      ['对话修改 / 导出', hasDraft ? '可继续修改' : '等待稿件']
+    ].forEach(function (step) { var li=el('li'); li.appendChild(el('strong',null,step[0])); li.appendChild(el('span','muted',step[1])); steps.appendChild(li); });
+    note.appendChild(steps);
+    var controls=el('div','remix-tools');note.appendChild(controls);
+    var choose=el('button','primary',ready ? '查看参考 / 再生成' : (Object.keys(creation.errors||{}).length ? '重试参考分析' : '选参考并开始分析'));choose.type='button';
+    choose.disabled=!(discovery.sources||[]).length;controls.appendChild(choose);
+    var skip=el('button',null,'跳过参考，直接自由创作');skip.type='button';controls.appendChild(skip);
+    var status=el('p','creation-status muted');status.setAttribute('role','status');note.appendChild(status);
+    if(discovery.status!=='ok')status.textContent=String(discovery.note||'').indexOf('超时')>=0?'找参考超时了，可跳过参考自由创作。':'暂时没有可用参考，可以直接自由创作。';
+    if(Object.keys(creation.errors||{}).length && creation.mode==='pending')status.textContent='上次处理未完成，可重试或跳过参考。';
+    var panel=el('div','creation-selection');panel.hidden=true;note.appendChild(panel);
+    var selected={};var sourceRows={};
+    (discovery.sources||[]).forEach(function(source,index){
+      var match=String(source.url||'').match(/\/video\/(BV[A-Za-z0-9]+)/);
+      var id=source.bvid||(match?match[1]:'');if(!id)return;
+      var row=el('div','creation-source');var label=el('label');var check=el('input');check.type='checkbox';
+      check.checked=(creation.selected_bvids||[]).length ? creation.selected_bvids.indexOf(id)>=0 : index===0;
+      check.setAttribute('aria-label','选择参考 '+source.title);selected[id]=check;
+      label.appendChild(check);label.appendChild(document.createTextNode(' '+source.title));row.appendChild(label);
+      var meta=el('p','muted');var link=el('a',null,'查看视频');link.href=source.url;link.target='_blank';link.rel='noopener noreferrer';meta.appendChild(link);
+      meta.appendChild(document.createTextNode(' · '+(source.uploader||'')+' · '+(source.view_count_status==='verified'?source.view_count+'播放':'播放量未知')));row.appendChild(meta);
+      var state=el('span','muted',(creation.errors||{})[id] || ((creation.ready_bvids||[]).indexOf(id)>=0?'已分析':((creation.transcribed_bvids||[]).indexOf(id)>=0?'转写完成，待分析':'尚未分析')));row.appendChild(state);sourceRows[id]=state;panel.appendChild(row);
+    });
+    var consent=el('input');consent.type='checkbox';consent.setAttribute('aria-label','授权本地分析所选视频');
+    var consentLabel=el('label','creation-consent');consentLabel.appendChild(consent);consentLabel.appendChild(document.createTextNode(' 我有权下载这些视频，并授权仅在本地学习分析。'));panel.appendChild(consentLabel);
+    var start=el('button','primary','确认并分析，完成后生成三稿');start.type='button';panel.appendChild(start);
+    panel.appendChild(el('p','muted','只处理勾选的视频。分析和写稿使用已配置的模型，按服务商计费。'));
+    choose.addEventListener('click',function(){panel.hidden=!panel.hidden;if(!panel.hidden)start.focus({preventScroll:true});});
+    if((creation.transcribed_bvids||[]).length && creation.reference_session_id){
+      var transcripts=el('div','remix-tools');
+      creation.transcribed_bvids.forEach(function(id,index){var b=el('button','quiet-btn','查看完整参考口播 '+(index+1));b.type='button';b.addEventListener('click',function(){openTranscript(creation.reference_session_id,id);});transcripts.appendChild(b);});note.appendChild(transcripts);
+    }
+    if(hasDraft){var edit=el('button','quiet-btn','查看 / 编辑已保存稿件');edit.type='button';edit.addEventListener('click',function(){draftEntryBtn.click();});note.appendChild(edit);}
+    var trail=el('ol','creation-phase-trail'); trail.hidden=true; note.appendChild(trail);
+    var activePhase=null;
+    var phaseNames={downloading:'下载视频（已有文件直接复用）',extracting:'提取音频',transcribing:'Whisper 转写完整口播',analyzing:'分析爆点与叙事',generating:'生成吐槽、玩梗、反转三篇完整稿件'};
+    function run(mode){
+      if(creationInFlight||chatInFlight)return;
+      var ids=Object.keys(selected).filter(function(id){return selected[id].checked;});
+      if(mode==='reference'&&(!ids.length||!consent.checked)){status.textContent=!ids.length?'先选一条参考视频。':'请勾选授权后再开始。';return;}
+      creationInFlight=true;choose.disabled=true;skip.disabled=true;start.disabled=true;consent.disabled=true;
+      Object.keys(selected).forEach(function(id){selected[id].disabled=true;});
+      searchBtn.disabled=true;topicEl.disabled=true;
+      var started=Date.now();var phase=mode==='topic_only'?'仅按选题自由创作，未分析参考视频':'准备分析所选视频';
+      function show(){status.textContent=phase+' · '+Math.floor((Date.now()-started)/1000)+' 秒';}
+      show();var timer=setInterval(show,1000);var completed=false;
+      fetch('/api/workbench/chat/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:chatId,turn_id:discovery.turn_id,bvids:ids,consent:consent.checked,mode:mode})}).then(function(resp){
+        if(!resp.ok)return resp.json().then(function(data){throw Error(data.error||'处理失败');});
+        var reader=resp.body.getReader();var decoder=new TextDecoder();var buffer='';
+        function block(value){
+          if(value.indexOf('data: ')!==0)return;var event=JSON.parse(value.slice(6));
+          if(event.type==='phase'){
+            trail.hidden=false; if(activePhase) activePhase.textContent+=' · 完成';
+            activePhase=el('li',null,phaseNames[event.phase]||event.phase); trail.appendChild(activePhase);
+            steps.children[event.phase==='generating'?2:1].lastChild.textContent='进行中';
+            if(event.phase==='generating')steps.children[1].lastChild.textContent=mode==='topic_only'?'已跳过参考':'分析完成';
+            phase=(phaseNames[event.phase]||event.phase)+(event.bvid?' · '+event.bvid:'');show();
+            if(sourceRows[event.bvid])sourceRows[event.bvid].textContent=phaseNames[event.phase]||event.phase;
+          }else if(event.type==='error'){throw Error(event.error||'处理失败');}
+          else if(event.type==='done'){
+            completed=true;clearInterval(timer);creationInFlight=false;searchBtn.disabled=false;topicEl.disabled=false;
+            var follow=nearBottom();renderChat(event.chat);draftDrawer.open=false;refreshSessionsQuietly();
+            if(follow){var last=chatThread.querySelector('.chat-msg.assistant:last-child');if(last)last.scrollIntoView({block:'start'});}
+            chatStatusEl.textContent='三稿已保存。直接说“吐槽版更损点”继续改，或打开稿件复制 / 导出。';
           }
         }
-        list.appendChild(card);
+        function pump(){return reader.read().then(function(chunk){if(chunk.done){if(buffer.trim())block(buffer.trim());return;}buffer+=decoder.decode(chunk.value,{stream:true});var parts=buffer.split('\n\n');buffer=parts.pop();parts.forEach(block);return pump();});}
+        return pump();
+      }).then(function(){if(!completed)throw Error('连接中断；已保存的转写仍保留，请明确重试。');}).catch(function(err){
+        clearInterval(timer);creationInFlight=false;searchBtn.disabled=false;topicEl.disabled=false;
+        choose.disabled=!(discovery.sources||[]).length;skip.disabled=false;start.disabled=false;consent.disabled=false;
+        Object.keys(selected).forEach(function(id){selected[id].disabled=false;});
+        status.textContent=err.message+' 可重试，或跳过参考自由创作。';start.textContent='重试所选参考并生成';
       });
     }
-    function getWorkspace() { return api('/api/workbench/chat/references', {session_id:chatId, turn_id:discovery.turn_id}).then(function (view) { if (dialog.isConnected) { paint(view); } return view; }); }
-    function threeDrafts() {
-      if (chatId !== selectedSessionId || newChatMode) { throw new Error('请返回原会话后生成草稿'); }
-      dialog.close(); draftGenerateBtn.click();
-    }
-    getWorkspace().then(function () { status.textContent = '勾选最多5条参考，默认只处理第一条。完整 ASR 保存在本地；创作只使用摘要和叙事灵感。'; }).catch(function (err) { status.textContent = err.message; });
-    generate.addEventListener('click', function () { if (!running) { try { threeDrafts(); } catch (err) { status.textContent = err.message; } } });
-    process.addEventListener('click', function () {
-      var selected = Object.keys(choices).filter(function (id) { return choices[id]; });
-      if (!workspace || !selected.length || running) { status.textContent = '请先选择参考。'; return; }
-      if (auth.value.trim().length < 8 || auth.value.indexOf('授权') < 0) { status.textContent = '请填写有效授权声明后再下载。'; auth.focus(); return; }
-      running = true; process.disabled = true; generate.disabled = true; auth.disabled = true;
-      status.textContent = '正在按授权下载，随后本地 Whisper 转写；不会自动安装模型。';
-      var processed = 0;
-      api('/api/workbench/references/acquire', {session_id:workspace.session_id, bvids:selected, authorization_text:auth.value}).then(function (result) {
-        var chain = Promise.resolve();
-        result.results.forEach(function (record) {
-          if (!record.ok) { status.textContent += '\n' + record.bvid + '：' + record.error; return; }
-          chain = chain.then(function () {
-            status.textContent = '正在本地转写与分析 ' + record.bvid + '…';
-            return api('/api/workbench/references/analyze', {session_id:workspace.session_id, bvid:record.bvid}).then(function () { processed += 1; }).catch(function (err) { status.textContent = err.message + '；可继续聊天或仅用已有参考创作。'; });
-          });
-        });
-        return chain;
-      }).then(function () { return getWorkspace(); }).then(function () {
-        running = false; process.disabled = false; generate.disabled = false; auth.disabled = false;
-        if (processed) { threeDrafts(); }
-        else { status.textContent += '\n尚未完成视频分析，可查看失败原因后重试，或用当前参考继续创作。'; }
-      }).catch(function (err) { running = false; process.disabled = false; generate.disabled = false; auth.disabled = false; status.textContent = err.message; });
-    });
+    skip.addEventListener('click',function(){run('topic_only');});start.addEventListener('click',function(){run('reference');});
   }
 
   function closeSidebarDrawer() {
@@ -2662,7 +2714,7 @@
   }
 
   function selectSession(sessionId) {
-    if (chatInFlight) {
+    if (chatInFlight || creationInFlight) {
       // 流式中切换保护：绝不产生跨会话迟到 SSE/陈旧覆盖
       chatStatusEl.textContent = '当前回复还在进行中，请先停止或等待完成后再切换会话。';
       return;
@@ -2684,7 +2736,7 @@
   }
 
   function startNewChat() {
-    if (chatInFlight) {
+    if (chatInFlight || creationInFlight) {
       chatStatusEl.textContent = '当前回复还在进行中，请先停止或等待完成后再新建对话。';
       return;
     }
@@ -2762,6 +2814,7 @@
   });
 
   function kindLabel(kind) {
+    if (kind === 'local') return '流程提示 · 不调用模型';
     return kind === 'fixture' ? '本地夹具回复（非真实模型）' : '真实模型回复';
   }
 
@@ -2789,6 +2842,16 @@
       });
       item.appendChild(chips);
     }
+    if (turn.role === 'assistant' && !streaming && turn.provider_kind !== 'local') {
+      var replyTools = el('div', 'remix-tools reply-tools');
+      var copyReply = el('button', 'quiet-btn', '复制回复'); copyReply.type = 'button';
+      copyReply.addEventListener('click', function () {
+        if (navigator.clipboard) navigator.clipboard.writeText(turn.content || '').then(function () { chatStatusEl.textContent = '回复已复制。'; }).catch(function () { chatStatusEl.textContent = '复制失败，可选中回复手动复制。'; });
+      });
+      var exportReply = el('button', 'quiet-btn', '导出回复'); exportReply.type = 'button';
+      exportReply.addEventListener('click', function () { downloadStudy('deeptalk-口播-' + (turn.turn_id || 'reply') + '.md', turn.content || ''); });
+      replyTools.appendChild(copyReply); replyTools.appendChild(exportReply); item.appendChild(replyTools);
+    }
     if (turn.role === 'assistant') {
       item.appendChild(el('div', 'chat-kind',
         (turn.model ? turn.model + ' · ' : '') + kindLabel(turn.provider_kind)));
@@ -2798,44 +2861,26 @@
   }
 
   function appendSearchNoteEl(query, status, count, discovery) {
-    // Issue #29 选题驱动：检索是透明增值能力——UI 如实播报检索状态；
-    // 不可用时同样如实声明「未联网核实」，绝不假装做过研究。
-    var text = (status === 'ok' && count > 0)
-      ? '🔎 已主动检索公开来源「' + (query || '') + '」：' + count +
-        ' 条（B 站匿名检索，非权威事实核查）'
-      : '🔎 公开来源检索不可用（「' + (query || '') +
-        '」）：本次回复未联网核实，事实性内容均为未核实构思。';
-    var note = el('div', 'chat-search-note', text);
-    note.dataset.searchNote = '1';
-    if (discovery && (discovery.sources || []).length) {
-      var disclosure = el('details'); disclosure.appendChild(el('summary', null, '参考灵感 · 热度排序与处理'));
-      disclosure.appendChild(el('p', 'muted', '本轮已检索候选按核验播放量排序，非全站榜单；热度不等于事实。'));
-      discovery.sources.forEach(function (source) {
-        var row = el('p');
-        var link = el('a', null, source.title || source.url);
-        link.href = source.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; row.appendChild(link);
-        row.appendChild(el('span', 'muted', ' · ' + (source.uploader || '') + ' · ' +
-          (source.view_count_status === 'verified' ? source.view_count + '播放（逐视频接口核验）' : '播放量未知')));
-        disclosure.appendChild(row);
-      });
-      var open = el('button', 'quiet-btn', '打开参考工作区'); open.type = 'button';
-      open.addEventListener('click', function () { openReferences(discovery); });
-      disclosure.appendChild(open); note.appendChild(disclosure);
+    var note = el('div', 'chat-search-note'); note.dataset.searchNote = '1';
+    var creation = chatStateCache && chatStateCache.creation;
+    if (discovery && creation && discovery.turn_id === creation.turn_id) {
+      creationCard(discovery, creation, note);
+    } else {
+      note.textContent = status === 'ok' ? '找到 ' + count + ' 条热门参考 · ' + query : '暂未找到参考 · ' + query;
     }
     chatThread.appendChild(note);
-    if (nearBottom()) { scrollToEndOfConversation(); }
     return note;
   }
 
   function renderDrafts(chat) {
     // 草稿不再常驻大表单（issuecomment-6366157284）：只显示一个小入口
     // 「草稿 vN · 未审核」，点击才展开 drawer；无草稿时仅留「整理为草稿」
-    // 小动作；刷新后默认收起，生成动作后自动展开（直接后果）。
+    // 小动作；刷新与生成后均默认收起，只在用户明确点击时展开。
     var drafts = (chat && chat.drafts) || [];
     var hasTurns = !!(chat && chat.turns && chat.turns.length);
     draftEntryRow.hidden = !hasTurns;
     draftEntryBtn.hidden = !drafts.length;
-    draftGenerateBtn.hidden = !(!drafts.length && hasTurns);
+    draftGenerateBtn.hidden = !(!drafts.length && hasTurns) || !!(chat && chat.creation);
     draftDrawer.hidden = !drafts.length;
     if (!drafts.length) {
       draftDrawer.open = false;
@@ -2843,8 +2888,8 @@
       return;
     }
     var latest = drafts[drafts.length - 1];
-    draftEntryBtn.textContent = '📝 草稿 v' + latest.revision + ' · 未审核';
-    draftDrawerMeta.textContent = 'v' + latest.revision + ' · 未审核';
+    draftEntryBtn.textContent = '📝 ' + (chat.creation && !chat.creation.has_draft ? '历史稿件' : '稿件') + ' v' + latest.revision + ' · 创作草稿';
+    draftDrawerMeta.textContent = 'v' + latest.revision + ' · 创作草稿 · 可编辑';
     draftRevisionsEl.textContent = '';
     if (selectedDraftRevision < 1 || selectedDraftRevision > drafts.length) {
       selectedDraftRevision = drafts.length;
@@ -2862,15 +2907,17 @@
     var draft = drafts[selectedDraftRevision - 1];
     if (document.activeElement !== draftEditor || draftEditor.value !== draft.content) {
       draftEditor.value = draft.content;
+      requestAnimationFrame(sizeDraftEditor);
     }
     draftEditor.dataset.revision = String(draft.revision);
     draftMetaEl.textContent = '版本 v' + draft.revision +
       (draft.origin === 'user_edit' ? ' · 你的修改' : ' · 模型整理') +
-      ' · ' + (draft.created_at || '') + ' · 状态：未审核（未做研究与事实核查）' +
+      ' · ' + (draft.created_at || '') + ' · 创作草稿 · 可编辑' +
       (draft.provider_kind ? ' · ' + kindLabel(draft.provider_kind) : '');
   }
 
   function renderChat(chat) {
+    draftDrawer.open = false;
     chatStateCache = chat;
     chatThread.textContent = '';
     if (newChatMode) {
@@ -2910,7 +2957,7 @@
   }
 
   function sendChatMessage(message, links, retryTurnId) {
-    if (chatInFlight) { return; }
+    if (chatInFlight || creationInFlight) { return; }
     clearRequestError();
     if (!message) {
       showRequestError('请先输入要聊的内容。');
@@ -2953,6 +3000,12 @@
     var accepted = false;
     chatAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var payload = { message: message, links: links };
+    // A short standalone title in an empty chat is a topic; questions/greetings remain chat.
+    if ((newChatMode || !chatStateCache || !(chatStateCache.turns || []).length) &&
+        /^[\u4e00-\u9fffA-Za-z0-9 #._-]{3,40}$/.test(message) &&
+        !/你好|谢谢|聊聊|怎么看|为什么|怎么|解释|请问|帮我|什么|吗|呢|请|你是|可以|能不能|测试|连接|好的|收到|hello|thanks|做一期|做个视频/i.test(message)) {
+      payload.creation_topic = message;
+    }
     // 多会话：所有操作作用于显式选中会话；newChatMode 首发送才建新会话
     if (!newChatMode && selectedSessionId) { payload.session_id = selectedSessionId; }
     if (!retryTurnId && newChatMode) { payload.new_session = true; }
@@ -3196,8 +3249,7 @@
       renderDrafts(result.data.chat);
       // 生成是显式用户动作的直接后果：轻量确认 + 自动展开编辑器；
       // 下次返回/刷新默认收起（renderDrafts 不主动 open）。
-      draftDrawer.open = true;
-      draftDrawer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      draftDrawer.open = false;
     }).catch(function () {
       delete draftGenBusySessions[opSessionId];
       syncDraftButtons();
@@ -3210,8 +3262,17 @@
   draftEntryBtn.addEventListener('click', function () {
     if (draftDrawer.hidden) { return; }
     draftDrawer.open = !draftDrawer.open;
-    if (draftDrawer.open) { draftDrawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+    if (draftDrawer.open) { requestAnimationFrame(function () { sizeDraftEditor(); draftDrawer.scrollIntoView({block:'start',behavior:'auto'}); }); }
   });
+
+  function sizeDraftEditor() {
+    if (!draftDrawer.open) return;
+    draftEditor.style.height = 'auto';
+    draftEditor.style.height = Math.max(240, draftEditor.scrollHeight + 4) + 'px';
+  }
+  draftEditor.addEventListener('input', sizeDraftEditor);
+  draftDrawer.addEventListener('toggle', function () { if (draftDrawer.open) requestAnimationFrame(sizeDraftEditor); });
+  window.addEventListener('resize', sizeDraftEditor);
 
   draftSaveBtn.addEventListener('click', function () {
     var content = draftEditor.value;

@@ -1,5 +1,10 @@
 # Changelog
 
+## PR #48 Owner flow follow-up (2026-10-24, candidate)
+
+- Consolidate selection, scoped checkbox consent and actual processing progress into the chat. Defer reference-informed scripts until complete ASR/analysis; offer explicit labeled topic-only creation without premature model charges.
+- Keep three scripts and editable replies in chat with copy/export, collapse the version editor by default, hide legacy workflow in Settings > Advanced, and use document scrolling so the input never covers editor tails or buttons.
+
 ## PR #48 candidate — 爆款二创 1.0 (2026-10-24, unreleased)
 
 - Entertainment-first three complete narration alternatives and conversational edits using the current saved draft; per-topic source isolation and bounded search feedback.

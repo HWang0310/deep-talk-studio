@@ -479,7 +479,7 @@ class WorkbenchFlow:
 
     ENTERTAINMENT_PROMPT = (
         "你是 DeepTalk Studio 的 B站娱乐热点二创作者。选题驱动创作，目标是好玩、有梗、"
-        "有个人观点的原创口播，不是新闻采编。明确选题后立即交付三篇完整备选口播稿："
+        "有个人观点的原创口播，不是新闻采编。只有已分析参考，或用户明确选择仅按选题自由创作时，才交付三篇完整备选口播稿："
         "【犀利吐槽】【搞笑玩梗】【故事反转】。每篇以60–90秒为起点，约350–550汉字，"
         "有前3–5秒钩子、节奏变化、原创笑点、明确个人判断和有记忆点的收尾。"
         "三篇要有不同论点、叙事顺序和比喻，不能只是同一稿换词，不能只给标题、大纲或分析。"
@@ -527,7 +527,7 @@ class WorkbenchFlow:
                 if str(session_id or "").strip()
                 else self.creative.load_latest()
             )
-            return {"chat": CreativeChatStore.view(session)}
+            return {"chat": self._chat_view(session)}
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
 
@@ -538,6 +538,90 @@ class WorkbenchFlow:
             return {"sessions": self.creative.list_sessions(), "trash": self.creative.list_sessions(deleted=True)}
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
+
+    def _creation_state(self, session):
+        discovery = self._active_discovery(session or {})
+        if not discovery:
+            return None
+        choice = (session.get("creation_modes") or {}).get(discovery["query"], {})
+        ready = []
+        transcribed = []
+        errors = {}
+        reference_id = discovery.get("reference_session_id")
+        if reference_id:
+            workspace = self.store.load(reference_id)
+            for ref in workspace["discovery"]["candidates"]:
+                bvid = ref.get("bvid", "")
+                state = workspace["references"].get(bvid, {})
+                study = self._load_study(workspace, bvid) or {}
+                error = state.get("analysis_error") or state.get("failure_reason")
+                if error:
+                    errors[bvid] = str(error)[:300]
+                try:
+                    _, directory = self._reference_path(reference_id, bvid)
+                    path = directory / "transcript.json"
+                    if path.is_symlink():
+                        continue
+                    transcript = self.store.load_json(path)
+                except (OSError, ValueError, WorkbenchFlowError):
+                    continue
+                if transcript.get("text", "").strip():
+                    transcribed.append(bvid)
+                    if state.get("status") == "analyzed" and study.get("analysis_status") == "analyzed":
+                        ready.append(bvid)
+        selected = choice.get("bvids") or ready
+        mode = choice.get("mode", "pending")
+        return {"topic": discovery["query"], "turn_id": discovery["turn_id"],
+                "mode": mode, "ready_bvids": ready, "transcribed_bvids": transcribed, "errors": errors, "selected_bvids": selected,
+                "reference_session_id": reference_id or "",
+                "can_generate": mode == "topic_only" or bool(selected and all(b in ready for b in selected)),
+                "has_draft": any(d.get("origin_turn_id") in {t.get("turn_id") for t in self._topic_turns(session)} for d in session.get("drafts", []))}
+
+    def _chat_view(self, session):
+        view = CreativeChatStore.view(session)
+        if view is not None:
+            view["creation"] = self._creation_state(session)
+        return view
+
+    def chat_create(self, session_id, turn_id, bvids, *, consent=False, mode="reference", progress=None):
+        emit = progress or (lambda event: None)
+        session = self.creative.load(session_id)
+        discovery = self._active_discovery(session or {})
+        if not discovery or discovery.get("turn_id") != turn_id:
+            raise WorkbenchFlowError("选题已变化，请回到当前选题继续")
+        if mode not in {"reference", "topic_only"}:
+            raise WorkbenchFlowError("请选择参考分析或自由创作")
+        if mode == "reference":
+            if consent is not True:
+                raise WorkbenchFlowError("请先确认授权处理所选视频")
+            selected = list(dict.fromkeys(bvids))
+            view = self.chat_references(session_id, turn_id)
+            allowed = {r["bvid"] for r in view["references"]}
+            if not selected or len(selected) > 5 or not all(b in allowed for b in selected):
+                raise WorkbenchFlowError("请选择本选题中的1–5条参考")
+            self.creative.set_creation_mode(session_id, discovery["query"], "pending", selected)
+            for bvid in selected:
+                emit({"phase": "downloading", "bvid": bvid})
+                outcome = self.acquire_references(view["session_id"], [bvid],
+                    "用户明确勾选确认有权下载并用于本地参考学习，授权处理所选视频：" + ",".join(selected))
+                record = outcome["results"][0]
+                if not record.get("ok"):
+                    raise WorkbenchFlowError(record.get("error") or "下载失败，请重试或跳过参考")
+                self.analyze_reference(view["session_id"], bvid,
+                    progress=lambda phase, b=bvid: emit({"phase": phase, "bvid": b}))
+            current = self._creation_state(self.creative.load(session_id))
+            if not all(b in current["ready_bvids"] for b in selected):
+                raise WorkbenchFlowError("参考转写或爆点分析未完成；可重试，或跳过参考自由创作")
+        else:
+            selected = []
+        # Only explicit scoped choices can enable generation. Never infer consent.
+        self.creative.set_creation_mode(session_id, discovery["query"], mode, selected)
+        emit({"phase": "generating", "mode": mode})
+        result = self.chat_draft_generate(session_id, mode=mode)
+        self.creative.append_assistant_turn(session_id, result["draft"]["content"],
+            model=result["draft"].get("model", ""), provider_kind=result["draft"].get("provider_kind", ""))
+        result["chat"] = self._chat_view(self.creative.load(session_id))
+        return result
 
     def chat_manage(self, session_id: str, action: str, title: str = ""):
         try:
@@ -596,9 +680,15 @@ class WorkbenchFlow:
         discovery = self._active_discovery(session)
         if not discovery or not discovery.get("reference_session_id"):
             return None
+        if (session.get("creation_modes") or {}).get(discovery["query"], {}).get("mode") == "topic_only":
+            return None
         workspace = self.store.load(discovery["reference_session_id"])
         summaries = []
+        creation = self._creation_state(session)
+        selected = set(creation["selected_bvids"]) & set(creation["ready_bvids"])
         for reference in workspace["discovery"]["candidates"]:
+            if reference.get("bvid") not in selected:
+                continue
             study = self._load_study(workspace, reference.get("bvid", ""))
             if not study:
                 continue
@@ -621,6 +711,7 @@ class WorkbenchFlow:
         retry_turn_id: str = "",
         session_id: str = "",
         new_session: bool = False,
+        creation_topic: str = "",
     ) -> Dict[str, Any]:
         """Validate + persist the user's turn before any streaming starts.
 
@@ -639,6 +730,8 @@ class WorkbenchFlow:
         （B2），避免并发/重叠请求用陈旧快照覆盖数据。
         """
 
+        if creation_topic and (not creation_topic.strip() or len(creation_topic) > 40):
+            raise WorkbenchFlowError("选题需为1–40字")
         settings = load_settings(self.repo_root)
         if not is_configured(settings):
             raise WorkbenchFlowError(
@@ -671,7 +764,12 @@ class WorkbenchFlow:
         # 主动做一次有界公开来源检索（幂等、按选题隔离），证据持久化
         # 进会话并随返回值带最新快照；检索永不阻断消息发送。
         if not retry_turn_id:
-            topic = self._video_task_topic(str(message or ""))
+            topic = str(creation_topic or "").strip() or self._video_task_topic(str(message or ""))
+            if creation_topic:
+                try:
+                    opened["session"] = self.creative.set_turn_topic(opened["session"]["session_id"], opened["turn"]["turn_id"], topic)
+                except CreativeChatError as exc:
+                    raise WorkbenchFlowError(str(exc)) from None
             if topic:
                 resolved_id = str(opened["session"].get("session_id", ""))
                 self._run_topic_discovery(
@@ -898,7 +996,7 @@ class WorkbenchFlow:
         query = ""
         start = 0
         for i, turn in enumerate(turns):
-            topic = self._video_task_topic(turn.get("content", "")) if turn.get("role") == "user" else ""
+            topic = (turn.get("creation_topic") or self._video_task_topic(turn.get("content", ""))) if turn.get("role") == "user" else ""
             if topic and topic != query:
                 query, start = topic, i
         return turns[start:]
@@ -907,7 +1005,7 @@ class WorkbenchFlow:
         turns = self._topic_turns(session)
         for turn in reversed(turns):
             if turn.get("role") == "user":
-                topic = self._video_task_topic(turn.get("content", ""))
+                topic = turn.get("creation_topic") or self._video_task_topic(turn.get("content", ""))
                 if topic:
                     return next((d for d in reversed(self.creative.discoveries(session))
                                  if d.get("query") == topic), None)
@@ -969,17 +1067,23 @@ class WorkbenchFlow:
         reference_context = self._creative_reference_context(session)
         if reference_context:
             messages.append(reference_context)
-        try:
-            llm = self.provider_factory(settings)
-        except WorkbenchLLMError as exc:
-            raise WorkbenchFlowError(str(exc)) from None
-        try:
-            accumulated = ""
-            for delta in llm.chat_stream(messages):
-                accumulated += delta
-                yield {"type": "delta", "text": delta}
-        except WorkbenchLLMError as exc:
-            raise WorkbenchFlowError(str(exc), payload={"status": "failed"}) from None
+        creation = self._creation_state(session)
+        pending = creation and creation["mode"] != "topic_only" and not creation["can_generate"]
+        if pending:
+            accumulated = (f"「{creation['topic']}」可以做出反差和笑点。先选参考，看看热门视频怎么抓人；"
+                           "分析后再写吐槽、玩梗、反转三篇完整口播。也可以跳过参考，直接自由创作。")
+            yield {"type": "delta", "text": accumulated}
+        else:
+            if creation and creation["mode"] == "topic_only":
+                messages.append({"role": "system", "content": "仅按选题自由创作；未分析参考视频，不得声称看过或借鉴了视频内容。"})
+            try:
+                llm = self.provider_factory(settings)
+                accumulated = ""
+                for delta in llm.chat_stream(messages):
+                    accumulated += delta
+                    yield {"type": "delta", "text": delta}
+            except WorkbenchLLMError as exc:
+                raise WorkbenchFlowError(str(exc), payload={"status": "failed"}) from None
         if not accumulated.strip():
             raise WorkbenchFlowError(
                 "模型服务返回了空内容，请重试", payload={"status": "empty_response"}
@@ -990,9 +1094,9 @@ class WorkbenchFlow:
             assistant_turn = self.creative.append_assistant_turn(
                 session_id,
                 accumulated,
-                model=str(settings.get("model", "")),
+                model="" if pending else str(settings.get("model", "")),
                 provider_mode=str(settings.get("provider_mode", "")),
-                provider_kind=str(context.get("provider_kind", "")),
+                provider_kind="local" if pending else str(context.get("provider_kind", "")),
             )
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
@@ -1000,9 +1104,9 @@ class WorkbenchFlow:
             fresh = self.creative.load(session_id)
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
-        yield {"type": "done", "turn": assistant_turn, "chat": CreativeChatStore.view(fresh)}
+        yield {"type": "done", "turn": assistant_turn, "chat": self._chat_view(fresh)}
 
-    def chat_draft_generate(self, session_id: str = "") -> Dict[str, Any]:
+    def chat_draft_generate(self, session_id: str = "", *, mode: str = "") -> Dict[str, Any]:
         """Explicit user action: turn the conversation into a Creative Draft.
 
         A draft is ``creative-draft/1`` / ``status: unreviewed``：它区别于
@@ -1029,10 +1133,23 @@ class WorkbenchFlow:
             t.get("role") == "assistant" for t in session.get("turns", [])
         ):
             raise WorkbenchFlowError("还没有可整理的对话，请先发送消息")
+        creation = self._creation_state(session)
+        if creation:
+            chosen = mode or creation["mode"]
+            if chosen == "topic_only":
+                self.creative.set_creation_mode(session["session_id"], creation["topic"], "topic_only")
+            elif chosen in {"reference", "pending"} and creation["can_generate"]:
+                chosen = "reference"
+            else:
+                raise WorkbenchFlowError("请先分析参考视频，或选择跳过参考自由创作")
+        else:
+            chosen = "topic_only"
         messages = [{"role": "system", "content": self.DRAFT_SYSTEM_PROMPT}]
         # Issue #29：会话有检索证据时注入（与聊天同源），草稿可引用实际
         # 用到的来源；没有证据时 DRAFT_SYSTEM_PROMPT 的未核实规则照常生效。
         discovery = self._active_discovery(session)
+        if chosen == "topic_only":
+            messages.append({"role": "system", "content": "仅按选题自由创作；未分析参考视频，不得冒称视频二创或声称看过其内容。"})
         if isinstance(discovery, Mapping):
             discovery_message = self._discovery_context_message(discovery)
             if discovery_message:
@@ -1045,7 +1162,7 @@ class WorkbenchFlow:
             # Place the artifact before the latest user instruction.
             insert_at = max(1, len(messages) - 1) if messages[-1].get("role") == "user" else len(messages)
             messages.insert(insert_at, current_draft)
-        reference_context = self._creative_reference_context(session)
+        reference_context = self._creative_reference_context(session) if chosen == "reference" else None
         if reference_context:
             messages.append(reference_context)
         try:
@@ -1060,6 +1177,9 @@ class WorkbenchFlow:
             raise WorkbenchFlowError(str(exc), payload={"status": "failed"}) from None
         if not accumulated.strip():
             raise WorkbenchFlowError("模型没有生成草稿内容，请重试")
+        if creation:
+            label = "仅按选题自由创作 · 未分析参考视频" if chosen == "topic_only" else "基于已分析参考 · 创作草稿"
+            accumulated = "【" + label + "】\n\n" + accumulated
         origin_turn_id = ""
         for turn in reversed(session.get("turns", [])):
             if turn.get("role") == "assistant":
@@ -1082,7 +1202,7 @@ class WorkbenchFlow:
             fresh = self.creative.load(str(session.get("session_id", "")))
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
-        return {"draft": draft, "chat": CreativeChatStore.view(fresh)}
+        return {"draft": draft, "chat": self._chat_view(fresh)}
 
     def chat_draft_save(self, content: str, session_id: str = "") -> Dict[str, Any]:
         """Persist the creator's free edit as a new immutable draft revision."""
@@ -1113,7 +1233,7 @@ class WorkbenchFlow:
             fresh = self.creative.load(str(session.get("session_id", "")))
         except CreativeChatError as exc:
             raise WorkbenchFlowError(str(exc)) from None
-        return {"draft": draft, "chat": CreativeChatStore.view(fresh)}
+        return {"draft": draft, "chat": self._chat_view(fresh)}
 
     # -- session -------------------------------------------------------------
 
@@ -1335,7 +1455,7 @@ class WorkbenchFlow:
             # fresh authorization never silently re-archives a duplicate.
             prior = session.get("references", {}).get(bvid) or {}
             prior_media = str(prior.get("media_path", ""))
-            if prior.get("status") in {"downloaded", "analyzed", "unverified"} and prior_media and Path(prior_media).is_file():
+            if prior.get("status") in {"downloaded", "analyzed", "unverified", "transcribing", "analysis_failed"} and prior_media and Path(prior_media).is_file():
                 results.append({
                     "bvid": bvid,
                     "ok": True,
@@ -1453,7 +1573,7 @@ class WorkbenchFlow:
             results.append({"bvid": bvid, "ok": True, "media_path": record["media_path"]})
         return {"results": results}
 
-    def analyze_reference(self, session_id: str, bvid: str) -> Dict[str, Any]:
+    def analyze_reference(self, session_id: str, bvid: str, *, progress=None) -> Dict[str, Any]:
         session, _ = self._reference_path(session_id, bvid)
         state = session["references"].get(bvid, {})
         media_path = state.get("media_path", "")
@@ -1482,12 +1602,15 @@ class WorkbenchFlow:
                 transcript = None
         else:
             transcript = None
+        emit = progress or (lambda phase: None)
         if not transcript:
             try:
+                emit("extracting")
                 wav = acquisition.extract_audio(
                     Path(media_path), runner=self.audio_runner or acquisition.subprocess.run
                 )
                 try:
+                    emit("transcribing")
                     transcript = acquisition.transcribe_audio(
                         wav,
                         runner=self.whisper_runner or acquisition.subprocess.run,
@@ -1544,6 +1667,7 @@ class WorkbenchFlow:
         study["analysis_error"] = ""
         study["analysis_provenance"] = {}
         try:
+            emit("analyzing")
             llm = self._llm()
             result = llm.summarize_reference(
                 transcript["text"], metrics, metadata

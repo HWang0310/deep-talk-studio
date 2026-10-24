@@ -416,6 +416,30 @@ class CreativeChatStore:
             records.insert(0, dict(legacy))
         return records
 
+    def set_turn_topic(self, session_id, turn_id, topic):
+        if not topic.strip() or len(topic) > 40:
+            raise CreativeChatError("选题需为1–40字")
+        with self._lock:
+            session = self.load(session_id)
+            if not session:
+                raise CreativeChatError("聊天会话不存在")
+            turn = next((t for t in session["turns"] if t["turn_id"] == turn_id and t["role"] == "user"), None)
+            if not turn:
+                raise CreativeChatError("选题消息不存在")
+            turn["creation_topic"] = topic.strip()
+            self._touch(session)
+            return session
+
+    def set_creation_mode(self, session_id, topic, mode, bvids=()):
+        if mode not in {"pending", "reference", "topic_only"}:
+            raise CreativeChatError("创作方式无效")
+        with self._lock:
+            session = self.load(session_id)
+            if not session:
+                raise CreativeChatError("聊天会话不存在")
+            session.setdefault("creation_modes", {})[topic] = {"mode": mode, "bvids": list(bvids)}
+            self._touch(session)
+
     def bind_reference_session(self, session_id: str, turn_id: str, reference_id: str) -> str:
         with self._lock:
             session = self.load(session_id)
