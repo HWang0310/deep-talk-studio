@@ -119,7 +119,17 @@ class FiveTranscripts:
             items.append(item)
         combined='\n\n'.join(sections)+'\n'
         local_target=self.flow.store.session_dir(sid)/'合并参考稿.txt'
-        atomic_text(local_target,combined)
+        local_merge_error=''
+        try:
+            local_merge_sha256=transcript_archive.write_generated_text(
+                local_target,combined,str(session.get('save_local_merge_sha256') or '')
+            )
+            self.flow.store.update(sid,lambda s,d=local_merge_sha256:s.update({
+                'save_local_merge_sha256':d,'save_local_merge_error':''
+            }))
+        except transcript_archive.TranscriptArchiveError as exc:
+            local_merge_error=str(exc)
+            self.flow.store.update(sid,lambda s,e=local_merge_error:s.update({'save_local_merge_error':e}))
         target=local_target
         if archive_paths:
             try:
@@ -137,7 +147,7 @@ class FiveTranscripts:
             'session_id':sid,'items':items,'validation':session.get('validation',[]),
             'combined_text':combined,'combined_path':str(target),'combined_local_path':str(local_target),
             'batch_path':batch_path,'save_root':str(session.get('save_root') or ''),
-            'save_error':archive_error or str(session.get('save_merge_error') or ''),
+            'save_error':archive_error or local_merge_error or str(session.get('save_local_merge_error') or session.get('save_merge_error') or ''),
             'archive_available':bool(not batch_path and str(current_settings.get('downloads_dir') or '').strip()),
             'archive_complete':bool(session.get('save_archive_complete')),
             'synthesis':session.get('synthesis'),
@@ -154,6 +164,29 @@ class FiveTranscripts:
         # A local private default requires no model/key/download-folder setup.
         from .settings import WorkbenchSettingsError, load_settings, resolve_downloads_dir, validate_existing_directory
         settings=load_settings(self.flow.repo_root)
+        if not session.get('save_batch_path') and settings.get('downloads_dir'):
+            try:
+                save_root=validate_existing_directory(str(settings['downloads_dir']))
+                refs_root=self.flow.store.references_dir(sid)
+                has_legacy_artifacts=any(
+                    bool(session.get('references',{}).get(candidate['bvid'],{}).get('media_path'))
+                    or (refs_root/candidate['bvid']).exists()
+                    or (refs_root/candidate['bvid']).is_symlink()
+                    for candidate in session['discovery']['candidates']
+                )
+                if has_legacy_artifacts:
+                    # A legacy retry becomes a copy-only archive first, so any
+                    # existing source media/transcript is preserved and the
+                    # retried task still gets its own 视频/ subfolder.
+                    self.archive(sid)
+                else:
+                    info=transcript_archive.create_batch(save_root,str(session.get('topic') or '五视频口播提取'))
+                    self.flow.store.update(sid,lambda s,i=dict(info):s.update(i))
+                session=self._session(sid)
+            except (WorkbenchSettingsError, transcript_archive.TranscriptArchiveError, WorkbenchFlowError) as exc:
+                reason='保存文件夹不可用：'+str(exc)
+                for bvid in selected:self._mark(sid,bvid,status='failed',failure_reason=reason)
+                return self.state(sid)
         downloads=None
         if session.get('save_batch_path'):
             try:
@@ -271,10 +304,14 @@ class FiveTranscripts:
                     raise WorkbenchFlowError('历史归档失败：'+str(exc)) from None
 
             # A failed ASR item may still have a valid, already downloaded original.
-            acquisition_path=self.flow.store.references_dir(sid)/bvid/'acquisition.json'
+            references_root=self.flow.store.references_dir(sid)
+            reference_dir=references_root/bvid
+            acquisition_path=reference_dir/'acquisition.json'
             media_path=str(current.get('media_path') or '')
             if media_path:
                 try:
+                    if reference_dir.is_symlink() or not reference_dir.is_dir() or reference_dir.resolve(strict=True).parent != references_root.resolve(strict=True):
+                        raise transcript_archive.TranscriptArchiveError('参考视频目录缺失或包含符号链接，原视频未复制')
                     if acquisition_path.is_symlink() or not acquisition_path.is_file():
                         raise transcript_archive.TranscriptArchiveError('下载记录缺失或包含符号链接，原视频未复制')
                     record=json.loads(acquisition_path.read_text(encoding='utf-8'))

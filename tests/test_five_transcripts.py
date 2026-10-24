@@ -263,6 +263,70 @@ class FiveTranscriptTests(fixtures._UserSettingsIsolatedTestCase):
                 self.assertEqual(outside.read_text(encoding='utf-8'),'{"text":"private outside content"}')
             finally:server.shutdown();server.server_close();thread.join()
 
+    def test_history_archive_preserves_manual_transcript_edits_and_original_json(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);flow=self.setup_tool(root)
+            from deeptalk_studio.workbench.settings import load_settings,save_settings
+            config=load_settings(root);config['downloads_dir']='';save_settings(root,config)
+            result=self.tool.process(self.tool.start(['BV1fixture01'])['session_id'],consent=True)
+            sid=result['session_id'];item=result['items'][0]
+            source_txt=Path(item['artifact_path']);source_json=Path(item['json_path'])
+            edited_bytes=source_txt.read_bytes()+ '\nOwner 手工校订必须保留。'.encode('utf-8')
+            json_bytes=source_json.read_bytes()
+            local_merge=flow.store.session_dir(sid)/'合并参考稿.txt'
+            edited_merge_bytes=local_merge.read_bytes()+'\nOwner 合并稿备注必须保留。'.encode('utf-8')
+            source_txt.write_bytes(edited_bytes)
+            local_merge.write_bytes(edited_merge_bytes)
+            save_root=root/'selected archive';save_root.mkdir()
+            config=load_settings(root);config['downloads_dir']=str(save_root);save_settings(root,config)
+
+            state=self.tool.state(sid)
+            self.assertEqual(source_txt.read_bytes(),edited_bytes)
+            self.assertEqual(local_merge.read_bytes(),edited_merge_bytes)
+            self.assertIn('Owner 手工校订必须保留。',state['items'][0]['text'])
+            archived=self.tool.archive(sid)
+            paths=archived['items'][0]['save_paths']
+            self.assertEqual(Path(paths['transcript_txt']).read_bytes(),edited_bytes)
+            self.assertEqual(Path(paths['transcript_json']).read_bytes(),json_bytes)
+            self.assertEqual(source_txt.read_bytes(),edited_bytes)
+            self.assertEqual(local_merge.read_bytes(),edited_merge_bytes)
+            self.assertEqual(source_json.read_bytes(),json_bytes)
+
+    def test_history_archive_rejects_symlinked_per_video_directory(self):
+        import shutil
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);flow=self.setup_tool(root)
+            from deeptalk_studio.workbench.settings import load_settings,save_settings
+            config=load_settings(root);config['downloads_dir']='';save_settings(root,config)
+            result=self.tool.process(self.tool.start(['BV1fixture01'])['session_id'],consent=True)
+            sid=result['session_id'];media=Path(result['items'][0]['media_path'])
+            video_dir=flow.store.references_dir(sid)/'BV1fixture01'
+            outside=root/'outside-reference';shutil.copytree(video_dir,outside)
+            video_dir.unlink() if video_dir.is_symlink() else shutil.rmtree(video_dir)
+            video_dir.symlink_to(outside,target_is_directory=True)
+            save_root=root/'selected archive';save_root.mkdir()
+            config=load_settings(root);config['downloads_dir']=str(save_root);save_settings(root,config)
+
+            archived=self.tool.archive(sid)
+            self.assertEqual(list((Path(archived['batch_path'])/'视频').iterdir()),[])
+            self.assertTrue(media.is_file())
+            self.assertTrue((outside/'acquisition.json').is_file())
+
+    def test_retry_after_save_root_is_set_allocates_a_task_subfolder(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);self.setup_tool(root)
+            from deeptalk_studio.workbench.settings import load_settings,save_settings
+            config=load_settings(root);config['downloads_dir']='';save_settings(root,config)
+            pending=self.tool.start(['BV1fixture01'])
+            save_root=root/'selected save';save_root.mkdir()
+            config=load_settings(root);config['downloads_dir']=str(save_root);save_settings(root,config)
+
+            completed=self.tool.process(pending['session_id'],consent=True)
+            batch=Path(completed['batch_path']);media=Path(completed['items'][0]['save_paths']['video'])
+            self.assertEqual(batch.parent,save_root.resolve())
+            self.assertEqual(media.parent,batch/'视频')
+            self.assertEqual(len(list(save_root.iterdir())),1)
+
     def test_proxy_refusal_guidance_does_not_change_saved_settings(self):
         from deeptalk_studio.workbench.acquisition import WorkbenchAcquisitionError, acquire_reference
         with tempfile.TemporaryDirectory() as raw:

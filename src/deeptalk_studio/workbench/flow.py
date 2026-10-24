@@ -677,10 +677,19 @@ class WorkbenchFlow:
             raise WorkbenchFlowError("完整转写尚不可用，请先授权下载并运行本地 Whisper")
         transcript = self.store.load_json(source)
         metadata = next(c for c in session["discovery"]["candidates"] if c.get("bvid") == bvid)
-        content = study_text(transcript, metadata)
         filename = f"{acquisition.sanitize_filename(str(metadata.get('title') or bvid))}-{bvid}-口播转写.txt"
         target = directory / filename
-        atomic_text(target, content)
+        if target.is_symlink():
+            raise WorkbenchFlowError("不允许符号链接转写工件")
+        if target.exists():
+            if not target.is_file():
+                raise WorkbenchFlowError("口播转写TXT路径不是普通文件")
+            # The TXT is a creator-owned editable copy. Refreshing session state
+            # must never replace an existing manual correction with JSON-derived text.
+            content = target.read_text(encoding="utf-8")
+        else:
+            content = study_text(transcript, metadata)
+            atomic_text(target, content)
         return {"transcript": transcript, "metadata": metadata, "text": content,
                 "filename": filename, "artifact_path": str(target)}
 

@@ -175,10 +175,10 @@ def save_item(
     }
 
 
-def write_merge(paths: Mapping[str, Path], text: str, previous_sha256: str = "") -> str:
-    """Atomically update only the generated merged file still owned by this session."""
+def write_generated_text(target: Path, text: str, previous_sha256: str = "") -> str:
+    """Atomically update a generated text file only while its prior hash still matches."""
 
-    target = paths["batch"] / "合并参考稿.txt"
+    target = Path(target)
     data = text.encode("utf-8")
     new_hash = _digest(data)
     if target.is_symlink():
@@ -214,6 +214,12 @@ def write_merge(paths: Mapping[str, Path], text: str, previous_sha256: str = "")
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def write_merge(paths: Mapping[str, Path], text: str, previous_sha256: str = "") -> str:
+    """Atomically update only the generated merged file still owned by this session."""
+
+    return write_generated_text(paths["batch"] / "合并参考稿.txt", text, previous_sha256)
 
 
 def copy_file_exclusive(source: Path, target: Path, expected_sha256: str = "") -> str:

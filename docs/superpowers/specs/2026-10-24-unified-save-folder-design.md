@@ -23,7 +23,7 @@ Let a creator choose one local save folder once and have each new five-video ext
 
 - The existing workbench setting is stored at user scope and masked independently from the API key. Omitted settings fields must remain unchanged.
 - Download consent remains required before Bilibili acquisition.
-- Archive only validated local artifacts, use collision-safe task directories, and write files without clobbering unrelated existing paths.
+- Archive only validated local artifacts, reject symlinked per-video folders, use collision-safe task directories, and write files without clobbering unrelated existing paths.
 - Existing session-local persistence remains the fallback when no save folder is configured.
 - The owner requested implementation without another design round; implementation details below are engineering decisions made to complete that request.
 
@@ -41,12 +41,13 @@ The selected approach keeps one configured path and uses a macOS-native director
 - A new batch receives a sanitized optional label, defaulting to a local timestamp and task name, plus a collision-safe suffix. Its path is persisted in the existing session record so refresh/restart continues to target the same folder even if the setting later changes.
 - Each batch contains `视频/`, `口播稿/`, and `合并参考稿.txt`. Per-source names include ordinal, safe title, and BVID; JSON retains the full timed transcript and source metadata. The original media filename remains unchanged.
 - New source files use exclusive creation. Repeated state reads recognize their recorded hashes; mismatched existing files are reported and preserved. The merged file is atomically replaced only when it still matches the prior generated hash.
+- Existing hand-edited transcript TXT and session merge files remain byte-identical during state refresh and archive. Generated merge output updates only if it still matches its recorded prior hash. A legacy retry after a root is selected first receives a batch folder (copy-archive when legacy files exist), so downloads never go directly into the root.
 - Historical archive is explicit and copy-only. It copies available verified media and canonical full TXT/JSON artifacts to a new task folder; absent media does not block transcript archiving. Repeating the operation reuses the session's recorded archive location.
 - Folder opening resolves only the destination stored for that session. Proxy errors are classified separately from transcription errors and do not retry with proxy settings changed.
 
 ## Validation
 
-- Focused settings, archive, retry, migration, proxy-error, and HTTP/UI tests use temporary user settings/session roots and offline media/Whisper fixtures.
+- Focused settings, archive, retry, manual-edit preservation, symlink boundary, migration, proxy-error, and HTTP/UI tests use temporary user settings/session roots and offline media/Whisper fixtures.
 - Run the full pytest and unittest suites under isolated user configuration.
 - Use Playwright in a real Chromium browser at desktop and mobile widths to configure a temporary folder, process an offline batch with a failed third item, retry it, check exact saved bytes and paths, refresh, and copy-archive an older session. Do not make paid model calls or contact Bilibili.
 - Keep browser captures in the existing project evaluation/output locations and distinguish offline fixtures from real ASR evidence.
