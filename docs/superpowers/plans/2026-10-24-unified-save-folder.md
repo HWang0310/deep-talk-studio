@@ -81,11 +81,11 @@
 - Consumes: existing session references plus stored source fingerprints and batch metadata.
 - Produces: explicit copy-only `POST /api/workbench/transcripts/archive`, stored-destination `POST /api/workbench/transcripts/open-folder`, visible paths/open/archive controls, and actionable local-proxy-refused failure text.
 
-- [ ] **Step 1: Write failing tests** for historical copy preservation/idempotence, missing or symlinked source rejection, open-folder stored-path validation, and proxy refusal classification with no settings mutation.
-- [ ] **Step 2: Run tests and confirm expected failures.** Expected: missing archive/open actions and proxy diagnostics assertions fail.
-- [ ] **Step 3: Implement explicit copy-only archival, platform folder opening of a session-owned destination, per-item path feedback, and proxy-specific actionable text.** Update the canonical Workbench contract to reflect root-folder behavior.
-- [ ] **Step 4: Run focused tests.** Expected: old originals remain byte-identical; proxy settings remain unchanged.
-- [ ] **Step 5: Commit** `feat: archive history safely and explain proxy failures`.
+- [x] **Step 1: Write failing tests** for historical copy preservation/idempotence, missing or symlinked source rejection, open-folder stored-path validation, and proxy refusal classification with no settings mutation.
+- [x] **Step 2: Run tests and confirm expected failures.** Expected: missing archive/open actions and proxy diagnostics assertions fail.
+- [x] **Step 3: Implement explicit copy-only archival, platform folder opening of a session-owned destination, per-item path feedback, and proxy-specific actionable text.** Update the canonical Workbench contract to reflect root-folder behavior.
+- [x] **Step 4: Run focused tests.** Expected: old originals remain byte-identical; proxy settings remain unchanged.
+- [x] **Step 5: Commit** `feat: archive history safely and explain proxy failures`.
 
 ### Task 4: Full isolated regression and real browser acceptance
 

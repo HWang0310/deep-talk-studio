@@ -101,10 +101,12 @@ class FiveTranscripts:
                     item['save_error']=archive_error or '保存批次不可用；本机原会话转写仍保留'
                 else:
                     try:
+                        prior_paths=ref.get('save_paths') or {}
                         saved=transcript_archive.save_item(
                             archive_paths,index=index,bvid=bv,title=str(candidate.get('title') or bv),
                             transcript=item['transcript'],text=item['text'],
-                            media_path=str(ref.get('media_path') or ''),media_sha256=str(ref.get('media_sha256') or ''),
+                            media_path=str(prior_paths.get('video') or ref.get('media_path') or ''),
+                            media_sha256=str(ref.get('media_sha256') or ''),
                         )
                         item['save_paths']=saved
                         self._mark(sid,bv,save_paths=saved,save_error='')
@@ -129,11 +131,15 @@ class FiveTranscripts:
                 archive_error=str(exc)
                 self.flow.store.update(sid,lambda s,e=archive_error:s.update({'save_merge_error':e}))
         batch_path=str(session.get('save_batch_path') or '')
+        from .settings import load_settings
+        current_settings=load_settings(self.flow.repo_root)
         return {
             'session_id':sid,'items':items,'validation':session.get('validation',[]),
             'combined_text':combined,'combined_path':str(target),'combined_local_path':str(local_target),
             'batch_path':batch_path,'save_root':str(session.get('save_root') or ''),
             'save_error':archive_error or str(session.get('save_merge_error') or ''),
+            'archive_available':bool(not batch_path and str(current_settings.get('downloads_dir') or '').strip()),
+            'archive_complete':bool(session.get('save_archive_complete')),
             'synthesis':session.get('synthesis'),
         }
 
@@ -205,6 +211,102 @@ class FiveTranscripts:
 
     def _mark(self,sid,bv,**values):
         self.flow.store.update(sid,lambda s:s['references'].setdefault(bv,{}).update(values))
+
+    def archive(self,sid):
+        """Copy a historical session's existing local artifacts into a new batch."""
+
+        session=self._session(sid)
+        if session.get('save_batch_path') and session.get('save_mode')!='history-copy':
+            return self.state(sid)
+        if session.get('save_batch_path') and session.get('save_archive_complete'):
+            return self.state(sid)
+        from .settings import WorkbenchSettingsError, load_settings, validate_existing_directory
+        settings=load_settings(self.flow.repo_root)
+        configured_root=str(settings.get('downloads_dir') or '').strip()
+        if not configured_root:
+            raise WorkbenchFlowError('请先在设置中选择「保存文件夹」，然后再归档历史任务')
+        try:
+            validate_existing_directory(configured_root)
+            if not session.get('save_batch_path'):
+                info=transcript_archive.create_batch(
+                    Path(configured_root),
+                    '归档-'+str(session.get('created_at') or '')[:10],
+                )
+                info.update({'save_mode':'history-copy','save_archive_complete':False})
+                self.flow.store.update(sid,lambda s,i=dict(info):s.update(i))
+            session=self._session(sid)
+            paths=transcript_archive.batch_paths(session)
+            if paths is None:
+                raise transcript_archive.TranscriptArchiveError('保存批次信息缺失')
+        except (WorkbenchSettingsError, transcript_archive.TranscriptArchiveError) as exc:
+            raise WorkbenchFlowError('历史归档失败：'+str(exc)) from None
+
+        # Let state rebuild its merged output and full TXT/JSON copies first;
+        # this also rejects a symlinked canonical transcript before it is read.
+        snapshot=self.state(sid)
+        by_bvid={item['bvid']:item for item in snapshot['items']}
+        copied=0;missing_media=[]
+        for index,candidate in enumerate(session['discovery']['candidates'],1):
+            bvid=candidate['bvid'];item=by_bvid.get(bvid,{})
+            current=self._session(sid)['references'].get(bvid,{})
+            saved=dict(current.get('save_paths') or {})
+            if item.get('status')=='complete':
+                try:
+                    transcript_path=Path(str(item.get('json_path') or ''))
+                    text_path=Path(str(item.get('artifact_path') or ''))
+                    if transcript_path.is_symlink() or text_path.is_symlink() or not transcript_path.is_file() or not text_path.is_file():
+                        raise transcript_archive.TranscriptArchiveError('完整口播稿来源缺失或包含符号链接，未复制')
+                    transcript_data=json.loads(transcript_path.read_text(encoding='utf-8'))
+                    if transcript_data != item.get('transcript') or text_path.read_text(encoding='utf-8') != item.get('text'):
+                        raise transcript_archive.TranscriptArchiveError('会话口播稿与源工件不一致，未复制')
+                    stem=transcript_archive.item_stem(index,str(candidate.get('title') or bvid),bvid)
+                    txt_target=paths['transcripts']/(stem+'.txt')
+                    json_target=paths['transcripts']/(stem+'.json')
+                    txt_sha=transcript_archive.copy_file_exclusive(text_path,txt_target)
+                    json_sha=transcript_archive.copy_file_exclusive(transcript_path,json_target)
+                    saved.update({'transcript_txt':str(txt_target),'transcript_json':str(json_target),
+                                  'transcript_txt_sha256':txt_sha,'transcript_json_sha256':json_sha})
+                    copied+=1
+                except (OSError, ValueError, transcript_archive.TranscriptArchiveError) as exc:
+                    raise WorkbenchFlowError('历史归档失败：'+str(exc)) from None
+
+            # A failed ASR item may still have a valid, already downloaded original.
+            acquisition_path=self.flow.store.references_dir(sid)/bvid/'acquisition.json'
+            media_path=str(current.get('media_path') or '')
+            if media_path:
+                try:
+                    if acquisition_path.is_symlink() or not acquisition_path.is_file():
+                        raise transcript_archive.TranscriptArchiveError('下载记录缺失或包含符号链接，原视频未复制')
+                    record=json.loads(acquisition_path.read_text(encoding='utf-8'))
+                    if record.get('media_path') != media_path:
+                        raise transcript_archive.TranscriptArchiveError('下载记录与会话媒体路径不一致，原视频未复制')
+                    source=Path(media_path)
+                    expected=str(current.get('media_sha256') or record.get('media_sha256') or '')
+                    target=paths['video']/source.name
+                    digest=transcript_archive.copy_file_exclusive(source,target,expected)
+                    saved.update({'video':str(target),'video_sha256':digest})
+                except (OSError, ValueError, transcript_archive.TranscriptArchiveError) as exc:
+                    missing_media.append(bvid)
+                    self._mark(sid,bvid,archive_media_error=str(exc))
+            elif current.get('status') not in {'pending','metadata'}:
+                missing_media.append(bvid)
+                saved.setdefault('media_error','历史任务没有可复制的原视频文件')
+            self._mark(sid,bvid,save_paths=saved,save_error='',archive_media_error=saved.get('media_error',''))
+
+        self.flow.store.update(sid,lambda s,n=copied,m=list(missing_media):s.update({
+            'save_archive_complete':True,'save_archive_transcripts':n,'save_archive_missing_media':m,
+        }))
+        return self.state(sid)
+
+    def open_folder(self,sid):
+        session=self._session(sid)
+        try:
+            paths=transcript_archive.batch_paths(session)
+            directory=paths['batch'] if paths else self.flow.store.session_dir(sid)
+            transcript_archive.open_local_folder(directory)
+        except transcript_archive.TranscriptArchiveError as exc:
+            raise WorkbenchFlowError(str(exc)) from None
+        return {'path':str(directory)}
 
     def fuse(self,sid,*,words=1000,style='',consent=False):
         if consent is not True:raise WorkbenchFlowError('融合需要明确授权调用已配置模型，可能计费')

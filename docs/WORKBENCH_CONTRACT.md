@@ -15,9 +15,11 @@ AIGC:
 
 ## 五视频口播提取补充（PR #48，6384621479，待复审）
 
-本节取代下面历史默认流程。首页是独立提取工具，用户输入1～5个B站URL/BV（支持多行、query tracker、按BV去重），明确勾选本批下载/本地分析授权才开始；不搜索、不调用LLM。逐视频元数据核验后下载→FFmpeg→Whisper，保存完整TXT与含时间码、来源元数据的JSON。任一失败不阻断其余视频，显式单条重试复用已有媒体/转写；原批次和旧文件不覆盖。没有配置下载目录时使用该会话私有media目录，无需模型Key。
+本节取代下面历史默认流程。首页是独立提取工具，用户输入1～5个B站URL/BV（支持多行、query tracker、按BV去重），明确勾选本批下载/本地分析授权才开始；不搜索、不调用LLM。设置中只选择一个用户级「保存文件夹」；每个新任务在该根目录创建独立批次，并按 `视频/`、`口播稿/` 和 `合并参考稿.txt` 归档。逐视频元数据核验后原视频直接下载到批次的 `视频/`（文件名保留核验播放量），再以临时WAV执行FFmpeg→Whisper；WAV在转写后清理。每条完整口播稿即时写为TXT与JSON，成功或失败均即时更新合并参考稿。任一失败不阻断其余视频，显式单条重试复用已有媒体/转写；成功文件和原视频不覆盖、不自动删除。设置仍留空时，使用会话私有目录。
 
-`POST /api/workbench/transcripts/{start,state,process,sessions,fuse}` 均有同源/loopback/JSON/body-cap检查；process/fuse共享互斥写锁。state恢复会话与完整原文；TXT复制/下载和JSON下载在浏览器本地生成，合并TXT同时持久落盘。合并稿完整按来源顺序拼接，含失败标记，不制造缺失口播。刷新、进程重启后可恢复。
+设置页面可通过本机目录选择器选择根目录，也可填写绝对路径；保存后跨任务记住。每个批次页显示实际保存路径并可打开该文件夹。历史任务提供显式「复制归档到保存文件夹」操作：只复制已校验的本地原视频、完整转写与合并稿，不移动/删除来源；同字节重试幂等，目标存在不同内容时拒绝覆盖。归档不调用B站、Whisper或模型。
+
+`POST /api/workbench/transcripts/{start,state,process,sessions,fuse,archive,open-folder}` 均有同源/loopback/JSON/body-cap检查；process/fuse/archive共享互斥写锁。state恢复会话与完整原文；TXT复制/下载和JSON下载在浏览器本地生成，合并TXT同时持久落盘。合并稿完整按来源顺序拼接，含失败标记，不制造缺失口播。刷新、进程重启后可恢复。若下载错误明确指向 `127.0.0.1:7897` 代理连接拒绝，页面提示检查本机代理程序、端口和代理类型；DeepTalk不擅自关闭或绕过代理，也不修改系统网络设置。
 
 可选融合须单独同意向已配置模型发送转写及费用，提供目标字数200～10000和简短风格要求，只生成一篇未审核Creative Draft。源文本全部注入模型；超过100000字符透明拒绝并提供完整TXT供外部AI使用，永不裁剪保存原文。每次融合另存新TXT。正式Reviewed Script等原有审批Gate不变。
 
@@ -58,17 +60,18 @@ AIGC:
 ./scripts/deeptalk ui          # http://127.0.0.1:8321/，仅绑定本机回环
 ```
 
-页面上方「设置」面板配置模型提供方式与下载目录；设置持久化到 **gitignored `config/workbench.local.json`**（API Key 仅存本机该文件，UI 回显永远掩码；下载目录必须由用户填写且必须已存在）。
+页面上方「设置」面板配置模型提供方式与「保存文件夹」；设置持久化到 **gitignored `~/.deeptalk/workbench.local.json`**（API Key 仅存本机该文件，UI 回显永远掩码；保存文件夹必须是用户选择的已存在可写目录）。目录只设置一次，后续新建任务自动创建独立批次。
 
 ## API 全景（全部带会话 ID，`/api/workbench/*`）
 
 | 端点 | 方法 | 作用 |
 |---|---|---|
 | `/settings`、`/settings/test` | GET/POST | 设置读取保存（Key 掩码）与模型连通性测试 |
+| `/settings/folder-picker` | POST | 打开本机原生目录选择器并返回所选保存根目录 |
 | `/session/start` | POST | 主题 + 用户链接 → 规范发现 run → 创建本集会话 |
 | `/state` | GET | 当前会话状态（前端每步刷新） |
 | `/references/acquire` | POST | **用户授权声明 + bvids** → 逐条 yt-dlp 下载（匿名、无 cookie、720p 有界、单条 900s 超时）→ 授权与文件哈希存档 |
-| `/references/analyze` | POST | 单条参考 → ffmpeg 抽音频 → 本地 whisper.cpp large-v3 转写 → 叙事手法 JSON（hook/pacing/struct_patterns 等，含 top_terms 频次） |
+| `/references/analyze` | POST | 单条参考 → 临时 WAV → ffmpeg 抽音频 → 本地 whisper.cpp large-v3 转写 → 清理临时 WAV；口播专用任务会即时持久化完整TXT与JSON |
 | `/sources/url` | POST | 抓取一条独立来源原文（URL） |
 | `/sources/text` | POST | 粘贴一条独立来源正文（标题 + 正文 + 来源 URL；页面抓不到时使用） |
 | `/research/generate` | POST | 研究草稿（落盘 canonical `reports/` 研究工件树，研究 mode 记录真实来源）；可选 `partial_override` + `partial_reason`：已授权参考未全部完成分析时必须显式带 override 与理由（≥10 字，逐字存档） |
@@ -100,6 +103,7 @@ AIGC:
 ## 工件落盘
 
 - `workbench/sessions/WBX-<id>/` — 会话状态、每条参考的授权与转录文档（gitignored）
+- `<保存文件夹>/<时间_任务名>/` — 每批任务原视频、口播稿TXT/JSON与合并参考稿；历史任务通过显式复制归档进入，不删除会话来源
 - `reports/`、`content_theses/`、`script_drafts/` — canonical 引擎工件（与研究 CLI 同构，可被既有 QA 复核）
 - `discoveries/` — 规范候选集工件（发现合同 v1，gitignored）
 - `config/workbench.local.json` — 设置与 API Key（gitignored，仅本机）
@@ -108,6 +112,7 @@ AIGC:
 
 - 参考下载受 B 站对匿名请求的带宽限制，长音频流可能触发 900 秒超时——这是刻意不绕过的诚实行为；授权后的下载失败会保留状态与原因并阻塞研究，用户需重试成功或提交有理由的部分分析 override（叙事 insight 仅对已完成分析的参考生效）。
 - 一次一个会话（单浏览器页）；多会话并存需要后续版本（不在本合同范围）。
+- 保存文件夹不可用时任务会明确失败并保留会话工件；历史复制归档不跟随符号链接，不覆盖同名异内容文件。
 - Chat 兼容模式下模型无法自主联网，研究广度依赖用户提供的来源数量与质量（UI 明示）。
 
 ## 测试

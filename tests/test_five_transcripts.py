@@ -171,6 +171,114 @@ class FiveTranscriptTests(fixtures._UserSettingsIsolatedTestCase):
                 with self.assertRaisesRegex(WorkbenchFlowError,'不可写'):
                     self.tool.start(['BV1fixture02'])
 
+    def test_history_archive_copies_complete_files_without_moving_or_duplicating(self):
+        import threading, urllib.error, urllib.request
+        from deeptalk_studio.webui import make_server
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);flow=self.setup_tool(root);self.fail_video=False
+            from deeptalk_studio.workbench.settings import load_settings,save_settings
+            config=load_settings(root);config['downloads_dir']='';save_settings(root,config)
+            original=self.tool.process(self.tool.start(['BV1fixture01'])['session_id'],consent=True)
+            item=original['items'][0]
+            old_media=Path(item['media_path']);old_txt=Path(item['artifact_path']);old_json=Path(item['json_path'])
+            old_bytes={path:path.read_bytes() for path in (old_media,old_txt,old_json)}
+            save_root=root/'new archive';save_root.mkdir()
+            config=load_settings(root);config['downloads_dir']=str(save_root);save_settings(root,config)
+            server=make_server(port=0,output_dir=root,provider_factory=lambda:None,flow=flow)
+            thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+            base='http://127.0.0.1:'+str(server.server_port)
+            def post(action,data):
+                request=urllib.request.Request(base+'/api/workbench/transcripts/'+action,data=json.dumps(data).encode(),headers={'Content-Type':'application/json'})
+                try:
+                    response=urllib.request.urlopen(request)
+                    return response.status,json.load(response)
+                except urllib.error.HTTPError as exc:
+                    return exc.code,json.load(exc)
+            try:
+                status,archived=post('archive',{'session_id':original['session_id']})
+                self.assertEqual(status,200,archived)
+                batch=Path(archived['batch_path']);self.assertEqual(batch.parent,save_root.resolve())
+                copied=archived['items'][0]['save_paths'];new_media=Path(copied['video'])
+                new_txt=Path(copied['transcript_txt']);new_json=Path(copied['transcript_json'])
+                self.assertEqual(new_media.parent,batch/'视频');self.assertTrue(new_media.stem.endswith('-12345播放'))
+                self.assertEqual(new_txt.parent,batch/'口播稿');self.assertEqual(new_json.parent,batch/'口播稿')
+                self.assertEqual(new_media.read_bytes(),old_bytes[old_media])
+                self.assertEqual(new_txt.read_bytes(),old_bytes[old_txt])
+                self.assertEqual(new_json.read_bytes(),old_bytes[old_json])
+                self.assertEqual((batch/'合并参考稿.txt').read_text(encoding='utf-8'),archived['combined_text'])
+                status,repeated=post('archive',{'session_id':original['session_id']})
+                self.assertEqual(status,200,repeated);self.assertEqual(repeated['batch_path'],str(batch))
+                self.assertEqual([p.read_bytes() for p in (old_media,old_txt,old_json)],[old_bytes[p] for p in (old_media,old_txt,old_json)])
+            finally:server.shutdown();server.server_close();thread.join()
+
+    def test_open_folder_route_opens_only_the_session_saved_path(self):
+        import threading, urllib.error, urllib.request
+        from deeptalk_studio.webui import make_server
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);flow=self.setup_tool(root);save_root=root/'selected';save_root.mkdir()
+            from deeptalk_studio.workbench.settings import load_settings,save_settings
+            config=load_settings(root);config['downloads_dir']=str(save_root);save_settings(root,config)
+            state=self.tool.start(['BV1fixture01']);opened=[]
+            server=make_server(port=0,output_dir=root,provider_factory=lambda:None,flow=flow)
+            server.transcripts.open_folder=lambda sid:opened.append(sid) or {'path':state['batch_path']}
+            thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+            base='http://127.0.0.1:'+str(server.server_port)
+            try:
+                request=urllib.request.Request(base+'/api/workbench/transcripts/open-folder',data=json.dumps({'session_id':state['session_id']}).encode(),headers={'Content-Type':'application/json'})
+                try:
+                    response=urllib.request.urlopen(request);status=response.status;result=json.load(response)
+                except urllib.error.HTTPError as exc:
+                    status=exc.code;result=json.load(exc)
+                self.assertEqual(status,200,result)
+                self.assertEqual(opened,[state['session_id']])
+                self.assertEqual(result['path'],state['batch_path'])
+            finally:server.shutdown();server.server_close();thread.join()
+
+    def test_history_archive_never_follows_a_symlinked_transcript(self):
+        import threading, urllib.error, urllib.request
+        from deeptalk_studio.webui import make_server
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);flow=self.setup_tool(root);self.fail_video=False
+            from deeptalk_studio.workbench.settings import load_settings,save_settings
+            config=load_settings(root);config['downloads_dir']='';save_settings(root,config)
+            result=self.tool.process(self.tool.start(['BV1fixture01'])['session_id'],consent=True)
+            sid=result['session_id'];source=flow.store.references_dir(sid)/'BV1fixture01'/'transcript.json'
+            outside=root/'outside.json';outside.write_text('{"text":"private outside content"}',encoding='utf-8')
+            source.unlink();source.symlink_to(outside)
+            save_root=root/'new archive';save_root.mkdir()
+            config=load_settings(root);config['downloads_dir']=str(save_root);save_settings(root,config)
+            server=make_server(port=0,output_dir=root,provider_factory=lambda:None,flow=flow)
+            thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+            base='http://127.0.0.1:'+str(server.server_port)
+            try:
+                request=urllib.request.Request(base+'/api/workbench/transcripts/archive',data=json.dumps({'session_id':sid}).encode(),headers={'Content-Type':'application/json'})
+                try:
+                    response=urllib.request.urlopen(request);status=response.status;archived=json.load(response)
+                except urllib.error.HTTPError as exc:
+                    status=exc.code;archived=json.load(exc)
+                self.assertEqual(status,200,archived)
+                batch=Path(archived['batch_path'])
+                self.assertFalse(any((batch/'口播稿').iterdir()))
+                self.assertIn('未完成 / 失败',(batch/'合并参考稿.txt').read_text(encoding='utf-8'))
+                self.assertEqual(outside.read_text(encoding='utf-8'),'{"text":"private outside content"}')
+            finally:server.shutdown();server.server_close();thread.join()
+
+    def test_proxy_refusal_guidance_does_not_change_saved_settings(self):
+        from deeptalk_studio.workbench.acquisition import WorkbenchAcquisitionError, acquire_reference
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);self.setup_tool(root)
+            from deeptalk_studio.workbench.settings import load_settings
+            before=load_settings(root)
+            reference={'bvid':'BV1proxy01','url':'https://www.bilibili.com/video/BV1proxy01','title':'proxy fixture','view_count_status':'verified','view_count_source':'per_video_api','view_count':123}
+            runner=lambda cmd,**kwargs:subprocess.CompletedProcess(cmd,1,'','ProxyError: HTTPConnectionPool(host=127.0.0.1, port=7897): Connection refused')
+            with self.assertRaises(WorkbenchAcquisitionError) as ctx:
+                acquire_reference(reference,root,FiveTranscripts.CONSENT if hasattr(FiveTranscripts,'CONSENT') else '我授权本机分析本批视频',runner=runner)
+            message=str(ctx.exception)
+            self.assertIn('代理',message);self.assertIn('127.0.0.1:7897',message)
+            self.assertIn('检查',message);self.assertIn('不会自动关闭或绕过代理',message)
+            self.assertNotIn('Whisper',message)
+            self.assertEqual(load_settings(root),before)
+
     def test_fusion_requires_explicit_consent_and_complete_sources(self):
         with tempfile.TemporaryDirectory() as raw:
             self.setup_tool(Path(raw));state=self.tool.start(['BV1fixture01'])

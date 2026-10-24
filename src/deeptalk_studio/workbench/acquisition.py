@@ -43,6 +43,20 @@ PLATFORM_BLOCK_MARKERS = (
     "Too Many Requests",
 )
 
+
+def _proxy_refusal_message(stderr: str) -> Optional[str]:
+    lowered = str(stderr or "").lower()
+    refused = any(token in lowered for token in ("connection refused", "actively refused", "cannot connect to proxy", "failed to connect to proxy"))
+    local_proxy = "127.0.0.1" in lowered and re.search(r"(?:port\s*[=:,]?\s*)?7897\b", lowered)
+    if not refused or not ("proxy" in lowered or local_proxy):
+        return None
+    endpoint = "127.0.0.1:7897" if local_proxy else "已配置代理"
+    return (
+        f"本机代理连接失败：yt-dlp 无法连接到代理服务 {endpoint}（拒绝连接）。"
+        "请检查本机代理程序是否正在运行，以及代理类型和端口是否正确。"
+        "DeepTalk 不会自动关闭或绕过代理。"
+    )
+
 DEFAULT_AUDIO_SAMPLE_RATE = 16000
 
 
@@ -134,6 +148,9 @@ def acquire_reference(
         raise WorkbenchAcquisitionError("下载超时，请稍后重试或选择更短的参考视频") from None
     if process.returncode != 0:
         stderr = (process.stderr or "").strip()
+        proxy_error = _proxy_refusal_message(stderr)
+        if proxy_error:
+            raise WorkbenchAcquisitionError(proxy_error)
         marker = next((m for m in PLATFORM_BLOCK_MARKERS if m.lower() in stderr.lower()), None)
         if marker:
             raise WorkbenchAcquisitionError(

@@ -3,8 +3,10 @@
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
+import subprocess
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -249,3 +251,23 @@ def copy_file_exclusive(source: Path, target: Path, expected_sha256: str = "") -
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def open_local_folder(path: Path) -> None:
+    """Open an already validated local directory using the platform file manager."""
+
+    directory = Path(path)
+    if directory.is_symlink() or not directory.is_dir():
+        raise TranscriptArchiveError("保存文件夹不存在或包含符号链接")
+    system = platform.system()
+    if system == "Darwin":
+        command = ["open", str(directory)]
+    elif system == "Windows":
+        os.startfile(str(directory))  # type: ignore[attr-defined]
+        return
+    else:
+        command = ["xdg-open", str(directory)]
+    try:
+        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        raise TranscriptArchiveError("本机未找到文件夹打开程序，请手动打开显示的保存路径") from None

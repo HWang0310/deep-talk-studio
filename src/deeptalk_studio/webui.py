@@ -71,7 +71,7 @@ MAX_AUDIO_UPLOAD_BYTES = 512 * 1024 * 1024
 # Workbench route body caps (bytes): settings may carry a long key; pasted
 # source text is intentionally generous; long-running operations stay small.
 WORKBENCH_ROUTE_CAPS = {
-    **{f"/api/workbench/transcripts/{action}": 16 * 1024 for action in ("start", "state", "process", "fuse", "sessions")},
+    **{f"/api/workbench/transcripts/{action}": 16 * 1024 for action in ("start", "state", "process", "fuse", "sessions", "archive", "open-folder")},
     "/api/workbench/settings": 32 * 1024,
     "/api/workbench/settings/folder-picker": 1024,
     "/api/workbench/settings/test": 2048,
@@ -838,12 +838,14 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
             def run():
                 if action == "state": return utility.state(session_id)
                 if action == "sessions": return {"sessions": utility.list_sessions()}
+                if action == "open-folder": return utility.open_folder(session_id)
                 if not server.workbench_lock.acquire(blocking=False):
                     raise WorkbenchFlowError("有提取或融合任务正在运行，请等待完成")
                 try:
                     if action == "start": return utility.start(payload.get("links", []), label=payload.get("label", ""))
                     if action == "process": return utility.process(session_id, consent=payload.get("consent"), bvids=payload.get("bvids"))
                     if action == "fuse": return utility.fuse(session_id, words=payload.get("words", 1000), style=payload.get("style", ""), consent=payload.get("consent"))
+                    if action == "archive": return utility.archive(session_id)
                     raise WorkbenchFlowError("未知转写操作")
                 finally:
                     server.workbench_lock.release()
