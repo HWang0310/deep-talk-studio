@@ -841,7 +841,7 @@ class _DeepTalkWebUIHandler(BaseHTTPRequestHandler):
                 if not server.workbench_lock.acquire(blocking=False):
                     raise WorkbenchFlowError("有提取或融合任务正在运行，请等待完成")
                 try:
-                    if action == "start": return utility.start(payload.get("links", []))
+                    if action == "start": return utility.start(payload.get("links", []), label=payload.get("label", ""))
                     if action == "process": return utility.process(session_id, consent=payload.get("consent"), bvids=payload.get("bvids"))
                     if action == "fuse": return utility.fuse(session_id, words=payload.get("words", 1000), style=payload.get("style", ""), consent=payload.get("consent"))
                     raise WorkbenchFlowError("未知转写操作")

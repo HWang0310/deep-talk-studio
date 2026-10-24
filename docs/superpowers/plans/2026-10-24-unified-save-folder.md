@@ -61,11 +61,11 @@
 - Consumes: validated `downloads_dir`, transcript source `references/{BVID}/transcript.json`, media path and SHA recorded by acquisition.
 - Produces: session `save_batch_path`; batch subfolders `视频/` and `口播稿/`; each complete item returns exact media/TXT/JSON paths; batch-root `合并参考稿.txt` is complete and refreshed after each item.
 
-- [ ] **Step 1: Write failing tests** for collision-safe task directory layout, direct media destination with play-count suffix, full TXT+JSON exports, immediate incomplete merge after item 1, preserved item 1/2 bytes after item 3 failure/retry, final exact merged contents, and temp WAV cleanup.
-- [ ] **Step 2: Run the focused tests and confirm expected failures.** Expected: missing batch paths/exports and incremental merge assertions fail.
-- [ ] **Step 3: Implement safe batch allocation, exclusive transcript/media artifact export, hash-tracked merge updates, restart-stable session paths, and an optional sanitized user batch label.** Keep canonical session artifacts as well as automatic root copies.
-- [ ] **Step 4: Run the focused tests.** Expected: all retry and persistence assertions pass; no existing successful item is rewritten during a failed-item retry.
-- [ ] **Step 5: Commit** `feat: autosave transcript batches incrementally`.
+- [x] **Step 1: Write failing tests** for collision-safe task directory layout, direct media destination with play-count suffix, full TXT+JSON exports, immediate incomplete merge after item 1, preserved item 1/2 bytes after item 3 failure/retry, final exact merged contents, and temp WAV cleanup.
+- [x] **Step 2: Run the focused tests and confirm expected failures.** Expected: missing batch paths/exports and incremental merge assertions fail.
+- [x] **Step 3: Implement safe batch allocation, exclusive transcript/media artifact export, hash-tracked merge updates, restart-stable session paths, and an optional sanitized user batch label.** Keep canonical session artifacts as well as automatic root copies.
+- [x] **Step 4: Run the focused tests.** Expected: all retry and persistence assertions pass; no existing successful item is rewritten during a failed-item retry.
+- [x] **Step 5: Commit** `feat: autosave transcript batches incrementally`.
 
 ### Task 3: Historical copy archive, open-folder action, proxy guidance
 

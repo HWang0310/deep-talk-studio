@@ -2,6 +2,7 @@
 import json
 import subprocess
 import tempfile
+from unittest import mock
 from pathlib import Path
 from tests import test_workbench as fixtures
 from deeptalk_studio.workbench.flow import WorkbenchFlow, WorkbenchFlowError
@@ -14,6 +15,7 @@ class FiveTranscriptTests(fixtures._UserSettingsIsolatedTestCase):
         from deeptalk_studio.workbench.settings import load_settings, save_settings
         config=load_settings(root);config['downloads_dir']=str(root);save_settings(root,config)
         self.calls=[];self.fail_video=True
+        self.wav_paths=[];self.whisper_output_dirs=[]
         def acquire(cmd, **kw):
             self.calls.append(cmd[-1])
             if self.fail_video and cmd[-1].endswith('BV1fixture03'):
@@ -21,9 +23,10 @@ class FiveTranscriptTests(fixtures._UserSettingsIsolatedTestCase):
             path=Path(cmd[cmd.index('-o')+1].replace('%(ext)s','mp4'));path.write_bytes(b'fixture media')
             return subprocess.CompletedProcess(cmd,0,json.dumps({'_filename':str(path)}),'')
         def audio(cmd, **kw):
-            Path(cmd[-1]).write_bytes(b'RIFF'+b'0'*100);return subprocess.CompletedProcess(cmd,0,'','')
+            self.wav_paths.append(Path(cmd[-1]));Path(cmd[-1]).write_bytes(b'RIFF'+b'0'*100);return subprocess.CompletedProcess(cmd,0,'','')
         def whisper(cmd, **kw):
             source=cmd[cmd.index('--file')+1] if '--file' in cmd else str(cmd)
+            self.whisper_output_dirs.append(Path(cmd[cmd.index('--output-file')+1]).parent)
             text='离线夹具 '+source+'\n'+('完整口播。'*100)+'最后一行绝不能丢失。'
             Path(cmd[cmd.index('--output-file')+1]+'.json').write_text(json.dumps({'transcription':[{'offsets':{'from':i*1000,'to':(i+1)*1000},'text': text if i==29 else '段落%d。'%i} for i in range(30)]}))
             return subprocess.CompletedProcess(cmd,0,'','')
@@ -79,6 +82,94 @@ class FiveTranscriptTests(fixtures._UserSettingsIsolatedTestCase):
             for item in state['items']:self.assertIn(json.dumps(item['transcript']['text'],ensure_ascii=False)[1:-1], self.llm.seen[-1][-1]['content'])
             self.assertEqual(len(self.llm.seen),1)
             with self.assertRaises(WorkbenchFlowError):self.tool.state('../outside')
+
+    def test_auto_save_batch_is_incremental_and_retry_preserves_successful_files(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);flow=self.setup_tool(root)
+            save_root=root/'指定保存';save_root.mkdir()
+            from deeptalk_studio.workbench.settings import load_settings,save_settings
+            config=load_settings(root);config['downloads_dir']=str(save_root);save_settings(root,config)
+            original_metadata=self.tool.metadata
+            sid_holder={}
+            saw_incremental_export=[]
+            def metadata(bv):
+                if bv=='BV1fixture02':
+                    saved_path=flow.store.load(sid_holder['sid']).get('save_batch_path')
+                    if not saved_path:
+                        saw_incremental_export.append(False)
+                        return original_metadata(bv)
+                    batch=Path(saved_path)
+                    first_text=list((batch/'口播稿').glob('01-*.txt'))
+                    self.assertEqual(len(first_text),1,'first transcript must be written before video 2 begins')
+                    self.assertIn('最后一行绝不能丢失。',first_text[0].read_text(encoding='utf-8'))
+                    partial=(batch/'合并参考稿.txt').read_text(encoding='utf-8')
+                    self.assertIn('最后一行绝不能丢失。',partial)
+                    self.assertIn('BV1fixture02',partial)
+                    self.assertIn('未完成 / 失败',partial)
+                    saw_incremental_export.append(True)
+                return original_metadata(bv)
+            self.tool.metadata=metadata
+            state=self.tool.start(['BV1fixture01','BV1fixture02','BV1fixture03'])
+            sid_holder['sid']=state['session_id']
+            batch=Path(state.get('batch_path',''))
+            self.assertTrue(batch.is_dir(),'new extraction should allocate a batch below the configured root')
+            self.assertEqual(batch.parent,save_root.resolve())
+            self.assertTrue((batch/'视频').is_dir())
+            self.assertTrue((batch/'口播稿').is_dir())
+            state=self.tool.process(state['session_id'],consent=True)
+            self.assertEqual(saw_incremental_export,[True],'the first completed item should be archived before the second starts')
+            self.assertEqual([item['status'] for item in state['items']],['complete','complete','failed'])
+            merged=batch/'合并参考稿.txt'
+            self.assertEqual(merged.read_text(encoding='utf-8'),state['combined_text'])
+            self.assertIn('未完成 / 失败',state['combined_text'])
+            successful=[]
+            for item in state['items'][:2]:
+                paths=item.get('save_paths') or {}
+                self.assertTrue(all(paths.get(key) for key in ('video','transcript_txt','transcript_json')),'each completed item exposes all archive paths')
+                media=Path(paths.get('video',''))
+                txt=Path(paths.get('transcript_txt',''))
+                timed=Path(paths.get('transcript_json',''))
+                self.assertEqual(media.parent,batch/'视频')
+                self.assertTrue(media.is_file())
+                self.assertTrue(media.stem.endswith('-12345播放'))
+                self.assertTrue(txt.is_file());self.assertTrue(timed.is_file())
+                self.assertEqual(txt.read_text(encoding='utf-8'),item['text'])
+                self.assertEqual(json.loads(timed.read_text(encoding='utf-8')),item['transcript'])
+                successful.append((media,txt,timed,[p.stat().st_ino for p in (media,txt,timed)]))
+            self.assertEqual(state.get('batch_path'),str(batch))
+            self.assertEqual(len(self.calls),3)
+            self.fail_video=False
+            state=self.tool.process(state['session_id'],consent=True,bvids=['BV1fixture03'])
+            self.assertEqual(len(self.calls),4,'retry only invokes acquisition for the failed video')
+            for media,txt,timed,inodes in successful:
+                self.assertTrue(media.is_file(),'original video remains in the archive')
+                self.assertEqual([p.stat().st_ino for p in (media,txt,timed)],inodes)
+            final_texts=[item['transcript']['text'] for item in state['items']]
+            self.assertEqual([state['combined_text'].index(text) for text in final_texts],sorted(state['combined_text'].index(text) for text in final_texts))
+            self.assertEqual(merged.read_text(encoding='utf-8'),state['combined_text'])
+            self.assertTrue(all(not path.exists() for path in self.wav_paths),'temporary WAVs are removed after Whisper')
+            self.assertTrue(all(not path.exists() for path in self.whisper_output_dirs),'temporary Whisper JSON directories are removed')
+            restarted=FiveTranscripts(flow).state(state['session_id'])
+            self.assertEqual(restarted['batch_path'],str(batch))
+            self.assertEqual((batch/'合并参考稿.txt').read_text(encoding='utf-8'),restarted['combined_text'])
+
+    def test_new_task_uses_a_collision_safe_batch_folder_and_root_failure_is_clear(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw);self.setup_tool(root)
+            save_root=root/'chosen';save_root.mkdir()
+            from deeptalk_studio.workbench.settings import load_settings,save_settings
+            config=load_settings(root);config['downloads_dir']=str(save_root);save_settings(root,config)
+            first=self.tool.start(['BV1fixture01'])
+            second=self.tool.start(['BV1fixture01'])
+            first_path=Path(first.get('batch_path',''))
+            second_path=Path(second.get('batch_path',''))
+            self.assertTrue(first_path.is_dir())
+            self.assertTrue(second_path.is_dir())
+            self.assertNotEqual(first_path,second_path)
+            import deeptalk_studio.workbench.settings as settings_module
+            with mock.patch.object(settings_module.os,'access',return_value=False):
+                with self.assertRaisesRegex(WorkbenchFlowError,'不可写'):
+                    self.tool.start(['BV1fixture02'])
 
     def test_fusion_requires_explicit_consent_and_complete_sources(self):
         with tempfile.TemporaryDirectory() as raw:

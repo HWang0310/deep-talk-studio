@@ -5,6 +5,7 @@ from pathlib import Path
 from .flow import WorkbenchFlowError
 from . import acquisition
 from .transcript_export import atomic_text
+from . import transcript_archive
 from ..reference_discovery import canonicalize_bilibili_reference, canonical_video_url
 from ..bilibili_reference_provider import BilibiliReferenceProvider
 
@@ -15,9 +16,11 @@ class FiveTranscripts:
         self.flow = flow
         self.metadata = metadata or BilibiliReferenceProvider().fetch_video_metadata
 
-    def start(self, links):
+    def start(self, links, label=""):
         if not isinstance(links, list) or not all(isinstance(x, str) for x in links):
             raise WorkbenchFlowError('请提供1～5条B站链接或BV号')
+        if not isinstance(label, str) or len(label) > 120:
+            raise WorkbenchFlowError('任务名称不能超过120个字符')
         validation, candidates, seen = [], [], set()
         for raw in [line.strip() for slot in links for line in slot.splitlines() if line.strip()]:
             bv, error = canonicalize_bilibili_reference(raw)
@@ -32,9 +35,23 @@ class FiveTranscripts:
                 candidates.append({'bvid':bv,'url':canonical_video_url(bv),'title':bv})
         if not 1 <= len(candidates) <= 5:
             raise WorkbenchFlowError('需要1～5个不同的有效视频', payload={'validation':validation})
-        session = self.flow.store.create('五视频口播提取', candidates, None)
+        from .settings import WorkbenchSettingsError, load_settings, validate_existing_directory
+        settings = load_settings(self.flow.repo_root)
+        configured_root = str(settings.get('downloads_dir') or '').strip()
+        if configured_root:
+            try:
+                validate_existing_directory(configured_root)
+            except WorkbenchSettingsError as exc:
+                raise WorkbenchFlowError('保存文件夹不可用：' + str(exc)) from None
+        session = self.flow.store.create(label.strip() or '五视频口播提取', candidates, None)
         sid = session['session_id']
-        self.flow.store.update(sid, lambda s:s.update({'utility':'five_transcripts','validation':validation}))
+        updates={'utility':'five_transcripts','validation':validation}
+        if configured_root:
+            try:
+                updates.update(transcript_archive.create_batch(Path(configured_root), label.strip()))
+            except transcript_archive.TranscriptArchiveError as exc:
+                raise WorkbenchFlowError('保存文件夹不可用：' + str(exc)) from None
+        self.flow.store.update(sid, lambda s,u=dict(updates):s.update(u))
         return self.state(sid)
 
     def _session(self, sid):
@@ -62,6 +79,12 @@ class FiveTranscripts:
 
     def state(self, sid):
         session=self._session(sid)
+        archive_paths=None
+        archive_error=''
+        try:
+            archive_paths=transcript_archive.batch_paths(session)
+        except transcript_archive.TranscriptArchiveError as exc:
+            archive_error=str(exc)
         items=[];sections=[]
         for index, candidate in enumerate(session['discovery']['candidates'],1):
             bv=candidate['bvid'];ref=session['references'].get(bv,{})
@@ -73,13 +96,46 @@ class FiveTranscripts:
             except (WorkbenchFlowError, ValueError, OSError) as exc:
                 if item['status'] == 'complete':
                     item.update(status='failed', failure_reason='完整转写文件不可用：'+str(exc))
+            if item['status']=='complete' and session.get('save_batch_path'):
+                if archive_paths is None:
+                    item['save_error']=archive_error or '保存批次不可用；本机原会话转写仍保留'
+                else:
+                    try:
+                        saved=transcript_archive.save_item(
+                            archive_paths,index=index,bvid=bv,title=str(candidate.get('title') or bv),
+                            transcript=item['transcript'],text=item['text'],
+                            media_path=str(ref.get('media_path') or ''),media_sha256=str(ref.get('media_sha256') or ''),
+                        )
+                        item['save_paths']=saved
+                        self._mark(sid,bv,save_paths=saved,save_error='')
+                    except transcript_archive.TranscriptArchiveError as exc:
+                        archive_error=str(exc)
+                        item['save_error']=archive_error
+                        self._mark(sid,bv,save_error=archive_error)
             header=f"===== {index}. {candidate.get('title',bv)} | {bv} =====\n来源：{candidate['url']}\n"
             sections.append(header+(item['text'] if item['status']=='complete' else f"[未完成 / 失败：{item.get('failure_reason') or item.get('analysis_error') or '等待提取或重试'}]"))
             items.append(item)
         combined='\n\n'.join(sections)+'\n'
-        target=self.flow.store.session_dir(sid)/'合并参考稿.txt'
-        atomic_text(target,combined)
-        return {'session_id':sid,'items':items,'validation':session.get('validation',[]),'combined_text':combined,'combined_path':str(target),'synthesis':session.get('synthesis')}
+        local_target=self.flow.store.session_dir(sid)/'合并参考稿.txt'
+        atomic_text(local_target,combined)
+        target=local_target
+        if archive_paths:
+            try:
+                previous=str(session.get('save_merge_sha256') or '')
+                digest=transcript_archive.write_merge(archive_paths,combined,previous)
+                self.flow.store.update(sid,lambda s,d=digest:s.update({'save_merge_sha256':d,'save_merge_error':''}))
+                target=archive_paths['batch']/'合并参考稿.txt'
+            except transcript_archive.TranscriptArchiveError as exc:
+                archive_error=str(exc)
+                self.flow.store.update(sid,lambda s,e=archive_error:s.update({'save_merge_error':e}))
+        batch_path=str(session.get('save_batch_path') or '')
+        return {
+            'session_id':sid,'items':items,'validation':session.get('validation',[]),
+            'combined_text':combined,'combined_path':str(target),'combined_local_path':str(local_target),
+            'batch_path':batch_path,'save_root':str(session.get('save_root') or ''),
+            'save_error':archive_error or str(session.get('save_merge_error') or ''),
+            'synthesis':session.get('synthesis'),
+        }
 
     def process(self, sid, *, consent=False, bvids=None):
         session=self._session(sid)
@@ -90,8 +146,25 @@ class FiveTranscripts:
         if not isinstance(selected,list) or not selected or any(b not in allowed for b in selected):raise WorkbenchFlowError('重试视频不属于本会话')
         self.flow.store.update(sid,lambda s:s.update({'download_consent':{'text':CONSENT,'bvids':selected,'explicit':True}}))
         # A local private default requires no model/key/download-folder setup.
-        from .settings import load_settings, resolve_downloads_dir
-        downloads=resolve_downloads_dir(load_settings(self.flow.repo_root))
+        from .settings import WorkbenchSettingsError, load_settings, resolve_downloads_dir, validate_existing_directory
+        settings=load_settings(self.flow.repo_root)
+        downloads=None
+        if session.get('save_batch_path'):
+            try:
+                paths=transcript_archive.batch_paths(session)
+                if paths is None:raise transcript_archive.TranscriptArchiveError('保存批次信息缺失')
+                downloads=paths['video']
+            except transcript_archive.TranscriptArchiveError as exc:
+                reason='保存文件夹不可用：'+str(exc)
+                for bvid in selected:self._mark(sid,bvid,status='failed',failure_reason=reason)
+                return self.state(sid)
+        elif settings.get('downloads_dir'):
+            try:
+                downloads=validate_existing_directory(str(settings['downloads_dir']))
+            except WorkbenchSettingsError as exc:
+                reason='保存文件夹不可用：'+str(exc)
+                for bvid in selected:self._mark(sid,bvid,status='failed',failure_reason=reason)
+                return self.state(sid)
         if downloads is None:
             downloads=self.flow.store.session_dir(sid)/'media';downloads.mkdir(exist_ok=True)
         for candidate in candidates:
@@ -125,6 +198,9 @@ class FiveTranscripts:
                 self._mark(sid,bv,status='complete',failure_reason='')
             except (acquisition.WorkbenchAcquisitionError, WorkbenchFlowError, OSError) as exc:
                 self._mark(sid,bv,status='failed',failure_reason=str(exc))
+            # Persist both the newly completed source and the now-accurate
+            # partial/failed merge before starting the next video.
+            self.state(sid)
         return self.state(sid)
 
     def _mark(self,sid,bv,**values):
