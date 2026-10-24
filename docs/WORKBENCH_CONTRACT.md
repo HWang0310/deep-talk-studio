@@ -13,6 +13,16 @@ AIGC:
 
 > **状态：IMPLEMENTED_UNRELEASED（Issue #23，PR 待审）。** 本合同描述统一创作工作台（Web UI 六步流程）的最小可用能力：用户仅通过产品界面，从输入选题一路走到获得**经独立审核通过**的原创口播文稿，并可继续导入自己的口播音频、运行真实本地对齐和领取 Asset Pack / Edit Map。它复用既有 canonical 引擎（Research、Fact-Check、Content Thesis、Script 写稿与审核、Audio-only delivery）与发现合同（`REFERENCE_DISCOVERY_CONTRACT.md`），只做接入编排，不改任何既有合同语义。
 
+## PR #48 爆款二创 1.0 候选补充（2026-10-24，待 Nexus 审核）
+
+按 Owner 最终评论 6383273699，Chat-first 自由创作以 B站娱乐二创为默认定位：一次写出犀利吐槽、搞笑玩梗、故事反转三篇完整中文口播，直接聊天改写，默认60–90秒仅为创作起点，不是硬时长 Gate。摘要注入只含题材/可归因观点/梗机制/叙事节拍，不拼接完整参考转写或改写原作者独特表达。真实严重指控不编成定论；正式 Reviewed Script 等原审批 Gate 不变。
+
+- 免费选题检索复用 canonical reference discovery 的相关性过滤、逐视频播放量核验与降序排序，最多5条，不等于全站榜单；单轮12秒上限、2个后台检索槽，超时丢弃迟到结果。UI 发送即显示准备检索，结果后才显示完成/不可用。相同选题和重试幂等，来源按选题/原触发 turn 留存；切换选题时模型不接收旧题对话、来源或草稿。旧 singleton 数据兼容读取。
+- 按需“参考工作区”与聊天选题绑定，明确选择来源、授权声明后沿用现有获取流程。新媒体名末尾为 `-<核验整数>播放.<ext>`，非逐视频核验则 `-播放量未知.<ext>`，碰撞加随机区分片段，旧下载不重命名/覆盖。完整 `transcript.json` 保留，旁边原子保存 `标题-BVID-口播转写.txt`，附来源/BVID/ASR模型/状态/时间/媒体SHA；界面全文搜索、复制、TXT和含完整segments的JSON导出。缺 Whisper 仅报明确路径，不自动下载大模型，聊天照常可用。既有成功分析不重复付费，显式 reanalyze 才重跑摘要。
+- 历史 `···` 原生键盘可达菜单：重命名(1–80字符)、删除前确认标题/草稿数量、软删除、回收站恢复。无自动过期清除，不删参考/媒体；SSE或草稿操作在飞时拒绝冲突修改；ID/路径与symlink服务端校验。Key与历史主存储为用户级 `~/.deeptalk/workbench.local.json`、`~/.deeptalk/chat/`，不是下面历史单会话设计中的仓库配置路径。
+- 新增同源、loopback、body-cap 路由：`POST /chat/manage`、`/chat/references`、`/references/transcript`（均在 `/api/workbench` 下）；`GET /chat/sessions` 同时返回 active 和 trash 元数据。转写端点只按 session/BVID 解析本地工件，不接受任意文件路径。
+- Three.js 不启用；静态 CSS 渐变细节无需 GPU 动画/第三方依赖。测试、真模型与合成媒体的边界见交付证据。
+
 ## 范围
 
 输入：视频主题（1–200 字、0–5 条可选用户 B 站链接）→ 本机会话。

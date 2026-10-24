@@ -1,5 +1,12 @@
 # Changelog
 
+## PR #48 candidate — 爆款二创 1.0 (2026-10-24, unreleased)
+
+- Entertainment-first three complete narration alternatives and conversational edits using the current saved draft; per-topic source isolation and bounded search feedback.
+- Ranked reference workspace reuses authorized local download/Whisper, complete TXT/JSON ASR exports and verified-play-count media filenames with safe unknown/collision handling.
+- Keyboard/mobile history rename, confirmation, recoverable local trash; protects in-flight writes. Static CSS polish, no Three.js runtime enabled.
+- Candidate only; formal production Gates unchanged. Evidence: `evaluations/remix_one_shot/`.
+
 ## Unreleased — 2026-10-24 — Issue #29 — 选题驱动创作：一句话任务 → 有界检索 → 起步产出（issuecomment-6369945828）
 
 - **确定性任务意图识别（零模型调用）**：`WorkbenchFlow._video_task_topic` 纯关键词匹配任务标记（「做个视频／做一期／拍个视频」等）并剥除套话前缀/「的视频」类尾巴/外层引号提取主题（书名号/引号交替剥除，40 字截断，14 个提取用例）——命中任务且能提取主题才进入任务流程；聊聊模式（无标记）与无主题任务（「做个视频」）绝不硬造主题，真实模糊处才反问。识别发生在检索之前，检索预算只花在明确的任务意图上。

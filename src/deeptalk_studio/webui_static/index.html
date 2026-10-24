@@ -575,13 +575,44 @@
      @media (max-width: 600px) { .ref-row { flex-wrap: wrap; }
      #search-btn { width: 100%; } } remains the expanded-composer fallback;
      the compact primary action above stays circular like the reference UI. */
+
+  /* A restrained static accent keeps idle UI quiet and costs no WebGL loop. */
+  .hero::before { content: ''; display: block; width: 42px; height: 4px; margin: 0 auto 18px;
+    border-radius: 8px; background: linear-gradient(90deg, var(--coral), #dfbb8e); }
+  .session-row { position: relative; display: flex; align-items: start; gap: 2px; }
+  .session-row > button { flex: 1; min-width: 0; padding-right: 30px; }
+  .session-actions { position: absolute; right: 2px; top: 8px; z-index: 3; }
+  .session-actions summary { cursor: pointer; list-style: none; width: 28px; text-align: center; padding: 1px 6px; border-radius: 6px; opacity: 0; }
+  .session-actions summary::-webkit-details-marker { display: none; }
+  .session-row:hover summary, .session-row:focus-within summary, .session-actions[open] summary { opacity: 1; }
+  .session-menu { position: absolute; right: 0; top: 100%; padding: 6px; min-width: 120px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--paper, #fff); box-shadow: 0 6px 20px #0001; }
+  .chat-session-list .session-menu button { padding: 8px; width: 100%; white-space: nowrap; }
+  dialog.remix-dialog { color: var(--ink); background: #fffdf9; width: min(780px, calc(100vw - 28px));
+    max-height: 88dvh; overflow: auto; padding: 24px; border: 1px solid #e5dcd2; border-radius: 18px; }
+  dialog.remix-dialog::backdrop { background: #27221f66; }
+  .remix-dialog h2 { margin: 0 0 12px; font-size: 20px; }
+  .remix-dialog textarea { box-sizing: border-box; width: 100%; }
+  .transcript-full { min-height: 45dvh; font-size: 14px; line-height: 1.8; }
+  .remix-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; align-items: center; }
+  .remix-tools button, .remix-dialog button { border: 1px solid #dfd5cc; border-radius: 8px; padding: 7px 12px; background: #fff; cursor: pointer; }
+  .remix-ref { padding: 12px 0; border-bottom: 1px solid #e9e1d9; }
+  .remix-ref p { margin: 6px 0; }
+  .remix-ref a { color: var(--coral-deep); overflow-wrap: anywhere; }
+  .remix-ref pre { white-space: pre-wrap; font: inherit; font-size: 13px; }
+  .remix-status { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .chat-search-note details { margin-top: 6px; }
+  .chat-search-note summary { cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) { .chat-sidebar { transition: none; } }
+  @media (hover: none) { .session-actions summary { opacity: 1; } }
+  @media (max-width: 600px) { dialog.remix-dialog { padding: 16px; } }
 </style>
 </head>
 <body>
 <header>
   <div>
     <h1>DeepTalk</h1>
-    <div class="sub">从一个选题，走到一篇经审核的原创口播稿</div>
+    <div class="sub">把热点，写成有梗、有观点的原创口播</div>
   </div>
   <a id="settings-link" class="top-link" href="/settings" aria-label="打开大模型设置">⚙ 设置</a>
 </header>
@@ -668,6 +699,7 @@
         </div>
         <button id="new-chat-btn" class="primary sidebar-new-chat" type="button">＋ 新建对话</button>
         <nav id="chat-session-list" class="chat-session-list" aria-label="历史会话列表"></nav>
+        <details id="chat-trash"><summary>回收站</summary><p class="muted">仅本地软删除，保留至手动恢复；草稿和参考文件均保留。</p><div id="chat-trash-list"></div></details>
       </aside>
       <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
       <div id="chat-main" class="chat-main">
@@ -678,9 +710,9 @@
     <button id="sidebar-open" class="quiet-btn sidebar-open-btn" type="button" aria-label="打开历史会话侧栏">☰ 历史</button>
     <div id="welcome-pane" class="welcome-pane">
       <div class="hero-mark" aria-hidden="true"><span></span><i></i></div>
-      <p class="hero-kicker">自由聊天创作</p>
+      <p class="hero-kicker">爆款二创 · 自由创作</p>
       <h2 id="form-title">你想聊什么？</h2>
-      <p class="welcome-copy">像和朋友聊天一样讨论选题、观点或参考链接，聊到满意后一键把对话整理成可自由修改的原创草稿。<strong>发送会调用你在「设置」里配置的模型服务并按其计费</strong>；草稿未经研究与事实核查，不是正式口播稿。</p>
+      <p class="welcome-copy">输入一个娱乐热点，参考本轮高播放视频的叙事灵感，写出吐槽、玩梗、反转三篇完整口播稿，再用聊天继续打磨。<strong>发送会调用你在「设置」里配置的模型服务并按其计费</strong>；草稿未经研究与事实核查，不是正式口播稿。</p>
       <p class="prompt-hints" aria-label="创作方向提示"><span>聊一个选题</span><span>说说你的观点</span><span>粘贴一个参考链接</span></p>
     </div>
 
@@ -692,7 +724,7 @@
            只留一个小的「整理为草稿」动作。刷新后默认收起。 -->
       <div id="draft-entry-row" class="draft-entry-row" hidden>
         <button id="draft-entry-btn" type="button" class="quiet-btn draft-entry-btn" hidden>📝 草稿</button>
-        <button id="draft-generate" type="button" class="quiet-btn draft-generate-btn">把对话整理为草稿（调用模型，可能计费）</button>
+        <button id="draft-generate" type="button" class="quiet-btn draft-generate-btn">生成三篇完整二创稿（调用模型，可能计费）</button>
         <span id="draft-status" class="muted" role="status"></span>
       </div>
       <details id="draft-drawer" class="card draft-drawer" hidden>
@@ -1193,6 +1225,7 @@
   function renderState(state) {
     renderSettings(state.settings || {});
     renderSessions(state.sessions || []);
+    renderTrash(state.trash || []);
     // 新建对话模式下 chat 区为本地空态（零服务端副作用）；否则渲染
     // ?chat=<id> 返回的显式选中会话
     renderChat(newChatMode ? null : (state.chat || null));
@@ -1449,13 +1482,16 @@
       if (c.study.transcript_segments && c.study.transcript_segments.length) {
         var transcriptDetails = document.createElement('details');
         transcriptDetails.appendChild(el('summary', null,
-          '查看本地转写时间段（' + c.study.transcript_segments.length + ' 段）'));
+          '时间段预览（前20段），完整转写可另开 / 导出'));
         var transcriptList = document.createElement('ul');
         c.study.transcript_segments.slice(0, 20).forEach(function (segment) {
           transcriptList.appendChild(el('li', 'muted',
             '[' + segment.start_seconds + '–' + segment.end_seconds + ' 秒] ' + segment.text));
         });
         transcriptDetails.appendChild(transcriptList);
+        var fullTranscript = el('button', 'quiet-btn', '查看完整转写 / 复制 / 导出'); fullTranscript.type = 'button';
+        fullTranscript.addEventListener('click', function () { openTranscript(currentSession.session_id, c.bvid); });
+        transcriptDetails.appendChild(fullTranscript);
         details.appendChild(transcriptDetails);
       }
       if (c.study.media_path) {
@@ -2443,7 +2479,180 @@
         updated + ' · ' + (meta.turns || 0) + ' 条消息' +
         (meta.drafts ? ' · 草稿 v' + meta.drafts : '')));
       btn.addEventListener('click', function () { selectSession(String(meta.session_id || '')); });
-      sessionListEl.appendChild(btn);
+      var row = el('div', 'session-row');
+      row.appendChild(btn);
+      var menu = el('details', 'session-actions');
+      var summary = el('summary', null, '···');
+      summary.setAttribute('aria-label', (meta.title || '新对话') + ' 操作');
+      menu.appendChild(summary);
+      var items = el('div', 'session-menu');
+      ['重命名', '删除'].forEach(function (label) {
+        var action = el('button', null, label); action.type = 'button';
+        action.addEventListener('click', function () {
+          menu.open = false;
+          manageChat(meta, label === '删除' ? 'delete' : 'rename');
+        });
+        items.appendChild(action);
+      });
+      menu.addEventListener('keydown', function (e) { if (e.key === 'Escape') { menu.open = false; summary.focus(); } });
+      menu.appendChild(items); row.appendChild(menu);
+      sessionListEl.appendChild(row);
+    });
+  }
+
+  function renderTrash(items) {
+    var target = document.getElementById('chat-trash-list'); target.textContent = '';
+    items.forEach(function (meta) {
+      var row = el('div', 'remix-tools'); row.appendChild(el('span', null, meta.title));
+      var restore = el('button', null, '恢复'); restore.type = 'button';
+      restore.addEventListener('click', function () {
+        api('/api/workbench/chat/manage', { session_id: meta.session_id, action: 'restore' }).then(function () {
+          refreshSessionsQuietly();
+        }).catch(function (err) { chatStatusEl.textContent = err.message; });
+      });
+      row.appendChild(restore); target.appendChild(row);
+    });
+    if (!items.length) { target.appendChild(el('p', 'muted', '回收站为空')); }
+  }
+
+  function remixDialog(title) {
+    var dialog = el('dialog', 'remix-dialog');
+    dialog.appendChild(el('h2', null, title));
+    var close = el('button', null, '关闭'); close.type = 'button';
+    close.addEventListener('click', function () { dialog.close(); });
+    dialog.appendChild(close);
+    dialog.addEventListener('close', function () { dialog.remove(); });
+    document.body.appendChild(dialog); dialog.showModal();
+    return dialog;
+  }
+
+  function manageChat(meta, action) {
+    if (chatInFlight || draftGenBusySessions[meta.session_id] || draftSaveBusySessions[meta.session_id]) {
+      chatStatusEl.textContent = '请先停止或等待当前回复/草稿完成。'; return;
+    }
+    var dialog = remixDialog(action === 'delete' ? '删除对话？' : '重命名对话');
+    dialog.appendChild(el('p', null, '「' + meta.title + '」 · ' + (meta.drafts || 0) + ' 个草稿版本'));
+    var input;
+    if (action === 'rename') {
+      input = el('input'); input.value = meta.title; input.maxLength = 80;
+      input.setAttribute('aria-label', '对话标题'); dialog.appendChild(input); input.focus(); input.select();
+    } else { dialog.appendChild(el('p', 'muted', '将移入本地回收站，可恢复。聊天、草稿及参考文件会保留。')); }
+    var status = el('p', 'muted'); dialog.appendChild(status);
+    var cancel = el('button', null, '取消'); cancel.type = 'button';
+    cancel.addEventListener('click', function () { dialog.close(); }); dialog.appendChild(cancel);
+    var confirm = el('button', null, action === 'delete' ? '移入回收站' : '保存标题'); confirm.type = 'button';
+    confirm.addEventListener('click', function () {
+      confirm.disabled = true;
+      api('/api/workbench/chat/manage', { session_id: meta.session_id, action: action, title: input ? input.value : '' }).then(function () {
+        dialog.close();
+        if (action === 'delete' && meta.session_id === selectedSessionId) { selectedSessionId = ''; try { window.localStorage.removeItem(SELECTED_CHAT_KEY); } catch (err) {} startNewChat(); }
+        refreshSessionsQuietly();
+      }).catch(function (err) { status.textContent = err.message; confirm.disabled = false; });
+    }); dialog.appendChild(confirm);
+  }
+
+  function downloadStudy(name, text, type) {
+    var url = URL.createObjectURL(new Blob([text], {type: type || 'text/plain;charset=utf-8'}));
+    var a = el('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function openTranscript(sessionId, bvid) {
+    var dialog = remixDialog('完整参考口播转写 · ASR');
+    var status = el('p', 'muted', '读取本地全文…'); dialog.appendChild(status);
+    api('/api/workbench/references/transcript', { session_id: sessionId, bvid: bvid }).then(function (data) {
+      if (!dialog.isConnected) { return; }
+      status.textContent = '机器识别的学习材料，不是作者原始书面稿。可复制后校订。全文与时间段均完整保留。';
+      dialog.appendChild(el('p', 'muted remix-status', '本地文件：' + data.artifact_path));
+      var search = el('input'); search.type = 'search'; search.placeholder = '在全文中搜索'; search.setAttribute('aria-label', '搜索转写');
+      var area = el('textarea', 'transcript-full'); area.value = data.text; area.readOnly = true; area.setAttribute('aria-label', '完整转写全文');
+      var tools = el('div', 'remix-tools'); tools.appendChild(search);
+      var find = el('button', null, '查找下一处'); find.type = 'button';
+      find.addEventListener('click', function () {
+        var term = search.value; if (!term) { return; }
+        var index = area.value.indexOf(term, area.selectionEnd);
+        if (index < 0) { index = area.value.indexOf(term); }
+        if (index < 0) { status.textContent = '全文没有找到「' + term + '」。'; return; }
+        area.focus(); area.setSelectionRange(index, index + term.length);
+        var lines = area.value.slice(0,index).split('\n').length;
+        area.scrollTop = Math.max(0, (lines - 4) * 25);
+        status.textContent = '已找到「' + term + '」，可继续查找。';
+      }); tools.appendChild(find);
+      [['复制全文', function () {
+        if (navigator.clipboard) { navigator.clipboard.writeText(data.text).then(function () { status.textContent = '全文已复制。'; }).catch(function () { area.focus(); area.select(); status.textContent = '请按 Ctrl/Cmd+C 复制全文。'; }); }
+        else { area.focus(); area.select(); }
+      }], ['导出 TXT', function () { downloadStudy(data.filename, data.text); }],
+      ['导出 JSON（完整时间段）', function () { downloadStudy(bvid + '-ASR.json', JSON.stringify({metadata:data.metadata, transcript:data.transcript}, null, 2), 'application/json'); }]].forEach(function (item) {
+        var btn = el('button', null, item[0]); btn.type = 'button'; btn.addEventListener('click', item[1]); tools.appendChild(btn);
+      });
+      dialog.appendChild(tools); dialog.appendChild(area);
+    }).catch(function (err) { status.textContent = err.message; });
+  }
+
+  function openReferences(discovery) {
+    var chatId = selectedSessionId;
+    var dialog = remixDialog('爆款二创 · 参考工作区');
+    dialog.appendChild(el('p', 'muted', '仅在本地学习参考。下载沿用现有授权；每条叙事分析和三稿生成会调用已配置模型，按服务商计费。'));
+    var status = el('p', 'muted remix-status', '读取本选题参考…'); dialog.appendChild(status);
+    var list = el('div'); dialog.appendChild(list);
+    var auth = el('textarea'); auth.rows = 2; auth.placeholder = '填写你的本批授权声明（含“授权”，至少8字）'; auth.setAttribute('aria-label', '本批参考授权声明'); dialog.appendChild(auth);
+    var tools = el('div', 'remix-tools'); dialog.appendChild(tools);
+    var process = el('button', null, '授权下载、转写并生成三稿'); process.type = 'button'; process.disabled = true; tools.appendChild(process);
+    var generate = el('button', null, '用当前参考生成三稿'); generate.type = 'button'; tools.appendChild(generate);
+    var workspace = null; var choices = {}; var running = false;
+    function paint(view) {
+      workspace = view; list.textContent = ''; process.disabled = running || !(view.references || []).length;
+      (view.references || []).forEach(function (ref) {
+        var card = el('div', 'remix-ref');
+        var check = el('input'); check.type = 'checkbox'; check.checked = choices[ref.bvid] !== undefined ? choices[ref.bvid] : Object.keys(choices).length === 0;
+        choices[ref.bvid] = check.checked; check.setAttribute('aria-label', '选择参考 ' + ref.title);
+        check.addEventListener('change', function () { choices[ref.bvid] = check.checked; });
+        var label = el('label'); label.appendChild(check); label.appendChild(document.createTextNode(' ' + ref.title)); card.appendChild(label);
+        var link = el('a', null, '打开 B站视频'); link.href = ref.url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+        card.appendChild(el('p', 'muted', (ref.uploader || '') + ' · ' + (ref.view_count_status === 'verified' ? ref.view_count + '播放 · 逐视频接口核验 ' + (ref.fetched_at || '') : '播放量未知')));
+        card.appendChild(link);
+        var names = {not_analyzed:'尚未授权处理',downloaded:'已下载',transcribing:'转写中',analyzed:'转写与叙事分析完成',unverified:'全文已保留，叙事模型分析未完成',failed:'处理失败'};
+        card.appendChild(el('p', 'muted remix-status', (names[ref.study_status] || ref.study_status) + (ref.study_error ? ' · ' + ref.study_error : '')));
+        if (ref.study) {
+          if (ref.study.media_path) { card.appendChild(el('p', 'muted remix-status', '视频文件：' + ref.study.media_path)); }
+          card.appendChild(el('pre', null, [ref.study.narrative_summary, ref.study.creator_viewpoint, (ref.study.struct_patterns || []).join(' / ')].filter(Boolean).join('\n')));
+          if (ref.study.transcript_status === 'complete') {
+            var transcript = el('button', null, '查看完整转写 / 复制 / 导出'); transcript.type = 'button';
+            transcript.addEventListener('click', function () { openTranscript(view.session_id, ref.bvid); }); card.appendChild(transcript);
+          }
+        }
+        list.appendChild(card);
+      });
+    }
+    function getWorkspace() { return api('/api/workbench/chat/references', {session_id:chatId, turn_id:discovery.turn_id}).then(function (view) { if (dialog.isConnected) { paint(view); } return view; }); }
+    function threeDrafts() {
+      if (chatId !== selectedSessionId || newChatMode) { throw new Error('请返回原会话后生成草稿'); }
+      dialog.close(); draftGenerateBtn.click();
+    }
+    getWorkspace().then(function () { status.textContent = '勾选最多5条参考，默认只处理第一条。完整 ASR 保存在本地；创作只使用摘要和叙事灵感。'; }).catch(function (err) { status.textContent = err.message; });
+    generate.addEventListener('click', function () { if (!running) { try { threeDrafts(); } catch (err) { status.textContent = err.message; } } });
+    process.addEventListener('click', function () {
+      var selected = Object.keys(choices).filter(function (id) { return choices[id]; });
+      if (!workspace || !selected.length || running) { status.textContent = '请先选择参考。'; return; }
+      if (auth.value.trim().length < 8 || auth.value.indexOf('授权') < 0) { status.textContent = '请填写有效授权声明后再下载。'; auth.focus(); return; }
+      running = true; process.disabled = true; generate.disabled = true; auth.disabled = true;
+      status.textContent = '正在按授权下载，随后本地 Whisper 转写；不会自动安装模型。';
+      var processed = 0;
+      api('/api/workbench/references/acquire', {session_id:workspace.session_id, bvids:selected, authorization_text:auth.value}).then(function (result) {
+        var chain = Promise.resolve();
+        result.results.forEach(function (record) {
+          if (!record.ok) { status.textContent += '\n' + record.bvid + '：' + record.error; return; }
+          chain = chain.then(function () {
+            status.textContent = '正在本地转写与分析 ' + record.bvid + '…';
+            return api('/api/workbench/references/analyze', {session_id:workspace.session_id, bvid:record.bvid}).then(function () { processed += 1; }).catch(function (err) { status.textContent = err.message + '；可继续聊天或仅用已有参考创作。'; });
+          });
+        });
+        return chain;
+      }).then(function () { return getWorkspace(); }).then(function () {
+        running = false; process.disabled = false; generate.disabled = false; auth.disabled = false;
+        if (processed) { threeDrafts(); }
+        else { status.textContent += '\n尚未完成视频分析，可查看失败原因后重试，或用当前参考继续创作。'; }
+      }).catch(function (err) { running = false; process.disabled = false; generate.disabled = false; auth.disabled = false; status.textContent = err.message; });
     });
   }
 
@@ -2497,11 +2706,13 @@
 
   newChatBtn.addEventListener('click', startNewChat);
   sidebarCloseBtn.addEventListener('click', function () {
+    if (window.matchMedia('(max-width: 720px)').matches) { closeSidebarDrawer(); return; }
     var collapsed = sidebarEl.classList.toggle('collapsed');
     sidebarOpenBtn.classList.toggle('sidebar-shown', collapsed);
   });
   sidebarOpenBtn.addEventListener('click', function () {
     if (window.matchMedia('(max-width: 720px)').matches) {
+      sidebarEl.classList.remove('collapsed');
       sidebarEl.classList.add('drawer-open');
       sidebarBackdrop.hidden = false;
     } else {
@@ -2586,7 +2797,7 @@
     return item;
   }
 
-  function appendSearchNoteEl(query, status, count) {
+  function appendSearchNoteEl(query, status, count, discovery) {
     // Issue #29 选题驱动：检索是透明增值能力——UI 如实播报检索状态；
     // 不可用时同样如实声明「未联网核实」，绝不假装做过研究。
     var text = (status === 'ok' && count > 0)
@@ -2596,6 +2807,21 @@
         '」）：本次回复未联网核实，事实性内容均为未核实构思。';
     var note = el('div', 'chat-search-note', text);
     note.dataset.searchNote = '1';
+    if (discovery && (discovery.sources || []).length) {
+      var disclosure = el('details'); disclosure.appendChild(el('summary', null, '参考灵感 · 热度排序与处理'));
+      disclosure.appendChild(el('p', 'muted', '本轮已检索候选按核验播放量排序，非全站榜单；热度不等于事实。'));
+      discovery.sources.forEach(function (source) {
+        var row = el('p');
+        var link = el('a', null, source.title || source.url);
+        link.href = source.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; row.appendChild(link);
+        row.appendChild(el('span', 'muted', ' · ' + (source.uploader || '') + ' · ' +
+          (source.view_count_status === 'verified' ? source.view_count + '播放（逐视频接口核验）' : '播放量未知')));
+        disclosure.appendChild(row);
+      });
+      var open = el('button', 'quiet-btn', '打开参考工作区'); open.type = 'button';
+      open.addEventListener('click', function () { openReferences(discovery); });
+      disclosure.appendChild(open); note.appendChild(disclosure);
+    }
     chatThread.appendChild(note);
     if (nearBottom()) { scrollToEndOfConversation(); }
     return note;
@@ -2661,14 +2887,14 @@
     if (chat && chat.turns) {
       // Issue #29：会话内首个选题任务的检索证据（或「未联网核实」
       // 声明）随会话精确恢复，刷新后透明小字行不丢。
-      var discovery = chat.topic_discovery || null;
+      var discoveries = chat.topic_discoveries || (chat.topic_discovery ? [chat.topic_discovery] : []);
       chat.turns.forEach(function (turn) {
         appendChatTurnEl(turn, false);
-        if (discovery && turn.role === 'user' && turn.turn_id &&
-            String(discovery.turn_id || '') === String(turn.turn_id)) {
-          appendSearchNoteEl(discovery.query, discovery.status,
-            (discovery.sources || []).length);
-        }
+        discoveries.forEach(function (discovery) {
+          if (turn.role === 'user' && String(discovery.turn_id || '') === String(turn.turn_id)) {
+            appendSearchNoteEl(discovery.query, discovery.status, (discovery.sources || []).length, discovery);
+          }
+        });
       });
     }
     renderDrafts(chat);
@@ -2704,7 +2930,9 @@
     chatRetryBtn.hidden = true;
     chatStatusEl.textContent = retryTurnId
       ? '重发上一条…（复用已保存的消息，不会重复发送）'
-      : '发送中…（调用你配置的模型服务）';
+      : (/(做一期|做个视频|拍个视频|拍一期|剪个视频|出个视频|来一期|来个视频)/.test(message)
+        ? '正在检索或复用本选题公开来源…（新检索最多 12 秒，随后继续创作）'
+        : '正在准备回复…（调用你配置的模型服务）');
     updateWelcomeVisibility();
     var userTurnEl = null;
     if (!retryTurnId) {
@@ -2903,7 +3131,7 @@
   // 自身失败静默（元数据由下一次正常 refresh 兜底）。
   function refreshSessionsQuietly() {
     getState().then(function (state) {
-      if (state && state.sessions) { renderSessions(state.sessions); }
+      if (state && state.sessions) { renderSessions(state.sessions); renderTrash(state.trash || []); }
     }).catch(function () { });
   }
 
