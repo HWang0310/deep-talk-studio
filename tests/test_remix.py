@@ -264,3 +264,19 @@ class RemixReanalysisTests(_UserSettingsIsolatedTestCase):
             flow.store.update(sid,lambda s:s['references'].update({bvid:{'status':'analyzed','media_path':str(media),'study_path':str(study)}}))
             self.assertEqual(flow.analyze_reference(sid,bvid)['study']['narrative_summary'],'已有叙事摘要')
             factory.assert_not_called()
+
+class RemixUnicodeFilenameTests(_UserSettingsIsolatedTestCase):
+    def test_multibyte_title_stays_within_filesystem_byte_limit(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root=Path(raw)
+            reference={'title':'😀'*80,'bvid':'BV1fixture01','url':'https://www.bilibili.com/video/BV1fixture01',
+                       'view_count':123456,'view_count_status':'verified','view_count_source':'per_video_api'}
+            def runner(cmd,**kwargs):
+                path=Path(cmd[cmd.index('-o')+1].replace('%(ext)s','mp4'))
+                self.assertLessEqual(len(path.name.encode('utf-8')),255)
+                path.write_bytes(b'fixture')
+                return subprocess.CompletedProcess(cmd,0,json.dumps({'_filename':str(path)}),'')
+            result=acquisition.acquire_reference(reference,root,'我授权学习本地验收媒体',runner=runner)
+            self.assertTrue(result['media_path'].endswith('-BV1fixture01-123456播放.mp4'))
+            transcript_name=acquisition.sanitize_filename(reference['title'])+'-BV1fixture01-口播转写.txt'
+            self.assertLessEqual(len(transcript_name.encode('utf-8')),255)

@@ -3,7 +3,7 @@
 ## PR #48 candidate — 爆款二创 1.0 (2026-10-24, unreleased)
 
 - Entertainment-first three complete narration alternatives and conversational edits using the current saved draft; per-topic source isolation and bounded search feedback.
-- Ranked reference workspace reuses authorized local download/Whisper, complete TXT/JSON ASR exports and verified-play-count media filenames with safe unknown/collision handling.
+- Ranked reference workspace reuses authorized local download/Whisper, complete TXT/JSON ASR exports and verified-play-count media filenames with UTF-8 byte bounds and safe unknown/collision handling.
 - Keyboard/mobile history rename, confirmation, recoverable local trash; protects in-flight writes. Static CSS polish, no Three.js runtime enabled.
 - Candidate only; formal production Gates unchanged. Evidence: `evaluations/remix_one_shot/`.
 

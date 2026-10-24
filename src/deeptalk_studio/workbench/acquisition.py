@@ -61,7 +61,9 @@ def _sha256_file(path: Path) -> str:
 def sanitize_filename(value: str, limit: int = 60) -> str:
     cleaned = re.sub(r"[\\/:*?\"<>|\n\r\t]+", "_", value).strip(" ._-")
     cleaned = re.sub(r"_+", "_", cleaned)
-    return (cleaned or "reference")[:limit]
+    # Reserve UTF-8 bytes for BVID, collision suffix and play-count/export markers.
+    # A character limit alone lets emoji exceed the filesystem 255-byte limit.
+    return (cleaned or "reference")[:limit].encode("utf-8")[:160].decode("utf-8", "ignore")
 
 
 def authorize(authorization_text: str) -> str:

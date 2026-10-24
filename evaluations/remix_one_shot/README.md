@@ -25,7 +25,7 @@
 
 浏览器端到端路径使用确定性 `yt-dlp/ffmpeg/Whisper/LLM` runner夹具，调用真实flow、store、HTTP和界面：
 
-- 实际生成文件：`王扁被打 · 合成来源夹具 02-BV1fixture02-987654播放.mp4`。987654来自夹具逐视频元数据，搜索摘要故意给99999999，测试确认未采用摘要数。标题沿用既有sanitize_filename清理；未知命名、碰撞不覆盖、合并扩展名与外部路径拒绝另由自动化验证。
+- 实际生成文件：`王扁被打 · 合成来源夹具 02-BV1fixture02-987654播放.mp4`。987654来自夹具逐视频元数据，搜索摘要故意给99999999，测试确认未采用摘要数。标题沿用sanitize_filename清理，并补UTF-8字节上限，避免连续emoji超出255字节文件名限制；未知命名、碰撞不覆盖、合并扩展名与外部路径拒绝另由自动化验证。
 - 对应完整转写有250段，可搜索到“第250句”，复制到剪贴板包含尾句，TXT/JSON实际浏览器下载成功，JSON全部250段保留。文件在一次性根目录 `.../deeptalk-remix-trial-glqid1xa/workbench/sessions/WBX-ac5e6c045b6d4047/references/BV1fixture02/`；全文TXT名为 `王扁被打 · 合成来源夹具 02-BV1fixture02-口播转写.txt`。
 - 真实本地ASR文本路径原样保存在 [real-local-asr.json](real-local-asr.json) 的 `txt_path`，源音视频为自行生成的测试数据。上述本地媒体/TXT留在临时验收目录，未提交Git。
 - 老下载不重命名；同stem碰撞时在BVID前加随机片段，新文件仍以播放量标记结尾；`--no-overwrites`。重复成功分析复用study/transcript，显式重新分析入口才重跑模型。
@@ -50,9 +50,9 @@ Three.js **未启用**：选用合同允许的静态CSS方案；主体是聊天�
 
 ## 自动化与隐私
 
-- 最终全量命令：`PYTHONPATH=src .venv/bin/python -m pytest -q`；裸入口 `PYTHONPATH=src python3 -m unittest discover -s tests -v`。移动端修复后完整复跑：pytest **1152 passed / 7 skipped，235.17s**；裸unittest **1159 tests / OK (skipped=7)，234.221s**。
-- 13个新增确定性回归覆盖A→B成功/失败、legacy/reload、retry、timeout迟到、当前草稿修改、下载模板/碰撞/扩展名/路径、完整转写幂等、菜单存储/HTTP409/软删除恢复/symlink、缺Whisper不安装、真实JSON offsets、成功分析不重复付费。
-- 最终focused：`tests/test_remix.py tests/test_workbench.py tests/test_webui.py` **172 passed**（移动侧栏修复前；修复后已由上述最终全量复跑覆盖）。无自动化读取OwnerKey/历史，测试沿用双入口临时用户目录隔离。
+- 最终全量命令：`PYTHONPATH=src .venv/bin/python -m pytest -q`；裸入口 `PYTHONPATH=src python3 -m unittest discover -s tests -v`。移动端与UTF-8文件名修复后完整复跑：pytest **1153 passed / 7 skipped，236.07s**；裸unittest **1160 tests / OK (skipped=7)，236.087s**。
+- 14个新增确定性回归覆盖A→B成功/失败、legacy/reload、retry、timeout迟到、当前草稿修改、下载模板/碰撞/扩展名/路径、完整转写幂等、菜单存储/HTTP409/软删除恢复/symlink、缺Whisper不安装、真实JSON offsets、成功分析不重复付费。
+- 历次focused：`tests/test_remix.py tests/test_workbench.py tests/test_webui.py` **172 passed**；最终UTF-8文件名修复后 `tests/test_remix.py tests/test_workbench.py` **89 passed**。两者均由最终全量复跑覆盖。无自动化读取OwnerKey/历史，测试沿用双入口临时用户目录隔离。
 - 开工前私有文件摘要与收尾快照均只在本机 `/tmp`，不公开文件内容、Key或真实聊天。已核验Owner用户目录5文件字节摘要完全一致；8321最终重启与只读核验结果将在GitHub readiness评论报告。
 - 保留开工时5张旧截图的未提交修改及所有无关未跟踪目录。本轮只按明确路径暂存；无真实聊天删除、分支重写、媒体上传、Cookie读取、付费搜索或新订阅。
 - 依Owner“唯一执行工程师”要求未启用子代理；本轮为作者自查，**Nexus独立exact-head评审仍待完成**。
@@ -70,3 +70,5 @@ PYTHONPATH=src .venv/bin/python evaluations/remix_one_shot/run_local_asr_trial.p
 ```
 
 本轮没有取得第三方视频下载许可，故不把合成媒体runner冒称实际B站下载成功。平台真实下载/长期会话质量仍受既有授权、平台访问与模型输出影响；不得绕过登录、风控或DRM。READY仅表示提交评审候选，不是Nexus已批准，也不是发布许可。
+
+收尾自查补充：连续emoji标题原先生成270字节文件名，失败回归已复现；改为为标题保留最多160 UTF-8字节，媒体/TXT尾缀均保留，新增回归通过。移动端侧栏、普通聊天零检索提示与375px无溢出已再次实测。

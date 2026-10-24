@@ -27,8 +27,10 @@
 ## Execution ledger
 
 - Same branch / same PR, sole executor as Owner requested; no worktree cleanup or subagent review.
-- RED→GREEN regressions demonstrated wrong-topic drafts, unbounded wait, missing management/export APIs, missing filename suffix, missing real JSON offsets, unapproved Whisper bootstrap, missing current saved draft context, and repeated paid analysis. 13 new tests; old singleton test now asserts first-write-wins per topic.
-- Browser RED→GREEN additionally corrected mobile close/backdrop/reopen. Final full pytest 1152 passed / 7 skipped; bare unittest 1159 tests OK / 7 skipped. Static JavaScript parse and diff check clean.
+- RED→GREEN regressions demonstrated wrong-topic drafts, unbounded wait, missing management/export APIs, missing filename suffix, missing real JSON offsets, unapproved Whisper bootstrap, missing current saved draft context, and repeated paid analysis. 14 new tests; old singleton test now asserts first-write-wins per topic.
+- Browser RED→GREEN additionally corrected mobile close/backdrop/reopen. Final full pytest 1153 passed / 7 skipped; bare unittest 1160 tests OK / 7 skipped. Static JavaScript parse and diff check clean.
 - Real anonymous Bilibili search returned five verified ranked candidates; four bounded real DeepSeek calls; real ffmpeg/Whisper on self-authored synthesized video. Third-party media acquisition remains fixture-only because download permission was not provided.
 - Choice: optional Three.js not enabled; static CSS accent, zero active animations/canvas and 1–2ms observed input roundtrip. No claim of a Three.js A/B benchmark.
 - Final author self-review retained Nexus as the independent acceptance reviewer. Existing Owner user-file digests and unrelated dirty files preserved. Final commit/push/runtime SHA and restart privacy check are recorded in the readiness comment, not embedded as a circular self-referential SHA in this file.
+
+- Final filename boundary RED→GREEN: 80-emoji title previously produced a 270-byte media filename. UTF-8 byte-bound title now leaves room for BVID/play-count/TXT suffixes; targeted 89 passed. Full dual-entry results updated in delivery evidence after the final rerun.
